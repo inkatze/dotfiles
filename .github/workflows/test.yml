@@ -16,7 +16,7 @@ jobs:
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
             brew install ansible
       - name: Running static checks
-        run: ansible-playbook main.yml --syntax-check
+        run: make deps && ansible-playbook main.yml --syntax-check
   test-homebrew:
     runs-on: macos-latest
     steps:
