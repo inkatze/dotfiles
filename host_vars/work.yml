@@ -1,0 +1,18 @@
+---
+
+homebrew_cask_applications:
+  - authy
+  - DBngin
+  - docker
+  - firefox
+  - font-firacode-nerd-font
+  - grammarly
+  - iterm2
+  - java
+  - keycastr
+  - logitech-options
+  - microsoft-office
+  - postgres
+  - rubymine
+  - sequel-pro
+  - steam

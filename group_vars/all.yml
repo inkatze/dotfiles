@@ -1,0 +1,418 @@
+---
+# homebrew.yml
+
+current_env: personal
+
+homebrew_taps:
+  - homebrew/cask-fonts
+  - homebrew/cask-drivers
+  - adoptopenjdk/openjdk
+
+homebrew_formulas:
+  - ack
+  - bash
+  - bash-completion
+  - ddgr
+  - direnv
+  - docker
+  - fd
+  - fish
+  - fzf
+  - fzy
+  - git
+  - github/gh/gh
+  - googler
+  - gpg
+  - htop
+  - llvm
+  - make
+  - mosh
+  - mysql
+  - neofetch
+  - nnn
+  - pinentry-mac
+  - readline
+  - redis
+  - the_silver_searcher
+  - tmux
+  - tree
+  - wget
+
+  # programming_environments:
+  - node
+  - npm
+
+  - ipython
+  - pipenv
+  - python
+  - pyenv
+  - pyenv-virtualenv
+
+  - go
+  - golangci/tap/golangci-lint
+
+  - rbenv
+  - rbenv-gemset
+  - yarn  # bleh
+  - libsodium # work project related
+
+  - rust
+
+homebrew_cask_applications:
+  - authy
+  - cyberduck
+  - DBngin
+  - docker
+  - firefox
+  - font-fantasque-sans-mono
+  - font-firacode-nerd-font
+  - google-cloud-sdk
+  - google-chrome
+  - grammarly
+  - iterm2
+  - java
+  - keycastr
+  - logitech-options
+  - microsoft-office
+  - homebrew/cask-versions/openemu-experimental
+  - postgres
+  - rubymine
+  - sequel-pro
+  - skype
+  - spotify
+  - steam
+  - telegram
+  - transmission
+  - zoomus
+
+hombrew_dont_start_redis: false
+
+# gpg.yml
+
+gpg_formulas: [gpg]
+gpg_base_source_path: gpg
+gpg_agent_conf_source_file: "{{ gpg_base_source_path }}/gpg-agent.conf"
+
+# dotfiles.yml
+
+fish_config_source_file: dotfiles/config.fish
+iterm2_plist_source_file: dotfiles/{{ current_env }}/com.googlecode.iterm2.plist
+gitconfig_source_file: dotfiles/{{ current_env }}/gitconfig
+neovim_config_path: dotfiles/nvim
+pylintrc_source_file: dotfiles/pylintrc
+npmrc_source_file: dotfiles/npmrc
+nvmrc_source_file: dotfiles/nvmrc
+tmux_source_file: dotfiles/tmux.conf
+ruby_global_version_source_file: dotfiles/ruby-global-version
+mysql_config_source_file: dotfiles/my.cnf
+
+# fish.yml
+
+fish_formulas: [fish]
+fish_config_source_path: fish
+fish_plugins:
+  - edc/bass
+  - laughedelic/pisces
+  - matchai/spacefish
+  - jethrokuan/z
+  - jorgebucaran/fish-nvm
+
+# tmux
+
+tmux_formulas:
+  - tmux
+  - urlview
+
+# mas.yml
+
+mas_formulas: [mas]
+mas_applications:
+  - { id: "1333542190", name: 1Password }
+  - { id: "1319884285", name: Black Out }
+  - { id: "975937182", name: Fantastical }
+  - { id: "409183694", name: Keynote }
+  - { id: "1263070803", name: Lungo }
+  - { id: "1480068668", name: Messenger }
+  - { id: "1289197285", name: MindNode 5 }
+  - { id: "1012291524", name: Moneywiz 3 }
+  - { id: "1116599239", name: NordVPN }
+  - { id: "409201541", name: Pages }
+  - { id: "803453959", name: Slack }
+  - { id: "1176895641", name: Spark }
+  - { id: "1384080005", name: Tweetbot }
+  - { id: "497799835", name: Xcode }
+
+# neovim.yml
+
+neovim_formulas:
+  - vim
+  - neovim
+
+  - ansible-lint
+  - bat
+  - CMake
+  - findutils
+  - gotags
+  - node
+  - proselint
+  - pyenv
+  - pyenv-virtualenv
+  - rbenv
+  - rbenv-gemset
+  - rg
+  - rust
+
+neovim_python:
+  - { version: 2.7.17, venv: neovim2 }
+  - { version: 3.8.2, venv: neovim3 }
+
+neovim_ruby_version: 2.6.6
+
+# mas.yml
+# Docs
+# https://docs.ansible.com/ansible/2.5/modules/osx_defaults_module.html
+
+# Section: OSX defaults ->>1
+# -------------------------------------------------------------------------
+osx_defaults:
+  # Section: General ->>2
+  # -------------------------------------------------------------------------
+  - domain: com.apple.LaunchServices
+    key: LSQuarantine
+    type: bool
+    value: false
+    meta: Disables open application confirmation dialog
+  - domain: NSGlobalDomain
+    key: NSAutomaticSpellingCorrectionEnabled
+    type: bool
+    value: false
+  - domain: NSGlobalDomain
+    key: NSAutomaticQuoteSubstitutionEnabled
+    type: bool
+    value: false
+  - domain: NSGlobalDomain
+    key: NSAutomaticCapitalizationEnabled
+    type: bool
+    value: false
+  - domain: NSGlobalDomain
+    key: NSAutomaticDashSubstitutionEnabled
+    type: bool
+    value: false
+  - domain: NSGlobalDomain
+    key: NSAutomaticPeriodSubstitutionEnabled
+    type: bool
+    value: false
+  - domain: NSGlobalDomain
+    key: AppleInterfaceStyle
+    type: string
+    value: Dark
+  - domain: com.apple.SoftwareUpdate
+    key: ScheduleFrequency
+    type: int
+    value: 1
+
+  # Section: Menu bar ->>2
+  # -------------------------------------------------------------------------
+  - domain: com.apple.systemuiserver
+    key: NSStatusItem Visible com.apple.menuextra.bluetooth
+    type: int
+    value: 1
+  - domain: com.apple.systemuiserver
+    key: NSStatusItem Visible com.apple.menuextra.volume
+    type: int
+    value: 1
+  - domain: com.apple.menuextra.battery
+    key: ShowPercent
+    type: string
+    value: YES
+
+  # Section: I/O ->>2
+  # -------------------------------------------------------------------------
+
+  # Section: Keyboard ->>3
+  - domain: NSGlobalDomain
+    key: InitialKeyRepeat
+    type: int
+    value: 18
+  - domain: NSGlobalDomain
+    key: KeyRepeat
+    type: int
+    value: 3
+
+    # Section: Mouse/Trackpad ->>3
+  - domain: NSGlobalDomain
+    key: com.apple.mouse.tapBehavior
+    type: int
+    value: 1
+  - domain: NSGlobalDomain
+    key: com.apple.mouse.tapBehavior
+    type: int
+    value: 1
+  - domain: com.apple.AppleMultitouchTrackpad
+    key: Clicking
+    type: int
+    value: 1
+  - domain: com.apple.driver.AppleBluetoothMultitouch.trackpad
+    key: Clicking
+    type: int
+    value: 1
+  - domain: com.apple.driver.AppleBluetoothMultitouch.trackpad
+    key: TrackpadThreeFingerDrag
+    type: bool
+    value: true
+  - domain: com.apple.AppleMultitouchTrackpad
+    key: TrackpadThreeFingerDrag
+    type: bool
+    value: true
+  - domain: NSGlobalDomain
+    key: com.apple.AppleMultitouchTrackpad.TrackpadFourFingerHorizSwipeGesture
+    type: int
+    value: 2
+
+    # Section: All mighty measurement system ->>3
+  - domain: NSGlobalDomain
+    key: AppleMeasurementUnits
+    type: string
+    value: Centimeters
+  - domain: NSGlobalDomain
+    key: AppleMetricUnits
+    type: bool
+    value: true
+
+    # Section: Password prompt when screensaver is shown ->>3
+  - domain: com.apple.screensaver
+    key: askForPassword
+    type: int
+    value: 1
+  - domain: com.apple.screensaver
+    key: askForPasswordDelay
+    type: int
+    value: 0
+
+  # Section: Finder ->>2
+  # -------------------------------------------------------------------------
+  - domain: com.apple.finder
+    key: NewWindowTarget
+    type: string
+    value: PfHm
+  - domain: com.apple.finder
+    key: NewWindowTargetPath
+    type: string
+    value: file://{{ ansible_env.HOME }}/
+  - domain: com.apple.finder
+    key: ShowRecentTags
+    type: int
+    value: 0
+  - domain: com.apple.finder
+    key: ShowExternalHardDrivesOnDesktop
+    type: int
+    value: 0
+  - domain: com.apple.finder
+    key: ShowMountedServersOnDesktop
+    type: int
+    value: 0
+  - domain: com.apple.finder
+    key: ShowRemovableMediaOnDesktop
+    type: int
+    value: 1
+  - domain: NSGlobalDomain
+    key: AppleShowAllExtensions
+    type: bool
+    value: true
+  - domain: com.apple.finder
+    key: FXDefaultSearchScope
+    type: string
+    value: SCcf
+  - domain: com.apple.finder
+    key: ShowPathbar
+    type: bool
+    value: true
+  - domain: com.apple.finder
+    key: _FXShowPosixPathInTitle
+    type: bool
+    value: true
+  - domain: com.apple.desktopservices
+    key: DSDontWriteNetworkStores
+    type: bool
+    value: true
+  - domain: com.apple.desktopservices
+    key: DSDontWriteUSBStores
+    type: bool
+    value: true
+
+  # Section: Dock ->>2
+  # -------------------------------------------------------------------------
+  - domain: com.apple.dock
+    key: magnification
+    type: int
+    value: 1
+  - domain: com.apple.dock
+    key: minimize-to-application
+    type: int
+    value: 1
+  - domain: com.apple.dock
+    key: largesize
+    type: float
+    value: 80
+  - domain: com.apple.dock
+    key: tilesize
+    type: float
+    value: 50
+  - domain: com.apple.dock
+    key: show-recents
+    type: int
+    value: 0
+
+  # Section: Spotlight ->>2
+  # -------------------------------------------------------------------------
+  - domain: com.apple.lookup.shared
+    key: LookupSuggestionsDisabled
+    type: int
+    value: 1
+
+  # Section: iTerm2 ->>2
+  # -------------------------------------------------------------------------
+  - domain: com.googlecode.iterm2
+    key: PrefsCustomFolder
+    type: string
+    value: "{{ ansible_env.HOME }}/.config/iterm2"
+  - domain: com.googlecode.iterm2
+    key: LoadPrefsFromCustomFolder
+    type: int
+    value: 1
+
+osx_dict_defaults:
+  - domain: com.apple.spotlight
+    key: orderedItems
+    type: array
+    value:
+      - '{"enabled" = "1";"name" = "APPLICATIONS";}'
+      - '{"enabled" = "1";"name" = "SYSTEM_PREFS";}'
+      - '{"enabled" = "1";"name" = "DIRECTORIES";}'
+      - '{"enabled" = "1";"name" = "PDF";}'
+      - '{"enabled" = "1";"name" = "MENU_CONVERSION";}'
+      - '{"enabled" = "1";"name" = "MENU_EXPRESSION";}'
+      - '{"enabled" = "1";"name" = "MENU_DEFINITION";}'
+      - '{"enabled" = "1";"name" = "DOCUMENTS";}'
+      - '{"enabled" = "1";"name" = "CONTACT";}'
+      - '{"enabled" = "0";"name" = "MESSAGES";}'
+      - '{"enabled" = "0";"name" = "EVENT_TODO";}'
+      - '{"enabled" = "0";"name" = "IMAGES";}'
+      - '{"enabled" = "0";"name" = "BOOKMARKS";}'
+      - '{"enabled" = "0";"name" = "MUSIC";}'
+      - '{"enabled" = "0";"name" = "FONTS";}'
+      - '{"enabled" = "0";"name" = "MOVIES";}'
+      - '{"enabled" = "0";"name" = "PRESENTATIONS";}'
+      - '{"enabled" = "0";"name" = "SPREADSHEETS";}'
+      - '{"enabled" = "0";"name" = "MENU_OTHER";}'
+      - '{"enabled" = "0";"name" = "MENU_SPOTLIGHT_SUGGESTIONS";}'
+  - domain: com.apple.systemuiserver
+    key: menuExtras
+    type: array
+    value:
+      - "/System/Library/CoreServices/Menu Extras/Clock.menu"
+      - "/System/Library/CoreServices/Menu Extras/Battery.menu"
+      - "/System/Library/CoreServices/Menu Extras/AirPort.menu"
+      - "/System/Library/CoreServices/Menu Extras/Displays.menu"
+      - "/System/Library/CoreServices/Menu Extras/Bluetooth.menu"
+      - "/System/Library/CoreServices/Menu Extras/Volume.menu"

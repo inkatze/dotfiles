@@ -1,0 +1,89 @@
+name: Test ansible playbook
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+jobs:
+  test-static:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Installing dependencies
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
+            brew install ansible
+      - name: Running static checks
+        run: ansible-playbook main.yml --syntax-check
+  test-homebrew:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Installing dependencies
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
+            brew install ansible
+      - name: Testing homebrew tasks
+        run: make homebrew
+  test-gpg:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Installing dependencies
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
+            brew install ansible
+      - name: Testing gpg tasks
+        run: make gpg
+  test-ssh:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Installing dependencies
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
+            brew install ansible
+      - name: Testing ssh tasks
+        run: make ssh
+  test-dotfiles:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Installing dependencies
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
+            brew install ansible
+      - name: Testing dotfiles tasks
+        run: make dotfiles
+  test-tmux:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Installing dependencies
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
+            brew install ansible
+      - name: Testing tmux tasks
+        run: make tmux
+  test-fish:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Installing dependencies
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
+            brew install ansible
+      - name: Testing fish tasks
+        run: make fish
+  test-osx:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Installing dependencies
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
+            brew install ansible
+      - name: Testing osx tasks
+        run: make osx

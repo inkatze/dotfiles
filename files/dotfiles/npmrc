@@ -1,0 +1,5 @@
+init.author.name=Diego Romero
+init.author.email=jd@inkatze.com
+init.license=BSD-3-CLAUSE
+init.version=0.0.1
+loglevel=warn

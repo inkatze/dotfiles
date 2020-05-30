@@ -1,0 +1,5 @@
+---
+
+- src: https://github.com/inkatze/ansible-dotfiles.git
+  version: master
+  name: dotfiles_role
