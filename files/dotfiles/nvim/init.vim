@@ -24,7 +24,3 @@ runtime! partials/vim-auto-save.vim
 runtime! partials/vista.vim
 let g:rainbow_active = 1
 let g:closetag_filenames = '*.html,*.xhtml,*.phtml, *.md, *.jsx, *.html.erb'
-
-" Section: Color and syntax ->>1
-"--------------------------------------------------------------------------
-runtime! partials/styling.vim
