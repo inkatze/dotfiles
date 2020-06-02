@@ -67,6 +67,7 @@
     decorate = short
 [merge]
     conflictstyle = diff3
+    renamelimit = 3000
 [push]
     default = matching
 [commit]
