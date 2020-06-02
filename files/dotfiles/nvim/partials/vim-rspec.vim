@@ -1,7 +1,7 @@
 " bindings
 augroup RubyMappings
   autocmd!
-  autocmd FileType ruby, erb call RSpecMappings()
+  autocmd FileType ruby,erb call RSpecMappings()
 augroup END
 
 function RSpecMappings()
