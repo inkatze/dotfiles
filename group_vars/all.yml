@@ -65,7 +65,7 @@ homebrew_cask_applications:
   - docker
   - firefox
   - font-fantasque-sans-mono
-  - font-firacode-nerd-font
+  - font-fira-code-nerd-font
   - google-cloud-sdk
   - google-chrome
   - grammarly
