@@ -1,10 +1,10 @@
-name: Test ansible playbook
+name: test
 
 on:
   pull_request:
-    branches: [master]
+    branches: [latest]
   push:
-    branches: [master]
+    branches: [latest]
 
 jobs:
   test-static:

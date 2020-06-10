@@ -1,4 +1,4 @@
-# .dotfiles ![Test ansible playbook](https://github.com/inkatze/dotfiles/workflows/Test%20ansible%20playbook/badge.svg?branch=master)
+# .dotfiles ![test](https://github.com/inkatze/dotfiles/workflows/test/badge.svg?branch=latest)
 
 Installs almost everything I need in my local environment. It's unlikely that you want your
 setup exactly as mine; feel free to fork it or change the variables described below.
