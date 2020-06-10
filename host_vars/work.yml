@@ -5,7 +5,7 @@ homebrew_cask_applications:
   - DBngin
   - docker
   - firefox
-  - font-firacode-nerd-font
+  - font-fira-code-nerd-font
   - grammarly
   - iterm2
   - java
