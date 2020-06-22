@@ -16,6 +16,9 @@ let g:deoplete#sources#go#fallback_to_source = 1
 
 let g:deoplete#sources#jedi#show_docstring = 1
 
-autocmd VimEnter * silent! call deoplete#custom#source('_', 'converters', ['converter_auto_delimiter', 'remove_overlap'])
-autocmd VimEnter * silent! call deoplete#custom#source('LanguageClient', 'sorters', [])
-autocmd VimEnter * silent! call deoplete#initialize()
+augroup deoplete_options
+  autocmd!
+  autocmd VimEnter * silent! call deoplete#custom#source('_', 'ale', 'converters', ['converter_auto_delimiter', 'remove_overlap'])
+  autocmd VimEnter * silent! call deoplete#custom#source('LanguageClient', 'min_pattern_length', 2)
+  autocmd VimEnter * silent! call deoplete#initialize()
+augroup END

@@ -50,6 +50,7 @@ Plug 'tpope/vim-commentary'
 Plug 'luochen1990/rainbow' " colored parenthesis
 Plug 'gregsexton/MatchTag' " highlight matching html tags
 Plug '907th/vim-auto-save'
+Plug 'easymotion/vim-easymotion'
 
 " tmux
 Plug 'tmux-plugins/vim-tmux'
