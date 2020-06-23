@@ -1,3 +1,7 @@
+" LanguageClient-neovim
+set runtimepath+=$HOME/.local/share/nvim/site/pack/plugins/start/LanguageClient-neovim
+set hidden
+
 " bindings ->>1
 function  LanguageClientMappers()
   nnoremap <F5> :call LanguageClient_contextMenu()<CR>
@@ -22,21 +26,18 @@ augroup LSPMappings
     \ call LanguageClientMappers()
 augroup END
 
-" LanguageClient-neovim ->>1
-set runtimepath+=$HOME/.local/share/nvim/site/pack/plugins/start/LanguageClient-neovim
-set hidden
-set completefunc=LanguageClient#complete
-set omnifunc=LanguageClient#complete
-
+let g:LanguageClient_waitOutputFTimeout = 120
+let g:LanguageClient_autoStop = 0
 let g:LanguageClient_serverCommands = {
-  \ 'yaml': ['yaml-language-server', '--stdio'],
-  \ 'yaml.ansible': ['yaml-language-server', '--stdio'],
-  \ 'ruby': ['solargraph', 'socket'],
-  \ 'javascript': ['javascript-typescript-stdio'],
-  \ 'typescript': ['javascript-typescript-stdio'],
-  \ 'javascript.jsx': ['javascript-typescript-stdio'],
-  \ 'typescript.tsx': ['javascript-typescript-stdio'],
-  \ }
+\ 'yaml': ['yaml-language-server', '--stdio'],
+\ 'yaml.ansible': ['yaml-language-server', '--stdio'],
+\ 'ruby': ['solargraph', 'stdio'],
+\ 'sorbet': ['srb', 'tc', '--lsp', '--enable-all-experimental-lsp-features', '--no-config'],
+\ 'javascript': ['javascript-typescript-stdio'],
+\ 'typescript': ['javascript-typescript-stdio'],
+\ 'javascript.jsx': ['javascript-typescript-stdio'],
+\ 'typescript.tsx': ['javascript-typescript-stdio'],
+\ }
 let lspsettings = json_decode('
 \{
 \    "yaml": {
@@ -54,6 +55,15 @@ let lspsettings = json_decode('
 \        "proxyStrictSSL": true
 \    },
 \    "ruby": {
+\        "completion": true,
+\        "hover": true,
+\        "validate": true,
+\        "typecheck": true,
+\        "format": {
+\            "enable": true
+\        }
+\    },
+\    "sorbet": {
 \        "completion": true,
 \        "hover": true,
 \        "validate": true,
@@ -110,6 +120,6 @@ endfunction()
 augroup LSP
   autocmd!
   autocmd FileType \
-    \ cpp,c,ruby,yaml,yaml.ansible,javascript,typescript,typescript.tsx,javascript.jsx
+    \ cpp,c,ruby,yaml,yaml.ansible,javascript,typescript,typescript.tsx,javascript.jsx,sorbet
     \ call InitializeLSP()
 augroup END

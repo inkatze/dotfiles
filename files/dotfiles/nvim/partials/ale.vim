@@ -22,7 +22,7 @@ let g:ale_fixers={
 \   'jsx': ['prettier'],
 \   'html': ['prettier'],
 \   'css': ['prettier'],
-\   'ruby': ['rubocop'],
+\   'ruby': ['rubocop', 'sorbet'],
 \   'typescript': ['prettier'],
 \}
 
