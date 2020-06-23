@@ -22,7 +22,7 @@ endfunction
 augroup LSPMappings
   autocmd!
   autocmd FileType \
-    \ cpp,c,ruby,yaml,yaml.ansible,javascript,typescript,typescript.tsx,javascript.jsx
+    \ cpp,c,ruby,yaml,yaml.ansible,javascript,typescript,typescript.tsx,javascript.jsx,sorbet
     \ call LanguageClientMappers()
 augroup END
 
@@ -88,7 +88,7 @@ let lspsettings = json_decode('
 \            "enable": true
 \        }
 \    },
-\   "javascript.tsx": {
+\   "javascript.jsx": {
 \        "completion": true,
 \        "hover": true,
 \        "validate": true,
@@ -110,9 +110,11 @@ function InitializeLSP()
   set signcolumn=yes
 
   let g:LanguageClient_rootMarkers = {
-    \ 'javascript': ['jsconfig.json'],
-    \ 'typescript': ['tsconfig.json'],
-    \ }
+  \   'javascript': ['jsconfig.json'],
+  \   'typescript': ['tsconfig.json'],
+  \   'javascript.jsx': ['jsconfig.json'],
+  \   'typescript.tsx': ['tsconfig.json'],
+  \ }
   autocmd User LanguageClientStarted call LanguageClient#Notify(
     \ 'workspace/didChangeConfiguration', {'settings': lspsettings})
 endfunction()
