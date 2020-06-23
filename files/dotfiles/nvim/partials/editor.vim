@@ -45,10 +45,12 @@ set printoptions=paper:letter
 set scroll=4 " Number of lines to scroll with ^U ^D
 set softtabstop=4 " Makes you think that your spaces are tabs
 set shortmess+=A " Ignore swamp files
+set shortmess+=c " Don't pass messages to |ins-completion-menu|
 set tabstop=4 " The all powerfull tab number
 set formatoptions+=j " Smarter line joins
 set completeopt+=noselect
 set noshowmode
+set signcolumn=yes " Always show the signcolumn
 
 " Cosmetics
 set laststatus=2 " Always show the status bar

@@ -1,11 +1,12 @@
 " Ale
 let g:ale_sign_error = '✘'
 let g:ale_sign_warning = '⚠'
-highlight ALEErrorSign ctermbg=NONE ctermfg=red
-highlight ALEWarningSign ctermbg=NONE ctermfg=yellow
 
-let g:ale_linters_explicit=1
-let g:ale_ruby_rubocop_executable = $RBENV_ROOT.'/shims/bundle'
+let g:ale_fix_on_save = 1
+let g:ale_completion_tsserver_autoimport = 1
+let g:ale_ruby_sorbet_options = '--no-config --enable-all-experimental-lsp-features'
+
+let g:ale_linters_explicit = 1
 let g:ale_linters={
 \   'python': ['pylint', 'pycodestyle'],
 \   'javascript': ['eslint'],
@@ -13,7 +14,7 @@ let g:ale_linters={
 \   'html': ['eslint'],
 \   'typescript': ['eslint'],
 \   'go': ['gofmt', 'staticcheck', 'gobuild', 'gometalinter', 'gosimple', 'golangserver'],
-\   'ruby': ['standardrb', 'rubocop', 'sorbet'],
+\   'ruby': ['rubocop','sorbet', 'solargraph'],
 \}
 let g:ale_fixers={
 \   '*': ['remove_trailing_lines', 'trim_whitespace'],
@@ -21,7 +22,8 @@ let g:ale_fixers={
 \   'jsx': ['prettier'],
 \   'html': ['prettier'],
 \   'css': ['prettier'],
-\   'typescript': ['prettier'],
 \   'ruby': ['rubocop'],
+\   'typescript': ['prettier'],
 \}
+
 let g:ale_fix_on_save=1

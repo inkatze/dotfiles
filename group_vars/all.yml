@@ -161,6 +161,7 @@ neovim_formulas:
   - rbenv-gemset
   - rg
   - rust
+  - watchman
 
 neovim_python:
   - { version: 2.7.17, venv: neovim2 }
