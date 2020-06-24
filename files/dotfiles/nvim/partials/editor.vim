@@ -118,6 +118,7 @@ set re=1
 
 autocmd FileType yaml setlocal ts=2 sts=2 sw=2 expandtab
 autocmd FileType javascript setlocal ts=2 sts=2 sw=2 expandtab
+autocmd FileType javascript.jsx setlocal ts=2 sts=2 sw=2 expandtab
 autocmd FileType html setlocal ts=2 sts=2 sw=2 expandtab
 autocmd FileType typescript setlocal ts=2 sts=2 sw=2 expandtab
 autocmd FileType typescript.tsx setlocal ts=2 sts=2 sw=2 expandtab

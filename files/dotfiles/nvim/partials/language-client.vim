@@ -33,10 +33,10 @@ let g:LanguageClient_serverCommands = {
 \ 'yaml.ansible': ['yaml-language-server', '--stdio'],
 \ 'ruby': ['solargraph', 'stdio'],
 \ 'sorbet': ['srb', 'tc', '--lsp', '--enable-all-experimental-lsp-features', '--no-config'],
-\ 'javascript': ['javascript-typescript-stdio'],
-\ 'typescript': ['javascript-typescript-stdio'],
-\ 'javascript.jsx': ['javascript-typescript-stdio'],
-\ 'typescript.tsx': ['javascript-typescript-stdio'],
+\ 'javascript': ['typescript-language-server', '--stdio'],
+\ 'typescript': ['typescript-language-server', '--stdio'],
+\ 'javascript.jsx': ['typescript-language-server', '--stdio'],
+\ 'typescript.tsx': ['typescript-language-server', '--stdio'],
 \ }
 let lspsettings = json_decode('
 \{

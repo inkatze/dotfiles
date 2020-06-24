@@ -10,9 +10,8 @@ let g:ale_linters_explicit = 1
 let g:ale_linters={
 \   'python': ['pylint', 'pycodestyle'],
 \   'javascript': ['eslint'],
-\   'jsx': ['eslint'],
-\   'html': ['eslint'],
 \   'typescript': ['eslint'],
+\   'html': ['eslint'],
 \   'go': ['gofmt', 'staticcheck', 'gobuild', 'gometalinter', 'gosimple', 'golangserver'],
 \   'ruby': ['rubocop', 'sorbet'],
 \   'graphql': ['eslint']
@@ -20,9 +19,8 @@ let g:ale_linters={
 let g:ale_fixers={
 \   '*': ['remove_trailing_lines', 'trim_whitespace'],
 \   'javascript': ['prettier'],
-\   'jsx': ['prettier'],
+\   'typescript': ['prettier'],
 \   'html': ['prettier'],
 \   'css': ['prettier'],
 \   'ruby': ['rubocop', 'sorbet'],
-\   'typescript': ['prettier'],
 \}
