@@ -70,6 +70,8 @@
     renamelimit = 3000
 [push]
     default = matching
+[pull]
+    rebase = true
 [commit]
     gpgsign = true
 [gpg]
