@@ -22,5 +22,6 @@ let g:ale_fixers={
 \   'typescript': ['prettier'],
 \   'html': ['prettier'],
 \   'css': ['prettier'],
+\   'scss': ['prettier'],
 \   'ruby': ['rubocop', 'sorbet'],
 \}
