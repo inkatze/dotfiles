@@ -22,6 +22,8 @@ runtime! partials/echodoc.vim
 runtime! partials/fzf.vim
 runtime! partials/vista.vim
 runtime! partials/vim-projectionist.vim
+runtime! partials/vim-import-js.vim
+
 let g:rainbow_active = 1
 let g:closetag_filenames = '*.html,*.xhtml,*.phtml, *.md, *.jsx, *.html.erb'
 map <Leader>vm <Plug>(easymotion-prefix)

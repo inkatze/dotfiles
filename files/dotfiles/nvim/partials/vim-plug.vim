@@ -17,6 +17,7 @@ Plug 'fatih/vim-go', { 'do': ':GoUpdateBinaries' }
 " javascripts ->>2
 Plug 'pangloss/vim-javascript' | Plug 'mxw/vim-jsx'
 Plug 'leafgarland/typescript-vim' | Plug 'inkatze/vim-jsx-typescript'
+Plug 'Galooshi/vim-import-js'
 
 " ruby ->>2
 Plug 'tpope/vim-rails'
