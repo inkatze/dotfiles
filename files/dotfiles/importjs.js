@@ -3,9 +3,11 @@ module.exports = {
     classes: "./{filename}.scss",
   },
   environments: ["browser", "jest"],
-  excludes: ["./frontend/**/spec/**"],
   sortImports: false,
+  useRelativePaths: false,
   importStatementFormatter({ importStatement }) {
+    if (importStatement.includes("spec"))
+      return importStatement.replace(/\'.*spec\//, "'spec/");
     if (importStatement.includes("accountants"))
       return importStatement.replace(/\'.*accountants\//, "'accountants/");
     if (importStatement.includes("components"))
