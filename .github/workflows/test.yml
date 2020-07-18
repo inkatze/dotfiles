@@ -2,9 +2,9 @@ name: test
 
 on:
   pull_request:
-    branches: [latest]
+    branches: [main]
   push:
-    branches: [latest]
+    branches: [main]
 
 jobs:
   test-static:

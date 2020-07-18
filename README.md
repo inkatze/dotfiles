@@ -1,4 +1,4 @@
-# .dotfiles ![test](https://github.com/inkatze/dotfiles/workflows/test/badge.svg?branch=latest)
+# .dotfiles ![test](https://github.com/inkatze/dotfiles/workflows/test/badge.svg?branch=main)
 
 Installs almost everything I need in my local environment. It's unlikely that you want your
 setup exactly as mine; feel free to fork it or change the variables described below.
