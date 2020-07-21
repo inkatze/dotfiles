@@ -5,13 +5,21 @@ module.exports = {
   environments: ["browser", "jest"],
   sortImports: false,
   useRelativePaths: false,
-  importStatementFormatter({ importStatement }) {
-    if (importStatement.includes("spec"))
-      return importStatement.replace(/\'.*spec\//, "'spec/");
-    if (importStatement.includes("accountants"))
-      return importStatement.replace(/\'.*accountants\//, "'accountants/");
-    if (importStatement.includes("components"))
-      return importStatement.replace(/\'.*components\//, "'components/");
-    return importStatement;
+  excludes: ["./public/assets/packs/js/**"],
+  moduleNameFormatter({ moduleName, pathToImportedModule }) {
+    if (!pathToImportedModule) return moduleName;
+    if (pathToImportedModule.includes("spec"))
+      return pathToImportedModule
+        .replace(/.*spec\//, "spec/")
+        .replace(/(\.js.*|\.ts.*)/, "");
+    if (pathToImportedModule.includes("accountants"))
+      return pathToImportedModule
+        .replace(/.*accountants\//, "accountants/")
+        .replace(/(\.js.*|\.ts.*)/, "");
+    if (pathToImportedModule.includes("components"))
+      return pathToImportedModule
+        .replace(/.*components\//, "components/")
+        .replace(/(\.js.*|\.ts.*)/, "");
+    return moduleName;
   },
 };
