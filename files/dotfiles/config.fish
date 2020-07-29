@@ -59,9 +59,12 @@ if status --is-login
     set -l PYTHON_LIB_EXEC /usr/local/opt/python/libexec/bin
     set -l MYSQL57_BIN_PATH /Users/Shared/DBngin/mysql/5.7.23/bin
 
+    # Rust stuff
+    set -l CARGO_BIN $HOME/.cargo/bin
+
     set -e fish_user_paths
     set -U fish_user_paths /usr/local/bin /usr/local/sbin
-    set -U fish_user_paths $fish_user_paths $GOPATH/bin $GOROOT/bin
+    set -U fish_user_paths $fish_user_paths $GOPATH/bin $GOROOT/bin $CARGO_BIN
     set -U fish_user_paths $fish_user_paths $POSTGRES_BIN $PYTHON_LIB_EXEC
     set -U fish_user_paths $fish_user_paths $MYSQL57_BIN_PATH
 

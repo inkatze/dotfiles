@@ -1,5 +1,6 @@
 work ansible_host=127.0.0.1 ansible_connection=local current_env=work
 personal ansible_host=127.0.0.1 ansible_connection=local current_env=personal
+alt ansible_host=127.0.0.1 ansible_connection=local current_env=personal
 
 [secrets]
 work

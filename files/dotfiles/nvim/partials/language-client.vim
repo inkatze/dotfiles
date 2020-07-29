@@ -37,6 +37,7 @@ let g:LanguageClient_serverCommands = {
 \ 'typescript': ['typescript-language-server', '--stdio'],
 \ 'javascript.jsx': ['typescript-language-server', '--stdio'],
 \ 'typescript.tsx': ['typescript-language-server', '--stdio'],
+\ 'rust': ['rustup', 'run', 'stable', 'rls'],
 \ }
 let lspsettings = json_decode('
 \{

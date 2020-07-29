@@ -3,9 +3,12 @@ MAKEFLAGS := "-s"
 SHELL := /bin/bash
 HOSTNAME := $(shell hostname)
 PERSONALHOST := crojtini
+ALTHOST := panela
 
 ifneq (, $(findstring $(PERSONALHOST), $(HOSTNAME)))
     CURRENT_HOST := personal
+else ifneq (, $(findstring $(ALTHOST), $(HOSTNAME)))
+    CURRENT_HOST := alt
 else
     CURRENT_HOST := work
 endif

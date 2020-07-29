@@ -14,7 +14,8 @@ let g:ale_linters={
 \   'html': ['eslint'],
 \   'go': ['gofmt', 'staticcheck', 'gobuild', 'gometalinter', 'gosimple', 'golangserver'],
 \   'ruby': ['rubocop', 'sorbet'],
-\   'graphql': ['eslint']
+\   'graphql': ['eslint'],
+\   'rust': ['cargo', 'rustc', 'rls', 'analyzer'],
 \}
 let g:ale_fixers={
 \   '*': ['remove_trailing_lines', 'trim_whitespace'],
@@ -23,5 +24,6 @@ let g:ale_fixers={
 \   'html': ['prettier'],
 \   'css': ['prettier'],
 \   'scss': ['prettier'],
-\   'ruby': ['rubocop', 'sorbet'],
+\   'ruby': ['rubocop'],
+\   'rust': ['rustfmt'],
 \}

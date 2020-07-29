@@ -31,6 +31,9 @@ Plug 'vim-ruby/vim-ruby'
 Plug 'numirias/semshi', {'do': ':UpdateRemotePlugins'} " python highlighting
 Plug 'tmhedberg/SimpylFold' " python folding
 
+" rust ->>2
+Plug 'rust-lang/rust.vim'
+
 " everything else bagel ->>2
 Plug 'autozimu/LanguageClient-neovim', {
   \ 'branch': 'next',

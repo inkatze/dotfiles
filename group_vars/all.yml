@@ -56,7 +56,8 @@ homebrew_formulas:
   - yarn  # bleh
   - libsodium # work project related
 
-  - rust
+  - rust-analyzer
+  - rustup-init
 
 homebrew_cask_applications:
   - authy

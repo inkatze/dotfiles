@@ -1,0 +1,26 @@
+---
+
+homebrew_cask_applications:
+  - adobe-creative-cloud
+  - firefox
+  - font-fantasque-sans-mono
+  - font-fira-code-nerd-font
+  - google-cloud-sdk
+  - google-chrome
+  - iterm2
+  - java
+  - microsoft-office
+  - skype
+  - spotify
+  - telegram
+
+mas_applications:
+  - { id: "1333542190", name: 1Password }
+  - { id: "1319884285", name: Black Out }
+  - { id: "409183694", name: Keynote }
+  - { id: "1263070803", name: Lungo }
+  - { id: "1480068668", name: Messenger }
+  - { id: "1289197285", name: MindNode 5 }
+  - { id: "409201541", name: Pages }
+  - { id: "1176895641", name: Spark }
+  - { id: "497799835", name: Xcode }
