@@ -22,7 +22,7 @@ endfunction
 augroup LSPMappings
   autocmd!
   autocmd FileType \
-    \ cpp,c,ruby,yaml,yaml.ansible,javascript,typescript,typescript.tsx,javascript.jsx,sorbet
+    \ cpp,c,ruby,yaml,yaml.ansible,javascript,typescript,typescript.tsx,javascript.jsx,sorbet,vim
     \ call LanguageClientMappers()
 augroup END
 
@@ -38,7 +38,9 @@ let g:LanguageClient_serverCommands = {
 \ 'javascript.jsx': ['typescript-language-server', '--stdio'],
 \ 'typescript.tsx': ['typescript-language-server', '--stdio'],
 \ 'rust': ['rustup', 'run', 'stable', 'rls'],
+\ 'vim': ['vim-language-server', '--stdio'],
 \ }
+
 let lspsettings = json_decode('
 \{
 \    "yaml": {
@@ -104,6 +106,14 @@ let lspsettings = json_decode('
 \        "format": {
 \            "enable": true
 \        }
+\    },
+\   "vim": {
+\        "completion": true,
+\        "hover": true,
+\        "validate": true,
+\        "format": {
+\            "enable": true
+\        }
 \    }
 \}')
 
@@ -115,6 +125,7 @@ function InitializeLSP()
   \   'typescript': ['tsconfig.json'],
   \   'javascript.jsx': ['jsconfig.json'],
   \   'typescript.tsx': ['tsconfig.json'],
+  \   'vim': ['.git', 'autoload', 'plugin'],
   \ }
   autocmd User LanguageClientStarted call LanguageClient#Notify(
     \ 'workspace/didChangeConfiguration', {'settings': lspsettings})
@@ -123,6 +134,6 @@ endfunction()
 augroup LSP
   autocmd!
   autocmd FileType \
-    \ cpp,c,ruby,yaml,yaml.ansible,javascript,typescript,typescript.tsx,javascript.jsx,sorbet
+    \ cpp,c,ruby,yaml,yaml.ansible,javascript,typescript,typescript.tsx,javascript.jsx,sorbet,vim
     \ call InitializeLSP()
 augroup END
