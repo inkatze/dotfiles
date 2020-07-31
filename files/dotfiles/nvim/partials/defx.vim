@@ -1,6 +1,6 @@
 " bindings ->>1
-nnoremap <silent><Leader>n :call <sid>defx_open()<CR>
-nnoremap <silent><C-n> :call <sid>defx_open()<CR>
+nnoremap <silent><Leader>n :call <sid>defx_open({ 'find_current_file': v:true })<CR>
+nnoremap <silent><C-n> :call <sid>defx_open({ 'find_current_file': v:true })<CR>
 nnoremap <silent><Leader>hf :call <sid>defx_open({ 'find_current_file': v:true })<CR>
 
 " bindings when in defx buffer ->>1
@@ -29,14 +29,20 @@ function! s:defx_mappings() abort
   nnoremap <nowait><silent><buffer><expr> d defx#do_action('remove')
   nnoremap <silent><buffer><expr> q defx#do_action('quit')
   nnoremap <silent><buffer><expr> <Leader>n defx#do_action('quit')
+  nnoremap <silent><buffer><expr> <C-n> defx#do_action('quit')
   silent exe 'nnoremap <silent><buffer><expr> tt defx#do_action("toggle_columns", "'.s:default_columns.':size:time")'
 endfunction
+
+" defx-icons ->>1
+let g:defx_icons_column_length = 2
+let g:defx_icons_mark_icon = ''
 
 " defx ->>1
 augroup vimrc_defx
   autocmd!
-  autocmd FileType defx call s:defx_mappings()                                  "Defx mappings
+  autocmd FileType defx call s:defx_mappings()
   autocmd VimEnter * call s:setup_defx()
+  autocmd BufWritePost * call defx#redraw()
 augroup END
 
 let s:default_columns = 'indent:git:icons:filename'

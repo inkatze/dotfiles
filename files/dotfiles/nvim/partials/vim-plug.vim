@@ -10,29 +10,31 @@ Plug 'dense-analysis/ale'
 " language support ->>1
 
 " ungrouped ->> 2
-Plug 'pearofducks/ansible-vim'
-Plug 'dag/vim-fish'
+Plug 'pearofducks/ansible-vim', { 'for': ['yaml', 'yaml.ansible'] }
+Plug 'dag/vim-fish', { 'for': 'fish' }
 Plug 'fatih/vim-go', { 'do': ':GoUpdateBinaries' }
 
 " javascripts ->>2
-Plug 'pangloss/vim-javascript' | Plug 'mxw/vim-jsx'
-Plug 'leafgarland/typescript-vim' | Plug 'inkatze/vim-jsx-typescript'
-Plug 'Galooshi/vim-import-js'
+Plug 'pangloss/vim-javascript', { 'for': ['javascript', 'javascript.jsx'] }
+Plug 'mxw/vim-jsx', { 'for': 'javascript.jsx' }
+Plug 'leafgarland/typescript-vim', { 'for': ['typescript', 'typescript.tsx'] }
+Plug 'peitalin/vim-jsx-typescript', { 'for': 'typescript.tsx' }
+Plug 'Galooshi/vim-import-js', { 'for': ['javascript', 'javascript.jsx', 'typescript', 'typescript.tsx'] }
 
 " ruby ->>2
-Plug 'tpope/vim-rails'
-Plug 'tpope/vim-rake'
-Plug 'tpope/vim-bundler'
-Plug 'tpope/vim-rbenv'
-Plug 'thoughtbot/vim-rspec'
-Plug 'vim-ruby/vim-ruby'
+Plug 'tpope/vim-rails', { 'for': 'ruby' }
+Plug 'tpope/vim-rake', { 'for': 'ruby' }
+Plug 'tpope/vim-bundler', { 'for': 'ruby' }
+Plug 'tpope/vim-rbenv', { 'for': 'ruby' }
+Plug 'thoughtbot/vim-rspec', { 'for': 'ruby' }
+Plug 'vim-ruby/vim-ruby', { 'for': 'ruby' }
 
 " python ->>2
-Plug 'numirias/semshi', {'do': ':UpdateRemotePlugins'} " python highlighting
-Plug 'tmhedberg/SimpylFold' " python folding
+Plug 'numirias/semshi', {'do': ':UpdateRemotePlugins', 'for': 'python'} " python highlighting
+Plug 'tmhedberg/SimpylFold', { 'for': 'python' } " python folding
 
 " rust ->>2
-Plug 'rust-lang/rust.vim'
+Plug 'rust-lang/rust.vim', { 'for': 'python' }
 
 " everything else bagel ->>2
 Plug 'autozimu/LanguageClient-neovim', {
@@ -74,6 +76,7 @@ Plug 'mhinz/vim-signify'
 " file browser ->>1
 Plug 'Shougo/defx.nvim', { 'do': ':UpdateRemotePlugins' }
 Plug 'kristijanhusak/defx-icons'
+Plug 'kristijanhusak/defx-git'
 Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
 Plug 'junegunn/fzf.vim'
 Plug 'jeetsukumaran/vim-buffergator'
@@ -81,9 +84,9 @@ Plug 'liuchengxu/vista.vim'
 
 " completion ->>1
 Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
-Plug 'deoplete-plugins/deoplete-go', { 'do': 'make'}
-Plug 'deoplete-plugins/deoplete-jedi'
-Plug 'etordera/deoplete-rails'
+Plug 'deoplete-plugins/deoplete-go', { 'do': 'make', 'for': 'go'}
+Plug 'deoplete-plugins/deoplete-jedi', { 'for': 'python' }
+Plug 'etordera/deoplete-rails', { 'for': 'ruby' }
 
 " status bars(s) ->>1
 Plug 'itchyny/lightline.vim' | Plug 'mengelbrecht/lightline-bufferline'
