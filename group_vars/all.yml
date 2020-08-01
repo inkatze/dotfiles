@@ -169,6 +169,13 @@ neovim_python:
   - { version: 2.7.17, venv: neovim2 }
   - { version: 3.8.2, venv: neovim3 }
 
+neovim_node_packages:
+  - { name: typescript-language-server, version: latest }
+  - { name: neovim, version: latest }
+  - { name: import-js, version: latest }
+  - { name: yaml-language-server, version: 0.4.1 }
+  - { name: vim-language-server, version: latest }
+
 neovim_ruby_version: 2.6.6
 
 # mas.yml
