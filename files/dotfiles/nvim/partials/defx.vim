@@ -109,5 +109,5 @@ function s:defx_toggle_node() abort
   if defx#is_directory()
     return defx#do_action('open_or_close_tree')
   endif
-  return defx#do_action('drop', 'multi', ['drop', 'quit'])
+  return defx#do_action('drop')
 endfunction
