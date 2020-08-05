@@ -78,6 +78,7 @@ homebrew_cask_applications:
   - homebrew/cask-versions/openemu-experimental
   - postgres
   - rubymine
+  - screen
   - sequel-pro
   - skype
   - spotify
