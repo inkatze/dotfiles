@@ -30,7 +30,7 @@ function! s:defx_mappings() abort
   nnoremap <silent><buffer><expr> <CR> <sid>defx_toggle_node()
   nnoremap <silent><buffer><expr> <2-LeftMouse> <sid>defx_toggle_node()
   nnoremap <silent><buffer><expr> C defx#is_directory() ? defx#do_action('multi', ['open', 'change_vim_cwd']) : 'C'
-  nnoremap <silent><buffer><expr> s defx#do_action('open', 'botright vsplit')
+  nnoremap <silent><buffer><expr> s defx#do_action('multi', [['open', 'botright-vsplit'], 'quit'])
   nnoremap <silent><buffer><expr> R defx#do_action('redraw')
   nnoremap <silent><buffer><expr> U defx#do_action('multi', [['cd', '..'], 'change_vim_cwd'])
   nnoremap <silent><buffer><expr> . defx#do_action('toggle_ignored_files')
