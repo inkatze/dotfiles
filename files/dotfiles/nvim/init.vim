@@ -23,6 +23,7 @@ runtime! partials/fzf.vim
 runtime! partials/vista.vim
 runtime! partials/vim-projectionist.vim
 runtime! partials/vim-import-js.vim
+luafile $HOME/.config/nvim/partials/iron.lua
 
 let g:rainbow_active = 1
 let g:closetag_filenames = '*.html,*.xhtml,*.phtml, *.md, *.jsx, *.html.erb'

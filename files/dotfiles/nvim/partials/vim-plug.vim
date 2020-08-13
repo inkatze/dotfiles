@@ -36,6 +36,9 @@ Plug 'tmhedberg/SimpylFold' " python folding
 " rust ->>2
 Plug 'rust-lang/rust.vim'
 
+" protobuf ->>2
+Plug 'uarun/vim-protobuf'
+
 " everything else bagel ->>2
 Plug 'autozimu/LanguageClient-neovim', {
   \ 'branch': 'next',
@@ -57,6 +60,7 @@ Plug 'luochen1990/rainbow' " colored parenthesis
 Plug 'gregsexton/MatchTag' " highlight matching html tags
 Plug '907th/vim-auto-save'
 Plug 'easymotion/vim-easymotion'
+Plug 'hkupty/iron.nvim'  " invokes custom context aware repls
 
 " tmux
 Plug 'tmux-plugins/vim-tmux'

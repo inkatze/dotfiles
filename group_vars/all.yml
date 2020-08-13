@@ -10,6 +10,7 @@ homebrew_taps:
 
 homebrew_formulas:
   - ack
+  - aws-okta
   - bash
   - bash-completion
   - ddgr

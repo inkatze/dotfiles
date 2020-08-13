@@ -16,6 +16,7 @@ let g:ale_linters={
 \   'ruby': ['rubocop', 'sorbet'],
 \   'graphql': ['eslint'],
 \   'rust': ['cargo', 'rustc', 'rls', 'analyzer'],
+\   'proto': ['protoc-gen-lint'],
 \}
 let g:ale_fixers={
 \   '*': ['remove_trailing_lines', 'trim_whitespace'],
