@@ -7,11 +7,14 @@ homebrew_cask_applications:
   - font-fira-code-nerd-font
   - google-cloud-sdk
   - google-chrome
+  - google-drive-file-stream
   - iterm2
   - java
   - microsoft-office
   - skype
   - spotify
+  - sublime-text
+  - sublime-text2
   - telegram
 
 mas_applications:
@@ -22,5 +25,6 @@ mas_applications:
   - { id: "1480068668", name: Messenger }
   - { id: "1289197285", name: MindNode 5 }
   - { id: "409201541", name: Pages }
+  - { id: "803453959", name: Slack }
   - { id: "1176895641", name: Spark }
   - { id: "497799835", name: Xcode }
