@@ -53,7 +53,6 @@ homebrew_formulas:
   - golangci/tap/golangci-lint
 
   - rbenv
-  - rbenv-gemset
   - yarn  # bleh
   - libsodium # work project related
 
@@ -162,7 +161,6 @@ neovim_formulas:
   - pyenv
   - pyenv-virtualenv
   - rbenv
-  - rbenv-gemset
   - rg
   - rust
   - watchman

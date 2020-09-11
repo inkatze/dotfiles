@@ -58,7 +58,6 @@ Plug 'alvan/vim-closetag' " close html tags
 Plug 'tpope/vim-commentary'
 Plug 'luochen1990/rainbow' " colored parenthesis
 Plug 'gregsexton/MatchTag' " highlight matching html tags
-Plug '907th/vim-auto-save'
 Plug 'easymotion/vim-easymotion'
 Plug 'hkupty/iron.nvim'  " invokes custom context aware repls
 

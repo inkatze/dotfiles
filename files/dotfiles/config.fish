@@ -51,7 +51,6 @@ if status --is-login
 
     # Ruby stuff
     set -xg RBENV_ROOT $HOME/.rbenv
-    set -xg RBENV_GEMSETS global
     set -xg THOR_SILENCE_DEPRECATION 1
 
     # Binaries paths
