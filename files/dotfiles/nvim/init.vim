@@ -21,6 +21,7 @@ runtime! partials/language-client.vim
 runtime! partials/echodoc.vim
 runtime! partials/fzf.vim
 runtime! partials/vista.vim
+runtime! partials/vim-rails.vim
 runtime! partials/vim-projectionist.vim
 runtime! partials/vim-import-js.vim
 luafile $HOME/.config/nvim/partials/iron.lua

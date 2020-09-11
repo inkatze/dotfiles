@@ -70,7 +70,6 @@ Plug 'kristijanhusak/vim-carbon-now-sh' " code screenshots
 Plug 'psliwka/vim-smoothie' " smooth scrolling
 Plug 'tpope/vim-eunuch' " common unix commands
 Plug '907th/vim-auto-save'
-Plug 'ryanoasis/vim-devicons'
 
 " git ->>1
 Plug 'tpope/vim-fugitive'
