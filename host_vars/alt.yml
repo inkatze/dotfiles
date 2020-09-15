@@ -9,7 +9,7 @@ homebrew_cask_applications:
   - google-chrome
   - google-drive-file-stream
   - iterm2
-  - java
+  - java11
   - microsoft-office
   - skype
   - spotify

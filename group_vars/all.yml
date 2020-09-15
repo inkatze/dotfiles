@@ -71,7 +71,7 @@ homebrew_cask_applications:
   - google-chrome
   - grammarly
   - iterm2
-  - java
+  - java11
   - keycastr
   - logitech-options
   - microsoft-office
