@@ -17,12 +17,15 @@ function! GetCurrentTag() abort
   let cursor = g:vista.get_tagline_under_cursor()
 
   if !exists('cursor.scope')
-    echom 'References without scope are not supported 😭'
-    return
+    return cursor.name
   endif
 
-  let reference = join([cursor.scope, cursor.name], '.')
-  echom 'Copied: ' . reference
+  " TODO: return concatenated cursor and scope if not ruby or anything in
+  " particular
+
+  let reference = substitute(cursor.scope, '\.', '::', 'g') . '.' . cursor.name
+  echom 'Substitution: ' . substitute(cursor.scope, '\.', '::', 'g')
+  echom 'Copied reference: ' . reference
   return reference
 endfunction
 
