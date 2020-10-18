@@ -8,7 +8,6 @@ homebrew_cask_applications:
   - font-fira-code-nerd-font
   - grammarly
   - iterm2
-  - java11
   - keycastr
   - logitech-options
   - microsoft-office
