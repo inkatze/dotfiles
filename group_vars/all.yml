@@ -176,7 +176,7 @@ neovim_node_packages:
   - { name: yaml-language-server, version: 0.4.1 }
   - { name: vim-language-server, version: latest }
 
-neovim_ruby_version: 2.6.6
+neovim_ruby_version: 2.7.1
 
 # mas.yml
 # Docs
