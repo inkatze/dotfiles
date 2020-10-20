@@ -50,6 +50,8 @@ shell: deps
 	$(PLAYBOOK_COMMAND) -t shell -K
 
 deps: header
+	brew update
+	brew install ansible
 	ansible-galaxy install -f -r requirements.yml
 
 header:
