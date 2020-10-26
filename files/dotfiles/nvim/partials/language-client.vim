@@ -121,10 +121,10 @@ function InitializeLSP()
   set signcolumn=yes
 
   let g:LanguageClient_rootMarkers = {
-  \   'javascript': ['jsconfig.json'],
-  \   'typescript': ['tsconfig.json'],
-  \   'javascript.jsx': ['jsconfig.json'],
-  \   'typescript.tsx': ['tsconfig.json'],
+  \   'javascript': ['jsconfig.json',  'package.json'],
+  \   'typescript': ['tsconfig.json', 'package.json'],
+  \   'javascript.jsx': ['jsconfig.json', 'package.json'],
+  \   'typescript.tsx': ['tsconfig.json', 'package.json'],
   \   'vim': ['.git', 'autoload', 'plugin'],
   \ }
   autocmd User LanguageClientStarted call LanguageClient#Notify(
