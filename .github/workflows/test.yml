@@ -79,3 +79,12 @@ jobs:
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
       - name: Testing osx tasks
         run: make osx
+  test-upgrade:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Installing homebrew
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+      - name: Testing homebrew upgrade
+        run: make upgrade

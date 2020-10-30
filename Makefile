@@ -16,7 +16,7 @@ endif
 PLAYBOOK_COMMAND := ansible-playbook -l $(CURRENT_HOST) main.yml
 
 install: deps
-	$(PLAYBOOK_COMMAND) --skip-tags shell,gpg,ssh
+	$(PLAYBOOK_COMMAND) --skip-tags shell,gpg,ssh,upgrade
 
 homebrew: deps
 	$(PLAYBOOK_COMMAND) -t homebrew
@@ -45,13 +45,14 @@ osx: deps
 mas: deps
 	$(PLAYBOOK_COMMAND) -t mas
 
+upgrade: deps
+	$(PLAYBOOK_COMMAND) -t upgrade
+
 shell: deps
 	# Requires privilege escalation because of the /etc/shells file
 	$(PLAYBOOK_COMMAND) -t shell -K
 
 deps: header
-	brew update
-	brew install ansible
 	ansible-galaxy install -f -r requirements.yml
 
 header:
