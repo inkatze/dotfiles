@@ -94,6 +94,6 @@ jobs:
       - name: Installing homebrew
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            brew install ansible
+            brew install ansible mas
       - name: Testing homebrew upgrade
         run: make upgrade
