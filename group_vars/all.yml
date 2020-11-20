@@ -40,9 +40,6 @@ homebrew_formulas:
   - wget
 
   # programming_environments:
-  - node
-  - npm
-
   - ipython
   - pipenv
   - python
@@ -53,7 +50,6 @@ homebrew_formulas:
   - golangci/tap/golangci-lint
 
   - rbenv
-  - yarn  # bleh
   - libsodium # work project related
 
   - rust-analyzer
@@ -118,7 +114,7 @@ fish_plugins:
   - laughedelic/pisces
   - matchai/spacefish
   - jethrokuan/z
-  - jorgebucaran/fish-nvm
+  - jorgebucaran/nvm.fish
 
 # tmux
 
@@ -156,7 +152,6 @@ neovim_formulas:
   - CMake
   - findutils
   - gotags
-  - node
   - proselint
   - pyenv
   - pyenv-virtualenv

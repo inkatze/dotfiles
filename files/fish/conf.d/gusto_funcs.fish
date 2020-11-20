@@ -1,6 +1,6 @@
 function gustograph
   bin/rake graphql:prepare; and \
-    yarn generate-client-types
+    npx yarn generate-client-types
 end
 
 function zentags
@@ -19,7 +19,7 @@ end
 
 function zeni
   bundle install; and \
-    yarn install; and \
+    npx yarn install; and \
     brails db:create db:migrate db:test:prepare; and \
     zentags; and \
     solarup

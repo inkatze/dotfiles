@@ -16,7 +16,7 @@ endif
 PLAYBOOK_COMMAND := ansible-playbook -l $(CURRENT_HOST) main.yml
 
 install: deps
-	$(PLAYBOOK_COMMAND) --skip-tags shell,gpg,ssh,upgrade
+	$(PLAYBOOK_COMMAND) --skip-tags shell,gpg,ssh,upgrade,mas
 
 homebrew: deps
 	$(PLAYBOOK_COMMAND) -t homebrew
@@ -46,7 +46,7 @@ mas: deps
 	$(PLAYBOOK_COMMAND) -t mas
 
 upgrade: deps
-	$(PLAYBOOK_COMMAND) -t upgrade
+	$(PLAYBOOK_COMMAND) -t upgrade,mas
 
 shell: deps
 	# Requires privilege escalation because of the /etc/shells file

@@ -53,16 +53,22 @@ if status --is-login
     set -xg RBENV_ROOT $HOME/.rbenv
     set -xg THOR_SILENCE_DEPRECATION 1
 
+    # # nvm stuff
+    # set -xg XDG_CONFIG_HOME $HOME/.config
+    # set -xg NVM_DIR HOME $HOME/.config
+
     # Binaries paths
     set -l POSTGRES_BIN /Applications/Postgres.app/Contents/Versions/latest/bin
     set -l PYTHON_LIB_EXEC /usr/local/opt/python/libexec/bin
     set -l MYSQL57_BIN_PATH /Users/Shared/DBngin/mysql/5.7.23/bin
+    set -l GLOBAL_NODE_BIN_PATH "$HOME/node_modules/.bin"
 
     # Rust stuff
     set -l CARGO_BIN $HOME/.cargo/bin
 
     set -e fish_user_paths
     set -U fish_user_paths $MYSQL57_BIN_PATH
+    set -U fish_user_paths $fish_user_paths $GLOBAL_NODE_BIN_PATH
     set -U fish_user_paths $fish_user_paths /usr/local/bin /usr/local/sbin
     set -U fish_user_paths $fish_user_paths $GOPATH/bin $GOROOT/bin $CARGO_BIN
     set -U fish_user_paths $fish_user_paths $POSTGRES_BIN $PYTHON_LIB_EXEC
