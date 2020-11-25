@@ -27,5 +27,5 @@ runtime! partials/vim-import-js.vim
 luafile $HOME/.config/nvim/partials/iron.lua
 
 let g:rainbow_active = 1
-let g:closetag_filenames = '*.html,*.xhtml,*.phtml, *.md, *.jsx, *.html.erb'
+let g:closetag_filenames = '*.html,*.xhtml,*.phtml, *.md, *.jsx, *.html.erb, *.tsx'
 map <Leader>vm <Plug>(easymotion-prefix)

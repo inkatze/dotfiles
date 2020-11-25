@@ -68,6 +68,8 @@ if status --is-login
     set -U fish_user_paths $fish_user_paths /usr/local/bin /usr/local/sbin
     set -U fish_user_paths $fish_user_paths $GOPATH/bin $GOROOT/bin $CARGO_BIN
     set -U fish_user_paths $fish_user_paths $POSTGRES_BIN $PYTHON_LIB_EXEC
+
+    type -q nvm; and nvm
 end
 
 function tm
@@ -95,4 +97,3 @@ status --is-interactive; and source (pyenv init -|psub)
 status --is-interactive; and source (pyenv virtualenv-init -|psub)
 status --is-interactive; and source (rbenv init -|psub)
 status --is-interactive; and direnv hook fish | source
-type -q nvm; and nvm
