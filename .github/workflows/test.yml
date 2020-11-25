@@ -14,7 +14,7 @@ jobs:
       - name: Installing homebrew
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            brew install python && pip3 install "ansible>2.8,<2.10"
+            pip3 install "ansible>2.8,<2.10"
       - name: Running static checks
         run: make deps && ansible-playbook main.yml --syntax-check
   test-homebrew:
@@ -24,7 +24,7 @@ jobs:
       - name: Installing homebrew
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            brew install python && pip3 install "ansible>2.9,<2.10"
+            pip3 install "ansible>2.9,<2.10"
       - name: Testing homebrew tasks
         run: make homebrew
   test-gpg:
@@ -34,7 +34,7 @@ jobs:
       - name: Installing homebrew
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            brew install python && pip3 install "ansible>2.9,<2.10"
+            pip3 install "ansible>2.9,<2.10"
       - name: Testing gpg tasks
         run: make gpg
   test-ssh:
@@ -44,7 +44,7 @@ jobs:
       - name: Installing homebrew
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            brew install python && pip3 install "ansible>2.9,<2.10"
+            pip3 install "ansible>2.9,<2.10"
       - name: Testing ssh tasks
         run: make ssh
   test-dotfiles:
@@ -54,7 +54,7 @@ jobs:
       - name: Installing homebrew
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            brew install ansible
+            pip3 install "ansible>2.9,<2.10"
       - name: Testing dotfiles tasks
         run: make dotfiles
   test-tmux:
@@ -64,7 +64,7 @@ jobs:
       - name: Installing homebrew
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            brew install python && pip3 install "ansible>2.9,<2.10"
+            pip3 install "ansible>2.9,<2.10"
       - name: Testing tmux tasks
         run: make tmux
   test-fish:
@@ -74,7 +74,7 @@ jobs:
       - name: Installing homebrew
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            brew install python && pip3 install "ansible>2.9,<2.10"
+            pip3 install "ansible>2.9,<2.10"
       - name: Testing fish tasks
         run: make fish
   test-osx:
@@ -84,7 +84,7 @@ jobs:
       - name: Installing homebrew
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            brew install python && pip3 install "ansible>2.9,<2.10"
+            pip3 install "ansible>2.9,<2.10"
       - name: Testing osx tasks
         run: make osx
   test-upgrade:
@@ -94,6 +94,6 @@ jobs:
       - name: Installing homebrew
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            brew install ansible mas
+            pip3 install "ansible>2.9,<2.10" && brew install mas
       - name: Testing homebrew upgrade
         run: make upgrade
