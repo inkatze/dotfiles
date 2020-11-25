@@ -53,10 +53,6 @@ if status --is-login
     set -xg RBENV_ROOT $HOME/.rbenv
     set -xg THOR_SILENCE_DEPRECATION 1
 
-    # # nvm stuff
-    # set -xg XDG_CONFIG_HOME $HOME/.config
-    # set -xg NVM_DIR HOME $HOME/.config
-
     # Binaries paths
     set -l POSTGRES_BIN /Applications/Postgres.app/Contents/Versions/latest/bin
     set -l PYTHON_LIB_EXEC /usr/local/opt/python/libexec/bin
@@ -72,9 +68,6 @@ if status --is-login
     set -U fish_user_paths $fish_user_paths /usr/local/bin /usr/local/sbin
     set -U fish_user_paths $fish_user_paths $GOPATH/bin $GOROOT/bin $CARGO_BIN
     set -U fish_user_paths $fish_user_paths $POSTGRES_BIN $PYTHON_LIB_EXEC
-
-    # Load default node version
-    type -q nvm; and nvm
 end
 
 function tm
@@ -102,3 +95,4 @@ status --is-interactive; and source (pyenv init -|psub)
 status --is-interactive; and source (pyenv virtualenv-init -|psub)
 status --is-interactive; and source (rbenv init -|psub)
 status --is-interactive; and direnv hook fish | source
+type -q nvm; and nvm
