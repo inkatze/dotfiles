@@ -67,7 +67,6 @@ homebrew_cask_applications:
   - google-chrome
   - grammarly
   - iterm2
-  - java11
   - keycastr
   - logitech-options
   - microsoft-office
@@ -79,7 +78,6 @@ homebrew_cask_applications:
   - skype
   - spotify
   - steam
-  - telegram
   - transmission
   - zoomus
 
@@ -138,6 +136,7 @@ mas_applications:
   - { id: "409201541", name: Pages }
   - { id: "803453959", name: Slack }
   - { id: "1176895641", name: Spark }
+  - { id: "747648890", name: Telegram }
   - { id: "1384080005", name: Tweetbot }
   - { id: "497799835", name: Xcode }
 
@@ -162,7 +161,7 @@ neovim_formulas:
 
 neovim_python:
   - { version: 2.7.17, venv: neovim2 }
-  - { version: 3.8.2, venv: neovim3 }
+  - { version: 3.8.5, venv: neovim3 }
 
 neovim_node_packages:
   - { name: typescript-language-server, version: latest }

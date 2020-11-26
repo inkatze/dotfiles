@@ -136,7 +136,7 @@ autocmd FileType proto setlocal ts=2 sts=2 sw=2 expandtab
 let $LANG = ''
 let $PYENV_ROOT = $HOME.'/.pyenv'
 let $PYTHON2_VERSION = '2.7.17'
-let $PYTHON3_VERSION = '3.8.2'
+let $PYTHON3_VERSION = '3.8.5'
 let $NEOVIM2_VENV = $PYENV_ROOT.'/versions/'.$PYTHON2_VERSION.'/envs/neovim2'
 let $NEOVIM3_VENV = $PYENV_ROOT.'/versions/'.$PYTHON3_VERSION.'/envs/neovim3'
 let g:python_host_prog = $NEOVIM2_VENV.'/bin/python'

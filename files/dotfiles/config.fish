@@ -19,15 +19,11 @@ alias sorbetup 'brails sorbet:generate_active_record_rbi'
 
 if status --is-login
     # Unix and C stuff
-    set -xl LLVM_PATH (brew --prefix llvm)
-    set -xg OPENSSL_PATH (brew --prefix openssl@1.1)
     set -xg LC_ALL en_US.UTF-8
     set -xg CODESET UTF-8
-    set -xg CPATH $LLVM_PATH/include
-    set -xg CC $LLVM_PATH/bin/clang
-    set -xg LIBRARY_PATH $LIBRARY_PATH $OPENSSL_PATH/lib
-    set -xg SDKROOT /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
-    set -xg MACOSX_DEPLOYMENT_TARGET 10.15
+    set -gx LDFLAGS '-L/usr/local/opt/zlib/lib'
+    set -gx CPPFLAGS '-I/usr/local/opt/zlib/include'
+    set -gx PKG_CONFIG_PATH '/usr/local/opt/zlib/lib/pkgconfig'
     set -xg EDITOR nvim
 
     # Fish Theme
