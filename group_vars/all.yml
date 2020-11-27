@@ -28,7 +28,6 @@ homebrew_formulas:
   - llvm
   - make
   - mosh
-  - mysql
   - neofetch
   - nnn
   - pinentry-mac
