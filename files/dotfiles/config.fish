@@ -21,9 +21,6 @@ if status --is-login
     # Unix and C stuff
     set -xg LC_ALL en_US.UTF-8
     set -xg CODESET UTF-8
-    set -gx LDFLAGS '-L/usr/local/opt/zlib/lib'
-    set -gx CPPFLAGS '-I/usr/local/opt/zlib/include'
-    set -gx PKG_CONFIG_PATH '/usr/local/opt/zlib/lib/pkgconfig'
     set -xg EDITOR nvim
 
     # Fish Theme
@@ -45,9 +42,20 @@ if status --is-login
     set -xg PIPENV_DEFAULT_PYTHON_VERSION 3.8.1
     set -xg PIPENV_SHELL_FANCY 1
 
+    ## Pyenv fixes
+    set -xl ZLIB_PATH (brew --prefix zlib)
+    set -gx PKG_CONFIG_PATH $ZLIB_PATH/lib/pkgconfig
+    set -gx LDFLAGS '-L'$ZLIB_PATH/lib
+    set -gx CPPFLAGS '-I'$ZLIB_PATH/include
+
     # Ruby stuff
     set -xg RBENV_ROOT $HOME/.rbenv
     set -xg THOR_SILENCE_DEPRECATION 1
+
+    ## Mysql gem fixes
+    set -xl OPENSSL_PATH (brew --prefix openssl@1.1)
+    set -xg LIBRARY_PATH $LIBRARY_PATH $OPENSSL_PATH/lib
+    set -xg CPATH $CPATH $OPENSSL_PATH/include
 
     # Binaries paths
     set -l POSTGRES_BIN /Applications/Postgres.app/Contents/Versions/latest/bin
