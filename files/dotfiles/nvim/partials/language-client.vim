@@ -22,7 +22,7 @@ endfunction
 augroup LSPMappings
   autocmd!
   autocmd FileType \
-    \ cpp,c,ruby,yaml,yaml.ansible,javascript,typescript,typescript.tsx,javascript.jsx,sorbet,vim
+    \ cpp,c,ruby,yaml,yaml.ansible,javascript,typescript,typescriptreact,javascript.jsx,sorbet,vim
     \ call LanguageClientMappers()
 augroup END
 
@@ -36,7 +36,7 @@ let g:LanguageClient_serverCommands = {
 \ 'javascript': ['typescript-language-server', '--stdio'],
 \ 'typescript': ['typescript-language-server', '--stdio'],
 \ 'javascript.jsx': ['typescript-language-server', '--stdio'],
-\ 'typescript.tsx': ['typescript-language-server', '--stdio'],
+\ 'typescriptreact': ['typescript-language-server', '--stdio'],
 \ 'rust': ['rustup', 'run', 'stable', 'rls'],
 \ 'vim': ['vim-language-server', '--stdio'],
 \ }
@@ -99,7 +99,7 @@ let lspsettings = json_decode('
 \            "enable": true
 \        }
 \    },
-\   "typescript.tsx": {
+\   "typescriptreact": {
 \        "completion": true,
 \        "hover": true,
 \        "validate": true,
@@ -124,7 +124,7 @@ function InitializeLSP()
   \   'javascript': ['jsconfig.json',  'package.json'],
   \   'typescript': ['tsconfig.json', 'package.json'],
   \   'javascript.jsx': ['jsconfig.json', 'package.json'],
-  \   'typescript.tsx': ['tsconfig.json', 'package.json'],
+  \   'typescriptreact': ['tsconfig.json', 'package.json'],
   \   'vim': ['.git', 'autoload', 'plugin'],
   \ }
   autocmd User LanguageClientStarted call LanguageClient#Notify(
@@ -134,6 +134,6 @@ endfunction()
 augroup LSP
   autocmd!
   autocmd FileType \
-    \ cpp,c,ruby,yaml,yaml.ansible,javascript,typescript,typescript.tsx,javascript.jsx,sorbet,vim
+    \ cpp,c,ruby,yaml,yaml.ansible,javascript,typescript,typescriptreact,javascript.jsx,sorbet,vim
     \ call InitializeLSP()
 augroup END
