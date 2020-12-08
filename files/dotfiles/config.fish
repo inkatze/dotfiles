@@ -73,7 +73,7 @@ if status --is-login
     set -U fish_user_paths $fish_user_paths $GOPATH/bin $GOROOT/bin $CARGO_BIN
     set -U fish_user_paths $fish_user_paths $POSTGRES_BIN $PYTHON_LIB_EXEC
 
-    type -q nvm; and nvm
+    functions -q nvm; and nvm install > /dev/null
 end
 
 function tm
