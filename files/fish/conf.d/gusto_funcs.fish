@@ -19,7 +19,7 @@ end
 
 function zeni
   bundle install; and \
-    npx yarn install; and \
+    yarn install; and \
     brails db:create db:migrate db:test:prepare; and \
     zentags; and \
     solarup
