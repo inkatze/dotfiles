@@ -49,9 +49,6 @@ let lspsettings = json_decode('
 \        "validate": true,
 \        "schemas": {
 \            "Kubernetes": "/*"
-\        },
-\        "format": {
-\            "enable": true
 \        }
 \    },
 \    "http": {
@@ -61,51 +58,33 @@ let lspsettings = json_decode('
 \        "completion": true,
 \        "hover": true,
 \        "validate": true,
-\        "typecheck": true,
-\        "format": {
-\            "enable": true
-\        }
+\        "typecheck": true
 \    },
 \    "sorbet": {
 \        "completion": true,
 \        "hover": true,
 \        "validate": true,
-\        "typecheck": true,
-\        "format": {
-\            "enable": true
-\        }
+\        "typecheck": true
 \    },
 \   "javascript": {
 \        "completion": true,
 \        "hover": true,
-\        "validate": true,
-\        "format": {
-\            "enable": true
-\        }
+\        "validate": true
 \    },
 \   "typescript": {
 \        "completion": true,
 \        "hover": true,
-\        "validate": true,
-\        "format": {
-\            "enable": true
-\        }
+\        "validate": true
 \    },
 \   "javascript.jsx": {
 \        "completion": true,
 \        "hover": true,
-\        "validate": true,
-\        "format": {
-\            "enable": true
-\        }
+\        "validate": true
 \    },
 \   "typescriptreact": {
 \        "completion": true,
 \        "hover": true,
-\        "validate": true,
-\        "format": {
-\            "enable": true
-\        }
+\        "validate": true
 \    },
 \   "vim": {
 \        "completion": true,
