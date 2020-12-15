@@ -28,18 +28,16 @@ augroup END
 
 let g:LanguageClient_waitOutputFTimeout = 120
 let g:LanguageClient_autoStop = 0
-let g:LanguageClient_serverCommands = {
-\ 'yaml': ['yaml-language-server', '--stdio'],
-\ 'yaml.ansible': ['yaml-language-server', '--stdio'],
-\ 'ruby': ['solargraph', 'stdio'],
-\ 'sorbet': ['srb', 'tc', '--lsp', '--enable-all-experimental-lsp-features', '--no-config'],
-\ 'javascript': ['typescript-language-server', '--stdio'],
-\ 'typescript': ['typescript-language-server', '--stdio'],
-\ 'javascript.jsx': ['typescript-language-server', '--stdio'],
-\ 'typescriptreact': ['typescript-language-server', '--stdio'],
-\ 'rust': ['rustup', 'run', 'stable', 'rls'],
-\ 'vim': ['vim-language-server', '--stdio'],
-\ }
+let g:LanguageClient_serverCommands = {}
+let g:LanguageClient_serverCommands.yaml = ['yaml-language-server', '--stdio']
+let g:LanguageClient_serverCommands['yaml-ansible'] = ['yaml-language-server', '--stdio']
+let g:LanguageClient_serverCommands.ruby = ['solargraph', 'stdio']
+let g:LanguageClient_serverCommands.javascript = ['typescript-language-server', '--stdio']
+let g:LanguageClient_serverCommands.typescript = ['typescript-language-server', '--stdio']
+let g:LanguageClient_serverCommands['javascript.jsx'] = ['typescript-language-server', '--stdio']
+let g:LanguageClient_serverCommands.typescriptreact = ['typescript-language-server', '--stdio']
+let g:LanguageClient_serverCommands.rust = ['rustup', 'run', 'stable', 'rls']
+let g:LanguageClient_serverCommands.vim = ['vim-language-server', '--stdio']
 
 let lspsettings = json_decode('
 \{

@@ -4,9 +4,7 @@ let g:ale_sign_warning = '⚠'
 
 let g:ale_fix_on_save = 1
 let g:ale_completion_autoimport = 1
-let g:ale_ruby_sorbet_options = '--no-config --enable-all-experimental-lsp-features'
-let g:ale_ruby_rubocop_executable = 'bundle'
-let g:ale_ruby_sorbet_executable = 'bundle'
+let g:ale_ruby_sorbet_options = '--no-config --enable-all-experimental-lsp-features --dir=./'
 
 let g:ale_linters_explicit = 1
 let g:ale_linters={
@@ -16,7 +14,7 @@ let g:ale_linters={
 \   'typescriptreact': ['eslint', 'tslint', 'tsserver'],
 \   'html': ['eslint'],
 \   'go': ['gofmt', 'staticcheck', 'gobuild', 'gometalinter', 'gosimple', 'golangserver'],
-\   'ruby': ['rubocop', 'solargraph'],
+\   'ruby': ['rubocop', 'srb'],
 \   'graphql': ['eslint'],
 \   'rust': ['cargo', 'rustc', 'rls', 'analyzer'],
 \   'proto': ['protoc-gen-lint'],
