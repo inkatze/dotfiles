@@ -7,6 +7,9 @@ let maplocalleader = ","
 " Go to alt file ->>2
 nmap <leader>T :A<CR>
 
+" Go to definition
+nnoremap <silent> gd :ALEGoToDefinition<CR>
+
 " Copy current buffer full path ->>2
 nnoremap <silent><leader>cp :let @@ = expand('%')<CR>
 nnoremap <silent><leader>cp+ :let @+ = expand('%')<CR>

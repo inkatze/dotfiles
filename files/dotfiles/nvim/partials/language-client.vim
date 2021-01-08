@@ -5,7 +5,6 @@ set hidden
 " bindings ->>1
 function  LanguageClientMappers()
   nnoremap <F5> :call LanguageClient_contextMenu()<CR>
-  nnoremap <silent> gd :call LanguageClient#textDocument_definition()<CR>
   nnoremap <silent> <F2> :call LanguageClient#textDocument_rename()<CR>
   nnoremap <leader>ld :call LanguageClient#textDocument_definition()<CR>
   nnoremap <leader>lr :call LanguageClient#textDocument_rename()<CR>
@@ -103,6 +102,7 @@ function InitializeLSP()
   \   'javascript.jsx': ['jsconfig.json', 'package.json'],
   \   'typescriptreact': ['tsconfig.json', 'package.json'],
   \   'vim': ['.git', 'autoload', 'plugin'],
+  \   'ruby': ['Gemfile', 'package.yml']
   \ }
   autocmd User LanguageClientStarted call LanguageClient#Notify(
     \ 'workspace/didChangeConfiguration', {'settings': lspsettings})
