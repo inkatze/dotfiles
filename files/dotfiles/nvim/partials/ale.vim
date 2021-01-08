@@ -30,3 +30,7 @@ let g:ale_fixers={
 \   'ruby': ['rubocop'],
 \   'rust': ['rustfmt'],
 \}
+
+" Mappings ->>1
+nnoremap <silent> gd :ALEGoToDefinition<CR>
+nnoremap <silent> ar :ALERename<CR>
