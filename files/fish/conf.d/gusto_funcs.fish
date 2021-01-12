@@ -25,6 +25,14 @@ function zeni
     solarup
 end
 
+function zensync
+  git sw development
+  git pull --rebase origin development
+  git sw -
+  git rebase development
+  zeni
+end
+
 function zenu
   git pull --rebase origin development; and \
     zeni
