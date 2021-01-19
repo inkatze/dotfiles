@@ -104,7 +104,7 @@ import_js_config_source_file: dotfiles/importjs.js
 
 # fish.yml
 
-fish_formulas: [fish]
+fish_formulas: [fish, starship]
 fish_config_source_path: fish
 fish_plugins:
   - edc/bass

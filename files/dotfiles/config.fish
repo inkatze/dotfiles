@@ -23,10 +23,6 @@ if status --is-login
     set -xg CODESET UTF-8
     set -xg EDITOR nvim
 
-    # Fish Theme
-    set -xg fish_greeting '¡Hoal!'
-    set -xg SPACEFISH_CHAR_SUFFIX '  '
-
     # GPG & git fix
     set -xg GPG_TTY (tty)
 
@@ -101,3 +97,8 @@ status --is-interactive; and source (pyenv init -|psub)
 status --is-interactive; and source (pyenv virtualenv-init -|psub)
 status --is-interactive; and source (rbenv init -|psub)
 status --is-interactive; and direnv hook fish | source
+
+# Fish Theme
+set -xg fish_greeting '¡Hoal!'
+set -xg SPACEFISH_CHAR_SUFFIX '  '
+starship init fish | source
