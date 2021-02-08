@@ -69,6 +69,7 @@ homebrew_cask_applications:
   - keycastr
   - logitech-options
   - microsoft-office
+  - notion
   - homebrew/cask-versions/openemu-experimental
   - postgres
   - rubymine
