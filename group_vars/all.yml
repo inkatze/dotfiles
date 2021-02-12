@@ -157,7 +157,8 @@ neovim_formulas:
   - pyenv-virtualenv
   - rbenv
   - rg
-  - rust
+  - rust-analyzer
+  - rustup-init
   - watchman
 
 neovim_python:
