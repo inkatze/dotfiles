@@ -1,5 +1,9 @@
 ---
 
+- src: https://github.com/inkatze/ansible-fish.git
+  version: main
+  name: fish_role
+
 - src: https://github.com/inkatze/ansible-dotfiles.git
   version: main
   name: dotfiles_role

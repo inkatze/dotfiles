@@ -110,10 +110,9 @@ fish_config_source_path: fish
 fish_plugins:
   - edc/bass
   - laughedelic/pisces
-  - matchai/spacefish
   - jethrokuan/z
   - jorgebucaran/nvm.fish
-starship_source_path: dotfiles/starship.toml
+fish_starship_source_path: dotfiles/starship.toml
 
 # tmux
 

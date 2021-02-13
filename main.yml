@@ -3,3 +3,4 @@
 - hosts: all
   roles:
     - role: dotfiles_role
+    - role: fish_role

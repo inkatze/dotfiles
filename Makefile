@@ -50,7 +50,7 @@ upgrade: deps
 
 shell: deps
 	# Requires privilege escalation because of the /etc/shells file
-	$(PLAYBOOK_COMMAND) -t shell -K
+	$(PLAYBOOK_COMMAND) -t fish,shell -K
 
 deps: header
 	ansible-galaxy install -f -r requirements.yml
