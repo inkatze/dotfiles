@@ -7,3 +7,11 @@
 - src: https://github.com/inkatze/ansible-dotfiles.git
   version: main
   name: dotfiles_role
+
+- src: https://github.com/inkatze/ansible-homebrew.git
+  version: main
+  name: homebrew_role
+
+- src: https://github.com/inkatze/ansible-osx.git
+  version: main
+  name: osx_role

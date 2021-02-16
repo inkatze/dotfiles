@@ -122,8 +122,8 @@ tmux_formulas:
 
 # mas.yml
 
-mas_formulas: [mas]
-mas_applications:
+osx_mas_formulas: [mas]
+osx_mas_applications:
   - { id: "1333542190", name: 1Password }
   - { id: "1319884285", name: Black Out }
   - { id: "975937182", name: Fantastical }
