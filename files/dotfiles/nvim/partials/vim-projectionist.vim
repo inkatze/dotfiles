@@ -8,6 +8,7 @@ let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/app/*.rb"].alte
 let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/app/*.rb"].template = [
   \ "# @mission Modern Bank",
   \ "# @team Cashout",
+  \ "# typed: strict",
   \ "# frozen_string_literal: true"
   \ ]
 let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_spec.rb"] = {}
@@ -16,7 +17,6 @@ let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_spec.rb"
 let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_spec.rb"].template = [
   \ "# @mission Modern Bank",
   \ "# @team Cashout",
-  \ "# typed: strict",
   \ "# frozen_string_literal: true"
   \ ]
 
