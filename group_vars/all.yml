@@ -108,7 +108,6 @@ import_js_config_source_file: dotfiles/importjs.js
 fish_formulas: [fish, starship]
 fish_config_source_path: fish
 fish_plugins:
-  - edc/bass
   - laughedelic/pisces
   - jethrokuan/z
   - jorgebucaran/nvm.fish
