@@ -1,4 +1,4 @@
-.DEFAULT_GOAL := install
+.DEFAULT_GOAL := default
 MAKEFLAGS := "-s"
 SHELL := /bin/bash
 HOSTNAME := $(shell hostname)
@@ -54,3 +54,5 @@ deps: header
 
 header:
 	echo "Running on host: $(CURRENT_HOST)"
+
+default: install upgrade
