@@ -49,6 +49,7 @@ homebrew_formulas:
   - golangci/tap/golangci-lint
 
   - rbenv
+  - ruby-build
   - libsodium # work project related
 
   - rust-analyzer
@@ -130,7 +131,7 @@ osx_mas_applications:
   - { id: "1263070803", name: Lungo }
   - { id: "1480068668", name: Messenger }
   - { id: "1289197285", name: MindNode 5 }
-  - { id: "1012291524", name: Moneywiz 3 }
+  - { id: "1511185140", name: Moneywiz }
   - { id: "1116599239", name: NordVPN }
   - { id: "409201541", name: Pages }
   - { id: "803453959", name: Slack }
