@@ -20,6 +20,50 @@ let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_spec.rb"
   \ "# frozen_string_literal: true"
   \ ]
 
+let g:projectionist_heuristics["packs/cashout/*"] = {}
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/lib/*.rb"] = {}
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/lib/*.rb"].type = "source"
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/lib/*.rb"].alternate = "packs/cashout/spec/{}_spec.rb"
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/lib/*.rb"].template = [
+  \ "# @mission Modern Bank",
+  \ "# @team Cashout",
+  \ "# typed: strict",
+  \ "# frozen_string_literal: true"
+  \ ]
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_spec.rb"] = {}
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_spec.rb"].type = "test"
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_spec.rb"].alternate = "packs/cashout/lib/{}.rb"
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_spec.rb"].template = [
+  \ "# @mission Modern Bank",
+  \ "# @team Cashout",
+  \ "# frozen_string_literal: true",
+  \ "",
+  \ "require 'rails_helper'",
+  \ "require '{}'"
+  \ ]
+
+let g:projectionist_heuristics["packs/cashout/*"] = {}
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/lib/*.rb"] = {}
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/lib/*.rb"].type = "source"
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/lib/*.rb"].alternate = "packs/cashout/spec/{}_integration_spec.rb"
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/lib/*.rb"].template = [
+  \ "# @mission Modern Bank",
+  \ "# @team Cashout",
+  \ "# typed: strict",
+  \ "# frozen_string_literal: true"
+  \ ]
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_integration_spec.rb"] = {}
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_integration_spec.rb"].type = "test"
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_integration_spec.rb"].alternate = "packs/cashout/lib/{}.rb"
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_integration_spec.rb"].template = [
+  \ "# @mission Modern Bank",
+  \ "# @team Cashout",
+  \ "# frozen_string_literal: true",
+  \ "",
+  \ "require 'rails_helper'",
+  \ "require '{}'"
+  \ ]
+
 " Node stuff
 let g:projectionist_heuristics["frontend/javascripts/*"] = {}
 let g:projectionist_heuristics["frontend/javascripts/*"]["frontend/javascripts/*.js"] = {}
