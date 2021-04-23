@@ -80,7 +80,8 @@ homebrew_cask_applications:
   - spotify
   - steam
   - transmission
-  - zoomus
+  - wkhtmltopdf
+  # - zoomus
 
 hombrew_dont_start_redis: false
 
