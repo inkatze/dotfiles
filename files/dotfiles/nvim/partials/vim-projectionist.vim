@@ -2,6 +2,36 @@ let g:projectionist_heuristics = {}
 
 " Rails stuff
 let g:projectionist_heuristics["packs/cashout/*"] = {}
+
+" Public API
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/app/public/*.rb"] = {}
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/app/public/*.rb"].type = "source"
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/app/public/*.rb"].alternate = [
+  \ "packs/cashout/spec/{}_spec.rb",
+  \ "packs/cashout/spec/{}_integration_spec.rb"
+  \ ]
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/app/public/*.rb"].template = [
+  \ "# @mission Modern Bank",
+  \ "# @team Cashout",
+  \ "# typed: strict",
+  \ "# frozen_string_literal: true"
+  \ ]
+
+" Lib
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/lib/*.rb"] = {}
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/lib/*.rb"].type = "source"
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/lib/*.rb"].alternate = [
+  \ "packs/cashout/spec/{}_spec.rb",
+  \ "packs/cashout/spec/{}_integration_spec.rb"
+  \ ]
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/lib/*.rb"].template = [
+  \ "# @mission Modern Bank",
+  \ "# @team Cashout",
+  \ "# typed: strict",
+  \ "# frozen_string_literal: true"
+  \ ]
+
+" App
 let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/app/*.rb"] = {}
 let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/app/*.rb"].type = "source"
 let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/app/*.rb"].alternate = "packs/cashout/spec/{}_spec.rb"
@@ -20,22 +50,13 @@ let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_spec.rb"
   \ "# frozen_string_literal: true"
   \ ]
 
-let g:projectionist_heuristics["packs/cashout/*"] = {}
-let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/lib/*.rb"] = {}
-let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/lib/*.rb"].type = "source"
-let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/lib/*.rb"].alternate = [
-  \ "packs/cashout/spec/{}_spec.rb",
-  \ "packs/cashout/spec/{}_integration_spec.rb"
-  \ ]
-let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/lib/*.rb"].template = [
-  \ "# @mission Modern Bank",
-  \ "# @team Cashout",
-  \ "# typed: strict",
-  \ "# frozen_string_literal: true"
-  \ ]
+" Specs
 let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_spec.rb"] = {}
 let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_spec.rb"].type = "test"
-let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_spec.rb"].alternate = "packs/cashout/lib/{}.rb"
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_spec.rb"].alternate = [
+  \ "packs/cashout/app/public/{}.rb",
+  \ "packs/cashout/lib/{}.rb",
+  \ ]
 let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_spec.rb"].template = [
   \ "# @mission Modern Bank",
   \ "# @team Cashout",
@@ -46,7 +67,10 @@ let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_spec.rb"
   \ ]
 let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_integration_spec.rb"] = {}
 let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_integration_spec.rb"].type = "test"
-let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_integration_spec.rb"].alternate = "packs/cashout/lib/{}.rb"
+let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_integration_spec.rb"].alternate = [
+  \ "packs/cashout/app/public/{}.rb",
+  \ "packs/cashout/lib/{}.rb",
+  \ ]
 let g:projectionist_heuristics["packs/cashout/*"]["packs/cashout/spec/*_integration_spec.rb"].template = [
   \ "# @mission Modern Bank",
   \ "# @team Cashout",
