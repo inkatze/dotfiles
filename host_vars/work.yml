@@ -5,13 +5,32 @@ homebrew_cask_applications:
   - DBngin
   - docker
   - firefox
+  - font-fantasque-sans-mono
   - font-fira-code-nerd-font
   - grammarly
   - iterm2
   - keycastr
   - logitech-options
   - microsoft-office
+  - notion
   - postgres
   - rubymine
   - sequel-pro
   - steam
+  - wkhtmltopdf
+
+osx_mas_applications:
+  - { id: "1333542190", name: 1Password }
+  - { id: "1319884285", name: Black Out }
+  - { id: "975937182", name: Fantastical }
+  - { id: "409183694", name: Keynote }
+  - { id: "1263070803", name: Lungo }
+  - { id: "1480068668", name: Messenger }
+  - { id: "1289197285", name: MindNode 5 }
+  - { id: "1511185140", name: Moneywiz }
+  - { id: "1116599239", name: NordVPN }
+  - { id: "409201541", name: Pages }
+  - { id: "1176895641", name: Spark }
+  - { id: "747648890", name: Telegram }
+  - { id: "1384080005", name: Tweetbot }
+  - { id: "497799835", name: Xcode }

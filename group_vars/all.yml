@@ -73,15 +73,12 @@ homebrew_cask_applications:
   - notion
   - homebrew/cask-versions/openemu-experimental
   - postgres
-  - rubymine
   - screen
   - sequel-pro
   - skype
   - spotify
   - steam
   - transmission
-  - wkhtmltopdf
-  # - zoomus
 
 hombrew_dont_start_redis: false
 
