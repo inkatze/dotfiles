@@ -59,7 +59,6 @@ Plug 'tpope/vim-commentary'
 Plug 'luochen1990/rainbow' " colored parenthesis
 Plug 'gregsexton/MatchTag' " highlight matching html tags
 Plug 'easymotion/vim-easymotion'
-Plug 'hkupty/iron.nvim'  " invokes custom context aware repls
 
 " tmux
 Plug 'tmux-plugins/vim-tmux'
