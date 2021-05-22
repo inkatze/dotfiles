@@ -15,3 +15,7 @@
 - src: https://github.com/inkatze/ansible-osx.git
   version: main
   name: osx_role
+
+- src: https://github.com/inkatze/ansible-neovim.git
+  version: main
+  name: neovim_role

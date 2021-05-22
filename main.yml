@@ -6,3 +6,4 @@
     - role: fish_role
     - role: dotfiles_role
     - role: osx_role
+    - role: neovim_role

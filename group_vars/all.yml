@@ -93,7 +93,7 @@ gpg_agent_conf_source_file: "{{ gpg_base_source_path }}/gpg-agent.conf"
 fish_config_source_file: dotfiles/config.fish
 iterm2_plist_source_file: dotfiles/{{ current_env }}/com.googlecode.iterm2.plist
 gitconfig_source_file: dotfiles/{{ current_env }}/gitconfig
-neovim_config_path: dotfiles/nvim
+# neovim_config_path: dotfiles/nvim
 pylintrc_source_file: dotfiles/pylintrc
 npmrc_source_file: dotfiles/npmrc
 nvmrc_source_file: dotfiles/nvmrc
@@ -140,34 +140,9 @@ osx_mas_applications:
 
 # neovim.yml
 
-neovim_formulas:
-  - vim
-  - neovim
-
-  - ansible-lint
-  - bat
-  - CMake
-  - findutils
-  - gotags
-  - proselint
-  - pyenv
-  - pyenv-virtualenv
-  - rbenv
-  - rg
-  - rust-analyzer
-  - rustup-init
-  - watchman
-
 neovim_python:
   - { version: 2.7.17, venv: neovim2 }
   - { version: 3.8.5, venv: neovim3 }
-
-neovim_node_packages:
-  - { name: typescript-language-server, version: latest }
-  - { name: neovim, version: latest }
-  - { name: import-js, version: latest }
-  - { name: yaml-language-server, version: 0.4.1 }
-  - { name: vim-language-server, version: latest }
 
 neovim_ruby_version: 2.7.3
 
