@@ -22,7 +22,7 @@ function zeni
     yarn install; and \
     brails db:create db:migrate db:test:prepare; and \
     zentags; and \
-    solarup
+    sorbetup
 end
 
 function zensync

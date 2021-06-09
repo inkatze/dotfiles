@@ -14,14 +14,14 @@ alias bexec 'bundle exec'
 alias brspec 'bin/rspec'
 alias bsidekiq 'bundle exec sidekiq'
 alias brubocop 'bundle exec rubocop'
-alias solarup 'solargraph download-core; and solargraph bundle'
-alias sorbetup 'brails sorbet:generate_active_record_rbi'
+alias sorbetup 'brails sorbet:generate_rbi'
 
 if status --is-login
     # Unix and C stuff
     set -xg LC_ALL en_US.UTF-8
     set -xg CODESET UTF-8
     set -xg EDITOR nvim
+    set -xg FZF_DEFAULT_COMMAND 'bash -c "ag --files-with-matches --column --no-heading --nocolor --smart-case --ignore *.rbi --ignore node_modules"'
 
     # GPG & git fix
     set -xg GPG_TTY (tty)
@@ -70,6 +70,8 @@ if status --is-login
     set -U fish_user_paths $fish_user_paths $POSTGRES_BIN $PYTHON_LIB_EXEC
 
     functions -q nvm; and nvm install > /dev/null
+
+    pyenv init --path | source
 end
 
 function tm
@@ -102,3 +104,4 @@ status --is-interactive; and direnv hook fish | source
 set -xg fish_greeting '¡Hoal!'
 set -xg SPACEFISH_CHAR_SUFFIX '  '
 starship init fish | source
+pyenv init - | source
