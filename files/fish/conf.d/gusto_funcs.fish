@@ -21,8 +21,7 @@ function zeni
   bundle install; and \
     yarn install; and \
     brails db:create db:migrate db:test:prepare; and \
-    zentags; and \
-    sorbetup
+    zentags
 end
 
 function zensync
