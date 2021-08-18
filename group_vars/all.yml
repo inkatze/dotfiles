@@ -97,7 +97,6 @@ pylintrc_source_file: dotfiles/pylintrc
 npmrc_source_file: dotfiles/npmrc
 nvmrc_source_file: dotfiles/nvmrc
 tmux_source_file: dotfiles/tmux.conf
-ruby_global_version_source_file: dotfiles/ruby-global-version
 mysql_config_source_file: dotfiles/my.cnf
 import_js_config_source_file: dotfiles/importjs.js
 
@@ -138,8 +137,8 @@ osx_mas_applications:
   - { id: "497799835", name: Xcode }
 
 # neovim.yml
-neovim_python_version: 3.9.5
-neovim_ruby_version: 2.7.4
+neovim_python_version: ""
+neovim_ruby_version: ""
 
 # mas.yml
 # Docs
