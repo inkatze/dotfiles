@@ -3,21 +3,26 @@ function gustograph
     npx yarn generate-client-types
 end
 
-function zeni
-  bundle install; and \
-    yarn install; and \
-    brails db:create db:migrate db:test:prepare
-end
-
 function zensync
   git sw development
-  git pull --rebase origin development
+  zenu
   git sw -
   git rebase development
   zeni
 end
 
 function zenu
-  git pull --rebase origin development; and \
-    zeni
+  set -xl REBASED (git pull --rebase origin development)
+
+  if string match -q -r 'Gemfile*' $REBASED
+    bundle install
+  end
+
+  if string match -q -r 'package*' $REBASED
+    yarn install
+  end
+
+  if string match -q -r 'db/schema.rb' $REBASED
+    brails db:create db:migrate db:test:prepare
+  end
 end
