@@ -47,6 +47,7 @@ if status --is-login
 
     # Ruby stuff
     set -xg RBENV_ROOT $HOME/.rbenv
+    set -xg RBENV_VERSION 2.7.4
     set -xg THOR_SILENCE_DEPRECATION 1
 
     ## Mysql gem fixes
