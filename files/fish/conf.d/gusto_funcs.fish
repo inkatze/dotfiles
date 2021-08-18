@@ -8,11 +8,12 @@ function zensync
   zenu
   git sw -
   git rebase development
-  zeni
 end
 
 function zenu
   set -xl REBASED (git pull --rebase origin development)
+
+  echo $REBASED
 
   if string match -q -r 'Gemfile*' $REBASED
     bundle install
