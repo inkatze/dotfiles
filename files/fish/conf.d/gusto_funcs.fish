@@ -11,19 +11,17 @@ function zensync
 end
 
 function zenu
-  set -xl REBASED (git pull --rebase origin development)
+  set -xl rebased (git pull --rebase origin development)
 
-  echo $REBASED
-
-  if string match -q -r 'Gemfile*' $REBASED
+  if string match -q -r 'Gemfile*' $rebased
     bundle install
   end
 
-  if string match -q -r 'package*' $REBASED
+  if string match -q -r 'package*' $rebased
     yarn install
   end
 
-  if string match -q -r 'db/schema.rb' $REBASED
+  if string match -q -r 'db/schema.rb' $rebased
     brails db:create db:migrate db:test:prepare
   end
 end
