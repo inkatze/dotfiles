@@ -79,6 +79,7 @@ homebrew_cask_applications:
   - spotify
   - steam
   - transmission
+  - zoom
 
 hombrew_dont_start_redis: false
 

@@ -24,4 +24,10 @@ function zenu
   if string match -q -r 'db/schema.rb' $rebased
     brails db:create db:migrate db:test:prepare
   end
+
+  set -xl rebased (git status)
+  if string match -q -r 'db/schema.rb' $rebased
+    echo 'db/schema.rb is out of sync as usual'
+    git restore db/schema.rb
+  end
 end
