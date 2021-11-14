@@ -76,15 +76,6 @@ if status --is-login
     pyenv init --path | source
 end
 
-function tm
-  echo
-  if set -q $argv[1]
-    tmux a
-  else
-    tmux new -s $argv
-  end
-end
-
 function gitpersonal
   git config user.email 'jd@inkatze.com'
   git config user.signingkey 'FF6211FF90D065A7'
