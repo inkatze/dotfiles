@@ -1,11 +1,11 @@
-set -xl WORKSPACE_WINDOW 'workspace'
-set -xl DOT_SESSION 'dotfiles'
-set -xl DOT_DIR $HOME'/dev/dotfiles'
-set -xl NV_DIR $HOME'/dev/ansible-neovim'
+set -x WORKSPACE_WINDOW 'workspace'
+set -x DOT_SESSION 'dotfiles'
+set -x DOT_DIR $HOME'/dev/dotfiles'
+set -x NV_DIR $HOME'/dev/ansible-neovim'
 
-set -xl ZP_SESSION 'zp'
-set -xl ZP_DIR $HOME'/dev/zenpayroll'
-set -xl ZP_BACKEND_WINDOW 'backend'
+set -x ZP_SESSION 'zp'
+set -x ZP_DIR $HOME'/dev/zenpayroll'
+set -x ZP_BACKEND_WINDOW 'backend'
 
 function sessionavailable
   set -xl session_name $argv[1]
@@ -46,15 +46,15 @@ function tmdot
   end
 
   if sessionavailable $DOT_SESSION
-    tmux new-session -d -s $DOT_SESSION -n $WORKSPACE_WINDOW
+    tmux new-session -d -n $WORKSPACE_WINDOW -s $DOT_SESSION
   else
-    tmux new-window -t $DOT_SESSION -n $WORKSPACE_WINDOW
+    tmux new-window -n $WORKSPACE_WINDOW -t $DOT_SESSION
   end
 
-  tmux send-keys -t $DOT_SESSION 'cd '$DOT_DIR C-m C-l
-  tmux split-window -t $DOT_SESSION -h
-  tmux send-keys -t $DOT_SESSION 'cd '$NV_DIR C-m C-l
-  tmux select-pane -t 1
+  tmux send-keys -t $DOT_SESSION':'$WORKSPACE_WINDOW'.1' 'cd '$DOT_DIR C-m C-l
+  tmux split-window -h
+  tmux send-keys -t $DOT_SESSION':'$WORKSPACE_WINDOW'.2' 'cd '$NV_DIR C-m C-l
+  tmux select-pane -t $DOT_SESSION':'$WORKSPACE_WINDOW'.1'
 end
 
 function tmzp
@@ -126,7 +126,6 @@ function tmzpsrvr
 end
 
 function tm
-  echo $argv
   if test (count $argv) -eq 0; tmux attach; return; end
 
   set -xl session_name $argv[1]
