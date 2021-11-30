@@ -127,7 +127,6 @@ end
 
 function tm
   echo $argv
-  echo 'Count '(count $argv)
   if test (count $argv) -eq 0; tmux attach; return; end
 
   set -xl session_name $argv[1]
