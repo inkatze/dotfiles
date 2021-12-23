@@ -35,7 +35,7 @@ if status --is-login
     # Python Stuff
     set -xg PYENV_ROOT $HOME/.pyenv
     set -xg WORKON_HOME $PYENV_ROOT
-    set -xg PYENV_VERSION 3.9.6
+    set -xg PYENV_VERSION 3.10.0
     set -xg PIPENV_DEFAULT_PYTHON_VERSION $PYENV_VERSION
     set -xg PIPENV_SHELL_FANCY 1
 
