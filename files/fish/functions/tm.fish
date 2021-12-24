@@ -66,8 +66,8 @@ function tmdot
   set -xl target $DOT_SESSION':'$WORKSPACE_WINDOW
 
   tmux split-window -t $target -h
-  tmux send-keys -t $target'.left' 'cd '$DOT_DIR C-m C-l
-  tmux send-keys -t $target'.right' 'cd '$NV_DIR C-m C-l
+  tmux send-keys -t $target'.left' 'cd '$DOT_DIR Enter C-l
+  tmux send-keys -t $target'.right' 'cd '$NV_DIR Enter C-l
   tmux select-pane -t $target'.left'
 end
 
@@ -94,17 +94,17 @@ function tmzp
   tmux split-window -t $target -h
   tmux split-window -t $target -v
   tmux setw synchronize-panes on
-  tmux send-keys -t $target 'cd '$ZP_DIR C-m C-l
+  tmux send-keys -t $target 'cd '$ZP_DIR Enter C-l
   tmux setw synchronize-panes off
-  tmux send-keys -t $target'.bottom-right' 'brails c' C-m C-l
-  tmux send-keys -t $target'.left' 'nv' C-m
+  tmux send-keys -t $target'.bottom-right' 'brails c' Enter C-l
+  tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 end
 
 function stopservices
   set -xl target $ZP_SESSION':'$ZP_BACKEND_WINDOW
   tmux setw synchronize-panes on
-  tmux send-keys -t $target C-c C-l
+  tmux send-keys -t $target C-c Enter C-l
   tmux setw synchronize-panes off
 end
 
@@ -112,13 +112,13 @@ function startsrvr
   set -xl target $ZP_SESSION':'$ZP_BACKEND_WINDOW
   tmux select-pane -t $target'.top-left'
   tmux setw synchronize-panes on
-  tmux send-keys -t $target 'cd '$ZP_DIR C-m C-l
+  tmux send-keys -t $target 'cd '$ZP_DIR Enter C-l
   tmux setw synchronize-panes off
-  tmux send-keys -t $target'.top-left' 'spring stop' C-m C-l
-  tmux send-keys -t $target'.top-left' 'brails s' C-l C-m
-  tmux send-keys -t $target'.top-right' 'yarn start' C-l C-m
-  tmux send-keys -t $target'.bottom-left' 'bsidekiq' C-l C-m
-  tmux send-keys -t $target'.bottom-right' 'bin/run-hapii' C-l C-m
+  tmux send-keys -t $target'.top-left' 'spring stop' Enter C-l
+  tmux send-keys -t $target'.top-left' 'brails s' C-l Enter
+  tmux send-keys -t $target'.top-right' 'yarn start' C-l Enter
+  tmux send-keys -t $target'.bottom-left' 'bsidekiq' C-l Enter
+  tmux send-keys -t $target'.bottom-right' 'bin/run-hapii' C-l Enter
   tmux select-pane -t $target'.top-left'
 end
 
