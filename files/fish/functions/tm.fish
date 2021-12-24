@@ -7,6 +7,18 @@ set -x ZP_SESSION 'zp'
 set -x ZP_DIR $HOME'/dev/zenpayroll'
 set -x ZP_BACKEND_WINDOW 'backend'
 
+function panecount
+  set -xl session_name $argv[1]
+  set -xl window_name $argv[2]
+  set -xl expected_count $argv[3]
+
+  set -xl pane_count (tmux display-message -t $session_name':'$window_name -p '#{window_panes}')
+
+  if string match -q '*'$expected_count'*' $pane_count; return; end
+
+  return 1
+end
+
 function sessionavailable
   set -xl session_name $argv[1]
   set -xl window_list (tmux list-windows -t $session_name 2>&1)
@@ -51,10 +63,12 @@ function tmdot
     tmux new-window -n $WORKSPACE_WINDOW -t $DOT_SESSION
   end
 
-  tmux send-keys -t $DOT_SESSION':'$WORKSPACE_WINDOW'.1' 'cd '$DOT_DIR C-m C-l
-  tmux split-window -h
-  tmux send-keys -t $DOT_SESSION':'$WORKSPACE_WINDOW'.2' 'cd '$NV_DIR C-m C-l
-  tmux select-pane -t $DOT_SESSION':'$WORKSPACE_WINDOW'.1'
+  set -xl target $DOT_SESSION':'$WORKSPACE_WINDOW
+
+  tmux split-window -t $target -h
+  tmux send-keys -t $target'.left' 'cd '$DOT_DIR C-m C-l
+  tmux send-keys -t $target'.right' 'cd '$NV_DIR C-m C-l
+  tmux select-pane -t $target'.left'
 end
 
 function tmzp
@@ -76,15 +90,36 @@ function tmzp
     tmux new-window -t $ZP_SESSION -n $WORKSPACE_WINDOW
   end
 
-  tmux split-window -h
-  tmux split-window -v
+  set -xl target $ZP_SESSION':'$WORKSPACE_WINDOW
+  tmux split-window -t $target -h
+  tmux split-window -t $target -v
   tmux setw synchronize-panes on
-  tmux send-keys 'cd '$ZP_DIR C-m C-l
+  tmux send-keys -t $target 'cd '$ZP_DIR C-m C-l
   tmux setw synchronize-panes off
-  tmux select-pane -t 3
-  tmux send-keys 'brails c' C-m C-l
-  tmux select-pane -t 1
-  tmux send-keys 'nv' C-m
+  tmux send-keys -t $target'.bottom-right' 'brails c' C-m C-l
+  tmux send-keys -t $target'.left' 'nv' C-m
+  tmux select-pane -t $target'.left'
+end
+
+function stopservices
+  set -xl target $ZP_SESSION':'$ZP_BACKEND_WINDOW
+  tmux setw synchronize-panes on
+  tmux send-keys -t $target C-c C-l
+  tmux setw synchronize-panes off
+end
+
+function startsrvr
+  set -xl target $ZP_SESSION':'$ZP_BACKEND_WINDOW
+  tmux select-pane -t $target'.top-left'
+  tmux setw synchronize-panes on
+  tmux send-keys -t $target 'cd '$ZP_DIR C-m C-l
+  tmux setw synchronize-panes off
+  tmux send-keys -t $target'.top-left' 'spring stop' C-m C-l
+  tmux send-keys -t $target'.top-left' 'brails s' C-l C-m
+  tmux send-keys -t $target'.top-right' 'yarn start' C-l C-m
+  tmux send-keys -t $target'.bottom-left' 'bsidekiq' C-l C-m
+  tmux send-keys -t $target'.bottom-right' 'bin/run-hapii' C-l C-m
+  tmux select-pane -t $target'.top-left'
 end
 
 function tmzpsrvr
@@ -106,23 +141,34 @@ function tmzpsrvr
     tmux new-window -t $ZP_SESSION -n $ZP_BACKEND_WINDOW
   end
 
-  tmux split-window -h
-  tmux split-window -v
-  tmux select-pane -t 1
-  tmux split-window -v
-  tmux setw synchronize-panes on
-  tmux send-keys 'cd '$ZP_DIR C-m C-l
-  tmux setw synchronize-panes off
-  tmux select-pane -t 1
-  tmux send-keys 'spring stop' C-m C-l
-  tmux send-keys 'brails s' C-m
-  tmux select-pane -t 2
-  tmux send-keys 'yarn start' C-m
-  tmux select-pane -t 3
-  tmux send-keys 'bsidekiq' C-m
-  tmux select-pane -t 4
-  tmux send-keys 'bin/run-hapii' C-m
-  tmux select-pane -t 1
+  set -xl target $ZP_SESSION':'$ZP_BACKEND_WINDOW
+  tmux split-window -t $target -h
+  tmux split-window -t $target -v
+  tmux split-window -t $target'.left' -v
+
+  startsrvr
+end
+
+function tmrssrvr
+  echo 'Restarting Zenpayroll backend'
+
+  if not test -d $ZP_DIR
+    echo 'Zenpayroll folder does not exist'
+    return 1
+  end
+
+  if windowavailable $ZP_SESSION $ZP_BACKEND_WINDOW
+    echo 'Zenpayroll backend not started'
+    return 1
+  end
+
+  if not panecount $ZP_SESSION $ZP_BACKEND_WINDOW 4
+    echo 'Unexpected pane count'
+    return 1
+  end
+
+  stopservices
+  startsrvr
 end
 
 function tm
@@ -136,6 +182,8 @@ function tm
     tmzp
   else if test $session_name = 'srvr'
     tmzpsrvr
+  else if test $session_name = 'rssrvr'
+    tmrssrvr
   else
     if sessionavailable $session_name
       echo 'Attaching session '$session_name
