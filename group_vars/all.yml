@@ -33,6 +33,7 @@ homebrew_formulas:
   - pinentry-mac
   - readline
   - redis
+  - terminal-notifier
   - the_silver_searcher
   - tmux
   - tree

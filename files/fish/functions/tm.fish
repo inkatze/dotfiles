@@ -38,22 +38,22 @@ function windowavailable
 end
 
 function tmdot
-  echo 'Initializing dotfiles workspace'
-
   if not test -d $DOT_DIR
-    echo 'Dotfiles not installed'
-    echo 'git clone git@github.com:inkatze/dotfiles.git '$DOT_DIR
+    set -xl clone_command "git clone git@github.com:inkatze/dotfiles.git $DOT_DIR"
+    notify 'Dotfiles' 'Dotfiles project not installed' 'https://github.com/inkatze/dotfiles' -sound Sosumi -group tm -execute $clone_command
+    echo $clone_command
     return 1
   end
 
   if not test -d $NV_DIR
-    echo 'Neovim dofiles not installed'
-    echo 'git clone git@github.com:inkatze/ansible-neovim.git '$NV_DIR
+    set -xl clone_command "git clone git@github.com:inkatze/ansible-neovim.git $NV_DIR"
+    notify 'Dotfiles' 'Neovim ansible project not installed' 'https://github.com/inkatze/ansible-neovim' -sound Sosumi -group tm -execute $clone_command
+    echo $clone_command
     return 1
   end
 
   if not windowavailable $DOT_SESSION $WORKSPACE_WINDOW
-    echo 'Dotfiles workspace already exists'
+    notify 'Dotfiles' 'Dotfiles workspace already created' -sound Purr -group tm -execute tm
     return 1
   end
 
@@ -69,18 +69,20 @@ function tmdot
   tmux send-keys -t $target'.left' 'cd '$DOT_DIR Enter C-l
   tmux send-keys -t $target'.right' 'cd '$NV_DIR Enter C-l
   tmux select-pane -t $target'.left'
+
+  notify 'Dotfiles' 'Workspace created' -sound Blow -group tm -execute tm
 end
 
 function tmzp
-  echo 'Initializing ZP workspace'
-
   if not test -d $ZP_DIR
-    echo 'Zenpayroll folder does not exist'
+    set -xl clone_command "git clone git@github.com:Gusto/zenpayroll $NV_DIR"
+    notify 'Zenpayroll' 'Project not installed' 'https://github.com/Gusto/zenpayroll' -sound Sosumi -group tm -execute $clone_command
+    echo $clone_command
     return 1
   end
 
   if not windowavailable $ZP_SESSION $WORKSPACE_WINDOW
-    echo 'Zenpayroll workspace already exists'
+    notify 'Zenpayroll' 'Workspace already created' -sound Purr -group tm -execute tm
     return 1
   end
 
@@ -99,6 +101,8 @@ function tmzp
   tmux send-keys -t $target'.bottom-right' 'brails c' Enter C-l
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
+
+  notify 'Zenpayroll' 'Workspace created' -sound Blow -group tm -execute tm
 end
 
 function stopservices
@@ -106,6 +110,7 @@ function stopservices
   tmux setw synchronize-panes on
   tmux send-keys -t $target C-c Enter C-l
   tmux setw synchronize-panes off
+  notify 'Zenpayroll' 'Backend stopped' -sound Purr
 end
 
 function startsrvr
@@ -120,18 +125,19 @@ function startsrvr
   tmux send-keys -t $target'.bottom-left' 'bsidekiq' C-l Enter
   tmux send-keys -t $target'.bottom-right' 'bin/run-hapii' C-l Enter
   tmux select-pane -t $target'.top-left'
+  notify 'Zenpayroll' 'Backend started' -sound Blow -execute tm
 end
 
 function tmzpsrvr
-  echo 'Initializing Zenpayroll backend'
-
   if not test -d $ZP_DIR
-    echo 'Zenpayroll folder does not exist'
+    set -xl clone_command "git clone git@github.com:Gusto/zenpayroll $NV_DIR"
+    notify 'Zenpayroll' 'Project not installed' 'https://github.com/Gusto/zenpayroll' -sound Sosumi -group tm -execute $clone_command
+    echo $clone_command
     return 1
   end
 
   if not windowavailable $ZP_SESSION $ZP_BACKEND_WINDOW
-    echo 'Zenpayroll backend already started'
+    notify 'Zenpayroll' 'Backend already started' -sound Purr -group tm -execute tm
     return 1
   end
 
@@ -150,20 +156,8 @@ function tmzpsrvr
 end
 
 function tmrssrvr
-  echo 'Restarting Zenpayroll backend'
-
-  if not test -d $ZP_DIR
-    echo 'Zenpayroll folder does not exist'
-    return 1
-  end
-
-  if windowavailable $ZP_SESSION $ZP_BACKEND_WINDOW
-    echo 'Zenpayroll backend not started'
-    return 1
-  end
-
   if not panecount $ZP_SESSION $ZP_BACKEND_WINDOW 4
-    echo 'Unexpected pane count'
+    notify 'Zenpayroll' 'Backend not started' -sound Sosumi
     return 1
   end
 
@@ -186,10 +180,10 @@ function tm
     tmrssrvr
   else
     if sessionavailable $session_name
-      echo 'Attaching session '$session_name
+      notify 'tmux' "Attaching session $session_name" -sound Blow
       tmux attach -t $session_name
     else
-      echo 'Creating session '$session_name
+      notify 'tmux' "Creating session $session_name" -sound Blow
       tmux new -s $session_name
     end
   end
