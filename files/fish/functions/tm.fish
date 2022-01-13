@@ -98,7 +98,7 @@ function tmzp
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$ZP_DIR Enter C-l
   tmux setw synchronize-panes off
-  tmux send-keys -t $target'.bottom-right' 'brails c' Enter C-l
+  tmux send-keys -t $target'.bottom-right' 'bin/rails c' C-l
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 
@@ -120,8 +120,8 @@ function startsrvr
   tmux send-keys -t $target 'cd '$ZP_DIR Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.top-left' 'spring stop' Enter C-l
-  tmux send-keys -t $target'.top-left' 'brails s' C-l Enter
-  tmux send-keys -t $target'.top-right' 'yarn start' C-l Enter
+  tmux send-keys -t $target'.top-left' 'bin/rails s' C-l Enter
+  tmux send-keys -t $target'.top-right' 'bin/vite dev' C-l Enter
   tmux send-keys -t $target'.bottom-left' 'bsidekiq' C-l Enter
   tmux send-keys -t $target'.bottom-right' 'bin/run-hapii' C-l Enter
   tmux select-pane -t $target'.top-left'

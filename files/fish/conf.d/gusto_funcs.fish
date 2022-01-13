@@ -17,7 +17,7 @@ function zenu
     bundle install
   end
 
-  if string match -q -r 'package*' $rebased
+  if string match -q -r 'package.json|yarn.lock' $rebased
     yarn install
   end
 
@@ -27,7 +27,7 @@ function zenu
 
   set -xl rebased (git status)
   if string match -q -r 'db/schema.rb' $rebased
-    echo 'db/schema.rb is out of sync as usual'
+    echo 'db/schema.rb is out of sync'
     git restore db/schema.rb
   end
 end

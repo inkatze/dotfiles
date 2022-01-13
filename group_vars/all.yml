@@ -21,6 +21,7 @@ homebrew_formulas:
   - fzf
   - fzy
   - git
+  - git-extras
   - github/gh/gh
   - googler
   - gpg
@@ -110,6 +111,7 @@ fish_plugins:
   - laughedelic/pisces
   - jethrokuan/z
   - jorgebucaran/nvm.fish
+  - catppuccin/fish
 fish_starship_source_path: dotfiles/starship.toml
 
 # tmux
