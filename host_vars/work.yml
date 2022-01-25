@@ -3,7 +3,6 @@
 homebrew_cask_applications:
   - authy
   - DBngin
-  - docker
   - firefox
   - font-fantasque-sans-mono
   - font-fira-code-nerd-font
@@ -13,7 +12,6 @@ homebrew_cask_applications:
   - logitech-options
   - microsoft-office
   - notion
-  - postgres
   - rubymine
   - sequel-pro
   - steam

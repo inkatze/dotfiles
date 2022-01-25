@@ -53,6 +53,7 @@ homebrew_formulas:
   - rbenv
   - ruby-build
   - libsodium # work project related
+  - watchman # sorbet dep
 
   - rust-analyzer
   - rustup-init
