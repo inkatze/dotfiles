@@ -98,7 +98,7 @@ function tmzp
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$ZP_DIR Enter C-l
   tmux setw synchronize-panes off
-  tmux send-keys -t $target'.bottom-right' 'bin/rails c' C-l
+  tmux clock-mode -t $target'.bottom-right'
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 

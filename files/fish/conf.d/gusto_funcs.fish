@@ -15,6 +15,7 @@ function zenu
 
   if string match -q -r 'Gemfile*' $rebased
     bundle install
+    solargraph bundle
   end
 
   if string match -q -r 'package.json|yarn.lock' $rebased
