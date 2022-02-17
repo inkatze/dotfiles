@@ -66,6 +66,7 @@ if status --is-login
 
     set -e fish_user_paths
     set -U fish_user_paths $MYSQL57_BIN_PATH
+    set -U fish_user_paths $fish_user_paths $HOME/dev/zenpayroll/bin
     set -U fish_user_paths $fish_user_paths $GLOBAL_NODE_BIN_PATH
     set -U fish_user_paths $fish_user_paths /usr/local/bin /usr/local/sbin
     set -U fish_user_paths $fish_user_paths $GOPATH/bin $GOROOT/bin $CARGO_BIN
