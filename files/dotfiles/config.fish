@@ -77,6 +77,8 @@ if status --is-login
     pyenv init --path | source
 end
 
+ulimit -n 65535
+
 function gitpersonal
   git config user.email 'jd@inkatze.com'
   git config user.signingkey 'FF6211FF90D065A7'
