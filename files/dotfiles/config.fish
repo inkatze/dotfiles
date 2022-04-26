@@ -35,7 +35,7 @@ if status --is-login
     # Python Stuff
     set -xg PYENV_ROOT $HOME/.pyenv
     set -xg WORKON_HOME $PYENV_ROOT
-    set -xg PYENV_VERSION 3.10.0
+    set -xg PYENV_VERSION 3.10.3
     set -xg PIPENV_DEFAULT_PYTHON_VERSION $PYENV_VERSION
     set -xg PIPENV_SHELL_FANCY 1
 
@@ -58,7 +58,7 @@ if status --is-login
     # Binaries paths
     set -l POSTGRES_BIN /Applications/Postgres.app/Contents/Versions/latest/bin
     set -l PYTHON_LIB_EXEC /usr/local/opt/python/libexec/bin
-    set -l MYSQL57_BIN_PATH /Users/Shared/DBngin/mysql/5.7.23/bin
+    set -l MYSQL57_BIN_PATH /Users/Shared/DBngin/mysql/8.0.27/bin
     set -l GLOBAL_NODE_BIN_PATH "$HOME/node_modules/.bin"
 
     # Rust stuff

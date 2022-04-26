@@ -29,11 +29,13 @@ homebrew_formulas:
   - llvm
   - make
   - mosh
+  - mysql
   - neofetch
   - nnn
   - pinentry-mac
   - readline
   - redis
+  - ripgrep
   - terminal-notifier
   - the_silver_searcher
   - tmux
