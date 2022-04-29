@@ -5,7 +5,8 @@ set -x NV_DIR $HOME'/dev/ansible-neovim'
 
 set -x ZP_SESSION 'zp'
 set -x ZP_DIR $HOME'/dev/zenpayroll'
-set -x ZP_BACKEND_WINDOW 'backend'
+set -x ZP_BACKEND_SESSION 'backend'
+set -x ZP_SERVER_WINDOW 'server'
 
 function panecount
   set -xl session_name $argv[1]
@@ -106,7 +107,7 @@ function tmzp
 end
 
 function stopservices
-  set -xl target $ZP_SESSION':'$ZP_BACKEND_WINDOW
+  set -xl target $ZP_BACKEND_SESSION':'$ZP_SERVER_WINDOW
   tmux setw synchronize-panes on
   tmux send-keys -t $target C-c Enter C-l
   tmux setw synchronize-panes off
@@ -114,7 +115,7 @@ function stopservices
 end
 
 function startsrvr
-  set -xl target $ZP_SESSION':'$ZP_BACKEND_WINDOW
+  set -xl target $ZP_BACKEND_SESSION':'$ZP_SERVER_WINDOW
   tmux select-pane -t $target'.top-left'
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$ZP_DIR Enter C-l
@@ -135,18 +136,18 @@ function tmzpsrvr
     return 1
   end
 
-  if not windowavailable $ZP_SESSION $ZP_BACKEND_WINDOW
+  if not windowavailable $ZP_BACKEND_SESSION $ZP_SERVER_WINDOW
     notify 'Zenpayroll' 'Backend already started' -sound Purr -group tm -execute tm
     return 1
   end
 
-  if sessionavailable $ZP_SESSION
-    tmux new-session -d -s $ZP_SESSION -n $ZP_BACKEND_WINDOW
+  if sessionavailable $ZP_BACKEND_SESSION
+    tmux new-session -d -s $ZP_BACKEND_SESSION -n $ZP_SERVER_WINDOW
   else
-    tmux new-window -t $ZP_SESSION -n $ZP_BACKEND_WINDOW
+    tmux new-window -t $ZP_BACKEND_SESSION -n $ZP_SERVER_WINDOW
   end
 
-  set -xl target $ZP_SESSION':'$ZP_BACKEND_WINDOW
+  set -xl target $ZP_BACKEND_SESSION':'$ZP_SERVER_WINDOW
   tmux split-window -t $target -h
   tmux split-window -t $target -v
   tmux split-window -t $target'.left' -v
@@ -155,7 +156,7 @@ function tmzpsrvr
 end
 
 function tmrssrvr
-  if not panecount $ZP_SESSION $ZP_BACKEND_WINDOW 4
+  if not panecount $ZP_BACKEND_SESSION $ZP_SERVER_WINDOW 4
     notify 'Zenpayroll' 'Backend not started' -sound Sosumi
     return 1
   end
