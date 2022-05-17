@@ -4,14 +4,14 @@ function gustograph
 end
 
 function zensync
-  git sw development
+  git sw main
   zenu
   git sw -
-  git rebase development
+  git rebase main
 end
 
 function zenu
-  set -xl rebased (git pull --rebase origin development)
+  set -xl rebased (git pull --rebase origin main)
 
   if string match -q -r 'Gemfile*' $rebased
     bundle install
