@@ -41,9 +41,10 @@ if status --is-login
 
     ## Pyenv fixes
     set -xl ZLIB_PATH (brew --prefix zlib)
+    set -xl LLVM_PATH (brew --prefix llvm)
     set -gx PKG_CONFIG_PATH $ZLIB_PATH/lib/pkgconfig
-    set -gx LDFLAGS '-L'$ZLIB_PATH/lib
-    set -gx CPPFLAGS '-I'$ZLIB_PATH/include
+    set -gx LDFLAGS '-L'$ZLIB_PATH/lib' -L'$LLVM_PATH/lib' -Wl,-rpath,'$ZLIB_PATH/lib' -Wl,-rpath,'$LLVM_PATH/lib
+    set -gx CPPFLAGS '-I'$ZLIB_PATH/include' -I'$LLVM_PATH/include
 
     # Ruby stuff
     set -xg RBENV_ROOT $HOME/.rbenv
@@ -71,13 +72,15 @@ if status --is-login
     set -U fish_user_paths $fish_user_paths /usr/local/bin /usr/local/sbin
     set -U fish_user_paths $fish_user_paths $GOPATH/bin $GOROOT/bin $CARGO_BIN
     set -U fish_user_paths $fish_user_paths $POSTGRES_BIN $PYTHON_LIB_EXEC
+    set -U fish_user_paths $fish_user_paths $LLVM_PATH/bin
+    set -U fish_user_paths $fish_user_paths (brew --prefix coreutils)/libexec/gnubin
 
     functions -q nvm; and nvm install > /dev/null
 
     pyenv init --path | source
 end
 
-ulimit -n 65535
+ulimit -Sn 65535
 
 function gitpersonal
   git config user.email 'jd@inkatze.com'
