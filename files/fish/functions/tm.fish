@@ -120,10 +120,10 @@ function startsrvr
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$ZP_DIR Enter C-l
   tmux setw synchronize-panes off
-  tmux send-keys -t $target'.top-left' 'devspace dev' Enter C-l
-  tmux send-keys -t $target'.top-right' 'devspace run logs-rails' C-l Enter
-  tmux send-keys -t $target'.bottom-left' 'devspace run 2fa-codes' C-l Enter
-  tmux send-keys -t $target'.bottom-right' 'bin/run-hapii' C-l Enter
+  tmux send-keys -t $target'.top-left' 'brails s' Enter C-l
+  tmux send-keys -t $target'.top-right' 'bin/sidekiq' C-l Enter
+  tmux send-keys -t $target'.bottom-left' 'bin/run-hapii' C-l Enter
+  tmux clock-mode -t $target'.bottom-right'
   tmux select-pane -t $target'.top-left'
   notify 'Zenpayroll' 'Backend started' -sound Blow -execute tm
 end
