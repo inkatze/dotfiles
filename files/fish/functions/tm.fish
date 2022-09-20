@@ -121,9 +121,9 @@ function startsrvr
   tmux send-keys -t $target 'cd '$ZP_DIR Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.top-left' 'brails s' Enter C-l
-  tmux send-keys -t $target'.top-right' 'bin/sidekiq' C-l Enter
-  tmux send-keys -t $target'.bottom-left' 'bin/run-hapii' C-l Enter
-  tmux clock-mode -t $target'.bottom-right'
+  tmux send-keys -t $target'.top-right' 'vite dev' C-l Enter
+  tmux send-keys -t $target'.bottom-left' 'bin/sidekiq' C-l Enter
+  tmux send-keys -t $target'.bottom-right' 'bin/run-hapii' C-l Enter
   tmux select-pane -t $target'.top-left'
   notify 'Zenpayroll' 'Backend started' -sound Blow -execute tm
 end
