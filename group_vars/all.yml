@@ -98,7 +98,7 @@ gpg_agent_conf_source_file: "{{ gpg_base_source_path }}/gpg-agent.conf"
 
 fish_config_source_file: dotfiles/config.fish
 iterm2_plist_source_file: dotfiles/{{ current_env }}/com.googlecode.iterm2.plist
-gitconfig_source_file: dotfiles/{{ current_env }}/gitconfig
+gitconfig_source_file: dotfiles/gitconfig
 pylintrc_source_file: dotfiles/pylintrc
 npmrc_source_file: dotfiles/npmrc
 nvmrc_source_file: dotfiles/nvmrc

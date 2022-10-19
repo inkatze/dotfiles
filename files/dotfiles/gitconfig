@@ -49,6 +49,7 @@
     diff = auto
     status = auto
     branch = auto
+    ui = true
 [color "diff"]
     meta = blue
     frag = black
@@ -70,10 +71,12 @@
     conflictstyle = diff3
     renamelimit = 3000
 [push]
-    default = matching
+    default = current
 [pull]
     rebase = true
 [commit]
     gpgsign = true
 [gpg]
-    program = /usr/local/bin/gpg
+    program = /opt/homebrew/bin/gpg
+[fetch]
+   prune = true
