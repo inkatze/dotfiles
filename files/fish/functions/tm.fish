@@ -8,6 +8,10 @@ set -x ZP_DIR $HOME'/dev/zenpayroll'
 set -x ZP_BACKEND_SESSION 'backend'
 set -x ZP_SERVER_WINDOW 'server'
 
+set -x PCC_SESSION 'pcc'
+set -x PCC_WINDOW 'pcc'
+set -x PCC_DIR $HOME'/dev/paycheckcity.com'
+
 function panecount
   set -xl session_name $argv[1]
   set -xl window_name $argv[2]
@@ -97,7 +101,8 @@ function tmzp
   tmux split-window -t $target -h
   tmux split-window -t $target -v
   tmux setw synchronize-panes on
-  tmux send-keys -t $target 'cd '$ZP_DIR Enter C-l
+  tmux send-keys -t $target 'cd '$ZP_DIR Enter
+  tmux send-keys -t $target 'nvm use' Enter C-l
   tmux setw synchronize-panes off
   tmux clock-mode -t $target'.bottom-right'
   tmux send-keys -t $target'.left' 'nv' Enter
@@ -118,7 +123,8 @@ function startsrvr
   set -xl target $ZP_BACKEND_SESSION':'$ZP_SERVER_WINDOW
   tmux select-pane -t $target'.top-left'
   tmux setw synchronize-panes on
-  tmux send-keys -t $target 'cd '$ZP_DIR Enter C-l
+  tmux send-keys -t $target 'cd '$ZP_DIR Enter
+  tmux send-keys -t $target 'nvm use' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.top-left' 'brails s' Enter C-l
   tmux send-keys -t $target'.top-right' 'vite dev' C-l Enter
@@ -165,6 +171,40 @@ function tmrssrvr
   startsrvr
 end
 
+function tmpaycheckcity
+  if not test -d $PCC_DIR
+    set -xl clone_command "git clone git@github.com:SymmetrySoftware/paycheckcity.com $NV_DIR"
+    notify 'Paycheckcity.com' 'Project not installed' 'https://github.com/SymmetrySoftware/paycheckcity.com' -sound Sosumi -group tm -execute $clone_command
+    echo $clone_command
+    return 1
+  end
+
+  if not windowavailable $PCC_SESSION $PCC_WINDOW
+    notify 'Paycheckcity.com' 'Workspace already created' -sound Purr -group tm -execute tm
+    return 1
+  end
+
+  if sessionavailable $PCC_SESSION
+    tmux new-session -d -s $PCC_SESSION -n $PCC_WINDOW
+  else
+    tmux new-window -t $PCC_SESSION -n $PCC_WINDOW
+  end
+
+  set -xl target $PCC_SESSION':'$PCC_WINDOW
+  tmux split-window -t $target -h
+  tmux split-window -t $target -v
+  tmux setw synchronize-panes on
+  tmux send-keys -t $target 'cd '$PCC_DIR Enter
+  tmux send-keys -t $target 'nvm use' Enter C-l
+  tmux setw synchronize-panes off
+  tmux send-keys -t $target'.bottom-right' 'gatsby develop' Enter
+  tmux clock-mode -t $target'.bottom-right'
+  tmux send-keys -t $target'.left' 'nv' Enter
+  tmux select-pane -t $target'.left'
+
+  notify 'Paycheckcity.com' 'Workspace created' -sound Blow -group tm -execute tm
+end
+
 function tm
   if test (count $argv) -eq 0; tmux attach; return; end
 
@@ -178,6 +218,8 @@ function tm
     tmzpsrvr
   else if test $session_name = 'rssrvr'
     tmrssrvr
+  else if test $session_name = 'pcc'
+    tmpaycheckcity
   else
     if sessionavailable $session_name
       notify 'tmux' "Attaching session $session_name" -sound Blow
