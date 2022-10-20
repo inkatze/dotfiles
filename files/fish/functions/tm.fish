@@ -9,7 +9,7 @@ set -x ZP_BACKEND_SESSION 'backend'
 set -x ZP_SERVER_WINDOW 'server'
 
 set -x PCC_SESSION 'pcc'
-set -x PCC_WINDOW 'pcc'
+set -x PCC_WINDOW 'workspace'
 set -x PCC_DIR $HOME'/dev/paycheckcity.com'
 
 function panecount
