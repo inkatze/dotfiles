@@ -115,6 +115,7 @@ fish_plugins:
   - jethrokuan/z
   - jorgebucaran/nvm.fish
   - catppuccin/fish
+  - reitzig/sdkman-for-fish@v1.4.0
 fish_starship_source_path: dotfiles/starship.toml
 
 # tmux
@@ -135,7 +136,6 @@ osx_mas_applications:
   - { id: "1480068668", name: Messenger }
   - { id: "1289197285", name: MindNode 5 }
   - { id: "1511185140", name: Moneywiz }
-  - { id: "1116599239", name: NordVPN }
   - { id: "409201541", name: Pages }
   - { id: "803453959", name: Slack }
   - { id: "1176895641", name: Spark }

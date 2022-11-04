@@ -24,6 +24,7 @@
     dc = diff --cached
     diffc = diff --cached
     dsb = delete-squashed-branches
+    dmb = delete-merged-branches
     forkup = pull --rebase upstream
     h = stash
     hs = stash save
