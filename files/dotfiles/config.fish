@@ -104,3 +104,4 @@ set -xg fish_greeting '¡Hoal!'
 set -xg SPACEFISH_CHAR_SUFFIX '  '
 starship init fish | source
 pyenv init - | source
+source (brew --prefix asdf)/libexec/asdf.fish

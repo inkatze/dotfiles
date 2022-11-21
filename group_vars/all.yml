@@ -10,12 +10,14 @@ homebrew_taps:
 
 homebrew_formulas:
   - ack
+  - asdf
   - aws-okta
   - bash
   - bash-completion
   - ddgr
   - direnv
   - docker
+  - efm-langserver
   - fd
   - fish
   - fzf
