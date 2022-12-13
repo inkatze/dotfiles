@@ -22,11 +22,11 @@ set -x PCCP_BE_DIR $HOME'/dev/pcc-profiles-resource-server'
 
 set -x WBS_FE_SESSION 'wsb-fe'
 set -x WBS_FE_WINDOW 'workspace'
-set -x WBS_FE_DIR $HOME'/dev/notification-service'
+set -x WBS_FE_DIR $HOME'/dev/notification-service-ui'
 
 set -x WBS_BE_SESSION 'wsb-be'
 set -x WBS_BE_WINDOW 'workspace'
-set -x WBS_BE_DIR $HOME'/dev/notification-service-ui'
+set -x WBS_BE_DIR $HOME'/dev/notification-service'
 
 function panecount
   set -xl session_name $argv[1]
@@ -312,7 +312,7 @@ function tmwbsf
   tmux split-window -t $target -h
   tmux split-window -t $target -v
   tmux setw synchronize-panes on
-  tmux send-keys -t $target 'cd '$PCCP_FE_DIR Enter
+  tmux send-keys -t $target 'cd '$WBS_FE_DIR Enter
   tmux send-keys -t $target 'nvm use' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' 'npm run start' Enter
@@ -346,7 +346,7 @@ function tmwbsb
   tmux split-window -t $target -h
   tmux split-window -t $target -v
   tmux setw synchronize-panes on
-  tmux send-keys -t $target 'cd '$PCCP_BE_DIR Enter
+  tmux send-keys -t $target 'cd '$WBS_BE_DIR Enter
   tmux send-keys -t $target 'sdk env' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' './gradlew bootRun' Enter
