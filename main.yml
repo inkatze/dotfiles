@@ -6,4 +6,4 @@
     - role: fish_role
     - role: dotfiles_role
     - role: osx_role
-    - role: /Users/diego.romero/dev/ansible-neovim
+    - role: neovim_role

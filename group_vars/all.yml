@@ -107,6 +107,7 @@ nvmrc_source_file: dotfiles/nvmrc
 tmux_source_file: dotfiles/tmux.conf
 mysql_config_source_file: dotfiles/my.cnf
 import_js_config_source_file: dotfiles/importjs.js
+efm_config_source_file: dotfiles/efm_config.yaml
 
 # fish.yml
 
