@@ -28,6 +28,10 @@ set -x WBS_BE_SESSION 'wsb-be'
 set -x WBS_BE_WINDOW 'workspace'
 set -x WBS_BE_DIR $HOME'/dev/notification-service'
 
+set -x CMS_SESSION 'cms'
+set -x CMS_WINDOW 'workspace'
+set -x CMS_DIR $HOME'/dev/payroll-tax-cms'
+
 function panecount
   set -xl session_name $argv[1]
   set -xl window_name $argv[2]
@@ -357,6 +361,39 @@ function tmwbsb
   notify 'WBS' 'Workspace created' -sound Blow -group tm -execute tm
 end
 
+function cms
+  if not test -d $CMS_DIR
+    set -xl clone_command "git clone git@github.com:SymmetrySoftware/payroll-tax-cms $NV_DIR"
+    notify 'CMS' 'Project not installed' 'https://github.com/SymmetrySoftware/payroll-tax-cms' -sound Sosumi -group tm -execute $clone_command
+    echo $clone_command
+    return 1
+  end
+
+  if not windowavailable $CMS_SESSION $CMS_WINDOW
+    notify 'CMS' 'Workspace already created' -sound Purr -group tm -execute tm
+    return 1
+  end
+
+  if sessionavailable $CMS_SESSION
+    tmux new-session -d -s $CMS_SESSION -n $CMS_WINDOW
+  else
+    tmux new-window -t $CMS_SESSION -n $CMS_WINDOW
+  end
+
+  set -xl target $CMS_SESSION':'$CMS_WINDOW
+  tmux split-window -t $target -h
+  tmux split-window -t $target -v
+  tmux setw synchronize-panes on
+  tmux send-keys -t $target 'cd '$CMS_DIR Enter C-l
+  tmux setw synchronize-panes off
+  tmux send-keys -t $target'.bottom-right' 'iex -S mix phx.server' Enter
+  tmux clock-mode -t $target'.bottom-right'
+  tmux send-keys -t $target'.left' 'nv' Enter
+  tmux select-pane -t $target'.left'
+
+  notify 'CMS' 'Workspace created' -sound Blow -group tm -execute tm
+end
+
 function tm
   if test (count $argv) -eq 0; tmux attach; return; end
 
@@ -380,6 +417,8 @@ function tm
     tmwbsf
   else if test $session_name = 'wbsb'
     tmwbsb
+  else if test $session_name = 'cms'
+    cms
   else
     if sessionavailable $session_name
       notify 'tmux' "Attaching session $session_name" -sound Blow

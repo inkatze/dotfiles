@@ -22,6 +22,15 @@ if status --is-login
     set -xg CODESET UTF-8
     set -xg EDITOR nvim
     set -xg FZF_DEFAULT_COMMAND 'bash -c "ag --files-with-matches --column --no-heading --nocolor --smart-case --ignore *.rbi --ignore node_modules"'
+    set -xl OPENSSL_PATH (brew --prefix openssl@1.1)
+    set -xl ZLIB_PATH (brew --prefix zlib)
+    set -xl LLVM_PATH (brew --prefix llvm)
+    set -xl WXWIDGETS_PATH (brew --prefix wxwidgets)
+    set -xl UNIXODBC_PATH (brew --prefix unixodbc)
+    set -gx PKG_CONFIG_PATH $ZLIB_PATH/lib/pkgconfig
+    set -gx LDFLAGS '-L'$ZLIB_PATH/lib' -L'$LLVM_PATH/lib' -L'$UNIXODBC_PATH/lib' -Wl,-rpath,'$ZLIB_PATH/lib' -Wl,-rpath,'$LLVM_PATH/lib
+    set -gx CPPFLAGS '-I'$ZLIB_PATH/include' -I'$LLVM_PATH/include' -I'$UNIXODBC_PATH'/include'
+    # set -gx CFLAGS '-O2 -g -fno-stack-check'
 
     # GPG & git fix
     set -xg GPG_TTY (tty)
@@ -39,22 +48,19 @@ if status --is-login
     set -xg PIPENV_DEFAULT_PYTHON_VERSION $PYENV_VERSION
     set -xg PIPENV_SHELL_FANCY 1
 
-    ## Pyenv fixes
-    set -xl ZLIB_PATH (brew --prefix zlib)
-    set -xl LLVM_PATH (brew --prefix llvm)
-    set -gx PKG_CONFIG_PATH $ZLIB_PATH/lib/pkgconfig
-    set -gx LDFLAGS '-L'$ZLIB_PATH/lib' -L'$LLVM_PATH/lib' -Wl,-rpath,'$ZLIB_PATH/lib' -Wl,-rpath,'$LLVM_PATH/lib
-    set -gx CPPFLAGS '-I'$ZLIB_PATH/include' -I'$LLVM_PATH/include
-
     # Ruby stuff
     set -xg RBENV_ROOT $HOME/.rbenv
     set -xg RBENV_VERSION 2.7.6
     set -xg THOR_SILENCE_DEPRECATION 1
 
     ## Mysql gem fixes
-    set -xl OPENSSL_PATH (brew --prefix openssl@1.1)
     set -xg LIBRARY_PATH $LIBRARY_PATH $OPENSSL_PATH/lib
     set -xg CPATH $CPATH $OPENSSL_PATH/include
+
+    # Elixir/Erlang stuff
+    set -xg KERL_BUILD_DOCS yes
+    set -xg KERL_CONFIGURE_OPTIONS "--with-ssl="$OPENSSL_PATH" \
+        --with-wx-config="$WXWIDGETS_PATH"/bin/wx-config --with-odbc="$UNIXODBC_PATH
 
     # Binaries paths
     set -l POSTGRES_BIN /Applications/Postgres.app/Contents/Versions/latest/bin
@@ -81,18 +87,6 @@ if status --is-login
 end
 
 ulimit -Sn 65535
-
-function gitpersonal
-  git config user.email 'jd@inkatze.com'
-  git config user.signingkey 'FF6211FF90D065A7'
-  git config github.user 'inkatze'
-end
-
-function gitgusto
-  git config user.email 'diego.romero@gusto.com'
-  git config user.signingkey '75C52BBF1189578C'
-  git config github.user 'diego-romero-gusto'
-end
 
 status --is-interactive; and source (pyenv init -|psub)
 status --is-interactive; and source (pyenv virtualenv-init -|psub)

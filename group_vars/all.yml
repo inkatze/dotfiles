@@ -20,6 +20,7 @@ homebrew_formulas:
   - efm-langserver
   - fd
   - fish
+  - fop
   - fzf
   - fzy
   - git
@@ -28,6 +29,7 @@ homebrew_formulas:
   - googler
   - gpg
   - htop
+  - libxslt
   - llvm
   - make
   - mosh
@@ -42,7 +44,9 @@ homebrew_formulas:
   - the_silver_searcher
   - tmux
   - tree
+  - unzip
   - wget
+  - wxwidgets
 
   # programming_environments:
   - ipython
@@ -65,6 +69,7 @@ homebrew_formulas:
 homebrew_cask_applications:
   - authy
   - cyberduck
+  - db-browser-for-sqlite
   - DBngin
   - docker
   - firefox
@@ -108,6 +113,8 @@ tmux_source_file: dotfiles/tmux.conf
 mysql_config_source_file: dotfiles/my.cnf
 import_js_config_source_file: dotfiles/importjs.js
 efm_config_source_file: dotfiles/efm_config.yaml
+default_mix_commands_source_file: dotfiles/default-mix-commands
+tool_versions_source_file: 'dotfiles/tool-versions'
 
 # fish.yml
 
