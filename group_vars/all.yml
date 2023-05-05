@@ -77,7 +77,7 @@ homebrew_cask_applications:
   - grammarly
   - iterm2
   - keycastr
-  - logitech-options
+  - logi-options-plus
   - microsoft-office
   - notion
   - homebrew/cask-versions/openemu-experimental
