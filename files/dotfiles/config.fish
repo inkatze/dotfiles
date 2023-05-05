@@ -27,10 +27,10 @@ if status --is-login
     set -xl LLVM_PATH (brew --prefix llvm)
     set -xl WXWIDGETS_PATH (brew --prefix wxwidgets)
     set -xl UNIXODBC_PATH (brew --prefix unixodbc)
+    set -xl SQLITE_PATH (brew --prefix sqlite3)
     set -gx PKG_CONFIG_PATH $ZLIB_PATH/lib/pkgconfig
-    set -gx LDFLAGS '-L'$ZLIB_PATH/lib' -L'$LLVM_PATH/lib' -L'$UNIXODBC_PATH/lib' -Wl,-rpath,'$ZLIB_PATH/lib' -Wl,-rpath,'$LLVM_PATH/lib
-    set -gx CPPFLAGS '-I'$ZLIB_PATH/include' -I'$LLVM_PATH/include' -I'$UNIXODBC_PATH'/include'
-    # set -gx CFLAGS '-O2 -g -fno-stack-check'
+    set -gx LDFLAGS '-L'$SQLITE_PATH/lib' -L'$ZLIB_PATH/lib' -L'$LLVM_PATH/lib' -L'$UNIXODBC_PATH/lib' -Wl,-rpath,'$ZLIB_PATH/lib' -Wl,-rpath,'$LLVM_PATH/lib
+    set -gx CPPFLAGS '-I'$SQLITE_PATH/include' -I'$ZLIB_PATH/include' -I'$LLVM_PATH/include' -I'$UNIXODBC_PATH'/include'
 
     # GPG & git fix
     set -xg GPG_TTY (tty)
@@ -50,7 +50,7 @@ if status --is-login
 
     # Ruby stuff
     set -xg RBENV_ROOT $HOME/.rbenv
-    set -xg RBENV_VERSION 2.7.6
+    set -xg RBENV_VERSION 3.2.2
     set -xg THOR_SILENCE_DEPRECATION 1
 
     ## Mysql gem fixes
@@ -71,15 +71,19 @@ if status --is-login
     # Rust stuff
     set -l CARGO_BIN $HOME/.cargo/bin
 
-    set -e fish_user_paths
-    set -U fish_user_paths $MYSQL57_BIN_PATH
-    set -U fish_user_paths $fish_user_paths $HOME/dev/zenpayroll/bin
-    set -U fish_user_paths $fish_user_paths $GLOBAL_NODE_BIN_PATH
-    set -U fish_user_paths $fish_user_paths /usr/local/bin /usr/local/sbin /opt/homebrew/sbin
-    set -U fish_user_paths $fish_user_paths $GOPATH/bin $GOROOT/bin $CARGO_BIN
-    set -U fish_user_paths $fish_user_paths $POSTGRES_BIN $PYTHON_LIB_EXEC
-    set -U fish_user_paths $fish_user_paths $LLVM_PATH/bin
-    set -U fish_user_paths $fish_user_paths (brew --prefix coreutils)/libexec/gnubin
+    fish_add_path /opt/homebrew/bin
+    fish_add_path $SQLITE_PATH/bin
+    fish_add_path $MYSQL57_BIN_PATH
+    fish_add_path $HOME/dev/zenpayroll/bin
+    fish_add_path $GLOBAL_NODE_BIN_PATH
+    fish_add_path $GOPATH/bin
+    fish_add_path $GOROOT/bin
+    fish_add_path $CARGO_BIN
+    fish_add_path $POSTGRES_BIN
+    fish_add_path $PYTHON_LIB_EXEC
+    fish_add_path $LLVM_PATH/bin
+    fish_add_path (brew --prefix coreutils)/libexec/gnubin
+    fish_add_path /usr/local/bin
 
     functions -q nvm; and nvm install > /dev/null
 

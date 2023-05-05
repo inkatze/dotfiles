@@ -11,7 +11,6 @@ homebrew_taps:
 homebrew_formulas:
   - ack
   - asdf
-  - aws-okta
   - bash
   - bash-completion
   - ddgr
@@ -25,7 +24,6 @@ homebrew_formulas:
   - git
   - git-extras
   - github/gh/gh
-  - googler
   - gpg
   - htop
   - libxslt

@@ -1,7 +1,7 @@
 ---
-
 homebrew_cask_applications:
   - authy
+  - dbeaver-community
   - DBngin
   - firefox
   - font-fantasque-sans-mono
@@ -13,7 +13,6 @@ homebrew_cask_applications:
   - microsoft-office
   - notion
   - rubymine
-  - sequel-pro
   - steam
   - wkhtmltopdf
 
