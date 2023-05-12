@@ -17,7 +17,6 @@ homebrew_cask_applications:
   - wkhtmltopdf
 
 osx_mas_applications:
-  - { id: "1333542190", name: 1Password }
   - { id: "1319884285", name: Black Out }
   - { id: "975937182", name: Fantastical }
   - { id: "409183694", name: Keynote }
@@ -29,5 +28,4 @@ osx_mas_applications:
   - { id: "409201541", name: Pages }
   - { id: "1176895641", name: Spark }
   - { id: "747648890", name: Telegram }
-  - { id: "1384080005", name: Tweetbot }
   - { id: "497799835", name: Xcode }
