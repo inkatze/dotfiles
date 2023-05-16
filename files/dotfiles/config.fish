@@ -25,7 +25,6 @@ if status --is-login
     set -xl OPENSSL_PATH (brew --prefix openssl@1.1)
     set -xl ZLIB_PATH (brew --prefix zlib)
     set -xl LLVM_PATH (brew --prefix llvm)
-    set -xl WXWIDGETS_PATH (brew --prefix wxwidgets)
     set -xl UNIXODBC_PATH (brew --prefix unixodbc)
     set -xl SQLITE_PATH (brew --prefix sqlite3)
     set -xl READLINE_PATH (brew --prefix readline)
@@ -62,8 +61,7 @@ if status --is-login
 
     # Elixir/Erlang stuff
     set -xg KERL_BUILD_DOCS yes
-    set -xg KERL_CONFIGURE_OPTIONS "--with-ssl="$OPENSSL_PATH" \
-        --with-wx-config="$WXWIDGETS_PATH"/bin/wx-config --with-odbc="$UNIXODBC_PATH
+    set -xg KERL_CONFIGURE_OPTIONS "--with-ssl="$OPENSSL_PATH" --without-wx --with-odbc="$UNIXODBC_PATH
 
     # Binaries paths
     set -l POSTGRES_BIN /Users/Shared/DBngin/postgresql/14.3/bin
