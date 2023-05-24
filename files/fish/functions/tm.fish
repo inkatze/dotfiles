@@ -30,7 +30,7 @@ set -x WBS_BE_DIR $HOME'/dev/notification-service'
 
 set -x CMS_SESSION 'cms'
 set -x CMS_WINDOW 'workspace'
-set -x CMS_DIR $HOME'/dev/payroll-tax-cms'
+set -x CMS_DIR $HOME'/dev/symmetry_content_manager'
 
 function panecount
   set -xl session_name $argv[1]
@@ -363,8 +363,8 @@ end
 
 function cms
   if not test -d $CMS_DIR
-    set -xl clone_command "git clone git@github.com:SymmetrySoftware/payroll-tax-cms $NV_DIR"
-    notify 'CMS' 'Project not installed' 'https://github.com/SymmetrySoftware/payroll-tax-cms' -sound Sosumi -group tm -execute $clone_command
+    set -xl clone_command "git clone git@github.com:SymmetrySoftware/symmetry_content_manager $NV_DIR"
+    notify 'CMS' 'Project not installed' 'https://github.com/SymmetrySoftware/symmetry_content_manager' -sound Sosumi -group tm -execute $clone_command
     echo $clone_command
     return 1
   end
