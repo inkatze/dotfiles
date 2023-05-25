@@ -15,7 +15,6 @@ homebrew_taps:
 
 homebrew_formulas:
   - ack
-  - asdf
   - bash
   - bash-completion
   - ddgr
@@ -31,6 +30,7 @@ homebrew_formulas:
   - github/gh/gh
   - gpg
   - htop
+  - lazygit
   - libxslt
   - llvm
   - make
