@@ -126,6 +126,7 @@ fish_plugins:
   - jethrokuan/z
   - jorgebucaran/nvm.fish
   - catppuccin/fish
+  - rbenv/fish-rbenv
   - reitzig/sdkman-for-fish@v1.4.0
 fish_starship_source_path: dotfiles/starship.toml
 
