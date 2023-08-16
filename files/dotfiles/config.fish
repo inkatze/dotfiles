@@ -28,10 +28,11 @@ if status --is-login
     set -xl LLVM_PATH (brew --prefix llvm)
     set -xl SQLITE_PATH (brew --prefix sqlite3)
     set -xl READLINE_PATH (brew --prefix readline)
-    set -xl MYSQL57_PATH /Users/Shared/DBngin/mysql/8.0.27
-    set -gx PKG_CONFIG_PATH $SQLITE_PATH/lib/pkgconfig $MYSQL57_PATH/lib/pkgconfig $ZLIB_PATH/lib/pkgconfig $LLVM_PATH/lib/pkgconfig $READLINE_PATH/lib/pkgconfig $OPENSSL_PATH/lib/pkgconfig
-    set -gx LDFLAGS '-L'$SQLITE_PATH/lib' -L'$MYSQL57_PATH/lib' -L'$ZLIB_PATH/lib' -L'$LLVM_PATH/lib' -L'$READLINE_PATH/lib' -L'$OPENSSL_PATH/lib
-    set -gx CPPFLAGS '-I'$SQLITE_PATH/include' -I'$MYSQL57_PATH/include' -I'$ZLIB_PATH/include' -I'$LLVM_PATH/include' -I'$READLINE_PATH/include' -I'$OPENSSL_PATH/include
+    set -xl MYSQL_PATH (brew --prefix mysql)
+    set -xl MARIADB_PATH (brew --prefix mariadb@10.6)
+    set -gx PKG_CONFIG_PATH $SQLITE_PATH/lib/pkgconfig $MYSQL_PATH/lib/pkgconfig $MARIADB_PATH/lib/pkgconfig $ZLIB_PATH/lib/pkgconfig $LLVM_PATH/lib/pkgconfig $READLINE_PATH/lib/pkgconfig $OPENSSL_PATH/lib/pkgconfig
+    set -gx LDFLAGS '-L'$SQLITE_PATH/lib' -L'$MYSQL_PATH/lib' -L'$MARIADB_PATH/lib' -L'$ZLIB_PATH/lib' -L'$LLVM_PATH/lib' -L'$READLINE_PATH/lib' -L'$OPENSSL_PATH/lib
+    set -gx CPPFLAGS '-I'$SQLITE_PATH/include' -I'$MYSQL_PATH/include' -I'$MARIADB_PATH/include' -I'$ZLIB_PATH/include' -I'$LLVM_PATH/include' -I'$READLINE_PATH/include' -I'$OPENSSL_PATH/include
     set -gx DYLD_FALLBACK_LIBRARY_PATH $OPENSSL_PATH/lib
 
     # GPG & git fix
@@ -52,7 +53,7 @@ if status --is-login
 
     # Ruby stuff
     set -xg RBENV_VERSION 3.2.2
-    set -xg RUBY_CONFIGURE_OPTS "--with-openssl-dir="$OPENSSL_PATH
+    set -xg RUBY_CONFIGURE_OPTS "--with-openssl-dir="$OPENSSL_PATH" --enable-shared"
     set -xg THOR_SILENCE_DEPRECATION 1
 
     # Elixir/Erlang stuff
@@ -65,7 +66,8 @@ if status --is-login
     # Binaries paths
     set -l POSTGRES_BIN /Users/Shared/DBngin/postgresql/15.1/bin
     set -l PYTHON_LIB_EXEC /usr/local/opt/python/libexec/bin
-    set -l MYSQL57_BIN_PATH $MYSQL57_PATH/bin
+    set -l MYSQL_BIN_PATH $MYSQL_PATH/bin
+    set -l MARIADB_BIN_PATH $MARIADB_PATH/bin
     set -l GLOBAL_NODE_BIN_PATH "$HOME/node_modules/.bin"
 
     # Rust stuff
@@ -74,7 +76,8 @@ if status --is-login
     fish_add_path /opt/homebrew/bin
     fish_add_path /opt/homebrew/sbin
     fish_add_path $SQLITE_PATH/bin
-    fish_add_path $MYSQL57_BIN_PATH
+    fish_add_path $MYSQL_BIN_PATH
+    fish_add_path $MARIADB_BIN_PATH
     fish_add_path $GLOBAL_NODE_BIN_PATH
     fish_add_path $GOPATH/bin
     fish_add_path $GOROOT/bin
