@@ -10,7 +10,6 @@ gpg_keys:
 
 homebrew_taps:
   - homebrew/cask-fonts
-  - homebrew/cask-drivers
   - adoptopenjdk/openjdk
 
 homebrew_formulas:
@@ -27,7 +26,7 @@ homebrew_formulas:
   - fzy
   - git
   - git-extras
-  - github/gh/gh
+  - gh
   - gpg
   - htop
   - lazygit
@@ -35,6 +34,7 @@ homebrew_formulas:
   - llvm
   - make
   - mosh
+  - mariadb@10.6
   - mysql
   - neofetch
   - nnn
@@ -65,7 +65,6 @@ homebrew_formulas:
   - libsodium # work project related
   - watchman # sorbet dep
 
-  - rust-analyzer
   - rustup-init
 
 homebrew_cask_applications:
