@@ -76,8 +76,8 @@ if status --is-login
     fish_add_path /opt/homebrew/bin
     fish_add_path /opt/homebrew/sbin
     fish_add_path $SQLITE_PATH/bin
-    fish_add_path $MYSQL_BIN_PATH
-    fish_add_path $MARIADB_BIN_PATH
+    fish_add_path -a $MARIADB_BIN_PATH
+    fish_add_path -m $MYSQL_BIN_PATH
     fish_add_path $GLOBAL_NODE_BIN_PATH
     fish_add_path $GOPATH/bin
     fish_add_path $GOROOT/bin
