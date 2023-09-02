@@ -74,8 +74,8 @@ if status --is-login
     # Rust stuff
     set -l CARGO_BIN $HOME/.cargo/bin
 
-    fish_add_path /opt/homebrew/bin
-    fish_add_path /opt/homebrew/sbin
+    fish_add_path (brew --prefix)/bin
+    fish_add_path (brew --prefix)/sbin
     fish_add_path $SQLITE_PATH/bin
     fish_add_path -a $MARIADB_BIN_PATH
     fish_add_path -m $MYSQL_BIN_PATH
