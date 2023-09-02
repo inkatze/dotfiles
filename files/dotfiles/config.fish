@@ -107,4 +107,3 @@ status --is-interactive; and direnv hook fish | source
 set -xg fish_greeting '¡Hoal!'
 set -xg SPACEFISH_CHAR_SUFFIX '  '
 pyenv init - | source
-source $HOME/.asdf/asdf.fish
