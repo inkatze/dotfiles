@@ -13,9 +13,8 @@ homebrew_taps:
   - adoptopenjdk/openjdk
 
 homebrew_formulas:
-  - 1password
-  - 1password-cli
   - ack
+  - asdf
   - bash
   - bash-completion
   - ddgr
@@ -69,6 +68,8 @@ homebrew_formulas:
   - rustup-init
 
 homebrew_cask_applications:
+  - 1password
+  - 1password-cli
   - authy
   - cyberduck
   - db-browser-for-sqlite
@@ -86,11 +87,6 @@ homebrew_cask_applications:
   - microsoft-office
   - notion
   - homebrew/cask-versions/openemu-experimental
-  - postgres
-  - screen
-  - sequel-pro
-  - skype
-  - spotify
   - steam
   - transmission
   - zoom
@@ -128,6 +124,7 @@ fish_plugins:
   - catppuccin/fish
   - rbenv/fish-rbenv
   - reitzig/sdkman-for-fish@v1.4.0
+  - rstacruz/fish-asdf
 fish_starship_source_path: dotfiles/starship.toml
 
 # tmux
