@@ -94,8 +94,6 @@ if status --is-login
     fish_add_path /usr/local/bin
     fish_add_path -m $OPENSSL_PATH/bin
 
-    functions -q nvm; and nvm install > /dev/null
-
     pyenv init --path | source
 end
 
