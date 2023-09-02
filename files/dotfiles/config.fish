@@ -74,6 +74,10 @@ if status --is-login
     # Rust stuff
     set -l CARGO_BIN $HOME/.cargo/bin
 
+    # Node stuff
+    set -xg nvm_default_version lts
+    set -xg nvm_default_packages typescript typescript-language-server neovim import-js yaml-language-server ansible-language-server vim-language-server diagnostic-languageserver bash-language-server graphql-language-service-cli vscode-langservers-extracted pyright intelephense rome "@angular/language-server" prettier "@fsouza/prettierd" eslint_d
+
     fish_add_path (brew --prefix)/bin
     fish_add_path (brew --prefix)/sbin
     fish_add_path $SQLITE_PATH/bin
