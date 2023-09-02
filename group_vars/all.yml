@@ -13,12 +13,13 @@ homebrew_taps:
   - adoptopenjdk/openjdk
 
 homebrew_formulas:
+  - 1password
+  - 1password-cli
   - ack
   - bash
   - bash-completion
   - ddgr
   - direnv
-  - docker
   - fd
   - fish
   - fop
