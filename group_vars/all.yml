@@ -4,7 +4,7 @@
 current_env: personal
 
 ssh_source_path: ssh/keys
-ssh_config: ssh/{{ current_env }}/ssh_config
+ssh_config: dotfiles/ssh_config
 gpg_keys:
   - { public: gpg_public.key, private: gpg_private.key, id: jd@inkatze.com }
 

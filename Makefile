@@ -16,7 +16,7 @@ endif
 PLAYBOOK_COMMAND := ansible-playbook -l $(CURRENT_HOST) main.yml
 
 install: deps
-	$(PLAYBOOK_COMMAND) --skip-tags shell,gpg,ssh,upgrade
+	$(PLAYBOOK_COMMAND) --skip-tags shell,gpg,upgrade
 
 homebrew: deps
 	$(PLAYBOOK_COMMAND) -t homebrew
