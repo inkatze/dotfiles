@@ -1,7 +1,7 @@
 [user]
     name = Diego Romero
     email = jd@inkatze.com
-    signingkey = FF6211FF90D065A7
+    signingkey = ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDIPhdB4wgtCiFle6S9MCTy+T+zRINjsL3y146jZ8odJ++wrB6/NklQo+Vn5dzWMCdjbr1NO8/bm8Fn8vWXrCu6bYN6jytjsn5WYGWm/OnbtvX0fBeh5FnO8g+0HkN2Sz7nk+XyjLCVzj0DXHGjJJsTlnc6ZL11IsuGGS7wHPb09lxUgmDYOGxQ+dfp5dgkmUmtaTDTcfOM4F+B8YT1pzXpLBybqvc7IOM5kiDOA/WQkLYvMdSpvg02fHhmYRBclOZ8Rv0hKYg6d/h126CaPaGx+yt8yujgssqinDsU6COHWoZ2AA26ZmsHt861zA5byk3oJ4Z7nytwzIw8d9F6e5rZBAT1UsCzyC7r6ldNMdrtAcLYWYJKhQow2DfE57hce1Max1pbXkqMxDO4rs3i7OR9FSclfcNfwMQ925HjQULnp/1RPn8poYx/t3twojcJH8ERqDeFEneeAe4/4zFPb70Op5CPuuh8aBOpCm8cdYrfB8DLiTMAEorfFdLbzuj21yNdGmVSrKARXP9Py6rpzHIHCR6TmRS3HhQZZ8Q74UHKoMXijwJPNcgXy+q7AtpzHQrLmGvBvgDaxdEi8W51Eq02lJXosxGUSd1BqDbGL8yM42j+BkV8Q/XG6kZ4y4HrudWofo4jeWNdg9e0w20iatgYXNnc5ikeaQKTk328N3pZdQ==
 [core]
     editor = nvim
     pager = less -FRX
@@ -78,6 +78,8 @@
 [commit]
     gpgsign = true
 [gpg]
-    program = /opt/homebrew/bin/gpg
+    format = ssh
+[gpg "ssh"]
+    program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
 [fetch]
    prune = true
