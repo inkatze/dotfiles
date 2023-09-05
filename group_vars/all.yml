@@ -42,6 +42,7 @@ homebrew_formulas:
   - readline
   - redis
   - ripgrep
+  - stylua
   - terminal-notifier
   - the_silver_searcher
   - tmux
