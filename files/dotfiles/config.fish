@@ -23,7 +23,7 @@ if status --is-login
     set -xg CODESET UTF-8
     set -xg EDITOR nvim
     set -xg FZF_DEFAULT_COMMAND 'bash -c "ag --files-with-matches --column --no-heading --nocolor --smart-case --ignore *.rbi --ignore node_modules"'
-    set -xl OPENSSL_PATH (brew --prefix openssl@1.1)
+    set -xl OPENSSL_PATH (brew --prefix openssl)
     set -xl ZLIB_PATH (brew --prefix zlib)
     set -xl LLVM_PATH (brew --prefix llvm)
     set -xl SQLITE_PATH (brew --prefix sqlite3)
