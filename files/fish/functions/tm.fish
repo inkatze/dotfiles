@@ -8,6 +8,10 @@ set -x ZP_DIR $HOME'/dev/zenpayroll'
 set -x ZP_BACKEND_SESSION 'backend'
 set -x ZP_SERVER_WINDOW 'server'
 
+set -x PBB_SESSION 'pbb'
+set -x PBB_DIR $HOME'/dev/payroll_building_blocks'
+set -x PBB_WINDOW 'workspace'
+
 set -x PCC_SESSION 'pcc'
 set -x PCC_WINDOW 'workspace'
 set -x PCC_DIR $HOME'/dev/paycheckcity.com'
@@ -129,6 +133,40 @@ function tmzp
   tmux select-pane -t $target'.left'
 
   notify 'Zenpayroll' 'Workspace created' -sound Blow -group tm -execute tm
+end
+
+function tmpbb
+  if not test -d $PBB_DIR
+    set -xl clone_command "git clone git@github.com:Gusto/payroll_building_blocks $NV_DIR"
+    notify 'PBB' 'Project not installed' 'https://github.com/Gusto/payroll_building_blocks' -sound Sosumi -group tm -execute $clone_command
+    echo $clone_command
+    return 1
+  end
+
+  if not windowavailable $PBB_SESSION $PBB_WINDOW
+    notify 'PBB' 'Workspace already created' -sound Purr -group tm -execute tm
+    return 1
+  end
+
+  if sessionavailable $PBB_SESSION
+    notify 'PBB' 'Creating session and attaching window' -sound Purr -group tm -execute tm
+    tmux new-session -d -s $PBB_SESSION -n $PBB_WINDOW
+  else
+    notify 'PBB' 'Attaching window to existing session' -sound Purr -group tm -execute tm
+    tmux new-window -t $PBB_SESSION -n $PBB_WINDOW
+  end
+
+  set -xl target $PBB_SESSION':'$PBB_WINDOW
+  tmux split-window -t $target -h
+  tmux split-window -t $target -v
+  tmux setw synchronize-panes on
+  tmux send-keys -t $target 'cd '$PBB_DIR Enter C-l
+  tmux setw synchronize-panes off
+  tmux clock-mode -t $target'.bottom-right'
+  tmux send-keys -t $target'.left' 'nv' Enter
+  tmux select-pane -t $target'.left'
+
+  notify 'PBB' 'Workspace created' -sound Blow -group tm -execute tm
 end
 
 function stopservices
@@ -407,6 +445,8 @@ function tm
     tmzpsrvr
   else if test $session_name = 'rssrvr'
     tmrssrvr
+  else if test $session_name = 'pbb'
+    tmpbb
   else if test $session_name = 'pcc'
     tmpaycheckcity
   else if test $session_name = 'pccpf'
