@@ -102,7 +102,7 @@ gpg_agent_conf_source_file: "{{ gpg_base_source_path }}/gpg-agent.conf"
 
 # dotfiles.yml
 
-fish_config_source_file: dotfiles/config.fish
+fish_config_source_path: fish
 iterm2_plist_source_file: dotfiles/{{ current_env }}/com.googlecode.iterm2.plist
 gitconfig_source_file: dotfiles/gitconfig
 pylintrc_source_file: dotfiles/pylintrc
@@ -117,7 +117,6 @@ tool_versions_source_file: "dotfiles/tool-versions"
 # fish.yml
 
 fish_formulas: [fish, starship]
-fish_config_source_path: fish
 fish_plugins:
   - laughedelic/pisces
   - jethrokuan/z
