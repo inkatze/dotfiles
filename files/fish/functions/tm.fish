@@ -126,7 +126,7 @@ function tmzp
   tmux split-window -t $target -v
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$ZP_DIR Enter
-  tmux send-keys -t $target 'nvm install' Enter C-l
+  tmux send-keys -t $target 'asdf install nodejs' Enter C-l
   tmux setw synchronize-panes off
   tmux clock-mode -t $target'.bottom-right'
   tmux send-keys -t $target'.left' 'nv' Enter
@@ -182,7 +182,7 @@ function startsrvr
   tmux select-pane -t $target'.top-left'
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$ZP_DIR Enter
-  tmux send-keys -t $target 'nvm install' Enter C-l
+  tmux send-keys -t $target 'asdf install nodejs' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.top-left' 'brails s' Enter C-l
   tmux send-keys -t $target'.top-right' 'vite dev' C-l Enter
@@ -253,7 +253,7 @@ function tmpaycheckcity
   tmux split-window -t $target -v
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$PCC_DIR Enter
-  tmux send-keys -t $target 'nvm install' Enter C-l
+  tmux send-keys -t $target 'asdf install nodejs' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' 'gatsby develop' Enter
   tmux clock-mode -t $target'.bottom-right'
@@ -287,7 +287,7 @@ function tmpccpf
   tmux split-window -t $target -v
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$PCCP_FE_DIR Enter
-  tmux send-keys -t $target 'nvm install' Enter C-l
+  tmux send-keys -t $target 'asdf install nodejs' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' 'npm run start' Enter
   tmux clock-mode -t $target'.bottom-right'
@@ -355,7 +355,7 @@ function tmwbsf
   tmux split-window -t $target -v
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$WBS_FE_DIR Enter
-  tmux send-keys -t $target 'nvm install' Enter C-l
+  tmux send-keys -t $target 'asdf install nodejs' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' 'npm run start' Enter
   tmux clock-mode -t $target'.bottom-right'

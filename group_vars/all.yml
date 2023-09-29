@@ -61,7 +61,6 @@ homebrew_formulas:
   - go
   - golangci/tap/golangci-lint
 
-  - rbenv
   - ruby-build
   - libsodium # work project related
   - watchman # sorbet dep
@@ -107,12 +106,14 @@ iterm2_plist_source_file: dotfiles/{{ current_env }}/com.googlecode.iterm2.plist
 gitconfig_source_file: dotfiles/gitconfig
 pylintrc_source_file: dotfiles/pylintrc
 npmrc_source_file: dotfiles/npmrc
-nvmrc_source_file: dotfiles/nvmrc
 tmux_source_file: dotfiles/tmux.conf
 mysql_config_source_file: dotfiles/my.cnf
 import_js_config_source_file: dotfiles/importjs.js
 default_mix_commands_source_file: dotfiles/default-mix-commands
-tool_versions_source_file: "dotfiles/tool-versions"
+tool_versions_source_file: dotfiles/tool-versions
+default_npm_packages_source_file: dotfiles/default-npm-packages
+default_gems_source_file: dotfiles/default-gems
+asdfrc_source_file: dotfiles/asdfrc
 
 # fish.yml
 
@@ -120,9 +121,7 @@ fish_formulas: [fish, starship]
 fish_plugins:
   - laughedelic/pisces
   - jethrokuan/z
-  - jorgebucaran/nvm.fish
   - catppuccin/fish
-  - rbenv/fish-rbenv
   - reitzig/sdkman-for-fish@v1.4.0
   - rstacruz/fish-asdf
 fish_starship_source_path: dotfiles/starship.toml

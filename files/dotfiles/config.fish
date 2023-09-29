@@ -23,12 +23,12 @@ if status --is-login
     set -xg CODESET UTF-8
     set -xg EDITOR nvim
     set -xg FZF_DEFAULT_COMMAND 'bash -c "ag --files-with-matches --column --no-heading --nocolor --smart-case --ignore *.rbi --ignore node_modules"'
-    set -xl OPENSSL_PATH (brew --prefix openssl)
+    set -xl OPENSSL_PATH (brew --prefix openssl@3)
     set -xl ZLIB_PATH (brew --prefix zlib)
     set -xl LLVM_PATH (brew --prefix llvm)
     set -xl SQLITE_PATH (brew --prefix sqlite3)
     set -xl READLINE_PATH (brew --prefix readline)
-    set -xl MYSQL_PATH (brew --prefix mysql)
+    set -xl MYSQL_PATH (brew --prefix mysql@8.0)
     set -xl POSTGRESQL_PATH (brew --prefix postgresql@15)
     set -xl MARIADB_PATH (brew --prefix mariadb@10.6)
     set -gx PKG_CONFIG_PATH $SQLITE_PATH/lib/pkgconfig $POSTGRESQL_PATH/lib/pkgconfig $MYSQL_PATH/lib/pkgconfig $MARIADB_PATH/lib/pkgconfig $ZLIB_PATH/lib/pkgconfig $LLVM_PATH/lib/pkgconfig $READLINE_PATH/lib/pkgconfig $OPENSSL_PATH/lib/pkgconfig
@@ -53,8 +53,7 @@ if status --is-login
     set -xg PIPENV_SHELL_FANCY 1
 
     # Ruby stuff
-    set -xg RBENV_VERSION 3.2.2
-    set -xg RUBY_CONFIGURE_OPTS "--with-openssl-dir="$OPENSSL_PATH" --enable-shared"
+    set -xg RUBY_CONFIGURE_OPTS "--with-openssl-dir="$OPENSSL_PATH
     set -xg THOR_SILENCE_DEPRECATION 1
 
     # Elixir/Erlang stuff
@@ -69,14 +68,10 @@ if status --is-login
     set -l PYTHON_LIB_EXEC /usr/local/opt/python/libexec/bin
     set -l MYSQL_BIN_PATH $MYSQL_PATH/bin
     set -l MARIADB_BIN_PATH $MARIADB_PATH/bin
-    set -l GLOBAL_NODE_BIN_PATH "$HOME/node_modules/.bin"
+    set -l GLOBAL_NODE_BIN_PATH (asdf where nodejs)/bin
 
     # Rust stuff
     set -l CARGO_BIN $HOME/.cargo/bin
-
-    # Node stuff
-    set -xg nvm_default_version lts
-    set -xg nvm_default_packages typescript typescript-language-server neovim import-js yaml-language-server ansible-language-server vim-language-server diagnostic-languageserver bash-language-server graphql-language-service-cli vscode-langservers-extracted pyright intelephense rome "@angular/language-server" prettier "@fsouza/prettierd" eslint_d
 
     fish_add_path (brew --prefix)/bin
     fish_add_path (brew --prefix)/sbin
@@ -104,6 +99,7 @@ starship init fish | source
 status --is-interactive; and source (pyenv init -|psub)
 status --is-interactive; and source (pyenv virtualenv-init -|psub)
 status --is-interactive; and direnv hook fish | source
+status --is-interactive; and corepack enable; and asdf reshim nodejs
 
 # Fish Theme
 set -xg fish_greeting '¡Hoal!'
