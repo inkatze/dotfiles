@@ -35,7 +35,7 @@ homebrew_formulas:
   - make
   - mosh
   - mariadb@10.6
-  - mysql
+  - mysql@8.0
   - neofetch
   - nnn
   - pinentry-mac
