@@ -14,6 +14,7 @@ homebrew_cask_applications:
   - notion
   - rubymine
   - steam
+  - visual-studio-code
   - wkhtmltopdf
 
 osx_mas_applications:
