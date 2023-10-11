@@ -25,15 +25,14 @@ if status --is-login
     set -xg FZF_DEFAULT_COMMAND 'bash -c "ag --files-with-matches --column --no-heading --nocolor --smart-case --ignore *.rbi --ignore node_modules"'
     set -xl OPENSSL_PATH (brew --prefix openssl@3)
     set -xl ZLIB_PATH (brew --prefix zlib)
-    set -xl LLVM_PATH (brew --prefix llvm)
     set -xl SQLITE_PATH (brew --prefix sqlite3)
     set -xl READLINE_PATH (brew --prefix readline)
     set -xl MYSQL_PATH (brew --prefix mysql@8.0)
     set -xl POSTGRESQL_PATH (brew --prefix postgresql@15)
     set -xl MARIADB_PATH (brew --prefix mariadb@10.6)
-    set -gx PKG_CONFIG_PATH $SQLITE_PATH/lib/pkgconfig $POSTGRESQL_PATH/lib/pkgconfig $MYSQL_PATH/lib/pkgconfig $MARIADB_PATH/lib/pkgconfig $ZLIB_PATH/lib/pkgconfig $LLVM_PATH/lib/pkgconfig $READLINE_PATH/lib/pkgconfig $OPENSSL_PATH/lib/pkgconfig
-    set -gx LDFLAGS '-L'$SQLITE_PATH/lib' -L'$POSTGRESQL_PATH/lib' -L'$MYSQL_PATH/lib' -L'$MARIADB_PATH/lib' -L'$ZLIB_PATH/lib' -L'$LLVM_PATH/lib' -L'$READLINE_PATH/lib' -L'$OPENSSL_PATH/lib
-    set -gx CPPFLAGS '-I'$SQLITE_PATH/include' -I'$POSTGRESQL_PATH/include' -I'$MYSQL_PATH/include' -I'$MARIADB_PATH/include' -I'$ZLIB_PATH/include' -I'$LLVM_PATH/include' -I'$READLINE_PATH/include' -I'$OPENSSL_PATH/include
+    set -gx PKG_CONFIG_PATH $SQLITE_PATH/lib/pkgconfig $POSTGRESQL_PATH/lib/pkgconfig $MYSQL_PATH/lib/pkgconfig $MARIADB_PATH/lib/pkgconfig $ZLIB_PATH/lib/pkgconfig $READLINE_PATH/lib/pkgconfig $OPENSSL_PATH/lib/pkgconfig
+    set -gx LDFLAGS '-L'$SQLITE_PATH/lib' -L'$POSTGRESQL_PATH/lib' -L'$MYSQL_PATH/lib' -L'$MARIADB_PATH/lib' -L'$ZLIB_PATH/lib' -L'$READLINE_PATH/lib' -L'$OPENSSL_PATH/lib
+    set -gx CPPFLAGS '-I'$SQLITE_PATH/include' -I'$POSTGRESQL_PATH/include' -I'$MYSQL_PATH/include' -I'$MARIADB_PATH/include' -I'$ZLIB_PATH/include' -I'$READLINE_PATH/include' -I'$OPENSSL_PATH/include
     set -gx DYLD_FALLBACK_LIBRARY_PATH $OPENSSL_PATH/lib
 
     # GPG & git fix
@@ -84,8 +83,6 @@ if status --is-login
     fish_add_path $CARGO_BIN
     fish_add_path $POSTGRES_BIN
     fish_add_path $PYTHON_LIB_EXEC
-    fish_add_path $LLVM_PATH/bin
-    fish_add_path (brew --prefix coreutils)/libexec/gnubin
     fish_add_path /usr/local/bin
     fish_add_path -m $OPENSSL_PATH/bin
 
