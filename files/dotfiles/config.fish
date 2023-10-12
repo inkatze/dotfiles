@@ -35,21 +35,11 @@ if status --is-login
     set -gx CPPFLAGS '-I'$SQLITE_PATH/include' -I'$POSTGRESQL_PATH/include' -I'$MYSQL_PATH/include' -I'$MARIADB_PATH/include' -I'$ZLIB_PATH/include' -I'$READLINE_PATH/include' -I'$OPENSSL_PATH/include
     set -gx DYLD_FALLBACK_LIBRARY_PATH $OPENSSL_PATH/lib
 
-    # GPG & git fix
-    set -xg GPG_TTY (tty)
-
     # Go stuff
     set -xg GOPATH $HOME/dev/go
     set -xg GOBIN $GOPATH/bin
     set -xg GOROOT (brew --prefix go)/libexec
     mkdir -p $GOPATH
-
-    # Python Stuff
-    set -xg PYENV_ROOT $HOME/.pyenv
-    set -xg WORKON_HOME $PYENV_ROOT
-    set -xg PYENV_VERSION 3.10.3
-    set -xg PIPENV_DEFAULT_PYTHON_VERSION $PYENV_VERSION
-    set -xg PIPENV_SHELL_FANCY 1
 
     # Ruby stuff
     set -xg RUBY_CONFIGURE_OPTS "--with-openssl-dir="$OPENSSL_PATH
@@ -64,41 +54,35 @@ if status --is-login
 
     # Binaries paths
     set -l POSTGRES_BIN $POSTGRESQL_PATH/bin
-    set -l PYTHON_LIB_EXEC /usr/local/opt/python/libexec/bin
     set -l MYSQL_BIN_PATH $MYSQL_PATH/bin
     set -l MARIADB_BIN_PATH $MARIADB_PATH/bin
-    set -l GLOBAL_NODE_BIN_PATH (asdf where nodejs)/bin
 
     # Rust stuff
     set -l CARGO_BIN $HOME/.cargo/bin
 
-    fish_add_path (brew --prefix)/bin
-    fish_add_path (brew --prefix)/sbin
+    fish_add_path -a (brew --prefix)/bin
+    fish_add_path -a (brew --prefix)/sbin
+    fish_add_path -a (brew --prefix)/sbin
+    fish_add_path -a /usr/bin
     fish_add_path $SQLITE_PATH/bin
     fish_add_path -a $MARIADB_BIN_PATH
     fish_add_path -m $MYSQL_BIN_PATH
-    fish_add_path $GLOBAL_NODE_BIN_PATH
     fish_add_path $GOPATH/bin
     fish_add_path $GOROOT/bin
     fish_add_path $CARGO_BIN
     fish_add_path $POSTGRES_BIN
-    fish_add_path $PYTHON_LIB_EXEC
     fish_add_path /usr/local/bin
     fish_add_path -m $OPENSSL_PATH/bin
-
-    pyenv init --path | source
 end
 
 ulimit -Sn 65535
 
 starship init fish | source
 
-status --is-interactive; and source (pyenv init -|psub)
-status --is-interactive; and source (pyenv virtualenv-init -|psub)
 status --is-interactive; and direnv hook fish | source
-status --is-interactive; and corepack enable; and asdf reshim nodejs
+status --is-interactive; and source (brew --prefix asdf)/libexec/asdf.fish
+status --is-interactive; and corepack enable
 
 # Fish Theme
 set -xg fish_greeting '¡Hoal!'
 set -xg SPACEFISH_CHAR_SUFFIX '  '
-pyenv init - | source
