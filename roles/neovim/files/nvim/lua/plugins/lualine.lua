@@ -1,6 +1,6 @@
 return {
   "nvim-lualine/lualine.nvim",
-  event = "BufAdd",
+  event = "BufRead",
   opts = {
     options = {
       theme = "catppuccin",

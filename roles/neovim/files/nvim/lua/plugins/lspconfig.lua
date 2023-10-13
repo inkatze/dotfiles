@@ -6,7 +6,7 @@ return {
     { "onsails/lspkind.nvim", lazy = true },
   },
   build = "brew install lua-language-server efm-langserver",
-  event = "BufAdd",
+  event = "BufRead",
   config = function()
     require("inkatze.lspconfig.lua").setup()
     require("inkatze.lspconfig.misc").setup()

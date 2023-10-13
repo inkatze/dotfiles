@@ -2,9 +2,9 @@ return {
   -- No config and support plugins
   { "kyazdani42/nvim-web-devicons", lazy = true },
   { "nvim-lua/plenary.nvim",        lazy = true },
-  { "romgrk/barbar.nvim",           event = "BufAdd" },
-  { "tpope/vim-commentary",         event = "BufAdd" },
-  { "DanilaMihailov/beacon.nvim",   event = "BufAdd" },
+  { "romgrk/barbar.nvim",           event = "BufRead" },
+  { "tpope/vim-commentary",         event = "BufRead" },
+  { "DanilaMihailov/beacon.nvim",   event = "BufRead" },
   { "mfussenegger/nvim-ansible",    ft = "yaml" },
 
   {
@@ -14,14 +14,14 @@ return {
   },
   {
     "folke/trouble.nvim",
-    event = "BufAdd",
+    event = "BufRead",
     opts = {
       auto_close = true,
     },
   },
   {
     "mfussenegger/nvim-dap",
-    event = "BufAdd",
+    event = "BufRead",
     dependencies = {
       "rcarriga/nvim-dap-ui",
       lazy = true,
@@ -30,7 +30,7 @@ return {
   },
   {
     "github/copilot.vim",
-    event = "BufAdd",
+    event = "BufRead",
     build = ":Copilot setup",
   },
   {
@@ -38,7 +38,7 @@ return {
     ft = "java",
     build = "./scripts/link_mac.sh && mvn package -DskipTests",
   },
-  { "tpope/vim-projectionist", event = "BufAdd" },
+  { "tpope/vim-projectionist", event = "BufRead" },
   {
     "j-hui/fidget.nvim",
     version = "legacy",
@@ -61,7 +61,7 @@ return {
   {
     "lukas-reineke/indent-blankline.nvim",
     main = "ibl",
-    event = "BufAdd",
+    event = "BufRead",
     opts = { scope = { enabled = false } },
   },
 }
