@@ -1,4 +1,5 @@
 "@angular/language-server"
+"@tailwindcss/language-server"
 ansible-language-server
 bash-language-server
 diagnostic-languageserver
@@ -6,7 +7,6 @@ graphql-language-service-cli
 import-js
 intelephense
 neovim
-pyright
 rome
 typescript
 typescript-language-server
