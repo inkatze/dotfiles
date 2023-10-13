@@ -1,0 +1,17 @@
+---
+- name: Creating .ssh directory
+  file:
+    path: "{{ ansible_env.HOME }}/.ssh"
+    state: directory
+  when: ssh_source_path | string or ssh_config | string
+  tags:
+    - ssh
+
+- name: Installing ssh config
+  copy:
+    src: "{{ ssh_config }}"
+    dest: "{{ ansible_env.HOME }}/.ssh/config"
+    mode: "0600"
+  when: ssh_config | string
+  tags:
+    - ssh

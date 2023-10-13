@@ -1,0 +1,11 @@
+---
+- name: Installing Ruby interpreter for neovim
+  command: asdf install ruby
+  tags:
+    - neovim
+
+- name: Rehashing environments
+  command: asdf reshim ruby
+  changed_when: false
+  tags:
+    - neovim

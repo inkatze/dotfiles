@@ -1,0 +1,13 @@
+---
+# defaults file for ansible-neovim
+
+neovim_formulas:
+  - ansible-lint
+  - lua-language-server
+  - neovim
+  - pyenv
+
+neovim_config_path: "{{ ansible_env.HOME }}/dev/dotfiles/roles/neovim/files/nvim"
+
+neovim_python_version: ""
+neovim_ruby_version: ""

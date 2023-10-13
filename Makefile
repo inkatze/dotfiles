@@ -15,42 +15,39 @@ endif
 
 PLAYBOOK_COMMAND := ansible-playbook -l $(CURRENT_HOST) main.yml
 
-install: deps
+install: header
 	$(PLAYBOOK_COMMAND) --skip-tags shell,gpg,upgrade
 
-homebrew: deps
+homebrew: header
 	$(PLAYBOOK_COMMAND) -t homebrew
 
-gpg: deps
+gpg: header
 	$(PLAYBOOK_COMMAND) -t gpg
 
-ssh: deps
+ssh: header
 	$(PLAYBOOK_COMMAND) -t ssh
 
-dotfiles: deps
+dotfiles: header
 	$(PLAYBOOK_COMMAND) -t dotfiles
 
-tmux: deps
+tmux: header
 	$(PLAYBOOK_COMMAND) -t tmux
 
-fish: deps
+fish: header
 	$(PLAYBOOK_COMMAND) -t fish
 
-neovim: deps
+neovim: header
 	$(PLAYBOOK_COMMAND) -t neovim
 
-osx: deps
+osx: header
 	$(PLAYBOOK_COMMAND) -t osx
 
-upgrade: deps
+upgrade: header
 	$(PLAYBOOK_COMMAND) -t upgrade
 
-shell: deps
+shell: header
 	# Requires privilege escalation because of the /etc/shells file
 	$(PLAYBOOK_COMMAND) -t fish,shell -K
-
-deps: header
-	ansible-galaxy install -f -r requirements.yml
 
 header:
 	echo "Running on host: $(CURRENT_HOST)"

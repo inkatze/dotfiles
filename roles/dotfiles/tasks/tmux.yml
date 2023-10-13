@@ -1,0 +1,29 @@
+---
+
+- name: Installing tmux formulas
+  homebrew:
+    name: "{{ tmux_formulas }}"
+    state: present
+
+- name: Installing Tmux Plugin Manager
+  git:
+    repo: https://github.com/tmux-plugins/tpm
+    depth: "1"
+    force: yes
+    recursive: yes
+    dest: "{{ ansible_env.HOME }}/.tmux/plugins/tpm"
+
+- name: Ensuring color profile is installed
+  command: infocmp -x tmux-256color
+  register: color_profiles
+  changed_when: false
+  failed_when: false
+
+- name: Installing color profile
+  shell: >
+    cd /tmp &&\
+      curl -LO https://invisible-island.net/datafiles/current/terminfo.src.gz &&\
+      gunzip terminfo.src.gz &&\
+      /usr/bin/tic -xe tmux-256color terminfo.src &&\
+      rm -rf terminfo.src*
+  when: color_profiles.rc != 0

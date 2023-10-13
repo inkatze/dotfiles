@@ -1,0 +1,56 @@
+---
+
+- name: Installing MAS formulas
+  homebrew:
+    name: "{{ osx_mas_formulas }}"
+    state: present
+  tags:
+    - osx
+
+- name: Listing installed MAS apps
+  command: mas list
+  register: mas_list
+  check_mode: no
+  changed_when: false
+  tags:
+    - osx
+
+- name: Ensuring MAS apps are installed
+  command: mas install "{{ item.id }}"
+  with_items: "{{ osx_mas_applications }}"
+  when: (item.id | string) not in mas_list.stdout
+
+- name: Showing Library folder
+  command: chflags nohidden ~/Library
+  changed_when: false
+  tags:
+    - osx
+
+- name: Applying OSX defaults
+  osx_defaults:
+    domain: "{{ item.domain }}"
+    key: "{{ item.key }}"
+    type: "{{ item.type }}"
+    value: "{{ item.value }}"
+  with_items: "{{ osx_defaults }}"
+  tags:
+    - osx
+
+# TODO: Idempotency is broken here
+- name: Applying OSX defaults with no idempotency checks
+  osx_defaults:
+    domain: "{{ item.domain }}"
+    key: "{{ item.key }}"
+    type: "{{ item.type }}"
+    value: "{{ item.value }}"
+  with_items: "{{ osx_dict_defaults }}"
+  changed_when: false
+  tags:
+    - osx
+
+- name: Upgrading MAS apps
+  command: mas upgrade
+  register: mas_upgrade_status
+  changed_when: "(mas_upgrade_status.stdout is defined) and ('Everything is up-to-date' not in mas_upgrade_status.stdout)"
+  tags:
+    - upgrade

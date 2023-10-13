@@ -1,0 +1,112 @@
+---
+- name: Get fish directory
+  command: brew --prefix
+  register: fish_dir
+  changed_when: false
+  tags:
+    - fish
+
+- name: Get fish directory
+  command: brew --prefix
+  register: fish_dir
+  changed_when: false
+  tags:
+    - upgrade
+
+- name: Installing fish formulas
+  homebrew:
+    name: "{{ fish_formulas}}"
+    state: present
+  tags:
+    - fish
+
+- name: Upgrading fish formulas
+  homebrew:
+    name: "{{ fish_formulas}}"
+    state: latest
+    update_homebrew: yes
+  tags:
+    - upgrade
+
+- name: Creating fish configuration directory
+  file:
+    path: "{{ ansible_env.HOME }}/.config/fish"
+    recurse: yes
+    state: directory
+  when: fish_config_source_path | string
+  tags:
+    - fish
+
+- name: Updating fish configurations folder
+  copy:
+    src: "{{ fish_config_source_path }}"
+    dest: "{{ ansible_env.HOME }}/.config"
+  when: fish_config_source_path | string
+  tags:
+    - fish
+
+- name: Installing fisherman
+  shell: curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher
+  args:
+    executable: "{{ fish_dir.stdout }}/bin/fish"
+  when: fish_plugins | list
+  changed_when: false
+  tags:
+    - fish
+
+- name: Retrieving installed fisherman packages
+  shell: fisher list
+  args:
+    executable: "{{ fish_dir.stdout }}/bin/fish"
+  register: fisherman_plugins
+  changed_when: false
+  failed_when: false
+  tags: # This needs fish
+    - skip_ansible_lint
+    - fish
+  when: fish_plugins | list
+
+- name: Installing fish plugins
+  shell: fisher install {{ item }}
+  args:
+    executable: "{{ fish_dir.stdout }}/bin/fish"
+  with_items: "{{ fish_plugins }}"
+  when: "fish_plugins | list and item not in fisherman_plugins.stdout"
+  tags: # This needs fish
+    - skip_ansible_lint
+    - fish
+
+- name: Updating theme configuration
+  copy:
+    src: "{{ fish_starship_source_path }}"
+    dest: "{{ ansible_env.HOME }}/.config/starship.toml"
+  when: fish_starship_source_path | string
+  tags:
+    - fish
+
+- name: Adding fish to shells
+  lineinfile:
+    path: /etc/shells
+    regexp: "^{{ fish_dir.stdout }}/bin/fish"
+    line: "{{ fish_dir.stdout }}/bin/fish"
+  become: true
+  become_user: root
+  tags:
+    - shell
+
+- name: Changing login shell to fish
+  command: chsh -s {{ fish_dir.stdout }}/bin/fish
+  changed_when: false
+  when: lookup('env','SHELL') != (fish_dir.stdout + "/bin/fish" | string)
+  tags:
+    - shell
+
+- name: Updating fisherman plugins
+  shell: fisher update
+  args:
+    executable: "{{ fish_dir.stdout }}/bin/fish"
+  changed_when: false
+  tags: # This needs fish
+    - skip_ansible_lint
+    - upgrade
+  when: fish_formulas | list

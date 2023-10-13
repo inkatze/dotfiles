@@ -1,0 +1,43 @@
+---
+
+- name: Adding additional taps
+  homebrew_tap:
+    name: "{{ item }}"
+    state: present
+  with_items: "{{ homebrew_taps }}"
+  tags:
+    - homebrew
+
+- name: Installing homebrew formulas
+  homebrew:
+    name: "{{ homebrew_formulas }}"
+    state: present
+  when: homebrew_formulas | list
+  tags:
+    - homebrew
+
+- name: Installing cask applications
+  homebrew_cask:
+    name: "{{ homebrew_cask_applications }}"
+    state: present
+  when: homebrew_cask_applications | list
+  tags:
+    - homebrew
+
+- name: Upgrading homebrew formulas
+  homebrew:
+    name: "{{ homebrew_formulas }}"
+    state: latest
+    update_homebrew: yes
+  when: homebrew_formulas | list
+  tags:
+    - upgrade
+
+- name: Upgrading cask applications
+  homebrew_cask:
+    name: "{{ homebrew_cask_applications }}"
+    state: latest
+    update_homebrew: yes
+  when: homebrew_cask_applications | list
+  tags:
+    - upgrade

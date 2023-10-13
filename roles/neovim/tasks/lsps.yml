@@ -1,0 +1,68 @@
+---
+- name: Installing NodeJS interpreter for neovim
+  command: asdf install nodejs
+  tags:
+    - neovim
+
+- name: List NodeJS node_versions
+  shell: "ls -1d $HOME/.asdf/installs/nodejs/*/ | sed 's/.$//'"
+  register: ruby_versions
+  changed_when: false
+  tags:
+    - upgrade
+
+- name: Get fish base directory
+  command: brew --prefix
+  register: fish_dir
+  changed_when: false
+  tags:
+    - upgrade
+
+- name: Upgrade global NodeJS packages
+  shell:
+    cmd: "asdf global {{ item }}; and npm u -g"
+    executable: "{{ fish_dir.stdout }}/bin/fish"
+  changed_when: false
+  with_items: ruby_versions.stdout_lines
+  tags:
+    - upgrade
+
+- name: Rehashing environments
+  command: asdf reshim ruby
+  changed_when: false
+  tags:
+    - neovim
+    - upgrade
+
+- name: Get fish directory
+  command: brew --prefix
+  register: fish_dir
+  changed_when: false
+  tags:
+    - neovim
+    - upgrade
+
+- name: List node versions
+  register: node_versions
+  shell:
+    cmd: "ls -1d */"
+    executable: "{{ fish_dir.stdout }}/bin/fish"
+  tags:
+    - neovim
+    - upgrade
+  changed_when: false
+
+- name: Check node_versions
+  debug:
+    var: node_versions
+  tags:
+    - neovim
+    - upgrade
+
+# - name: Upgrade npm distributed LSPs
+#   shell:
+#     name: "{{ item }}"
+#     global: yes
+#     state: latest
+#     executable: "{{ ansible_env.HOME }}/.local/share/nvm/{{ node_version.stdout }}/bin/npm"
+#   with_items: "{{ node_versions.stdout_lines }}"

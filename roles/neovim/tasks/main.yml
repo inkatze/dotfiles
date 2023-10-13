@@ -1,0 +1,44 @@
+---
+- name: Installing neovim formulas
+  homebrew:
+    name: "{{ neovim_formulas }}"
+    state: present
+  when: neovim_formulas | list
+  tags:
+    - neovim
+
+# - name: Installing Ruby environment
+#   include_tasks: ruby.yml
+#   tags:
+#     - neovim
+
+# - name: Installing Python environment
+#   include_tasks: python.yml
+#   tags:
+#     - neovim
+
+- name: Installing LSPs
+  include_tasks: lsps.yml
+  tags:
+    - neovim
+
+- name: Symlinking neovim config
+  file:
+    src: "{{ neovim_config_path }}"
+    dest: "{{ ansible_env.HOME }}/.config/nvim"
+    state: link
+  when: neovim_config_path | string
+  tags:
+    - neovim
+
+- name: Installing neovim plugins
+  shell: >
+    nvim --headless
+    -c 'Lazy! sync'
+    -c 'TSInstall maintained'
+    -c 'TSUpdate'
+    -c 'qa' &> /dev/null < /dev/tty
+  changed_when: false
+  tags:
+    - neovim
+    - upgrade

@@ -1,0 +1,17 @@
+---
+
+- import_tasks: gpg.yml
+  tags:
+    - gpg
+
+- import_tasks: ssh.yml
+  tags:
+    - ssh
+
+- import_tasks: dotfiles.yml
+  tags:
+    - dotfiles
+
+- import_tasks: tmux.yml
+  tags:
+    - tmux
