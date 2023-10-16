@@ -1,7 +1,6 @@
 set -x WORKSPACE_WINDOW 'workspace'
 set -x DOT_SESSION 'dotfiles'
 set -x DOT_DIR $HOME'/dev/dotfiles'
-set -x NV_DIR $HOME'/dev/ansible-neovim'
 
 set -x ZP_SESSION 'zp'
 set -x ZP_DIR $HOME'/dev/zenpayroll'
@@ -74,13 +73,6 @@ function tmdot
     return 1
   end
 
-  if not test -d $NV_DIR
-    set -xl clone_command "git clone git@github.com:inkatze/ansible-neovim.git $NV_DIR"
-    notify 'Dotfiles' 'Neovim ansible project not installed' 'https://github.com/inkatze/ansible-neovim' -sound Sosumi -group tm -execute $clone_command
-    echo $clone_command
-    return 1
-  end
-
   if not windowavailable $DOT_SESSION $WORKSPACE_WINDOW
     notify 'Dotfiles' 'Dotfiles workspace already created' -sound Purr -group tm -execute tm
     return 1
@@ -96,7 +88,7 @@ function tmdot
 
   tmux split-window -t $target -h
   tmux send-keys -t $target'.left' 'cd '$DOT_DIR Enter C-l
-  tmux send-keys -t $target'.right' 'cd '$NV_DIR Enter C-l
+  tmux send-keys -t $target'.right' 'cd '$DOT_DIR Enter C-l
   tmux select-pane -t $target'.left'
 
   notify 'Dotfiles' 'Workspace created' -sound Blow -group tm -execute tm
@@ -104,7 +96,7 @@ end
 
 function tmzp
   if not test -d $ZP_DIR
-    set -xl clone_command "git clone git@github.com:Gusto/zenpayroll $NV_DIR"
+    set -xl clone_command "git clone git@github.com:Gusto/zenpayroll $ZP_DIR"
     notify 'Zenpayroll' 'Project not installed' 'https://github.com/Gusto/zenpayroll' -sound Sosumi -group tm -execute $clone_command
     echo $clone_command
     return 1
@@ -137,7 +129,7 @@ end
 
 function tmpbb
   if not test -d $PBB_DIR
-    set -xl clone_command "git clone git@github.com:Gusto/payroll_building_blocks $NV_DIR"
+    set -xl clone_command "git clone git@github.com:Gusto/payroll_building_blocks $PBB_DIR"
     notify 'PBB' 'Project not installed' 'https://github.com/Gusto/payroll_building_blocks' -sound Sosumi -group tm -execute $clone_command
     echo $clone_command
     return 1
@@ -194,7 +186,7 @@ end
 
 function tmzpsrvr
   if not test -d $ZP_DIR
-    set -xl clone_command "git clone git@github.com:Gusto/zenpayroll $NV_DIR"
+    set -xl clone_command "git clone git@github.com:Gusto/zenpayroll $ZP_DIR"
     notify 'Zenpayroll' 'Project not installed' 'https://github.com/Gusto/zenpayroll' -sound Sosumi -group tm -execute $clone_command
     echo $clone_command
     return 1
@@ -231,7 +223,7 @@ end
 
 function tmpaycheckcity
   if not test -d $PCC_DIR
-    set -xl clone_command "git clone git@github.com:SymmetrySoftware/paycheckcity.com $NV_DIR"
+    set -xl clone_command "git clone git@github.com:SymmetrySoftware/paycheckcity.com $PCC_DIR"
     notify 'Paycheckcity.com' 'Project not installed' 'https://github.com/SymmetrySoftware/paycheckcity.com' -sound Sosumi -group tm -execute $clone_command
     echo $clone_command
     return 1
@@ -265,7 +257,7 @@ end
 
 function tmpccpf
   if not test -d $PCCP_FE_DIR
-    set -xl clone_command "git clone git@github.com:SymmetrySoftware/pcc-profiles-client-app $NV_DIR"
+    set -xl clone_command "git clone git@github.com:SymmetrySoftware/pcc-profiles-client-app $PCC_FE_DIR"
     notify 'Paycheckcity Payroll' 'Project not installed' 'https://github.com/SymmetrySoftware/paycheckcity.com' -sound Sosumi -group tm -execute $clone_command
     echo $clone_command
     return 1
@@ -299,7 +291,7 @@ end
 
 function tmpccpb
   if not test -d $PCCP_BE_DIR
-    set -xl clone_command "git clone git@github.com:SymmetrySoftware/pcc-profiles-resource-server $NV_DIR"
+    set -xl clone_command "git clone git@github.com:SymmetrySoftware/pcc-profiles-resource-server $PCCP_BE_DIR"
     notify 'Paycheckcity Payroll Server' 'Project not installed' 'https://github.com/SymmetrySoftware/pcc-profiles-resource-server' -sound Sosumi -group tm -execute $clone_command
     echo $clone_command
     return 1
@@ -333,7 +325,7 @@ end
 
 function tmwbsf
   if not test -d $WBS_FE_DIR
-    set -xl clone_command "git clone git@github.com:SymmetrySoftware/notification-service-ui $NV_DIR"
+    set -xl clone_command "git clone git@github.com:SymmetrySoftware/notification-service-ui $WBS_FE_DIR"
     notify 'WBS' 'Project not installed' 'https://github.com/SymmetrySoftware/notification-service-ui' -sound Sosumi -group tm -execute $clone_command
     echo $clone_command
     return 1
@@ -367,7 +359,7 @@ end
 
 function tmwbsb
   if not test -d $WBS_BE_DIR
-    set -xl clone_command "git clone git@github.com:SymmetrySoftware/notification-service $NV_DIR"
+    set -xl clone_command "git clone git@github.com:SymmetrySoftware/notification-service $WBS_BE_DIR"
     notify 'WBS' 'Project not installed' 'https://github.com/SymmetrySoftware/notification-service' -sound Sosumi -group tm -execute $clone_command
     echo $clone_command
     return 1
@@ -401,7 +393,7 @@ end
 
 function cms
   if not test -d $CMS_DIR
-    set -xl clone_command "git clone git@github.com:SymmetrySoftware/symmetry_content_manager $NV_DIR"
+    set -xl clone_command "git clone git@github.com:SymmetrySoftware/symmetry_content_manager $CMS_DIR"
     notify 'CMS' 'Project not installed' 'https://github.com/SymmetrySoftware/symmetry_content_manager' -sound Sosumi -group tm -execute $clone_command
     echo $clone_command
     return 1
