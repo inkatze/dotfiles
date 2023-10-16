@@ -87,8 +87,10 @@ function tmdot
   set -xl target $DOT_SESSION':'$WORKSPACE_WINDOW
 
   tmux split-window -t $target -h
+  tmux split-window -t $target -v
   tmux send-keys -t $target'.left' 'cd '$DOT_DIR Enter C-l
   tmux send-keys -t $target'.right' 'cd '$DOT_DIR Enter C-l
+  tmux clock-mode -t $target'.bottom-right'
   tmux select-pane -t $target'.left'
 
   notify 'Dotfiles' 'Workspace created' -sound Blow -group tm -execute tm
