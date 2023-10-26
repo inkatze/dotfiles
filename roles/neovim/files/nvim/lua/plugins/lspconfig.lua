@@ -5,9 +5,10 @@ return {
     "folke/which-key.nvim",
     { "onsails/lspkind.nvim", lazy = true },
   },
-  build = "brew install lua-language-server efm-langserver",
+  build = "brew install lua-language-server efm-langserver ansible-language-server ansible-lint",
   event = "BufRead",
   config = function()
+    require("inkatze.lspconfig.ansiblels").setup()
     require("inkatze.lspconfig.lua").setup()
     require("inkatze.lspconfig.misc").setup()
     require("inkatze.lspconfig.ruby").setup()

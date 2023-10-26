@@ -2,7 +2,6 @@ local M = {}
 
 local servers = {
   "angularls",
-  "ansiblels",
   "bashls",
   "graphql",
   "pyright",
