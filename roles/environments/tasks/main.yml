@@ -1,0 +1,30 @@
+---
+
+- name: Install asdf environment manager
+  community.general.homebrew:
+    name: asdf
+    state: present
+  tags: [environments]
+
+# - name: Symlink asdf configuration file
+#   community.general.file:
+#     src: "{{ ansible_env.PWD }}/roles/environments/files/asdfrc"
+#     dest: "{{ ansible_env.HOME }}/.asdfrc"
+#     state: link
+#   tags: [environments]
+
+- name: Node environment
+  ansible.builtin.include_tasks: node.yml
+  tags: [environments]
+
+# - name: Installing Ruby environment
+#   include_tasks: ruby.yml
+
+# - name: Installing Python environment
+#   include_tasks: python.yml
+
+# - name: Installing Erlang environment
+#   include_tasks: erlang.yml
+
+# - name: Installing Elixir environment
+#   include_tasks: elixir.yml

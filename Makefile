@@ -45,6 +45,9 @@ osx: header
 upgrade: header
 	$(PLAYBOOK_COMMAND) -t upgrade
 
+environments: header
+	$(PLAYBOOK_COMMAND) -t environments
+
 shell: header
 	# Requires privilege escalation because of the /etc/shells file
 	$(PLAYBOOK_COMMAND) -t fish,shell -K

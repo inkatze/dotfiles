@@ -1,4 +1,5 @@
-pynvim
-neovim
+ansible-lint
 msgpack
+neovim
+pynvim
 pyright
