@@ -4,6 +4,7 @@ local servers = {
   "angularls",
   "bashls",
   "graphql",
+  "jsonls",
   "pyright",
   "stylelint_lsp",
   "tailwindcss",
