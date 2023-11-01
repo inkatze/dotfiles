@@ -5,24 +5,21 @@
     name: "{{ item }}"
     state: present
   with_items: "{{ homebrew_taps }}"
-  tags:
-    - homebrew
+  tags: [osx]
 
 - name: Installing homebrew formulas
   homebrew:
     name: "{{ homebrew_formulas }}"
     state: present
   when: homebrew_formulas | list
-  tags:
-    - homebrew
+  tags: [osx]
 
 - name: Installing cask applications
   homebrew_cask:
     name: "{{ homebrew_cask_applications }}"
     state: present
   when: homebrew_cask_applications | list
-  tags:
-    - homebrew
+  tags: [osx]
 
 - name: Upgrading homebrew formulas
   homebrew:
@@ -30,8 +27,7 @@
     state: latest
     update_homebrew: yes
   when: homebrew_formulas | list
-  tags:
-    - upgrade
+  tags: [upgrade]
 
 - name: Upgrading cask applications
   homebrew_cask:
@@ -39,5 +35,4 @@
     state: latest
     update_homebrew: yes
   when: homebrew_cask_applications | list
-  tags:
-    - upgrade
+  tags: [upgrade]

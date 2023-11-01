@@ -1,5 +1,81 @@
 ---
 
+homebrew_taps:
+  - homebrew/cask-fonts
+
+homebrew_formulas:
+  - ack
+  - asdf
+  - bash
+  - bash-completion
+  - ddgr
+  - direnv
+  - fd
+  - fish
+  - fop
+  - fzf
+  - fzy
+  - git
+  - git-extras
+  - gh
+  - gpg
+  - htop
+  - lazygit
+  - libxslt
+  - llvm
+  - lua-language-server
+  - make
+  - mosh
+  - mariadb@10.6
+  - mysql@8.0
+  - neofetch
+  - nnn
+  - pinentry-mac
+  - readline
+  - redis
+  - ripgrep
+  - stylua
+  - terminal-notifier
+  - the_silver_searcher
+  - tmux
+  - tree
+  - unzip
+  - wget
+  - wxwidgets
+
+  - go
+  - golangci/tap/golangci-lint
+
+  - ruby-build
+  - libsodium # work project related
+  - watchman # sorbet dep
+
+  - rustup-init
+
+homebrew_cask_applications:
+  - 1password
+  - 1password-cli
+  - authy
+  - cyberduck
+  - db-browser-for-sqlite
+  - DBngin
+  - docker
+  - firefox
+  - font-fantasque-sans-mono
+  - font-fira-code-nerd-font
+  - google-cloud-sdk
+  - google-chrome
+  - grammarly
+  - iterm2
+  - keycastr
+  - logi-options-plus
+  - microsoft-office
+  - notion
+  - homebrew/cask-versions/openemu-experimental
+  - steam
+  - transmission
+  - zoom
+
 osx_mas_formulas: [mas]
 osx_mas_applications:
   - { id: "1319884285", name: Black Out }

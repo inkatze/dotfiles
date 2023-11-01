@@ -18,8 +18,8 @@ PLAYBOOK_COMMAND := ansible-playbook -l $(CURRENT_HOST) main.yml
 install: header
 	$(PLAYBOOK_COMMAND) --skip-tags shell,gpg,upgrade
 
-homebrew: header
-	$(PLAYBOOK_COMMAND) -t homebrew
+osx: header
+	$(PLAYBOOK_COMMAND) -t osx
 
 gpg: header
 	$(PLAYBOOK_COMMAND) -t gpg
@@ -38,9 +38,6 @@ fish: header
 
 neovim: header
 	$(PLAYBOOK_COMMAND) -t neovim
-
-osx: header
-	$(PLAYBOOK_COMMAND) -t osx
 
 upgrade: header
 	$(PLAYBOOK_COMMAND) -t upgrade
