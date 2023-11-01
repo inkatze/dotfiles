@@ -1,12 +1,12 @@
 ---
 
 - name: Showing Library folder
-  command: chflags nohidden ~/Library
+  ansible.builtin.command: chflags nohidden ~/Library
   changed_when: false
   tags: [osx]
 
 - name: Applying OSX defaults
-  osx_defaults:
+  community.general.osx_defaults:
     domain: "{{ item.domain }}"
     key: "{{ item.key }}"
     type: "{{ item.type }}"
@@ -14,13 +14,13 @@
   with_items: "{{ osx_defaults }}"
   tags: [osx]
 
-# TODO: Idempotency is broken here
-- name: Applying OSX defaults with no idempotency checks
-  osx_defaults:
+# Idempotency is broken :(
+- name: Applying lists OSX defaults
+  community.general.osx_defaults:
     domain: "{{ item.domain }}"
     key: "{{ item.key }}"
     type: "{{ item.type }}"
     value: "{{ item.value }}"
-  with_items: "{{ osx_dict_defaults }}"
+  with_items: "{{ osx_list_defaults }}"
   changed_when: false
   tags: [osx]

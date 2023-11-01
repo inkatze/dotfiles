@@ -1,26 +1,28 @@
 ---
 
-- name: Installing MAS formulas
-  homebrew:
-    name: "{{ osx_mas_formulas }}"
+- name: Installing MAS
+  community.general.homebrew:
+    name: mas
     state: present
   tags: [osx]
 
 - name: Listing installed MAS apps
-  command: mas list
+  ansible.builtin.command: mas list
   register: mas_list
-  check_mode: no
+  check_mode: false
   changed_when: false
   tags: [osx]
 
 - name: Ensuring MAS apps are installed
-  command: mas install "{{ item.id }}"
+  ansible.builtin.command: mas install "{{ item.id }}"
   with_items: "{{ osx_mas_applications }}"
   when: (item.id | string) not in mas_list.stdout
+  register: mas_install
+  changed_when: "'is already installed' in mas_install.stdout"
   tags: [osx]
 
 - name: Upgrading MAS apps
-  command: mas upgrade
+  ansible.builtin.command: mas upgrade
   register: mas_upgrade_status
   changed_when: "(mas_upgrade_status.stdout is defined) and ('Everything is up-to-date' not in mas_upgrade_status.stdout)"
   tags: [upgrade]
