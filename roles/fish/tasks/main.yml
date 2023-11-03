@@ -3,7 +3,7 @@
   ansible.builtin.command: brew --prefix
   register: fish_dir
   changed_when: false
-  tags: [fish, upgrade]
+  tags: [fish, upgrade, shell]
 
 - name: Install fish formulas
   community.general.homebrew:
@@ -69,24 +69,13 @@
     state: link
   tags: [fish]
 
-- name: Add fish to shells
-  ansible.builtin.lineinfile:
-    path: /etc/shells
-    regexp: "^{{ fish_dir.stdout }}/bin/fish"
-    line: "{{ fish_dir.stdout }}/bin/fish"
-  become: true
-  become_user: root
-  tags: [shell]
-
-- name: Changing login shell to fish
-  ansible.builtin.command: chsh -s {{ fish_dir.stdout }}/bin/fish
-  changed_when: false
-  when: lookup('env','SHELL') != (fish_dir.stdout + "/bin/fish" | string)
-  tags: [shell]
-
 - name: Updating fisherman plugins
   ansible.builtin.shell: fisher update
   args:
     executable: "{{ fish_dir.stdout }}/bin/fish"
   changed_when: false
   tags: [upgrade]
+
+- name: Import tasks to add fish to shells
+  ansible.builtin.include_tasks: shell.yml
+  tags: [shell]
