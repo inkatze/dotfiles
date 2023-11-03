@@ -5,5 +5,3 @@ fish_plugins:
   - jethrokuan/z
   - catppuccin/fish
   - reitzig/sdkman-for-fish@v1.4.0
-fish_starship_source_path: dotfiles/starship.toml
-fish_config_source_file: dotfiles/config.fish

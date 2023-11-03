@@ -1,112 +1,92 @@
 ---
 - name: Get fish directory
-  command: brew --prefix
+  ansible.builtin.command: brew --prefix
   register: fish_dir
   changed_when: false
-  tags:
-    - fish
+  tags: [fish, upgrade]
 
-- name: Get fish directory
-  command: brew --prefix
-  register: fish_dir
-  changed_when: false
-  tags:
-    - upgrade
-
-- name: Installing fish formulas
-  homebrew:
-    name: "{{ fish_formulas}}"
+- name: Install fish formulas
+  community.general.homebrew:
+    name: "{{ item }}"
     state: present
-  tags:
-    - fish
+  with_items: "{{ fish_formulas }}"
+  tags: [fish]
 
-- name: Upgrading fish formulas
-  homebrew:
-    name: "{{ fish_formulas}}"
+- name: Upgrade fish formulas
+  community.general.homebrew:
+    name: "{{ item }}"
     state: latest
-    update_homebrew: yes
-  tags:
-    - upgrade
+    update_homebrew: true
+  with_items: "{{ fish_formulas }}"
+  tags: [upgrade]
 
-- name: Creating fish configuration directory
-  file:
-    path: "{{ ansible_env.HOME }}/.config/fish"
-    recurse: yes
+- name: Create fish configuration directory
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.config"
+    recurse: true
     state: directory
-  when: fish_config_source_path | string
   tags:
     - fish
 
-- name: Updating fish configurations folder
-  copy:
-    src: "{{ fish_config_source_path }}"
-    dest: "{{ ansible_env.HOME }}/.config"
-  when: fish_config_source_path | string
-  tags:
-    - fish
+- name: Symlink fish configuration
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/fish/files/fish"
+    dest: "{{ ansible_env.HOME }}/.config/fish"
+    state: link
+  tags: [fish]
 
-- name: Installing fisherman
+- name: Install fisherman
   shell: curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher
   args:
     executable: "{{ fish_dir.stdout }}/bin/fish"
   when: fish_plugins | list
   changed_when: false
-  tags:
-    - fish
+  tags: [fish, skip_ansible_lint] # Fish does not have a pipefail option
 
-- name: Retrieving installed fisherman packages
-  shell: fisher list
+- name: Retrieve installed fisherman packages
+  ansible.builtin.shell: fisher list
   args:
     executable: "{{ fish_dir.stdout }}/bin/fish"
   register: fisherman_plugins
   changed_when: false
   failed_when: false
-  tags: # This needs fish
-    - skip_ansible_lint
-    - fish
   when: fish_plugins | list
+  tags: [fish]
 
-- name: Installing fish plugins
-  shell: fisher install {{ item }}
+- name: Install fish plugins
+  ansible.builtin.shell: fisher install {{ item }}
   args:
     executable: "{{ fish_dir.stdout }}/bin/fish"
   with_items: "{{ fish_plugins }}"
   when: "fish_plugins | list and item not in fisherman_plugins.stdout"
-  tags: # This needs fish
-    - skip_ansible_lint
-    - fish
+  changed_when: true # It updates the plugin every time this runs
+  tags: [fish]
 
-- name: Updating theme configuration
-  copy:
-    src: "{{ fish_starship_source_path }}"
+- name: Symlink theme configuration
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/fish/files/starship.toml"
     dest: "{{ ansible_env.HOME }}/.config/starship.toml"
-  when: fish_starship_source_path | string
-  tags:
-    - fish
+    state: link
+  tags: [fish]
 
-- name: Adding fish to shells
-  lineinfile:
+- name: Add fish to shells
+  ansible.builtin.lineinfile:
     path: /etc/shells
     regexp: "^{{ fish_dir.stdout }}/bin/fish"
     line: "{{ fish_dir.stdout }}/bin/fish"
   become: true
   become_user: root
-  tags:
-    - shell
+  tags: [shell]
 
 - name: Changing login shell to fish
-  command: chsh -s {{ fish_dir.stdout }}/bin/fish
+  ansible.builtin.command: chsh -s {{ fish_dir.stdout }}/bin/fish
   changed_when: false
   when: lookup('env','SHELL') != (fish_dir.stdout + "/bin/fish" | string)
-  tags:
-    - shell
+  tags: [shell]
 
 - name: Updating fisherman plugins
-  shell: fisher update
+  ansible.builtin.shell: fisher update
   args:
     executable: "{{ fish_dir.stdout }}/bin/fish"
   changed_when: false
-  tags: # This needs fish
-    - skip_ansible_lint
-    - upgrade
-  when: fish_formulas | list
+  tags: [upgrade]
