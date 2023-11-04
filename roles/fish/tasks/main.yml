@@ -1,4 +1,5 @@
 ---
+
 - name: Get fish directory
   ansible.builtin.command: brew --prefix
   register: fish_dir
