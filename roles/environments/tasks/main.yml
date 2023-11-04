@@ -1,30 +1,58 @@
 ---
 
+- name: Get fish directory
+  ansible.builtin.command: brew --prefix
+  register: fish_dir
+  changed_when: false
+  tags: [environments]
+
 - name: Install asdf environment manager
   community.general.homebrew:
     name: asdf
     state: present
   tags: [environments]
 
-# - name: Symlink asdf configuration file
-#   community.general.file:
-#     src: "{{ ansible_env.PWD }}/roles/environments/files/asdfrc"
-#     dest: "{{ ansible_env.HOME }}/.asdfrc"
-#     state: link
-#   tags: [environments]
-
-- name: Node environment
-  ansible.builtin.include_tasks: node.yml
+- name: Symlink asdf configuration file
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/environments/files/asdfrc"
+    dest: "{{ ansible_env.HOME }}/.asdfrc"
+    state: link
   tags: [environments]
 
-# - name: Installing Ruby environment
-#   include_tasks: ruby.yml
+- name: Symlink tool versions
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/environments/files/tool-versions"
+    dest: "{{ ansible_env.HOME }}/.tool-versions"
+    state: link
+  tags: [environments]
 
-# - name: Installing Python environment
-#   include_tasks: python.yml
+- name: Check installed plugins
+  ansible.builtin.command: asdf plugin-list
+  register: plugin_list
+  changed_when: false
+  tags: [environments]
 
-# - name: Installing Erlang environment
-#   include_tasks: erlang.yml
+- name: Install missing plugins
+  ansible.builtin.command: asdf plugin-add {{ item.name }}
+  changed_when: "'nodejs' not in plugin_list.stdout_lines"
+  when: "item.name not in plugin_list.stdout_lines"
+  with_items: "{{ asdf_tools }}"
+  tags: [environments]
 
-# - name: Installing Elixir environment
-#   include_tasks: elixir.yml
+- name: Symlink default initial packages file
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/environments/files/{{ item.defaults }}"
+    dest: "{{ ansible_env.HOME }}/.{{ item.defaults }}"
+    state: link
+  with_items: "{{ asdf_tools }}"
+  when: item.defaults is defined
+  tags: [environments]
+
+- name: Install default tool versions
+  ansible.builtin.shell: asdf install {{ item.name }}; and asdf reshim {{ item.name }}
+  args:
+    executable: "{{ fish_dir.stdout }}/bin/fish"
+  register: asdf_installation_result
+  changed_when: "'already installed' not in asdf_installation_result.stdout"
+  with_items: "{{ asdf_tools }}"
+  tags: [environments]
