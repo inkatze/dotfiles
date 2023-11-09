@@ -13,7 +13,7 @@ M.setup = function()
   })
 
   require("lspconfig").rubocop.setup({
-    cmd = { "rubocop", "--lsp" },
+    cmd = { "bundle", "exec", "rubocop", "--lsp" },
     on_attach = require("inkatze.lspconfig").on_attach,
     capabilities = require("cmp_nvim_lsp").default_capabilities(),
   })
