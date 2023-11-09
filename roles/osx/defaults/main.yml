@@ -19,6 +19,7 @@ homebrew_formulas:
   - git-extras
   - gh
   - gpg
+  - gnu-tar
   - htop
   - lazygit
   - libxslt
@@ -51,6 +52,13 @@ homebrew_formulas:
   - watchman # sorbet dep
 
   - rustup-init
+
+homebrew_lsps:
+  - ansible-language-server
+  - ansible-lint
+  - efm-langserver
+  - lua-language-server
+  - vscode-langservers-extracted
 
 homebrew_cask_applications:
   - 1password

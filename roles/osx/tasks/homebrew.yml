@@ -13,6 +13,12 @@
     state: present
   tags: [osx]
 
+- name: Installing homebrew based LSPs
+  community.general.homebrew:
+    name: "{{ homebrew_lsps }}"
+    state: present
+  tags: [osx]
+
 - name: Installing cask applications
   community.general.homebrew_cask:
     name: "{{ homebrew_cask_applications }}"
