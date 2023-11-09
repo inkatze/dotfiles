@@ -79,6 +79,7 @@ ulimit -Sn 65535
 
 starship init fish | source
 
+status --is-interactive; and source $HOME/.config/op/plugins.sh
 status --is-interactive; and direnv hook fish | source
 status --is-interactive; and source (brew --prefix asdf)/libexec/asdf.fish
 status --is-interactive; and corepack enable
