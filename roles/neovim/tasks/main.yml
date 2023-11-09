@@ -1,44 +1,40 @@
 ---
-- name: Installing neovim formulas
-  homebrew:
-    name: "{{ neovim_formulas }}"
-    state: present
-  when: neovim_formulas | list
-  tags:
-    - neovim
 
-# - name: Installing Ruby environment
-#   include_tasks: ruby.yml
-#   tags:
-#     - neovim
+- name: Create neovim installation directory
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.local/neovim"
+    state: directory
+    recurse: true
+  tags: [neovim]
 
-# - name: Installing Python environment
-#   include_tasks: python.yml
-#   tags:
-#     - neovim
+- name: Download neovim nightly
+  ansible.builtin.unarchive:
+    src: https://github.com/neovim/neovim/releases/download/nightly/nvim-macos.tar.gz
+    dest: "{{ ansible_env.HOME }}/.local"
+    remote_src: true
+  tags: [neovim]
 
-- name: Installing LSPs
-  include_tasks: lsps.yml
-  tags:
-    - neovim
-
-- name: Symlinking neovim config
-  file:
-    src: "{{ neovim_config_path }}"
-    dest: "{{ ansible_env.HOME }}/.config/nvim"
+- name: Symlink neovim binary
+  ansible.builtin.file:
+    src: "{{ ansible_env.HOME }}/.local/nvim-macos/bin/nvim"
+    dest: /usr/local/bin/nvim
     state: link
-  when: neovim_config_path | string
-  tags:
-    - neovim
+  tags: [neovim]
 
-- name: Installing neovim plugins
-  shell: >
+- name: Install neovim plugins
+  ansible.builtin.shell: >
     nvim --headless
     -c 'Lazy! sync'
-    -c 'TSInstall maintained'
-    -c 'TSUpdate'
+    -c 'TSInstallSync all'
     -c 'qa' &> /dev/null < /dev/tty
   changed_when: false
-  tags:
-    - neovim
-    - upgrade
+  tags: [neovim]
+
+- name: Update neovim plugins
+  ansible.builtin.shell: >
+    nvim --headless
+    -c 'Lazy! sync'
+    -c 'TSUpdateSync all'
+    -c 'qa' &> /dev/null < /dev/tty
+  changed_when: false
+  tags: [upgrade]
