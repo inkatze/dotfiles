@@ -24,7 +24,8 @@
 - name: Install neovim plugins
   ansible.builtin.shell: >
     nvim --headless
-    -c 'Lazy! sync'
+    -c 'Lazy! restore'
+    -c 'Lazy! install'
     -c 'TSInstallSync all'
     -c 'qa' &> /dev/null < /dev/tty
   changed_when: false
