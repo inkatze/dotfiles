@@ -9,4 +9,4 @@
     - ssh
     - git
     - services
-    # - dotfiles
+    - iterm

@@ -1,0 +1,15 @@
+---
+
+- name: Create iTerm2 dynamic profile dir
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/Library/Application Support/iTerm2/DynamicProfiles"
+    state: directory
+    mode: "0766"
+  tags: [iterm]
+
+- name: Symlink dynamic iTerm2 profile
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/iterm/files/profiles.plist"
+    dest: "{{ ansible_env.HOME }}/Library/Application Support/iTerm2/DynamicProfiles/profiles.plist"
+    state: link
+  tags: [iterm]

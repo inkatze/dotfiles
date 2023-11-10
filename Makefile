@@ -48,6 +48,9 @@ git: header
 services: header
 	$(PLAYBOOK_COMMAND) -t services
 
+iterm: header
+	$(PLAYBOOK_COMMAND) -t iterm
+
 shell: header
 	# Requires privilege escalation because of the /etc/shells file
 	$(PLAYBOOK_COMMAND) -t fish,shell -K

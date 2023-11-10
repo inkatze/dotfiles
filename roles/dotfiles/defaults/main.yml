@@ -1,4 +1,0 @@
----
-# dotfiles.yml
-
-iterm2_plist_source_file: dotfiles/{{ current_env }}/com.googlecode.iterm2.plist
