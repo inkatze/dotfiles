@@ -56,3 +56,7 @@
   changed_when: "'already installed' not in asdf_installation_result.stdout"
   with_items: "{{ asdf_tools }}"
   tags: [environments]
+
+- name: Update NodeJS config
+  ansible.builtin.import_tasks: nodejs.yml
+  tags: [environments]

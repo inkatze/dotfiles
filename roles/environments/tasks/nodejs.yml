@@ -1,0 +1,13 @@
+---
+
+- name: Symlink npmrc
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/environments/files/npmrc"
+    dest: "{{ ansible_env.HOME }}/.npmrc"
+    state: link
+
+- name: Symlink importjs.js
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/environments/files/importjs.js"
+    dest: "{{ ansible_env.HOME }}/.importjs.js"
+    state: link
