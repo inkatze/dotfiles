@@ -25,16 +25,23 @@
     state: present
   tags: [osx]
 
-- name: Upgrading homebrew formulas
+- name: Upgrade homebrew formulas
   community.general.homebrew:
     name: "{{ homebrew_formulas }}"
     state: latest
     update_homebrew: true
   tags: [upgrade]
 
-- name: Upgrading cask applications
+- name: Upgrade cask applications
   community.general.homebrew_cask:
     name: "{{ homebrew_cask_applications }}"
     state: latest
     update_homebrew: true
   tags: [upgrade]
+
+- name: Upgrade homebrew based LSPs
+  community.general.homebrew:
+    name: "{{ homebrew_lsps }}"
+    state: latest
+    update_homebrew: true
+  tags: [osx]

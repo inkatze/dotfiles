@@ -1,6 +1,6 @@
 ---
 
-- name: Install homebrew formulas
+- name: Install git homebrew formulas
   community.general.homebrew:
     name: "{{ git_homebrew_formulas }}"
     state: present
@@ -20,7 +20,7 @@
     state: link
   tags: [git]
 
-- name: Upgrade homebrew formulas
+- name: Upgrade git homebrew formulas
   community.general.homebrew:
     name: "{{ git_homebrew_formulas }}"
     state: latest

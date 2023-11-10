@@ -1,6 +1,6 @@
 ---
 
-- name: Install homebrew formulas
+- name: Install environments homebrew formulas
   community.general.homebrew:
     name: "{{ environments_homebrew_deps }}"
     state: present
@@ -67,7 +67,7 @@
   ansible.builtin.import_tasks: nodejs.yml
   tags: [environments]
 
-- name: Upgrade homebrew formulas
+- name: Upgrade environment homebrew formulas
   community.general.homebrew:
     name: "{{ environments_homebrew_deps }}"
     state: latest

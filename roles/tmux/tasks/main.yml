@@ -44,3 +44,10 @@
   changed_when: color_profiles.rc != 0
   when: color_profiles.rc != 0
   tags: [tmux]
+
+- name: Upgrade tmux formulas
+  community.general.homebrew:
+    name: "{{ tmux_formulas }}"
+    state: latest
+    update_homebrew: true
+  tags: [upgrade]

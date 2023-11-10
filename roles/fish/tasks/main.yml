@@ -15,26 +15,16 @@
 
 - name: Install fish formulas
   community.general.homebrew:
-    name: "{{ item }}"
+    name: "{{ fish_formulas }}"
     state: present
-  with_items: "{{ fish_formulas }}"
   tags: [fish]
-
-- name: Upgrade fish formulas
-  community.general.homebrew:
-    name: "{{ item }}"
-    state: latest
-    update_homebrew: true
-  with_items: "{{ fish_formulas }}"
-  tags: [upgrade]
 
 - name: Create fish configuration directory
   ansible.builtin.file:
     path: "{{ ansible_env.HOME }}/.config"
     recurse: true
     state: directory
-  tags:
-    - fish
+  tags: [fish]
 
 - name: Symlink fish configuration
   ansible.builtin.file:
@@ -44,7 +34,9 @@
   tags: [fish]
 
 - name: Install fisherman
-  shell: curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher
+  shell: >
+    curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish |
+    source && fisher install jorgebucaran/fisher
   args:
     executable: "{{ fish_dir.stdout }}/bin/fish"
   when: fish_plugins | list
@@ -77,7 +69,7 @@
     state: link
   tags: [fish]
 
-- name: Updating fisherman plugins
+- name: Update fisherman plugins
   ansible.builtin.shell: fisher update
   args:
     executable: "{{ fish_dir.stdout }}/bin/fish"
@@ -87,3 +79,10 @@
 - name: Import tasks to add fish to shells
   ansible.builtin.include_tasks: shell.yml
   tags: [shell]
+
+- name: Upgrade fish formulas
+  community.general.homebrew:
+    name: "{{ fish_formulas }}"
+    state: latest
+    update_homebrew: true
+  tags: [upgrade]
