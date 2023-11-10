@@ -17,23 +17,11 @@
     dest: "{{ ansible_env.HOME }}/.gitconfig"
   when: gitconfig_source_file | string
 
-- name: Updating pylintrc
-  copy:
-    src: "{{ pylintrc_source_file  }}"
-    dest: "{{ ansible_env.HOME  }}/.config/pylintrc"
-  when: pylintrc_source_file | string
-
 - name: Updating npmrc
   copy:
     src: "{{ npmrc_source_file }}"
     dest: "{{ ansible_env.HOME }}/.npmrc"
   when: npmrc_source_file | string
-
-- name: Updating tmux.conf
-  copy:
-    src: "{{ tmux_source_file }}"
-    dest: "{{ ansible_env.HOME }}/.tmux.conf"
-  when: tmux_source_file | string
 
 - name: Updating importjs config file
   copy:
@@ -46,39 +34,3 @@
     src: "{{ mysql_config_source_file }}"
     dest: "{{ ansible_env.HOME }}/.my.cnf"
   when: mysql_config_source_file | string
-
-- name: Update default asdf's tools versions
-  copy:
-    src: "{{ tool_versions_source_file }}"
-    dest: "{{ ansible_env.HOME }}/.tool-versions"
-  when: tool_versions_source_file | string
-
-- name: Update asdf's rc file
-  copy:
-    src: "{{ asdfrc_source_file }}"
-    dest: "{{ ansible_env.HOME }}/.asdfrc"
-  when: asdfrc_source_file | string
-
-- name: Update default-mix-commands
-  copy:
-    src: "{{ default_mix_commands_source_file }}"
-    dest: "{{ ansible_env.HOME }}/.default-mix-commands"
-  when: default_mix_commands_source_file | string
-
-- name: Update default-npm-packages
-  copy:
-    src: "{{ default_npm_packages_source_file }}"
-    dest: "{{ ansible_env.HOME }}/.default-npm-packages"
-  when: default_npm_packages_source_file | string
-
-- name: Update default-gems
-  copy:
-    src: "{{ default_gems_source_file }}"
-    dest: "{{ ansible_env.HOME }}/.default-gems"
-  when: default_gems_source_file | string
-
-- name: Update default-python-packages
-  copy:
-    src: "{{ default_python_packages_source_file }}"
-    dest: "{{ ansible_env.HOME }}/.default-python-packages"
-  when: default_python_packages_source_file | string
