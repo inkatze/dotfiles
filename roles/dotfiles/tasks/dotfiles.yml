@@ -1,17 +1,3 @@
----
-- name: Creating fish configuration directory
-  file:
-    path: "{{ ansible_env.HOME }}/.config/fish"
-    recurse: yes
-    state: directory
-  when: fish_config_source_file | string
-
-- name: Updating fish configuration
-  copy:
-    src: "{{ fish_config_source_file }}"
-    dest: "{{ ansible_env.HOME }}/.config/fish/config.fish"
-  when: fish_config_source_file | string
-
 - name: Creating iterm2 configuration directory
   file:
     path: "{{ ansible_env.HOME }}/.config/iterm2"

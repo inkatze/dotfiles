@@ -26,8 +26,3 @@ default_npm_packages_source_file: dotfiles/default-npm-packages
 default_gems_source_file: dotfiles/default-gems
 default_python_packages_source_file: dotfiles/default-python-packages
 asdfrc_source_file: dotfiles/asdfrc
-
-# tmux
-tmux_formulas:
-  - tmux
-  - urlview
