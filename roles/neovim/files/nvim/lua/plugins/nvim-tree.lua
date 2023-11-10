@@ -3,7 +3,7 @@ return {
   version = "nightly", -- optional, updated every week. (see issue #1193)
   dependencies = { "folke/which-key.nvim" },
   config = function()
-    local ignore_list = { ".git$", "node_modules$", ".cache" }
+    local ignore_list = { "\\.git$", "node_modules$", ".cache" }
     local tree = require("nvim-tree")
 
     tree.setup({
