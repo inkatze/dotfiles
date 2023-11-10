@@ -10,9 +10,3 @@
     src: "{{ iterm2_plist_source_file }}"
     dest: "{{ ansible_env.HOME }}/.config/iterm2"
   when: iterm2_plist_source_file | string
-
-- name: Updating my.cnf
-  copy:
-    src: "{{ mysql_config_source_file }}"
-    dest: "{{ ansible_env.HOME }}/.my.cnf"
-  when: mysql_config_source_file | string

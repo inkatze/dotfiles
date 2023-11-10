@@ -45,6 +45,9 @@ environments: header
 git: header
 	$(PLAYBOOK_COMMAND) -t git
 
+services: header
+	$(PLAYBOOK_COMMAND) -t services
+
 shell: header
 	# Requires privilege escalation because of the /etc/shells file
 	$(PLAYBOOK_COMMAND) -t fish,shell -K
