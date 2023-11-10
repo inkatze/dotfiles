@@ -52,7 +52,6 @@ homebrew_cask_applications:
   - google-cloud-sdk
   - google-chrome
   - grammarly
-  - iterm2
   - keycastr
   - logi-options-plus
   - microsoft-office

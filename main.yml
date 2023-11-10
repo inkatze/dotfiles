@@ -2,6 +2,7 @@
 - hosts: all
   roles:
     - osx
+    - iterm
     - fish
     - environments
     - neovim
@@ -9,4 +10,3 @@
     - ssh
     - git
     - services
-    - iterm
