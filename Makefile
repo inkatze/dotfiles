@@ -21,9 +21,6 @@ install: header
 osx: header
 	$(PLAYBOOK_COMMAND) -t osx
 
-gpg: header
-	$(PLAYBOOK_COMMAND) -t gpg
-
 ssh: header
 	$(PLAYBOOK_COMMAND) -t ssh
 

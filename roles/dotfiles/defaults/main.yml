@@ -1,28 +1,6 @@
 ---
-ssh_source_path: ssh/keys
-ssh_config: dotfiles/ssh_config
-gpg_keys:
-  - { public: gpg_public.key, private: gpg_private.key, id: jd@inkatze.com }
-
-# gpg.yml
-
-gpg_formulas: [gpg]
-gpg_base_source_path: gpg
-gpg_agent_conf_source_file: "{{ gpg_base_source_path }}/gpg-agent.conf"
-
 # dotfiles.yml
 
-fish_config_source_path: fish
 iterm2_plist_source_file: dotfiles/{{ current_env }}/com.googlecode.iterm2.plist
 gitconfig_source_file: dotfiles/gitconfig
-pylintrc_source_file: dotfiles/pylintrc
-npmrc_source_file: dotfiles/npmrc
-tmux_source_file: dotfiles/tmux.conf
 mysql_config_source_file: dotfiles/my.cnf
-import_js_config_source_file: dotfiles/importjs.js
-default_mix_commands_source_file: dotfiles/default-mix-commands
-tool_versions_source_file: dotfiles/tool-versions
-default_npm_packages_source_file: dotfiles/default-npm-packages
-default_gems_source_file: dotfiles/default-gems
-default_python_packages_source_file: dotfiles/default-python-packages
-asdfrc_source_file: dotfiles/asdfrc
