@@ -1,13 +1,24 @@
----
+- name: Creating iterm2 configuration directory
+  file:
+    path: "{{ ansible_env.HOME }}/.config/iterm2"
+    recurse: yes
+    state: directory
+  when: iterm2_plist_source_file | string
 
-- import_tasks: gpg.yml
-  tags:
-    - gpg
+- name: Updating iterm2 configuration
+  copy:
+    src: "{{ iterm2_plist_source_file }}"
+    dest: "{{ ansible_env.HOME }}/.config/iterm2"
+  when: iterm2_plist_source_file | string
 
-- import_tasks: ssh.yml
-  tags:
-    - ssh
+- name: Updating git configuration
+  copy:
+    src: "{{ gitconfig_source_file }}"
+    dest: "{{ ansible_env.HOME }}/.gitconfig"
+  when: gitconfig_source_file | string
 
-- import_tasks: dotfiles.yml
-  tags:
-    - dotfiles
+- name: Updating my.cnf
+  copy:
+    src: "{{ mysql_config_source_file }}"
+    dest: "{{ ansible_env.HOME }}/.my.cnf"
+  when: mysql_config_source_file | string

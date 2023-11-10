@@ -1,8 +1,10 @@
 ---
 - hosts: all
   roles:
-    - homebrew
-    - fish
-    - dotfiles
     - osx
+    - fish
+    - environments
     - neovim
+    - tmux
+    - ssh
+    # - dotfiles
