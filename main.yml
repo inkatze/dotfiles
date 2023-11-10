@@ -7,4 +7,5 @@
     - neovim
     - tmux
     - ssh
+    - git
     # - dotfiles

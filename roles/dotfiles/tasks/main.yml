@@ -11,12 +11,6 @@
     dest: "{{ ansible_env.HOME }}/.config/iterm2"
   when: iterm2_plist_source_file | string
 
-- name: Updating git configuration
-  copy:
-    src: "{{ gitconfig_source_file }}"
-    dest: "{{ ansible_env.HOME }}/.gitconfig"
-  when: gitconfig_source_file | string
-
 - name: Updating my.cnf
   copy:
     src: "{{ mysql_config_source_file }}"

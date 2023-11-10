@@ -1,0 +1,15 @@
+---
+
+- name: Symlink gitconfig
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/git/files/gitconfig"
+    dest: "{{ ansible_env.HOME }}/.gitconfig"
+    state: link
+  tags: [git]
+
+- name: Symlink gitignore
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/git/files/gitignore"
+    dest: "{{ ansible_env.HOME }}/.gitignore"
+    state: link
+  tags: [git]

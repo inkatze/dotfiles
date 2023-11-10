@@ -16,7 +16,7 @@ endif
 PLAYBOOK_COMMAND := ansible-playbook -l $(CURRENT_HOST) main.yml
 
 install: header
-	$(PLAYBOOK_COMMAND) --skip-tags shell,gpg,upgrade
+	$(PLAYBOOK_COMMAND) --skip-tags shell,upgrade
 
 osx: header
 	$(PLAYBOOK_COMMAND) -t osx
@@ -41,6 +41,9 @@ upgrade: header
 
 environments: header
 	$(PLAYBOOK_COMMAND) -t environments
+
+git: header
+	$(PLAYBOOK_COMMAND) -t git
 
 shell: header
 	# Requires privilege escalation because of the /etc/shells file
