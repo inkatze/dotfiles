@@ -1,5 +1,11 @@
 ---
 
+- name: Install homebrew formulas
+  community.general.homebrew:
+    name: "{{ environments_homebrew_deps }}"
+    state: present
+  tags: [environments]
+
 - name: Get fish directory
   ansible.builtin.command: brew --prefix
   register: fish_dir
@@ -60,3 +66,10 @@
 - name: Update NodeJS config
   ansible.builtin.import_tasks: nodejs.yml
   tags: [environments]
+
+- name: Upgrading homebrew formulas
+  community.general.homebrew:
+    name: "{{ homebrew_formulas }}"
+    state: latest
+    update_homebrew: true
+  tags: [upgrade]

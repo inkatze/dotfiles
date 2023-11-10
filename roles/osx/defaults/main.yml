@@ -38,20 +38,10 @@ homebrew_formulas:
   - stylua
   - terminal-notifier
   - the_silver_searcher
-  - tmux
   - tree
   - unzip
   - wget
   - wxwidgets
-
-  - go
-  - golangci/tap/golangci-lint
-
-  - ruby-build
-  - libsodium # work project related
-  - watchman # sorbet dep
-
-  - rustup-init
 
 homebrew_lsps:
   - ansible-language-server
