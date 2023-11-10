@@ -6,19 +6,14 @@
     state: present
   tags: [tmux]
 
-- name: Install Tmux Plugin Manager
-  ansible.builtin.unarchive:
-    src: https://github.com/tmux-plugins/tpm/archive/refs/heads/master.zip
-    dest: "{{ ansible_env.HOME }}/.tmux/plugins"
-    remote_src: true
-  tags: [tmux]
-
-- name: Symlink tpm unarchived folder
-  ansible.builtin.file:
-    src: "{{ ansible_env.HOME }}/.tmux/plugins/tpm-master"
+- name: Installing Tmux Plugin Manager
+  ansible.builtin.git:
+    repo: https://github.com/tmux-plugins/tpm
+    depth: "10"
+    force: true
+    recursive: true
     dest: "{{ ansible_env.HOME }}/.tmux/plugins/tpm"
-    state: link
-  tags: [tmux]
+  tags: [tmux, skip_ansible_lint]
 
 - name: Symlink tmux.conf
   ansible.builtin.file:
@@ -44,6 +39,23 @@
   changed_when: color_profiles.rc != 0
   when: color_profiles.rc != 0
   tags: [tmux]
+
+- name: Clean tpm plugins
+  ansible.builtin.command: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/clean_plugins"
+  register: cleaned_plugins
+  changed_when: "'Removing' in cleaned_plugins.stdout"
+  tags: [tmux, upgrade]
+
+- name: Install tpm plugins
+  ansible.builtin.command: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/install_plugins"
+  register: installed_plugins
+  changed_when: "'Installing' in installed_plugins.stdout"
+  tags: [tmux]
+
+- name: Upgrade tpm plugins
+  ansible.builtin.command: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/update_plugins"
+  changed_when: false
+  tags: [upgrade]
 
 - name: Upgrade tmux formulas
   community.general.homebrew:
