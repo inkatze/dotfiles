@@ -7,9 +7,7 @@ Host *
     ControlPath ~/.ssh/sockets/master-%r@%h:%p
     ControlPersist 12h
     IdentityAgent "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
-    IdentityFile ~/.ssh/id_rsa
 
 Host rfh.rsync.net
     Hostname usw-s004.rsync.net
-    IdentityFile ~/.ssh/id_rsa_rsync
     User 40377
