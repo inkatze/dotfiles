@@ -90,7 +90,7 @@ function tmdot
   tmux split-window -t $target -v
   tmux send-keys -t $target'.left' 'cd '$DOT_DIR Enter C-l
   tmux send-keys -t $target'.right' 'cd '$DOT_DIR Enter C-l
-  tmux clock-mode -t $target'.bottom-right'
+  tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random all -t "(✖╭╮✖)"' Enter
   tmux select-pane -t $target'.left'
 
   notify 'Dotfiles' 'Workspace created' -sound Blow -group tm -execute tm
@@ -122,7 +122,7 @@ function tmzp
   tmux send-keys -t $target 'cd '$ZP_DIR Enter
   tmux send-keys -t $target 'asdf install nodejs' Enter C-l
   tmux setw synchronize-panes off
-  tmux clock-mode -t $target'.bottom-right'
+  tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random all -t "(✖╭╮✖)"' Enter
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 
@@ -156,7 +156,7 @@ function tmpbb
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$PBB_DIR Enter C-l
   tmux setw synchronize-panes off
-  tmux clock-mode -t $target'.bottom-right'
+  tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random all -t "(✖╭╮✖)"' Enter
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 
@@ -250,7 +250,7 @@ function tmpaycheckcity
   tmux send-keys -t $target 'asdf install nodejs' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' 'gatsby develop' Enter
-  tmux clock-mode -t $target'.bottom-right'
+  tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random all -t "(✖╭╮✖)"' Enter
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 
@@ -284,7 +284,7 @@ function tmpccpf
   tmux send-keys -t $target 'asdf install nodejs' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' 'npm run start' Enter
-  tmux clock-mode -t $target'.bottom-right'
+  tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random all -t "(✖╭╮✖)"' Enter
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 
@@ -318,7 +318,7 @@ function tmpccpb
   tmux send-keys -t $target 'sdk env' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' './gradlew bootRun' Enter
-  tmux clock-mode -t $target'.bottom-right'
+  tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random all -t "(✖╭╮✖)"' Enter
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 
@@ -352,7 +352,7 @@ function tmwbsf
   tmux send-keys -t $target 'asdf install nodejs' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' 'npm run start' Enter
-  tmux clock-mode -t $target'.bottom-right'
+  tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random all -t "(✖╭╮✖)"' Enter
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 
@@ -386,7 +386,7 @@ function tmwbsb
   tmux send-keys -t $target 'sdk env' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' './gradlew bootRun' Enter
-  tmux clock-mode -t $target'.bottom-right'
+  tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random all -t "(✖╭╮✖)"' Enter
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 
@@ -419,7 +419,7 @@ function cms
   tmux send-keys -t $target 'cd '$CMS_DIR Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' 'iex -S mix phx.server' Enter
-  tmux clock-mode -t $target'.bottom-right'
+  tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random all -t "(✖╭╮✖)"' Enter
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 

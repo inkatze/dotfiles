@@ -5,6 +5,7 @@ homebrew_taps:
 
 homebrew_formulas:
   - ack
+  - arttime
   - ddgr
   - direnv
   - fd
