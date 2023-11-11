@@ -1,0 +1,28 @@
+---
+
+- name: Install iTerm2
+  community.general.homebrew_cask:
+    name: iterm2
+    state: present
+  tags: [iterm]
+
+- name: Create iTerm2 dynamic profile dir
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/Library/Application Support/iTerm2/DynamicProfiles"
+    state: directory
+    mode: "0766"
+  tags: [iterm]
+
+- name: Symlink dynamic iTerm2 profile
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/iterm/files/profiles.plist"
+    dest: "{{ ansible_env.HOME }}/Library/Application Support/iTerm2/DynamicProfiles/profiles.plist"
+    state: link
+  tags: [iterm]
+
+- name: Upgrade iTerm2
+  community.general.homebrew_cask:
+    name: iterm2
+    state: latest
+    update_homebrew: true
+  tags: [upgrade]

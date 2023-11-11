@@ -1,0 +1,7 @@
+---
+
+git_homebrew_formulas:
+  - git
+  - git-extras
+  - gh
+  - lazygit

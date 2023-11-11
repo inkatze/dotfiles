@@ -1,0 +1,65 @@
+---
+
+- name: Install tmux formulas
+  community.general.homebrew:
+    name: "{{ tmux_formulas }}"
+    state: present
+  tags: [tmux]
+
+- name: Installing Tmux Plugin Manager
+  ansible.builtin.git:
+    repo: https://github.com/tmux-plugins/tpm
+    depth: "10"
+    force: true
+    recursive: true
+    dest: "{{ ansible_env.HOME }}/.tmux/plugins/tpm"
+  tags: [tmux, skip_ansible_lint]
+
+- name: Symlink tmux.conf
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/tmux/files/tmux.conf"
+    dest: "{{ ansible_env.HOME }}/.tmux.conf"
+    state: link
+  tags: [tmux]
+
+- name: Ensuring color profile is installed
+  ansible.builtin.command: infocmp -x tmux-256color
+  register: color_profiles
+  changed_when: false
+  failed_when: false
+  tags: [tmux]
+
+- name: Installing color profile
+  ansible.builtin.shell: >
+    cd /tmp &&\
+      curl -LO https://invisible-island.net/datafiles/current/terminfo.src.gz &&\
+      gunzip terminfo.src.gz &&\
+      /usr/bin/tic -xe tmux-256color terminfo.src &&\
+      rm -rf terminfo.src*
+  changed_when: color_profiles.rc != 0
+  when: color_profiles.rc != 0
+  tags: [tmux]
+
+- name: Clean tpm plugins
+  ansible.builtin.command: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/clean_plugins"
+  register: cleaned_plugins
+  changed_when: "'Removing' in cleaned_plugins.stdout"
+  tags: [tmux, upgrade]
+
+- name: Install tpm plugins
+  ansible.builtin.command: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/install_plugins"
+  register: installed_plugins
+  changed_when: "'Installing' in installed_plugins.stdout"
+  tags: [tmux]
+
+- name: Upgrade tpm plugins
+  ansible.builtin.command: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/update_plugins"
+  changed_when: false
+  tags: [upgrade]
+
+- name: Upgrade tmux formulas
+  community.general.homebrew:
+    name: "{{ tmux_formulas }}"
+    state: latest
+    update_homebrew: true
+  tags: [upgrade]

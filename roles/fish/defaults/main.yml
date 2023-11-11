@@ -1,0 +1,7 @@
+---
+fish_formulas: [fish, starship]
+fish_plugins:
+  - laughedelic/pisces
+  - jethrokuan/z
+  - catppuccin/fish
+  - reitzig/sdkman-for-fish@v1.4.0

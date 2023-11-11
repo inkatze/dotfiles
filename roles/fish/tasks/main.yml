@@ -1,0 +1,88 @@
+---
+
+- name: Get fish directory
+  ansible.builtin.command: brew --prefix
+  register: fish_dir
+  changed_when: false
+  tags: [fish]
+
+  # We need this duplication, otherwise it will get excluded due to these tags
+- name: Get fish directory
+  ansible.builtin.command: brew --prefix
+  register: fish_dir
+  changed_when: false
+  tags: [upgrade, shell]
+
+- name: Install fish formulas
+  community.general.homebrew:
+    name: "{{ fish_formulas }}"
+    state: present
+  tags: [fish]
+
+- name: Create fish configuration directory
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.config"
+    recurse: true
+    state: directory
+  tags: [fish]
+
+- name: Symlink fish configuration
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/fish/files/fish"
+    dest: "{{ ansible_env.HOME }}/.config/fish"
+    state: link
+  tags: [fish]
+
+- name: Install fisherman
+  shell: >
+    curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish |
+    source && fisher install jorgebucaran/fisher
+  args:
+    executable: "{{ fish_dir.stdout }}/bin/fish"
+  when: fish_plugins | list
+  changed_when: false
+  tags: [fish, skip_ansible_lint] # Fish does not have a pipefail option
+
+- name: Retrieve installed fisherman packages
+  ansible.builtin.shell: fisher list
+  args:
+    executable: "{{ fish_dir.stdout }}/bin/fish"
+  register: fisherman_plugins
+  changed_when: false
+  failed_when: false
+  when: fish_plugins | list
+  tags: [fish]
+
+- name: Install fish plugins
+  ansible.builtin.shell: fisher install {{ item }}
+  args:
+    executable: "{{ fish_dir.stdout }}/bin/fish"
+  with_items: "{{ fish_plugins }}"
+  when: "fish_plugins | list and item not in fisherman_plugins.stdout"
+  changed_when: true # It updates the plugin every time this runs
+  tags: [fish]
+
+- name: Symlink theme configuration
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/fish/files/starship.toml"
+    dest: "{{ ansible_env.HOME }}/.config/starship.toml"
+    state: link
+  tags: [fish]
+
+- name: Update fisherman plugins
+  ansible.builtin.shell: fisher update
+  args:
+    executable: "{{ fish_dir.stdout }}/bin/fish"
+  changed_when: false
+  tags: [upgrade]
+
+- name: Import tasks to add fish to shells
+  ansible.builtin.include_tasks: shell.yml
+  tags: [shell]
+
+- name: Upgrade fish formulas
+  community.general.homebrew:
+    name: "{{ fish_formulas }}"
+    state: latest
+    update_homebrew: true
+  tags: [upgrade]

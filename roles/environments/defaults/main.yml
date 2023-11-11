@@ -1,0 +1,16 @@
+---
+
+environments_homebrew_deps:
+  - go
+  - golangci/tap/golangci-lint
+  - ruby-build
+  - rustup-init
+  - libsodium # work project related
+  - watchman # sorbet dep
+
+asdf_tools:
+  - { name: nodejs, defaults: default-npm-packages }
+  - { name: ruby, defaults: default-gems }
+  - { name: python, defaults: default-python-packages }
+  - { name: erlang }
+  - { name: elixir, defaults: default-mix-commands }

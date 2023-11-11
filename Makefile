@@ -15,42 +15,45 @@ endif
 
 PLAYBOOK_COMMAND := ansible-playbook -l $(CURRENT_HOST) main.yml
 
-install: deps
-	$(PLAYBOOK_COMMAND) --skip-tags shell,gpg,upgrade
+install: header
+	$(PLAYBOOK_COMMAND) --skip-tags shell,upgrade
 
-homebrew: deps
-	$(PLAYBOOK_COMMAND) -t homebrew
-
-gpg: deps
-	$(PLAYBOOK_COMMAND) -t gpg
-
-ssh: deps
-	$(PLAYBOOK_COMMAND) -t ssh
-
-dotfiles: deps
-	$(PLAYBOOK_COMMAND) -t dotfiles
-
-tmux: deps
-	$(PLAYBOOK_COMMAND) -t tmux
-
-fish: deps
-	$(PLAYBOOK_COMMAND) -t fish
-
-neovim: deps
-	$(PLAYBOOK_COMMAND) -t neovim
-
-osx: deps
+osx: header
 	$(PLAYBOOK_COMMAND) -t osx
 
-upgrade: deps
+ssh: header
+	$(PLAYBOOK_COMMAND) -t ssh
+
+dotfiles: header
+	$(PLAYBOOK_COMMAND) -t dotfiles
+
+tmux: header
+	$(PLAYBOOK_COMMAND) -t tmux
+
+fish: header
+	$(PLAYBOOK_COMMAND) -t fish
+
+neovim: header
+	$(PLAYBOOK_COMMAND) -t neovim
+
+upgrade: header
 	$(PLAYBOOK_COMMAND) -t upgrade
 
-shell: deps
+environments: header
+	$(PLAYBOOK_COMMAND) -t environments
+
+git: header
+	$(PLAYBOOK_COMMAND) -t git
+
+services: header
+	$(PLAYBOOK_COMMAND) -t services
+
+iterm: header
+	$(PLAYBOOK_COMMAND) -t iterm
+
+shell: header
 	# Requires privilege escalation because of the /etc/shells file
 	$(PLAYBOOK_COMMAND) -t fish,shell -K
-
-deps: header
-	ansible-galaxy install -f -r requirements.yml
 
 header:
 	echo "Running on host: $(CURRENT_HOST)"

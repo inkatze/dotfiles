@@ -1,0 +1,15 @@
+---
+
+- name: Add fish to shells
+  ansible.builtin.lineinfile:
+    path: /etc/shells
+    regexp: "^{{ fish_dir.stdout }}/bin/fish"
+    line: "{{ fish_dir.stdout }}/bin/fish"
+  become: true
+  tags: [shell]
+
+- name: Changing login shell to fish
+  ansible.builtin.command: chsh -s {{ fish_dir.stdout }}/bin/fish
+  changed_when: false
+  when: lookup('env','SHELL') != (fish_dir.stdout + "/bin/fish" | string)
+  tags: [shell]

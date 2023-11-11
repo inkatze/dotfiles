@@ -1,0 +1,26 @@
+---
+
+- name: Showing Library folder
+  ansible.builtin.command: chflags nohidden ~/Library
+  changed_when: false
+  tags: [osx]
+
+- name: Applying OSX defaults
+  community.general.osx_defaults:
+    domain: "{{ item.domain }}"
+    key: "{{ item.key }}"
+    type: "{{ item.type }}"
+    value: "{{ item.value }}"
+  with_items: "{{ osx_defaults }}"
+  tags: [osx]
+
+# Idempotency is broken :(
+- name: Applying lists OSX defaults
+  community.general.osx_defaults:
+    domain: "{{ item.domain }}"
+    key: "{{ item.key }}"
+    type: "{{ item.type }}"
+    value: "{{ item.value }}"
+  with_items: "{{ osx_list_defaults }}"
+  changed_when: false
+  tags: [osx]

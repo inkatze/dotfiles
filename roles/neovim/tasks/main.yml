@@ -1,0 +1,41 @@
+---
+
+- name: Create neovim installation directory
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.local/neovim"
+    state: directory
+    recurse: true
+  tags: [neovim]
+
+- name: Download neovim nightly
+  ansible.builtin.unarchive:
+    src: https://github.com/neovim/neovim/releases/download/nightly/nvim-macos.tar.gz
+    dest: "{{ ansible_env.HOME }}/.local"
+    remote_src: true
+  tags: [neovim]
+
+- name: Symlink neovim binary
+  ansible.builtin.file:
+    src: "{{ ansible_env.HOME }}/.local/nvim-macos/bin/nvim"
+    dest: /usr/local/bin/nvim
+    state: link
+  tags: [neovim]
+
+- name: Install neovim plugins
+  ansible.builtin.shell: >
+    nvim --headless
+    -c 'Lazy! restore'
+    -c 'Lazy! install'
+    -c 'TSInstallSync all'
+    -c 'qa' &> /dev/null < /dev/tty
+  changed_when: false
+  tags: [neovim]
+
+- name: Update neovim plugins
+  ansible.builtin.shell: >
+    nvim --headless
+    -c 'Lazy! sync'
+    -c 'TSUpdateSync all'
+    -c 'qa' &> /dev/null < /dev/tty
+  changed_when: false
+  tags: [upgrade]

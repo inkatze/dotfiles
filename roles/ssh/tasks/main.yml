@@ -1,0 +1,23 @@
+---
+- name: Create .ssh directory
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.ssh"
+    state: directory
+    mode: "0700"
+  tags: [ssh]
+
+- name: Symlink ssh config
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/ssh/files/config"
+    dest: "{{ ansible_env.HOME }}/.ssh/config"
+    state: link
+    mode: "0600"
+  tags: [ssh]
+
+- name: Symlink known hosts
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/ssh/files/known_hosts"
+    dest: "{{ ansible_env.HOME }}/.ssh/known_hosts"
+    state: link
+    mode: "0600"
+  tags: [ssh]

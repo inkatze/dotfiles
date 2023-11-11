@@ -1,9 +1,12 @@
 ---
-
 - hosts: all
   roles:
-    - role: homebrew_role
-    - role: fish_role
-    - role: dotfiles_role
-    - role: osx_role
-    - role: neovim_role
+    - osx
+    - iterm
+    - fish
+    - environments
+    - neovim
+    - tmux
+    - ssh
+    - git
+    - services
