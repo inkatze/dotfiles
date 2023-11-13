@@ -53,7 +53,7 @@
   tags: [tmux]
 
 - name: Upgrade tpm plugins
-  ansible.builtin.command: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/update_plugins"
+  ansible.builtin.command: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/update_plugins all"
   changed_when: false
   tags: [upgrade]
 
