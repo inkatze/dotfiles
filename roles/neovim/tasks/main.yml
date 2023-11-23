@@ -21,6 +21,13 @@
     state: link
   tags: [neovim]
 
+- name: Symlink neovim configuration
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/neovim/files/nvim"
+    dest: "{{ ansible_env.HOME }}/.config/nvim"
+    state: link
+  tags: [neovim]
+
 - name: Install neovim plugins
   ansible.builtin.shell: >
     nvim --headless
