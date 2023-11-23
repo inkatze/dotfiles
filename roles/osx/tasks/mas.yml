@@ -20,9 +20,3 @@
   register: mas_install
   changed_when: "'is already installed' in mas_install.stdout"
   tags: [osx]
-
-- name: Upgrading MAS apps
-  ansible.builtin.command: mas upgrade
-  register: mas_upgrade_status
-  changed_when: "(mas_upgrade_status.stdout is defined) and ('Nothing found to upgrade' not in mas_upgrade_status.stdout)"
-  tags: [upgrade]
