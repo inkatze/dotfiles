@@ -11,5 +11,5 @@
 - name: Changing login shell to fish
   ansible.builtin.command: chsh -s {{ fish_dir.stdout }}/bin/fish
   changed_when: false
-  when: lookup('env','SHELL') != (fish_dir.stdout + "/bin/fish" | string)
+  when: lookup('ansible.builtin.env','SHELL') != (fish_dir.stdout + "/bin/fish" | string)
   tags: [shell]
