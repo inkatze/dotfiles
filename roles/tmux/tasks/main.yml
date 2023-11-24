@@ -6,7 +6,7 @@
     state: present
   tags: [tmux]
 
-- name: Installing Tmux Plugin Manager
+- name: Installing tmux Plugin Manager
   ansible.builtin.git:
     repo: https://github.com/tmux-plugins/tpm
     depth: "10"
@@ -44,22 +44,16 @@
   ansible.builtin.command: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/clean_plugins"
   register: cleaned_plugins
   changed_when: "'Removing' in cleaned_plugins.stdout"
-  tags: [tmux, upgrade]
+  when: lookup('ansible.builtin.env', 'TMUX', default='') | trim | length > 0
+  tags: [tmux]
 
 - name: Install tpm plugins
   ansible.builtin.command: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/install_plugins"
   register: installed_plugins
   changed_when: "'Installing' in installed_plugins.stdout"
+  when: lookup('ansible.builtin.env', 'TMUX', default='') | trim | length > 0
   tags: [tmux]
 
-- name: Upgrade tpm plugins
-  ansible.builtin.command: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/update_plugins all"
-  changed_when: false
-  tags: [upgrade]
-
-- name: Upgrade tmux formulas
-  community.general.homebrew:
-    name: "{{ tmux_formulas }}"
-    state: latest
-    update_homebrew: true
+- name: Import upgrade tasks
+  ansible.builtin.include_tasks: upgrade.yml
   tags: [upgrade]
