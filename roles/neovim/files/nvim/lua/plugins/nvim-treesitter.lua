@@ -1,7 +1,6 @@
 return {
   -- Fancy symbol trees for syntax and others
   "nvim-treesitter/nvim-treesitter",
-  event = "BufRead",
   opts = {
     ensure_installed = "all", -- one of "all" or a list of languages
     ignore_install = { "phpdoc" },
