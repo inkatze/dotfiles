@@ -1,3 +1,4 @@
 .envrc
 .elixir-tools
+.elixir_ls
 ryan.rb

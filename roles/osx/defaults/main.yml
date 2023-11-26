@@ -59,6 +59,9 @@ homebrew_cask_applications:
   - microsoft-office
   - notion
   - homebrew/cask-versions/openemu-experimental
+  - plex
+  - plex-media-player
+  - plex-media-server
   - steam
   - transmission
   - zoom
