@@ -1,15 +1,3 @@
-function gustograph
-  bin/rake graphql:prepare; and \
-    npx yarn generate-client-types
-end
-
-function zensync
-  git sw main
-  zenu
-  git sw -
-  git rebase main
-end
-
 function zenu
   set -xl rebased (git pull --rebase origin main)
 
