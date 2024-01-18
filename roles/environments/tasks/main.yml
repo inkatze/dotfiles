@@ -12,37 +12,31 @@
   changed_when: false
   tags: [environments]
 
-- name: Install asdf environment manager
+- name: Install mise environment manager
   community.general.homebrew:
-    name: asdf
+    name: mise
     state: present
   tags: [environments]
 
-- name: Symlink asdf configuration file
+- name: Create mise configuration directory
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/environments/files/asdfrc"
-    dest: "{{ ansible_env.HOME }}/.asdfrc"
+    path: "{{ ansible_env.HOME }}/.config/mise"
+    recurse: true
+    state: directory
+  tags: [environments]
+
+- name: Symlink mise configuration file
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/environments/files/config.toml"
+    dest: "{{ ansible_env.HOME }}/.config/mise/config.toml"
     state: link
   tags: [environments]
 
-- name: Symlink tool versions
+- name: Symlink mise settings
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/environments/files/tool-versions"
-    dest: "{{ ansible_env.HOME }}/.tool-versions"
+    src: "{{ ansible_env.PWD }}/roles/environments/files/settings.toml"
+    dest: "{{ ansible_env.HOME }}/.config/mise/settings.toml"
     state: link
-  tags: [environments]
-
-- name: Check installed plugins
-  ansible.builtin.command: asdf plugin-list
-  register: plugin_list
-  changed_when: false
-  tags: [environments]
-
-- name: Install missing plugins
-  ansible.builtin.command: asdf plugin-add {{ item.name }}
-  changed_when: "'nodejs' not in plugin_list.stdout_lines"
-  when: "item.name not in plugin_list.stdout_lines"
-  with_items: "{{ asdf_tools }}"
   tags: [environments]
 
 - name: Symlink default initial packages file
@@ -50,17 +44,17 @@
     src: "{{ ansible_env.PWD }}/roles/environments/files/{{ item.defaults }}"
     dest: "{{ ansible_env.HOME }}/.{{ item.defaults }}"
     state: link
-  with_items: "{{ asdf_tools }}"
+  with_items: "{{ mise_tools }}"
   when: item.defaults is defined
   tags: [environments]
 
 - name: Install default tool versions
-  ansible.builtin.shell: asdf install {{ item.name }}; and asdf reshim {{ item.name }}
+  ansible.builtin.shell: mise install -y {{ item.name }}
   args:
     executable: "{{ fish_dir.stdout }}/bin/fish"
-  register: asdf_installation_result
-  changed_when: "'already installed' not in asdf_installation_result.stdout"
-  with_items: "{{ asdf_tools }}"
+  register: mise_installation_result
+  changed_when: "'already installed' not in mise_installation_result.stdout"
+  with_items: "{{ mise_tools }}"
   tags: [environments]
 
 - name: Update NodeJS config

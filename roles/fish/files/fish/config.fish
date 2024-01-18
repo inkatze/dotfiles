@@ -15,7 +15,9 @@ alias bexec 'bundle exec'
 alias brspec 'bin/rspec'
 alias bsidekiq 'bundle exec sidekiq'
 alias brubocop 'bundle exec rubocop'
+alias r "mise run --"
 alias sorbetup 'brails sorbet:generate_rbi'
+alias x 'mise exec --'
 
 if status --is-login
     # Unix and C stuff
@@ -81,7 +83,7 @@ starship init fish | source
 
 status --is-interactive; and source $HOME/.config/op/plugins.sh
 status --is-interactive; and direnv hook fish | source
-status --is-interactive; and source (brew --prefix asdf)/libexec/asdf.fish
+status --is-interactive; and mise activate fish | source
 status --is-interactive; and corepack enable
 
 # Fish Theme
