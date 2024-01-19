@@ -62,12 +62,7 @@ if status --is-login
     # Rust stuff
     set -l CARGO_BIN $HOME/.cargo/bin
 
-    fish_add_path -a (brew --prefix)/bin
-    fish_add_path -a (brew --prefix)/sbin
-    fish_add_path -a (brew --prefix)/sbin
-    fish_add_path -a /usr/bin
     fish_add_path $SQLITE_PATH/bin
-    fish_add_path -a $MARIADB_BIN_PATH
     fish_add_path -m $MYSQL_BIN_PATH
     fish_add_path $GOPATH/bin
     fish_add_path $GOROOT/bin
@@ -75,6 +70,11 @@ if status --is-login
     fish_add_path $POSTGRES_BIN
     fish_add_path /usr/local/bin
     fish_add_path -m $OPENSSL_PATH/bin
+    fish_add_path -a (brew --prefix)/bin
+    fish_add_path -a (brew --prefix)/sbin
+    fish_add_path -a (brew --prefix)/sbin
+    fish_add_path -a /usr/bin
+    fish_add_path -a $MARIADB_BIN_PATH
 end
 
 ulimit -Sn 65535
@@ -84,7 +84,7 @@ starship init fish | source
 status --is-interactive; and source $HOME/.config/op/plugins.sh
 status --is-interactive; and direnv hook fish | source
 status --is-interactive; and mise activate fish | source
-status --is-interactive; and corepack enable
+status --is-interactive; and mise exec -- corepack enable
 
 # Fish Theme
 set -xg fish_greeting '¡Hoal!'

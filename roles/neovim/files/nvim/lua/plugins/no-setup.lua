@@ -1,11 +1,11 @@
 return {
   -- No config and support plugins
-  { "kyazdani42/nvim-web-devicons", lazy = true },
-  { "nvim-lua/plenary.nvim",        lazy = true },
-  { "romgrk/barbar.nvim",           event = "BufRead" },
-  { "tpope/vim-commentary",         event = "BufRead" },
-  { "DanilaMihailov/beacon.nvim",   event = "BufRead" },
-  { "mfussenegger/nvim-ansible",    ft = "yaml" },
+  { "nvim-tree/nvim-web-devicons", lazy = true },
+  { "nvim-lua/plenary.nvim",       lazy = true },
+  { "romgrk/barbar.nvim",          event = "BufRead" },
+  { "tpope/vim-commentary",        event = "BufRead" },
+  { "DanilaMihailov/beacon.nvim",  event = "BufRead" },
+  { "mfussenegger/nvim-ansible",   ft = "yaml" },
 
   {
     "windwp/nvim-autopairs",

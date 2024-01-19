@@ -6,7 +6,7 @@ return {
     { "onsails/lspkind.nvim", lazy = true },
   },
   build =
-  "brew install lua-language-server efm-langserver ansible-language-server ansible-lint vscode-langservers-extracted",
+  "brew install lua-language-server efm-langserver",
   event = "BufRead",
   config = function()
     require("inkatze.lspconfig.ansiblels").setup()

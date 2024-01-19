@@ -1,8 +1,11 @@
 return {
   "nvimdev/lspsaga.nvim",
-  after = "nvim-lspconfig",
-  event = "BufRead",
-  dependencies = { "folke/which-key.nvim" },
+  event = "LspAttach",
+  dependencies = {
+    'nvim-treesitter/nvim-treesitter',
+    'nvim-tree/nvim-web-devicons',
+    "folke/which-key.nvim"
+  },
   config = function()
     local saga = require("lspsaga")
 

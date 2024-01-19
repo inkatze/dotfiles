@@ -22,6 +22,7 @@ vim.opt.cursorline = true
 vim.opt.termguicolors = true
 
 vim.g.mapleader = ","
+vim.g.loaded_perl_provider = 0
 
 -- Makes invisible chars visible
 vim.opt.list = true

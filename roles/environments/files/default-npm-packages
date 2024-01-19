@@ -1,4 +1,5 @@
 @angular/language-server
+@ansible/ansible-language-server
 @tailwindcss/language-server
 bash-language-server
 diagnostic-languageserver
@@ -10,5 +11,6 @@ stylelint-lsp
 typescript
 typescript-language-server
 vim-language-server
+vscode-langservers-extracted
 yaml-language-server
 yarn

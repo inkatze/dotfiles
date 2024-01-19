@@ -32,10 +32,13 @@ end
 return {
   "nvim-telescope/telescope.nvim",
   branch = "0.1.x",
-  dependencies = { { "nvim-lua/plenary.nvim", lazy = true }, { "folke/which-key.nvim", lazy = true } },
+  dependencies = {
+    { "nvim-lua/plenary.nvim", lazy = true },
+    { "folke/which-key.nvim",  lazy = true }
+  },
   opts = {
     defaults = {
-      layout_strategy = "horizontal",
+      -- layout_strategy = 'center',
       file_ignore_patterns = { "node%_modules/.*", "%.rbi", "log/.*", "tmp/.*", "ar%_doc/", "assets/vendor/" },
     },
   },
