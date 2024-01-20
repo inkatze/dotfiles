@@ -41,7 +41,6 @@ return {
   { "tpope/vim-projectionist", event = "BufRead" },
   {
     "j-hui/fidget.nvim",
-    version = "legacy",
     event = "LspAttach",
     opts = {},
   },

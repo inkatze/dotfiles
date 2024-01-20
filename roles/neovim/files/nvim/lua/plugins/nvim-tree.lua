@@ -1,6 +1,6 @@
 return {
   "nvim-tree/nvim-tree.lua",
-  version = "nightly", -- optional, updated every week. (see issue #1193)
+  tag = "nightly", -- optional, updated every week. (see issue #1193)
   dependencies = { "folke/which-key.nvim" },
   config = function()
     local ignore_list = { "\\.git$", "node_modules$", ".cache" }
