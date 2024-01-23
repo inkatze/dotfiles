@@ -27,6 +27,16 @@ local mappings = function()
     ["<c-f>"] = { builtin.find_files, "Find files", opts },
     ["<c-s>"] = { builtin.live_grep, "Live grep", opts },
   })
+
+  require('telescope').setup({
+    defaults = {
+      layout_strategy = 'vertical',
+      layout_config = { prompt_position = "top" },
+      sorting_strategy = "ascending",
+      winblend = 0,
+      file_ignore_patterns = { "node%_modules/.*", "%.rbi", "log/.*", "tmp/.*", "ar%_doc/", "assets/vendor/" },
+    }
+  })
 end
 
 return {
@@ -35,12 +45,6 @@ return {
   dependencies = {
     { "nvim-lua/plenary.nvim", lazy = true },
     { "folke/which-key.nvim",  lazy = true }
-  },
-  opts = {
-    defaults = {
-      -- layout_strategy = 'center',
-      file_ignore_patterns = { "node%_modules/.*", "%.rbi", "log/.*", "tmp/.*", "ar%_doc/", "assets/vendor/" },
-    },
   },
   config = mappings,
 }
