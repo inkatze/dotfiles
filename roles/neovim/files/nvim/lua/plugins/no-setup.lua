@@ -20,29 +20,26 @@ return {
     },
   },
   {
-    "mfussenegger/nvim-dap",
-    event = "BufRead",
-    dependencies = {
-      "rcarriga/nvim-dap-ui",
-      lazy = true,
-      opts = {},
-    }
+    "rcarriga/nvim-dap-ui",
+    dependencies = { "mfussenegger/nvim-dap" }
   },
   {
     "github/copilot.vim",
     event = "BufRead",
     build = ":Copilot setup",
   },
-  {
-    "mfussenegger/nvim-jdtls",
-    ft = "java",
-    build = "./scripts/link_mac.sh && mvn package -DskipTests",
-  },
   { "tpope/vim-projectionist", event = "BufRead" },
   {
     "j-hui/fidget.nvim",
     event = "LspAttach",
-    opts = {},
+    opts = {
+      -- Options related to integrating with other plugins
+      integration = {
+        ["nvim-tree"] = {
+          enable = false, -- Integrate with nvim-tree/nvim-tree.lua (if installed)
+        },
+      },
+    },
   },
   {
     "lewis6991/gitsigns.nvim",
@@ -61,7 +58,6 @@ return {
     "lukas-reineke/indent-blankline.nvim",
     main = "ibl",
     event = "BufRead",
-    enabled = false,
-    opts = { scope = { enabled = false } },
+    opts = { scope = { enabled = true } },
   },
 }
