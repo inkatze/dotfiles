@@ -179,7 +179,7 @@ function startsrvr
   tmux send-keys -t $target 'asdf install nodejs' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.top-left' 'brails s' Enter C-l
-  tmux send-keys -t $target'.top-right' 'vite dev' C-l Enter
+  tmux send-keys -t $target'.top-right' 'bundle exec vite dev' C-l Enter
   tmux send-keys -t $target'.bottom-left' 'bin/sidekiq' C-l Enter
   tmux send-keys -t $target'.bottom-right' 'bin/run-hapii' C-l Enter
   tmux select-pane -t $target'.top-left'
