@@ -62,6 +62,9 @@ if status --is-login
     # Rust stuff
     set -l CARGO_BIN $HOME/.cargo/bin
 
+    # Python stuff
+    set -xg PYENV_ROOT $HOME/.pyenv
+
     fish_add_path $SQLITE_PATH/bin
     fish_add_path -m $MYSQL_BIN_PATH
     fish_add_path $GOPATH/bin
