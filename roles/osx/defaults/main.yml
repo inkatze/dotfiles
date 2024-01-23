@@ -53,7 +53,6 @@ homebrew_cask_applications:
   - font-fira-code-nerd-font
   - google-cloud-sdk
   - google-chrome
-  - grammarly
   - keycastr
   - logi-options-plus
   - microsoft-office

@@ -5,7 +5,6 @@ homebrew_cask_applications:
   - firefox
   - font-fantasque-sans-mono
   - font-fira-code-nerd-font
-  - grammarly
   - iterm2
   - keycastr
   - logi-options-plus
