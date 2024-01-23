@@ -18,6 +18,13 @@ vim.opt.shell = "fish"
 vim.opt.pumblend = 5       -- pseudo-transparency for pop-up menu
 vim.opt.signcolumn = "yes" -- leaves enough space in the signcolumn for lspsaga's lightbulb
 
+-- Copilot
+vim.keymap.set('i', '<C-J>', 'copilot#Accept("\\<CR>")', {
+  expr = true,
+  replace_keycodes = false
+})
+vim.g.copilot_no_tab_map = true
+
 -- Highlight
 vim.opt.cursorline = true
 vim.opt.termguicolors = true
