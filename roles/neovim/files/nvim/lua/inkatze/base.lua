@@ -15,7 +15,8 @@ vim.opt.smartcase = true
 vim.opt.backup = false
 vim.opt.expandtab = true
 vim.opt.shell = "fish"
-vim.opt.pumblend = 5 -- pseudo-transparency for pop-up menu
+vim.opt.pumblend = 5       -- pseudo-transparency for pop-up menu
+vim.opt.signcolumn = "yes" -- leaves enough space in the signcolumn for lspsaga's lightbulb
 
 -- Highlight
 vim.opt.cursorline = true
