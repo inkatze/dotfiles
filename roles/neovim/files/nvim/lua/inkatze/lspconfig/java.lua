@@ -1,6 +1,7 @@
 local M = {}
 
 M.setup = function()
+  local jdtls_dir = os.getenv("HOME") .. "/dev/eclipse.jdt.ls/org.eclipse.jdt.ls.product/target/repository"
   require("lspconfig").jdtls.setup({
     cmd = {
       "java",
@@ -12,12 +13,9 @@ M.setup = function()
       "--add-modules=ALL-SYSTEM",
       "--add-opens", "java.base/java.util=ALL-UNNAMED",
       "--add-opens", "java.base/java.lang=ALL-UNNAMED",
-      "-jar",
-      "/Users/diego.romero/dev/eclipse.jdt.ls/org.eclipse.jdt.ls.product/target/repository/plugins/org.eclipse.equinox.launcher_1.6.700.v20231214-2017.jar",
-      "-configuration",
-      "/Users/diego.romero/dev/eclipse.jdt.ls/org.eclipse.jdt.ls.product/target/repository/config_mac_arm",
-      "-data",
-      "/Users/diego.romero/.cache/jdtls/workspace"
+      "-jar", jdtls_dir .. "/plugins/org.eclipse.equinox.launcher_1.6.700.v20231214-2017.jar",
+      "-configuration", jdtls_dir .. "/config_mac_arm",
+      "-data", os.getenv("HOME") .. "/.cache/jdtls/workspace"
     },
   })
 end
