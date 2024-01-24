@@ -52,7 +52,7 @@ if status --is-login
     set -xg KERL_INSTALL_MANPAGES yes
     set -xg KERL_USE_AUTOCONF 0
     set -xg EGREP egrep
-    set -xg KERL_CONFIGURE_OPTIONS "--without-wx --without-odbc --with-ssl="$OPENSSL_PATH
+    set -xg KERL_CONFIGURE_OPTIONS "--with-javac --with-ssl="$OPENSSL_PATH
 
     # Binaries paths
     set -l POSTGRES_BIN $POSTGRESQL_PATH/bin

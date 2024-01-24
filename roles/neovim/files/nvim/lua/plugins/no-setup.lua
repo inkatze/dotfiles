@@ -23,11 +23,6 @@ return {
     "rcarriga/nvim-dap-ui",
     dependencies = { "mfussenegger/nvim-dap" }
   },
-  {
-    "github/copilot.vim",
-    event = "BufRead",
-    build = ":Copilot setup",
-  },
   { "tpope/vim-projectionist", event = "BufRead" },
   {
     "j-hui/fidget.nvim",
@@ -53,11 +48,5 @@ return {
       },
       current_line_blame_formatter = "<author>, <author_time:%Y-%m-%d> - <summary>",
     },
-  },
-  {
-    "lukas-reineke/indent-blankline.nvim",
-    main = "ibl",
-    event = "BufRead",
-    opts = { scope = { enabled = true } },
   },
 }

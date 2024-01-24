@@ -315,7 +315,6 @@ function tmpccpb
   tmux split-window -t $target -v
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$PCCP_BE_DIR Enter
-  tmux send-keys -t $target 'sdk env' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' './gradlew bootRun' Enter
   tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random all -t "(ง •̀_•́)ง"' Enter
@@ -383,7 +382,6 @@ function tmwbsb
   tmux split-window -t $target -v
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$WBS_BE_DIR Enter
-  tmux send-keys -t $target 'sdk env' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' './gradlew bootRun' Enter
   tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random all -t "(ง •̀_•́)ง"' Enter
