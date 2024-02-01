@@ -6,7 +6,7 @@
     editor = nvim
     pager = less -FRX
     excludesfile = ~/.gitignore
-    fsmonitor = true
+    fsmonitor = false
     untrackedcache = true
 [gist]
     private = yes
