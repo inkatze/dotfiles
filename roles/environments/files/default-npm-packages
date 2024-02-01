@@ -1,4 +1,5 @@
 @angular/language-server
+@angular/language-service@next
 @ansible/ansible-language-server
 @tailwindcss/language-server
 bash-language-server
