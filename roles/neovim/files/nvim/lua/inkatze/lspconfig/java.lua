@@ -1,5 +1,18 @@
 local M = {}
 
+local capabilities = require("cmp_nvim_lsp").default_capabilities()
+capabilities = {
+  workspace = { configuration = true },
+  textDocument = {
+    completion = {
+      completionItem = {
+        snippetSupport = true,
+      },
+    },
+  },
+}
+capabilities.textDocument.completion.completionItem.snippetSupport = true
+
 M.setup = function()
   local jdtls_dir = os.getenv("HOME") .. "/dev/eclipse.jdt.ls/org.eclipse.jdt.ls.product/target/repository"
   require("lspconfig").jdtls.setup({
@@ -17,6 +30,8 @@ M.setup = function()
       "-configuration", jdtls_dir .. "/config_mac_arm",
       "-data", os.getenv("HOME") .. "/.cache/jdtls/workspace"
     },
+    capabilities = capabilities,
+    on_attach = require("inkatze.lspconfig").on_attach,
   })
 end
 
