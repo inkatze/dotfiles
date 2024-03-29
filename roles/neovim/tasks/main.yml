@@ -9,7 +9,7 @@
 
 - name: Download neovim nightly
   ansible.builtin.unarchive:
-    src: https://github.com/neovim/neovim/releases/download/nightly/nvim-macos.tar.gz
+    src: https://github.com/neovim/neovim/releases/download/nightly/nvim-macos-arm64.tar.gz
     dest: "{{ ansible_env.HOME }}/.local"
     remote_src: true
   tags: [neovim]
