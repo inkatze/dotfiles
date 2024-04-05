@@ -67,3 +67,9 @@
     state: latest
     update_homebrew: true
   tags: [upgrade]
+
+- name: Upgrade mise environment manager
+  community.general.homebrew:
+    name: mise
+    state: latest
+  tags: [upgrade]
