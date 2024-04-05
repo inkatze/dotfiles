@@ -1,6 +1,5 @@
 ---
 homebrew_cask_applications:
-  - authy
   - DBngin
   - firefox
   - font-fantasque-sans-mono
@@ -12,4 +11,3 @@ homebrew_cask_applications:
   - notion
   - steam
   - visual-studio-code
-  - wkhtmltopdf

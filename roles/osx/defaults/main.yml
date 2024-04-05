@@ -35,7 +35,6 @@ homebrew_formulas:
   - wxwidgets
 
 homebrew_lsps:
-  - ansible-language-server
   - ansible-lint
   - efm-langserver
   - lua-language-server
@@ -44,7 +43,6 @@ homebrew_lsps:
 homebrew_cask_applications:
   - 1password
   - 1password-cli
-  - authy
   - dbeaver-community
   - cyberduck
   - docker
