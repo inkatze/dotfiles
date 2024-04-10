@@ -30,7 +30,7 @@ if status --is-login
     set -xl SQLITE_PATH (brew --prefix sqlite3)
     set -xl READLINE_PATH (brew --prefix readline)
     set -xl MYSQL_PATH (brew --prefix mysql@8.0)
-    set -xl POSTGRESQL_PATH (brew --prefix postgresql@15)
+    set -xl POSTGRESQL_PATH (brew --prefix postgresql@16)
     set -xl MARIADB_PATH (brew --prefix mariadb@10.6)
     set -gx PKG_CONFIG_PATH $SQLITE_PATH/lib/pkgconfig $POSTGRESQL_PATH/lib/pkgconfig $MYSQL_PATH/lib/pkgconfig $MARIADB_PATH/lib/pkgconfig $ZLIB_PATH/lib/pkgconfig $READLINE_PATH/lib/pkgconfig $OPENSSL_PATH/lib/pkgconfig
     set -gx LDFLAGS '-L'$SQLITE_PATH/lib' -L'$POSTGRESQL_PATH/lib' -L'$MYSQL_PATH/lib' -L'$MARIADB_PATH/lib' -L'$ZLIB_PATH/lib' -L'$READLINE_PATH/lib' -L'$OPENSSL_PATH/lib

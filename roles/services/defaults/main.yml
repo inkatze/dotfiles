@@ -3,3 +3,4 @@
 services_homebrew_formulas:
   - mariadb@10.6
   - mysql@8.0
+  - postgresql@16
