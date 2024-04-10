@@ -2,6 +2,10 @@ return {
   "nvim-neotest/neotest",
   ft = { "ruby", "elixir", "javascript", "javascriptreact", "typescript", "typescriptreact" },
   dependencies = {
+    { "nvim-neotest/nvim-nio", lazy = true},
+    { "nvim-lua/plenary.nvim",   lazy = true },
+    { "antoinemadec/FixCursorHold.nvim", lazy = true },
+    { "nvim-treesitter/nvim-treesitter", lazy = true },
     { "olimorris/neotest-rspec",  lazy = true },
     { "jfpedroza/neotest-elixir", lazy = true },
     { "haydenmeade/neotest-jest", lazy = true },
