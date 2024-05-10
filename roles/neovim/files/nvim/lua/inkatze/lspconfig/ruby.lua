@@ -1,7 +1,7 @@
 local M = {}
 
 M.setup = function()
-  require("lspconfig").ruby_ls.setup({
+  require("lspconfig").ruby_lsp.setup({
     on_attach = require("inkatze.lspconfig").on_attach,
     capabilities = require("cmp_nvim_lsp").default_capabilities(),
   })
