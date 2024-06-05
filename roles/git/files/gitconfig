@@ -84,4 +84,6 @@
 [gpg "ssh"]
     program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
 [fetch]
-   prune = true
+    prune = true
+[init]
+    defaultBranch = main
