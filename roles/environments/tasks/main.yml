@@ -48,6 +48,16 @@
   when: item.defaults is defined
   tags: [environments]
 
+- name: Install mise plugins
+  ansible.builtin.shell: mise plugins install {{ item.name }} {{ item.plugin }}
+  args:
+    executable: "{{ fish_dir.stdout }}/bin/fish"
+  register: mise_installation_result
+  changed_when: "'already installed' not in mise_installation_result.stdout"
+  with_items: "{{ mise_tools }}"
+  when: item.plugin is defined
+  tags: [environments]
+
 - name: Install default tool versions
   ansible.builtin.shell: mise install -y {{ item.name }}
   args:

@@ -10,7 +10,7 @@ environments_homebrew_deps:
 
 mise_tools:
   - { name: node, defaults: default-npm-packages }
-  - { name: ruby, defaults: default-gems }
+  - { name: ruby, defaults: default-gems, plugin: https://github.com/asdf-vm/asdf-ruby }
   - { name: python, defaults: default-python-packages }
-  - { name: erlang }
-  - { name: elixir, defaults: default-mix-commands }
+  # - { name: erlang, plugin: https://github.com/asdf-vm/asdf-erlang }
+  # - { name: elixir, defaults: default-mix-commands, plugin: https://github.com/asdf-vm/asdf-elixir }
