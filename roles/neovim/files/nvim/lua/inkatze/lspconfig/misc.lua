@@ -9,8 +9,7 @@ local servers = {
   "stylelint_lsp",
   "tailwindcss",
   "tsserver",
-  "vimls",
-  "yamlls"
+  "vimls"
 }
 
 M.setup = function()
