@@ -11,7 +11,6 @@ return {
   config = function()
     require("inkatze.lspconfig.ansiblels").setup()
     require("inkatze.lspconfig.gradle").setup()
-    require("inkatze.lspconfig.java").setup()
     require("inkatze.lspconfig.lua").setup()
     require("inkatze.lspconfig.misc").setup()
     require("inkatze.lspconfig.ruby").setup()
