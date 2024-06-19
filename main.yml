@@ -4,9 +4,9 @@
     - osx
     - iterm
     - fish
+    - services
     - environments
     - neovim
     - tmux
     - ssh
     - git
-    - services
