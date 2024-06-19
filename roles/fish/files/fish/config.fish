@@ -27,7 +27,7 @@ if status --is-login
     set -xg FZF_DEFAULT_COMMAND 'bash -c "ag --files-with-matches --column --no-heading --nocolor --smart-case --ignore *.rbi --ignore node_modules"'
     set -xl OPENSSL_PATH (brew --prefix openssl@3)
     set -xl ZLIB_PATH (brew --prefix zlib)
-    set -xl SQLITE_PATH (brew --prefix sqlite3)
+    set -xl SQLITE_PATH (brew --prefix sqlite)
     set -xl READLINE_PATH (brew --prefix readline)
     set -xl MYSQL_PATH (brew --prefix mysql@8.0)
     set -xl POSTGRESQL_PATH (brew --prefix postgresql@16)
@@ -83,11 +83,11 @@ end
 ulimit -Sn 65535
 
 starship init fish | source
+mise activate fish | source
+mise exec -- corepack enable
 
 status --is-interactive; and source $HOME/.config/op/plugins.sh
 status --is-interactive; and direnv hook fish | source
-status --is-interactive; and mise activate fish | source
-status --is-interactive; and mise exec -- corepack enable
 
 # Fish Theme
 set -xg fish_greeting '¡Hoal!'
