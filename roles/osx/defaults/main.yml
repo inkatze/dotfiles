@@ -55,7 +55,7 @@ homebrew_cask_applications:
   - logi-options-plus
   - microsoft-office
   - notion
-  - homebrew/cask-versions/openemu-experimental
+  - openemu@experimental
   - plex
   - plex-media-player
   - plex-media-server
