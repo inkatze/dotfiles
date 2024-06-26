@@ -34,7 +34,19 @@ local mappings = function()
       layout_config = { prompt_position = "top" },
       sorting_strategy = "ascending",
       winblend = 0,
-      file_ignore_patterns = { "node%_modules/.*", "%.rbi", "log/.*", "tmp/.*", "ar%_doc/", "assets/vendor/" },
+      file_ignore_patterns = { "node%_modules/.*",
+        "%.rbi",
+        "log/.*",
+        "tmp/.*",
+        "ar%_doc/",
+        "assets/vendor/",
+        "**/*.class",
+        "**/rubygems",
+        "**/build",
+        "**/dist",
+        "**/target",
+        "**/bin",
+      },
     }
   })
 end
