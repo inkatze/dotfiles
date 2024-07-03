@@ -5,6 +5,8 @@ vim.opt_local.tabstop = 4
 vim.opt_local.softtabstop = 4
 
 local jdtls_dir = os.getenv("HOME") .. "/dev/eclipse.jdt.ls/org.eclipse.jdt.ls.product/target/repository"
+local java_debug_plugin = os.getenv("HOME") ..
+"/dev/java-debug/com.microsoft.java.debug.plugin/target/com.microsoft.java.debug.plugin-0.53.0.jar"
 
 local capabilities = require("cmp_nvim_lsp").default_capabilities()
 capabilities = {
@@ -28,9 +30,14 @@ local config = {
     "-configuration", jdtls_dir .. "/config_mac_arm",
     "-data", os.getenv("HOME") .. "/.cache/jdtls/workspace"
   },
-  root_dir = vim.fs.dirname(vim.fs.find({'gradlew', '.git', 'mvnw'}, { upward = true })[1]),
+  root_dir = vim.fs.dirname(vim.fs.find({ 'gradlew', '.git', 'mvnw' }, { upward = true })[1]),
   capabilities = capabilities,
   on_attach = require("inkatze.lspconfig").on_attach,
+  init_options = {
+    bundles = {
+      vim.fn.glob(java_debug_plugin, true)
+    },
+  }
 }
 
 require('jdtls').start_or_attach(config)
