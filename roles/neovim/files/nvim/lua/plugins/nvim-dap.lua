@@ -19,28 +19,31 @@ return {
     dap.listeners.before.launch.dapui_config = function()
       dapui.open()
     end
-    dap.listeners.before.event_terminated.dapui_config = function()
+    dap.listeners.after.event_terminated.dapui_config = function()
       dapui.close()
     end
-    dap.listeners.before.event_exited.dapui_config = function()
+    dap.listeners.after.event_exited.dapui_config = function()
       dapui.close()
     end
-
+    dap.listeners.after.event_stopped.dapui_config = function()
+      dapui.close()
+    end
 
     local widgets = require("dap.ui.widgets")
     local wk = require("which-key")
     local opts = { noremap = true, silent = true }
     wk.register({
-      name = "dat commands",
-      ["<F4>"] = { dap.toggle_breakpoint, "toggle breakpoint", opts },
-      ["<F5>"] = { dap.continue, "continue", opts },
-      ["<F8>"] = { dap.terminate, "terminate", opts },
+      name = "dap commands",
+      ["<F9>"] = { dap.continue, "continue", opts },
       ["<F10>"] = { dap.step_over, "step over", opts },
       ["<F11>"] = { dap.step_into, "step into", opts },
       ["<F12>"] = { dap.step_out, "step out", opts },
     })
     wk.register({
-      dp = {
+      b = { dap.toggle_breakpoint, "toggle breakpoint", opts },
+    }, { prefix = "<leader>" })
+    wk.register({
+      d = {
         name = "dap commands",
         B = { dap.set_breakpoint, "set breakpoint", opts },
         r = { dap.repl.toggle, "open repl", opts },
@@ -51,6 +54,7 @@ return {
         s = { function()
           widgets.centered_float(widgets.scopes)
         end, "show scopes in floating screen", opts },
+        t = { dap.terminate, "terminate", opts },
       },
     }, { prefix = "<leader>" })
   end,
