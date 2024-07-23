@@ -19,13 +19,13 @@ return {
     dap.listeners.before.launch.dapui_config = function()
       dapui.open()
     end
-    dap.listeners.after.event_terminated.dapui_config = function()
+    dap.listeners.before.event_terminated.dapui_config = function()
       dapui.close()
     end
-    dap.listeners.after.event_exited.dapui_config = function()
+    dap.listeners.before.event_exited.dapui_config = function()
       dapui.close()
     end
-    dap.listeners.after.event_stopped.dapui_config = function()
+    dap.listeners.before.event_stopped.dapui_config = function()
       dapui.close()
     end
 
@@ -54,7 +54,7 @@ return {
         s = { function()
           widgets.centered_float(widgets.scopes)
         end, "show scopes in floating screen", opts },
-        t = { dap.terminate, "terminate", opts },
+        t = {dap.terminate, "terminate", opts },
       },
     }, { prefix = "<leader>" })
   end,

@@ -1,12 +1,15 @@
 vim.opt_local.autoindent = true
-vim.opt_local.expandtab = false
-vim.opt_local.shiftwidth = 4
-vim.opt_local.tabstop = 4
-vim.opt_local.softtabstop = 4
+vim.opt_local.expandtab = true
+vim.opt_local.shiftwidth = 2
+vim.opt_local.tabstop = 2
+vim.opt_local.softtabstop = 2
 
-local jdtls_dir = os.getenv("HOME") .. "/dev/eclipse.jdt.ls/org.eclipse.jdt.ls.product/target/repository"
-local java_debug_plugin = os.getenv("HOME") ..
-"/dev/java-debug/com.microsoft.java.debug.plugin/target/com.microsoft.java.debug.plugin-0.53.0.jar"
+local base_dir = os.getenv("HOME") .. "/dev"
+local jdtls_dir = base_dir .. "/eclipse.jdt.ls/org.eclipse.jdt.ls.product/target/repository"
+local bundles = {
+  vim.fn.glob(base_dir .. "/java-debug/com.microsoft.java.debug.plugin/target/com.microsoft.java.debug.plugin-*.jar", true),
+};
+vim.list_extend(bundles, vim.split(vim.fn.glob(base_dir .. "/vscode-java-test/server/*.jar", true), "\n"))
 
 local capabilities = require("cmp_nvim_lsp").default_capabilities()
 capabilities = {
@@ -34,9 +37,7 @@ local config = {
   capabilities = capabilities,
   on_attach = require("inkatze.lspconfig").on_attach,
   init_options = {
-    bundles = {
-      vim.fn.glob(java_debug_plugin, true)
-    },
+    bundles = bundles,
   }
 }
 

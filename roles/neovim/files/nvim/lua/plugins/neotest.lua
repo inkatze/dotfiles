@@ -1,15 +1,16 @@
 return {
   "nvim-neotest/neotest",
-  ft = { "ruby", "elixir", "javascript", "javascriptreact", "typescript", "typescriptreact" },
+  ft = { "ruby", "elixir", "javascript", "javascriptreact", "typescript", "typescriptreact", "java" },
   dependencies = {
-    { "nvim-neotest/nvim-nio", lazy = true},
-    { "nvim-lua/plenary.nvim",   lazy = true },
+    { "nvim-neotest/nvim-nio",           lazy = true },
+    { "nvim-lua/plenary.nvim",           lazy = true },
     { "antoinemadec/FixCursorHold.nvim", lazy = true },
     { "nvim-treesitter/nvim-treesitter", lazy = true },
-    { "olimorris/neotest-rspec",  lazy = true },
-    { "jfpedroza/neotest-elixir", lazy = true },
-    { "haydenmeade/neotest-jest", lazy = true },
-    { "folke/which-key.nvim",     lazy = true },
+    { "olimorris/neotest-rspec",         lazy = true },
+    { "jfpedroza/neotest-elixir",        lazy = true },
+    { "haydenmeade/neotest-jest",        lazy = true },
+    { "folke/which-key.nvim",            lazy = true },
+    { "rcasia/neotest-java",             lazy = true },
   },
   config = function()
     require("neotest").setup({
@@ -23,6 +24,9 @@ return {
           cwd = function(_)
             return vim.fn.getcwd()
           end,
+        }),
+        require("neotest-java")({
+          ignore_wrapper = false,
         }),
       },
     })
