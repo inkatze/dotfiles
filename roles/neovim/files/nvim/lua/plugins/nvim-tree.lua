@@ -23,7 +23,7 @@ return {
       },
       update_focused_file = {
         enable = true,
-        update_cwd = false,
+        update_cwd = true,
         ignore_list = ignore_list,
       },
       view = {

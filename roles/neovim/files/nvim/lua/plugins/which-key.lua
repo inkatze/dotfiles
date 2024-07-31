@@ -90,13 +90,11 @@ return {
     }, { prefix = "<leader>" })
 
     wk.register({
-      name = "Copy path to clipboard",
-      ["cp+"] = { "<cmd>CpPathClipboard<cr>", "Copy relative path to clipboard", opts },
-    }, { prefix = "<leader>" })
-
-    wk.register({
-      name = "Copy path to register",
-      cp = { "<cmd>CpPath<cr>", "Copy relative path to default register", opts },
+      c = {
+        name = "Copy current register relative path",
+        P = { "<cmd>CpPathClipboard<cr>", "Copy relative path to clipboard", opts },
+        p = { "<cmd>CpPath<cr>", "Copy relative path to default register", opts },
+      }
     }, { prefix = "<leader>" })
   end,
 }
