@@ -65,6 +65,9 @@ if status --is-login
     # Python stuff
     set -xg PYENV_ROOT $HOME/.pyenv
 
+    # Node stuff
+    set -xg ASDF_NODEJS_AUTO_ENABLE_COREPACK 1
+
     fish_add_path $SQLITE_PATH/bin
     fish_add_path -m $MYSQL_BIN_PATH
     fish_add_path $GOPATH/bin
@@ -83,8 +86,7 @@ end
 ulimit -Sn 65535
 
 starship init fish | source
-mise activate fish | source
-mise exec -- corepack enable
+source (brew --prefix asdf)"/libexec/asdf.fish"
 
 status --is-interactive; and source $HOME/.config/op/plugins.sh
 status --is-interactive; and direnv hook fish | source

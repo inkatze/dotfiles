@@ -1,5 +1,4 @@
 ---
-
 - name: Install environments homebrew formulas
   community.general.homebrew:
     name: "{{ environments_homebrew_deps }}"
@@ -12,30 +11,23 @@
   changed_when: false
   tags: [environments]
 
-- name: Install mise environment manager
+- name: Install asdf environment manager
   community.general.homebrew:
-    name: mise
+    name: asdf
     state: present
   tags: [environments]
 
-- name: Create mise configuration directory
+- name: Symlink asdf configuration file
   ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.config/mise"
-    recurse: true
-    state: directory
-  tags: [environments]
-
-- name: Symlink mise configuration file
-  ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/environments/files/config.toml"
-    dest: "{{ ansible_env.HOME }}/.config/mise/config.toml"
+    src: "{{ ansible_env.PWD }}/roles/environments/files/tool-versions"
+    dest: "{{ ansible_env.HOME }}/.tool-versions"
     state: link
   tags: [environments]
 
-- name: Symlink mise settings
+- name: Symlink asdf settings
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/environments/files/settings.toml"
-    dest: "{{ ansible_env.HOME }}/.config/mise/settings.toml"
+    src: "{{ ansible_env.PWD }}/roles/environments/files/asdfrc"
+    dest: "{{ ansible_env.HOME }}/.asdfrc"
     state: link
   tags: [environments]
 
@@ -44,27 +36,27 @@
     src: "{{ ansible_env.PWD }}/roles/environments/files/{{ item.defaults }}"
     dest: "{{ ansible_env.HOME }}/.{{ item.defaults }}"
     state: link
-  with_items: "{{ mise_tools }}"
+  with_items: "{{ asdf_tools }}"
   when: item.defaults is defined
   tags: [environments]
 
-- name: Install mise plugins
-  ansible.builtin.shell: mise plugins install {{ item.name }} {{ item.plugin }}
+- name: Install asdf plugins
+  ansible.builtin.shell: asdf plugin add {{ item.name }} {{ item.plugin }}
   args:
     executable: "{{ fish_dir.stdout }}/bin/fish"
-  register: mise_installation_result
-  changed_when: "'already installed' not in mise_installation_result.stdout"
-  with_items: "{{ mise_tools }}"
+  register: asdf_installation_result
+  changed_when: "'already installed' not in asdf_installation_result.stdout"
+  with_items: "{{ asdf_tools }}"
   when: item.plugin is defined
   tags: [environments]
 
 - name: Install default tool versions
-  ansible.builtin.shell: mise install -y {{ item.name }}
+  ansible.builtin.shell: asdf install {{ item.name }}
   args:
     executable: "{{ fish_dir.stdout }}/bin/fish"
-  register: mise_installation_result
-  changed_when: "'already installed' not in mise_installation_result.stdout"
-  with_items: "{{ mise_tools }}"
+  register: asdf_installation_result
+  changed_when: "'already installed' not in asdf_installation_result.stdout"
+  with_items: "{{ asdf_tools }}"
   tags: [environments]
 
 - name: Update NodeJS config
@@ -78,8 +70,8 @@
     update_homebrew: true
   tags: [upgrade]
 
-- name: Upgrade mise environment manager
+- name: Upgrade asdf environment manager
   community.general.homebrew:
-    name: mise
+    name: asdf
     state: latest
   tags: [upgrade]
