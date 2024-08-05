@@ -11,6 +11,7 @@ environments_homebrew_deps:
 asdf_tools:
   - { name: nodejs, defaults: default-npm-packages, plugin: https://github.com/asdf-vm/asdf-nodejs.git }
   - { name: ruby, defaults: default-gems, plugin: https://github.com/asdf-vm/asdf-ruby }
+  - { name: java, plugin: https://github.com/halcyon/asdf-java.git }
   - { name: python, defaults: default-python-packages, plugin: python }
   - { name: erlang, plugin: https://github.com/asdf-vm/asdf-erlang }
   - { name: elixir, defaults: default-mix-commands, plugin: https://github.com/asdf-vm/asdf-elixir }

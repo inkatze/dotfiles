@@ -13,11 +13,6 @@ alias lg 'lazygit'
 alias brails '$PWD/bin/rails'
 alias bexec 'bundle exec'
 alias brspec 'bin/rspec'
-alias bsidekiq 'bundle exec sidekiq'
-alias brubocop 'bundle exec rubocop'
-alias r "mise run --"
-alias sorbetup 'brails sorbet:generate_rbi'
-alias x 'mise exec --'
 
 if status --is-login
     # Unix and C stuff
@@ -68,6 +63,8 @@ if status --is-login
     # Node stuff
     set -xg ASDF_NODEJS_AUTO_ENABLE_COREPACK 1
 
+    fish_add_path $HOME/.asdf/shims
+    fish_add_path $PYENV_ROOT/bin
     fish_add_path $SQLITE_PATH/bin
     fish_add_path -m $MYSQL_BIN_PATH
     fish_add_path $GOPATH/bin
@@ -79,8 +76,8 @@ if status --is-login
     fish_add_path -a (brew --prefix)/bin
     fish_add_path -a (brew --prefix)/sbin
     fish_add_path -a (brew --prefix)/sbin
-    fish_add_path -a /usr/bin
     fish_add_path -a $MARIADB_BIN_PATH
+    fish_add_path -a /usr/bin
 end
 
 ulimit -Sn 65535
