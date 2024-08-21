@@ -45,9 +45,8 @@ return {
       },
     })
 
-    require("which-key").register({
-      name = "Nvim tree file explorer",
-      ["<c-n>"] = { "<cmd>NvimTreeToggle<cr>", "Toggles nvim-tree", noremap = true, silent = true },
+    require("which-key").add({
+      { "<c-n>", "<cmd>NvimTreeToggle<cr>", desc = "Toggles nvim-tree", remap = false },
     })
   end,
 }

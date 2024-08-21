@@ -17,15 +17,13 @@ return {
     require("inkatze.lspconfig.yamlls").setup()
 
     local wk = require("which-key")
-    wk.register({
-      ld = {
-        name = "LSP diagnostics",
-        o = { vim.diagnostic.open_float, "Opens float window with diagnostic information" },
-        p = { vim.diagnostic.goto_prev, "Jump to pevious diagnostic" },
-        n = { vim.diagnostic.goto_next, "Jump to next diagnostic" },
-        l = { vim.diagnostic.setloclist, "Set loc list" },
-      },
-    }, { prefix = "<leader>", silent = true, nnoremap = true })
+    wk.add({
+      { "<leader>ld",  group = "LSP diagnostics" },
+      { "<leader>ldl", vim.diagnostic.setloclist, desc = "Set loc list" },
+      { "<leader>ldn", vim.diagnostic.goto_next,  desc = "Jump to next diagnostic" },
+      { "<leader>ldo", vim.diagnostic.open_float, desc = "Opens float window with diagnostic information" },
+      { "<leader>ldp", vim.diagnostic.goto_prev,  desc = "Jump to pevious diagnostic" },
+    })
 
     require("lspkind").init({
       -- defines how annotations are shown

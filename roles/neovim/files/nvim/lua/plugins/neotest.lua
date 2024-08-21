@@ -31,12 +31,10 @@ return {
       },
     })
 
-    require("which-key").register({
-      nt = {
-        name = "neotest",
-        r = { "<cmd>lua require('neotest').run.run()<cr>", "Run test under the cursor" },
-        f = { "<cmd>lua require('neotest').run.run(vim.fn.expand('%'))<cr>", "Run file" },
-      },
-    }, { prefix = "<leader>" })
+    require("which-key").add({
+      { "<leader>nt", group = "neotest" },
+      { "<leader>ntf", "<cmd>lua require('neotest').run.run(vim.fn.expand('%'))<cr>", desc = "Run file" },
+      { "<leader>ntr", "<cmd>lua require('neotest').run.run()<cr>", desc = "Run test under the cursor" },
+    })
   end,
 }

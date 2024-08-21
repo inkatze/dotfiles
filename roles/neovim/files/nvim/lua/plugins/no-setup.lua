@@ -6,6 +6,7 @@ return {
   { "tpope/vim-commentary",        event = "BufRead" },
   { "DanilaMihailov/beacon.nvim",  event = "BufRead" },
   { "mfussenegger/nvim-ansible",   ft = "yaml" },
+  { 'echasnovski/mini.nvim',       version = '*' },
 
   {
     "windwp/nvim-autopairs",

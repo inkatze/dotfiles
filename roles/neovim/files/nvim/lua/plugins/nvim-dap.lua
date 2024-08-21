@@ -31,31 +31,19 @@ return {
 
     local widgets = require("dap.ui.widgets")
     local wk = require("which-key")
-    local opts = { noremap = true, silent = true }
-    wk.register({
-      name = "dap commands",
-      ["<F9>"] = { dap.continue, "continue", opts },
-      ["<F10>"] = { dap.step_over, "step over", opts },
-      ["<F11>"] = { dap.step_into, "step into", opts },
-      ["<F12>"] = { dap.step_out, "step out", opts },
+    wk.add({
+      { "<F9>",       dap.continue,                                          desc = "continue" },
+      { "<F10>",      dap.step_over,                                         desc = "step over" },
+      { "<F11>",      dap.step_into,                                         desc = "step into" },
+      { "<F12>",      dap.step_out,                                          desc = "step out" },
+      { "<leader>b",  dap.toggle_breakpoint,                                 desc = "toggle breakpoint" },
+      { "<leader>d",  group = "dap commands" },
+      { "<leader>dB", dap.set_breakpoint,                                    desc = "set breakpoint" },
+      { "<leader>df", function() widgets.centered_float(widgets.frames) end, desc = "show frames in floating screen" },
+      { "<leader>dp", widgets.preview,                                       desc = "preview" },
+      { "<leader>dr", dap.repl.toggle,                                       desc = "open repl" },
+      { "<leader>ds", function() widgets.centered_float(widgets.scopes) end, desc = "show scopes in floating screen" },
+      { "<leader>dt", dap.terminate,                                         desc = "terminate" },
     })
-    wk.register({
-      b = { dap.toggle_breakpoint, "toggle breakpoint", opts },
-    }, { prefix = "<leader>" })
-    wk.register({
-      d = {
-        name = "dap commands",
-        B = { dap.set_breakpoint, "set breakpoint", opts },
-        r = { dap.repl.toggle, "open repl", opts },
-        p = { widgets.preview, "preview", opts },
-        f = { function()
-          widgets.centered_float(widgets.frames)
-        end, "show frames in floating screen", opts },
-        s = { function()
-          widgets.centered_float(widgets.scopes)
-        end, "show scopes in floating screen", opts },
-        t = {dap.terminate, "terminate", opts },
-      },
-    }, { prefix = "<leader>" })
   end,
 }

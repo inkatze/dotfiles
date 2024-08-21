@@ -26,31 +26,25 @@ return {
 
     local wk = require("which-key")
 
-    wk.register({
-      -- use <C-t> to jump back
-      name = "lspsaga commands",
-      gd = {
-        "<cmd>Lspsaga goto_definition<CR>",
-        "Go to the definition under the cursor",
-        silent = true,
-      },
-      gr = { "<cmd>Lspsaga rename<CR>", "lspsaga rename", silent = true },
-      gp = { "<cmd>Lspsaga peek_definition<CR>", "Peek Definition", silent = true },
-      K = { "<cmd>Lspsaga hover_doc<CR>", "Hover doc", silent = true },
-      ["<A-d>"] = { "<cmd>Lspsaga term_toggle<CR>", "Float terminal", silent = true },
-      ["[e"] = { "<cmd>Lspsaga diagnostic_jump_prev<CR>", "Jump to previous diagnostic", silent = true },
-      ["]e"] = { "<cmd>Lspsaga diagnostic_jump_next<CR>", "Jump to next diagnostic", silent = true },
-      ["[E"] = { jump_to_prev_error, "Jump to previous error", silent = true },
-      ["]E"] = { jump_to_next_error, "Jump to next error", silent = true },
+    wk.add({
+      { "<A-d>", "<cmd>Lspsaga term_toggle<CR>",          desc = "Float terminal" },
+      { "K",     "<cmd>Lspsaga hover_doc<CR>",            desc = "Hover doc" },
+      { "[E",    jump_to_prev_error,                      desc = "Jump to previous error" },
+      { "[e",    "<cmd>Lspsaga diagnostic_jump_prev<CR>", desc = "Jump to previous diagnostic" },
+      { "]E",    jump_to_next_error,                      desc = "Jump to next error" },
+      { "]e",    "<cmd>Lspsaga diagnostic_jump_next<CR>", desc = "Jump to next diagnostic" },
+      { "gd",    "<cmd>Lspsaga goto_definition<CR>",      desc = "Go to the definition under the cursor" },
+      { "gp",    "<cmd>Lspsaga peek_definition<CR>",      desc = "Peek Definition" },
+      { "gr",    "<cmd>Lspsaga rename<CR>",               desc = "lspsaga rename" },
     })
 
-    wk.register({
-      name = "lspsaga commands",
-      ca = { "<cmd>Lspsaga code_action<CR>", "Code action", mode = { "n", "v" }, silent = true },
-      cd = { "<cmd>Lspsaga show_line_diagnostics<CR>", "Show line diagnostics", silent = true },
-      ccd = { "<cmd>Lspsaga show_cursor_diagnostics<CR>", "Show cursor diagnostics", silent = true },
-      o = { "<cmd>Lspsaga outline<CR>", "Objects outline", silent = true },
-      sf = { "<cmd>Lspsaga finder<CR>", "Shows a list of references and implementations", silent = true },
-    }, { prefix = "<leader>" })
+    wk.add({
+      { "<leader>",    group = "lspsaga commands" },
+      { "<leader>ccd", "<cmd>Lspsaga show_cursor_diagnostics<CR>", desc = "Show cursor diagnostics" },
+      { "<leader>cd",  "<cmd>Lspsaga show_line_diagnostics<CR>",   desc = "Show line diagnostics" },
+      { "<leader>o",   "<cmd>Lspsaga outline<CR>",                 desc = "Objects outline" },
+      { "<leader>sf",  "<cmd>Lspsaga finder<CR>",                  desc = "Shows a list of references and implementations" },
+      { "<leader>ca",  "<cmd>Lspsaga code_action<CR>",             desc = "Code action",                                   mode = { "n", "v" } },
+    })
   end,
 }
