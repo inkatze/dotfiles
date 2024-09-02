@@ -1,7 +1,6 @@
 ---
 
-homebrew_taps:
-  - homebrew/cask-fonts
+homebrew_taps: []
 
 homebrew_formulas:
   - ack
@@ -20,7 +19,6 @@ homebrew_formulas:
   - lua-language-server
   - make
   - mosh
-  - neofetch
   - nnn
   - pinentry-mac
   - readline

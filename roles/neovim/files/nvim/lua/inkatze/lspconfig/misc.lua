@@ -8,6 +8,7 @@ local servers = {
   "pyright",
   "stylelint_lsp",
   "tailwindcss",
+  "terraform_lsp",
   "tsserver",
   "vimls"
 }

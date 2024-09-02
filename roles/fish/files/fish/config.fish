@@ -63,6 +63,9 @@ if status --is-login
     # Node stuff
     set -xg ASDF_NODEJS_AUTO_ENABLE_COREPACK 1
 
+    # Terraform stuff
+    set -xg ASDF_HASHICORP_SKIP_VERIFY 1
+
     fish_add_path $HOME/.asdf/shims
     fish_add_path $PYENV_ROOT/bin
     fish_add_path $SQLITE_PATH/bin
