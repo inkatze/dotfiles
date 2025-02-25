@@ -86,7 +86,7 @@ end
 ulimit -Sn 65535
 
 starship init fish | source
-source (brew --prefix asdf)"/libexec/asdf.fish"
+source (brew --prefix asdf)"/share/fish/vendor_completions.d/asdf.fish"
 
 status --is-interactive; and source $HOME/.config/op/plugins.sh
 status --is-interactive; and direnv hook fish | source
