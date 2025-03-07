@@ -1,0 +1,9 @@
+[tools]
+ruby = '3.3.4'
+nodejs = '20.13.1'
+python = '3.12.3'
+java = 'microsoft-21.0.3'
+erlang = '27.0'
+elixir = '1.17.1-otp-27'
+terraform = '1.9.5'
+terraform-ls = '0.34.2'

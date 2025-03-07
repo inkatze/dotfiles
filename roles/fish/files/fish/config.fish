@@ -66,7 +66,6 @@ if status --is-login
     # Terraform stuff
     set -xg ASDF_HASHICORP_SKIP_VERIFY 1
 
-    fish_add_path $HOME/.asdf/shims
     fish_add_path $PYENV_ROOT/bin
     fish_add_path $SQLITE_PATH/bin
     fish_add_path -m $MYSQL_BIN_PATH
@@ -86,7 +85,6 @@ end
 ulimit -Sn 65535
 
 starship init fish | source
-source (brew --prefix asdf)"/share/fish/vendor_completions.d/asdf.fish"
 
 status --is-interactive; and source $HOME/.config/op/plugins.sh
 status --is-interactive; and direnv hook fish | source

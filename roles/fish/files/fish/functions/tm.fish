@@ -120,7 +120,7 @@ function tmzp
   tmux split-window -t $target -v
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$ZP_DIR Enter
-  tmux send-keys -t $target 'asdf install nodejs' Enter C-l
+  tmux send-keys -t $target 'mise install nodejs' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random -t "(ง •̀_•́)ง"' Enter
   tmux send-keys -t $target'.left' 'nv' Enter
@@ -176,7 +176,7 @@ function startsrvr
   tmux select-pane -t $target'.top-left'
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$ZP_DIR Enter
-  tmux send-keys -t $target 'asdf install nodejs' Enter C-l
+  tmux send-keys -t $target 'mise install nodejs' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.top-left' 'brails s' Enter C-l
   tmux send-keys -t $target'.top-right' 'bundle exec vite dev' C-l Enter
@@ -247,7 +247,7 @@ function tmpaycheckcity
   tmux split-window -t $target -v
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$PCC_DIR Enter
-  tmux send-keys -t $target 'asdf install nodejs' Enter C-l
+  tmux send-keys -t $target 'mise install nodejs' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' 'gatsby develop' Enter
   tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random -t "(ง •̀_•́)ง"' Enter
@@ -281,7 +281,7 @@ function tmpccpf
   tmux split-window -t $target -v
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$PCCP_FE_DIR Enter
-  tmux send-keys -t $target 'asdf install nodejs' Enter C-l
+  tmux send-keys -t $target 'mise install nodejs' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' 'npm run start' Enter
   tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random -t "(ง •̀_•́)ง"' Enter
@@ -348,7 +348,7 @@ function tmwbsf
   tmux split-window -t $target -v
   tmux setw synchronize-panes on
   tmux send-keys -t $target 'cd '$WBS_FE_DIR Enter
-  tmux send-keys -t $target 'asdf install nodejs' Enter C-l
+  tmux send-keys -t $target 'mise install nodejs' Enter C-l
   tmux setw synchronize-panes off
   tmux send-keys -t $target'.bottom-right' 'npm run start' Enter
   tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random -t "(ง •̀_•́)ง"' Enter
