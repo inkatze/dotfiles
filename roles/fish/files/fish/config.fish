@@ -61,10 +61,10 @@ if status --is-login
     set -xg PYENV_ROOT $HOME/.pyenv
 
     # Node stuff
-    set -xg ASDF_NODEJS_AUTO_ENABLE_COREPACK 1
+    set -xg MISE_NODEJS_AUTO_ENABLE_COREPACK 1
 
     # Terraform stuff
-    set -xg ASDF_HASHICORP_SKIP_VERIFY 1
+    set -xg MISE_HASHICORP_SKIP_VERIFY 1
 
     fish_add_path $PYENV_ROOT/bin
     fish_add_path $SQLITE_PATH/bin
