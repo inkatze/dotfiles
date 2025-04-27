@@ -12,10 +12,6 @@
   ansible.builtin.include_tasks: mas.yml
   tags: [osx]
 
-- name: Import MAS tasks
-  ansible.builtin.include_tasks: mas.yml
-  tags: [osx]
-
 - name: Import upgrade tasks
   ansible.builtin.include_tasks: upgrade.yml
   tags: [upgrade]
