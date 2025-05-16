@@ -8,3 +8,4 @@ elixir = '1.18.3-otp-27'
 terraform = "1.11.4"
 terraform-ls = '0.36.4'
 node = "23.11.0"
+lua = "5.1.5"
