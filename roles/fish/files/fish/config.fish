@@ -89,6 +89,12 @@ starship init fish | source
 status --is-interactive; and source $HOME/.config/op/plugins.sh
 status --is-interactive; and direnv hook fish | source
 
+if status is-interactive
+  mise activate fish | source
+else
+  mise activate fish --shims | source
+end
+
 # Fish Theme
 set -xg fish_greeting '¡Hoal!'
 set -xg SPACEFISH_CHAR_SUFFIX '  '
