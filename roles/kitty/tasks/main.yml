@@ -1,0 +1,15 @@
+---
+
+- name: Create kitty configuration directory
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.config"
+    recurse: true
+    state: directory
+  tags: [kitty]
+
+- name: Symlink kitty configuration directory
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/kitty/files/kitty"
+    dest: "{{ ansible_env.HOME }}/.config/kitty"
+    state: link
+  tags: [kitty]

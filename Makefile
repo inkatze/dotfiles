@@ -51,6 +51,9 @@ services: header
 iterm: header
 	$(PLAYBOOK_COMMAND) -t iterm
 
+kitty: header
+	$(PLAYBOOK_COMMAND) -t kitty
+
 shell: header
 	# Requires privilege escalation because of the /etc/shells file
 	$(PLAYBOOK_COMMAND) -t fish,shell -K

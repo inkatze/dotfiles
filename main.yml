@@ -3,6 +3,7 @@
   roles:
     - osx
     - iterm
+    - kitty
     - fish
     - services
     - environments
