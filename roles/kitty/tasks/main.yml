@@ -1,5 +1,11 @@
 ---
 
+- name: Install kitty
+  community.general.homebrew_cask:
+    name: kitty
+    state: present
+  tags: [kitty]
+
 - name: Create kitty configuration directory
   ansible.builtin.file:
     path: "{{ ansible_env.HOME }}/.config"
@@ -13,3 +19,10 @@
     dest: "{{ ansible_env.HOME }}/.config/kitty"
     state: link
   tags: [kitty]
+
+- name: Upgrade kitty
+  community.general.homebrew_cask:
+    name: kitty
+    state: latest
+    update_homebrew: true
+  tags: [upgrade]
