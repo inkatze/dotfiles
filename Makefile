@@ -16,7 +16,7 @@ endif
 PLAYBOOK_COMMAND := ansible-playbook -l $(CURRENT_HOST) main.yml
 
 install: header
-	$(PLAYBOOK_COMMAND) --skip-tags shell,upgrade
+	$(PLAYBOOK_COMMAND) --skip-tags shell,upgrade,iterm
 
 osx: header
 	$(PLAYBOOK_COMMAND) -t osx
