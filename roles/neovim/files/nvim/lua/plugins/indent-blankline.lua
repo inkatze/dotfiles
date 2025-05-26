@@ -1,20 +1,23 @@
+local highlight = {
+  "RainbowRed",
+  "RainbowYellow",
+  "RainbowBlue",
+  "RainbowOrange",
+  "RainbowGreen",
+  "RainbowViolet",
+  "RainbowCyan",
+}
+
 return {
   {
     "lukas-reineke/indent-blankline.nvim",
     main = "ibl",
     event = "BufRead",
-    opts = {},
-    config = function()
-      local highlight = {
-        "RainbowRed",
-        "RainbowYellow",
-        "RainbowBlue",
-        "RainbowOrange",
-        "RainbowGreen",
-        "RainbowViolet",
-        "RainbowCyan",
-      }
-
+    opts = {
+      indent = { highlight = highlight },
+      scope = { enabled = true },
+    },
+    config = function(_, opts)
       local hooks = require "ibl.hooks"
       -- create the highlight groups in the highlight setup hook, so they are reset
       -- every time the colorscheme changes
@@ -28,10 +31,7 @@ return {
         vim.api.nvim_set_hl(0, "RainbowCyan", { fg = "#56B6C2" })
       end)
 
-      require("ibl").setup {
-        indent = { highlight = highlight },
-        scope = { enabled = true }
-      }
+      require("ibl").setup(opts)
     end
   },
 }
