@@ -13,6 +13,5 @@ function zenpull
   bash -c $bash_command;
     and bin/rails db:migrate;
     and bin/rails runner 'Sidekiq::Queue.all.each(&:clear)';
-    and bin/rails pufferfish:generate_filing_artifacts;
     say $notification
 end
