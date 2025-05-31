@@ -164,7 +164,6 @@ Imports your GPG keys to your local machine.
 The following list of variables store relative paths to the relevant dorfiles.
 
 - `fish_config_path`
-- `iterm2_config_path`
 - `neovim_init`
 - `gitconfig_path`
 - `pylintrc_path`

@@ -16,7 +16,7 @@ endif
 PLAYBOOK_COMMAND := ansible-playbook -l $(CURRENT_HOST) main.yml
 
 install: header
-	$(PLAYBOOK_COMMAND) --skip-tags shell,upgrade,iterm
+	$(PLAYBOOK_COMMAND) --skip-tags shell,upgrade
 
 osx: header
 	$(PLAYBOOK_COMMAND) -t osx
@@ -47,9 +47,6 @@ git: header
 
 services: header
 	$(PLAYBOOK_COMMAND) -t services
-
-iterm: header
-	$(PLAYBOOK_COMMAND) -t iterm
 
 kitty: header
 	$(PLAYBOOK_COMMAND) -t kitty

@@ -2,7 +2,6 @@
 - hosts: all
   roles:
     - osx
-    - iterm
     - kitty
     - fish
     - services

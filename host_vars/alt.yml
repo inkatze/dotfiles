@@ -8,8 +8,7 @@ homebrew_cask_applications:
   - google-cloud-sdk
   - google-chrome
   - google-drive-file-stream
-  - iterm2
-  - java11
+  - kitty
   - microsoft-office
   - notion
   - skype

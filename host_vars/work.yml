@@ -4,10 +4,9 @@ homebrew_cask_applications:
   - firefox
   - font-fantasque-sans-mono
   - font-fira-code-nerd-font
-  - iterm2
   - keycastr
+  - kitty
   - logi-options-plus
   - microsoft-office
   - notion
-  - steam
   - visual-studio-code
