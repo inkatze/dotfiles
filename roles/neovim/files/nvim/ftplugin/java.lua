@@ -1,8 +1,8 @@
 vim.opt_local.autoindent = true
 vim.opt_local.expandtab = true
-vim.opt_local.shiftwidth = 2
-vim.opt_local.tabstop = 2
-vim.opt_local.softtabstop = 2
+vim.opt_local.shiftwidth = 4
+vim.opt_local.tabstop = 4
+vim.opt_local.softtabstop = 4
 
 local base_dir = os.getenv("HOME") .. "/dev"
 local jdtls_dir = base_dir .. "/eclipse.jdt.ls/org.eclipse.jdt.ls.product/target/repository"
@@ -41,7 +41,6 @@ local config = {
     "-Declipse.application=org.eclipse.jdt.ls.core.id1",
     "-Dosgi.bundles.defaultStartLevel=4",
     "-Declipse.product=org.eclipse.jdt.ls.core.product",
-    "-Dpolyglot.ruby.options=--dap --dap-host=0.0.0.0 --dap-port=5005",
     "-Dlog.level=ALL",
     "-Xmx2G",
     "--add-modules=ALL-SYSTEM",
