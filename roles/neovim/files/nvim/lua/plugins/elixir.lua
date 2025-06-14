@@ -9,11 +9,11 @@ return {
 
     elixir.setup({
       nextls = {
-        enable = true, -- defaults to false
+        enable = true,
         on_attach = require("inkatze.lspconfig").on_attach,
       },
       credo = {
-        enable = true, -- defaults to true
+        enable = false,
         on_attach = require("inkatze.lspconfig").on_attach,
       },
       elixirls = {
