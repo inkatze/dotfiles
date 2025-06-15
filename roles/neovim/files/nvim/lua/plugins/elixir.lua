@@ -18,6 +18,7 @@ return {
       },
       elixirls = {
         enable = true,
+        format = { enabled = true },
         settings = elixirls.settings({
           dialyzerEnabled = true,
           fetchDeps = true,
