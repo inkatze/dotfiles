@@ -8,9 +8,6 @@ M.setup = function()
     capabilities = require("cmp_nvim_lsp").default_capabilities(),
     on_attach = function(client, bufnr)
       require("inkatze.lspconfig").on_attach(client, bufnr)
-      -- Lets null-ls and stylua take care of formatting
-      client.server_capabilities.document_formatting = false
-      client.server_capabilities.document_range_formatting = false
     end,
     settings = {
       Lua = {
@@ -32,6 +29,15 @@ M.setup = function()
         -- Do not send telemetry data containing a randomized but unique identifier
         telemetry = {
           enable = false,
+        },
+        format = {
+          enable = true,
+          defaultConfig = {
+            indent_style = "space",
+            indent_size = "2",
+            quote_style = "double",
+            align_line_wrapped = true,
+          },
         },
       },
     },
