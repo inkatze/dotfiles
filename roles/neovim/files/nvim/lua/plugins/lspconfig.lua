@@ -21,9 +21,9 @@ return {
     wk.add({
       { "<leader>ld",  group = "LSP diagnostics" },
       { "<leader>ldl", vim.diagnostic.setloclist, desc = "Set loc list" },
-      { "<leader>ldn", vim.diagnostic.jump({count=1, float=true}),  desc = "Jump to next diagnostic" },
+      { "<leader>ldn", function() vim.diagnostic.jump({count=1, float=true}) end,  desc = "Jump to next diagnostic" },
       { "<leader>ldo", vim.diagnostic.open_float, desc = "Opens float window with diagnostic information" },
-      { "<leader>ldp", vim.diagnostic.jump({count=-1, float=true}),  desc = "Jump to pevious diagnostic" },
+      { "<leader>ldp", function() vim.diagnostic.jump({count=-1, float=true}) end,  desc = "Jump to pevious diagnostic" },
     })
 
     require("lspkind").init({
