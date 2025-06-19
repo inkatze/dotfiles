@@ -21,6 +21,7 @@ homebrew_formulas:
   - mosh
   - nnn
   - pinentry-mac
+  - pngpaste
   - readline
   - redis
   - ripgrep
