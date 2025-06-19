@@ -39,7 +39,7 @@ return {
       { "<leader>cc",  group = "CodeCompanion" },
       { "<leader>cca", "<cmd>CodeCompanionActions<cr>",     desc = "CodeCompanion actions" },
       { "<leader>ccc", "<cmd>CodeCompanionChat Toggle<cr>", desc = "CodeCompanion chat toggle" },
-      { "<leader>cca", "<cmd>CodeCompanionChat Add<cr>",    desc = "CodeCompanion chat add selection" },
+      { "<leader>cca", "<cmd>CodeCompanionChat Add<cr>",    desc = "CodeCompanion chat add selection", mode = "v" },
     })
     require("codecompanion").setup(opts)
   end
