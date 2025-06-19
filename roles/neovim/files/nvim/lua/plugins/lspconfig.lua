@@ -4,6 +4,7 @@ return {
   dependencies = {
     "folke/which-key.nvim",
     { "onsails/lspkind.nvim", lazy = true },
+    "ray-x/lsp_signature.nvim"
   },
   build =
   "brew install lua-language-server efm-langserver",
@@ -20,9 +21,9 @@ return {
     wk.add({
       { "<leader>ld",  group = "LSP diagnostics" },
       { "<leader>ldl", vim.diagnostic.setloclist, desc = "Set loc list" },
-      { "<leader>ldn", vim.diagnostic.goto_next,  desc = "Jump to next diagnostic" },
+      { "<leader>ldn", vim.diagnostic.jump({count=1, float=true}),  desc = "Jump to next diagnostic" },
       { "<leader>ldo", vim.diagnostic.open_float, desc = "Opens float window with diagnostic information" },
-      { "<leader>ldp", vim.diagnostic.goto_prev,  desc = "Jump to pevious diagnostic" },
+      { "<leader>ldp", vim.diagnostic.jump({count=-1, float=true}),  desc = "Jump to pevious diagnostic" },
     })
 
     require("lspkind").init({
