@@ -14,6 +14,17 @@ return {
     opts = {},
   },
   {
+    "folke/lazydev.nvim",
+    ft = "lua", -- only load on lua files
+    opts = {
+      library = {
+        -- See the configuration section for more details
+        -- Load luvit types when the `vim.uv` word is found
+        { path = "${3rd}/luv/library", words = { "vim%.uv" } },
+      },
+    },
+  },
+  {
     "folke/trouble.nvim",
     event = "BufRead",
     opts = {
@@ -50,4 +61,14 @@ return {
       current_line_blame_formatter = "<author>, <author_time:%Y-%m-%d> - <summary>",
     },
   },
+  {
+    "ray-x/lsp_signature.nvim",
+    event = "InsertEnter",
+    opts = {
+      bind = true,
+      handler_opts = {
+        border = "rounded"
+      }
+    },
+  }
 }

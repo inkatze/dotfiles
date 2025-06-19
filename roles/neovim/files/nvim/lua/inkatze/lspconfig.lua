@@ -16,6 +16,13 @@ M.on_attach = function(client, bufnr)
     })
   end
 
+  require("lsp_signature").on_attach({
+    bind = true,
+    handler_opts = {
+      border = "rounded"
+    }
+  }, bufnr)
+
   local wk = require("which-key")
   wk.add({
     { "<leader>l",   buffer = 1,                                                              group = "LSP commands",      remap = false },
