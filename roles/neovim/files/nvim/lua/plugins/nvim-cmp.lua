@@ -21,8 +21,8 @@ return {
       ft = "fish",
       lazy = true
     },
-    { "onsails/lspkind.nvim", lazy = true },
-    { "MeanderingProgrammer/render-markdown.nvim", lazy = true},
+    { "onsails/lspkind.nvim",                      lazy = true },
+    { "MeanderingProgrammer/render-markdown.nvim", lazy = true },
   },
   config = function()
     local cmp = require("cmp")
@@ -91,6 +91,12 @@ return {
         { name = "cmp_git" }, -- You can specify the `cmp_git` source if you were installed it.
       }, {
         { name = "buffer" },
+      }),
+    })
+
+    cmp.setup.filetype("codecompanion", {
+      sources = cmp.config.sources({
+        { name = "codecompanion" },
       }),
     })
 
