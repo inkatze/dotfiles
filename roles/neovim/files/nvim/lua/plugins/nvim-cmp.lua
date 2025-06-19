@@ -22,6 +22,7 @@ return {
       lazy = true
     },
     { "onsails/lspkind.nvim", lazy = true },
+    { "MeanderingProgrammer/render-markdown.nvim", lazy = true},
   },
   config = function()
     local cmp = require("cmp")
@@ -75,6 +76,7 @@ return {
       }),
       sources = cmp.config.sources({
         { name = "nvim_lsp" },
+        { name = 'render-markdown' },
         { name = "vsnip" }, -- For vsnip users.
       }, {
         { name = "buffer" },
