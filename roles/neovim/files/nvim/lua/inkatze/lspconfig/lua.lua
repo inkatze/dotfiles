@@ -5,10 +5,12 @@ local runtime_path = vim.split(package.path, ";")
 M.setup = function()
   require("lspconfig").lua_ls.setup({
     filetypes = { "lua" },
-    capabilities = require("cmp_nvim_lsp").default_capabilities(),
     on_attach = function(client, bufnr)
       require("inkatze.lspconfig").on_attach(client, bufnr)
+      client.server_capabilities.documentFormattingProvider = true
+      client.server_capabilities.documentRangeFormattingProvider = true
     end,
+    capabilities = require("cmp_nvim_lsp").default_capabilities(),
     settings = {
       Lua = {
         runtime = {
