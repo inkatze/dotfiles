@@ -8,5 +8,5 @@ elixir = "1.18.4-otp-27"
 terraform = "1.12.1"
 terraform-ls = '0.36.4'
 node = "24.1.0"
-lua = "5.4.7"
+lua = "5.1.5"
 rust = "stable"
