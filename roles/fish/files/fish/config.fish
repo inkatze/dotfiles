@@ -1,4 +1,8 @@
 # Shorthands
+for abbr_name in (abbr --list)
+    abbr --erase $abbr_name
+end
+
 alias c 'z'
 alias v 'vim'
 alias vi 'nvim'
@@ -8,13 +12,14 @@ alias nvh 'nvim +checkhealth'
 alias nvi 'nvim'
 alias tmux 'tmux -2'
 alias lg 'lazygit'
-alias s 'kitten ssh'
+alias sshc 'env ANTHROPIC_API_KEY=(op read "op://Private/Anthropic API key/credential" --no-newline) kitten ssh crojtini'
+abbr -a kssh 'kitten ssh'
 
 # Rails Aliases
-alias brails '$PWD/bin/rails'
-alias bexec 'bundle exec'
-alias brspec 'bin/rspec'
-alias gfilings 'bin/rails pufferfish:generate_filing_artifacts'
+abbr -a brails 'bin/rails'
+abbr -a bexec 'bundle exec'
+abbr -a brspec 'bin/rspec'
+abbr -a gfilings 'bin/rails pufferfish:generate_filing_artifacts'
 
 if status --is-login
     # Unix and C stuff
