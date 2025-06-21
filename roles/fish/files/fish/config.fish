@@ -8,12 +8,13 @@ alias nvh 'nvim +checkhealth'
 alias nvi 'nvim'
 alias tmux 'tmux -2'
 alias lg 'lazygit'
-alias gfilings 'bin/rails pufferfish:generate_filing_artifacts'
+alias s 'kitten ssh'
 
 # Rails Aliases
 alias brails '$PWD/bin/rails'
 alias bexec 'bundle exec'
 alias brspec 'bin/rspec'
+alias gfilings 'bin/rails pufferfish:generate_filing_artifacts'
 
 if status --is-login
     # Unix and C stuff
