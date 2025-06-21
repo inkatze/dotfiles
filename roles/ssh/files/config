@@ -16,6 +16,7 @@ Host crojtini
     Hostname crojtini.local
     User inkatze
     ForwardAgent yes
+    SendEnv ANTHROPIC_API_KEY
 
 Host rfh.rsync.net
     Hostname usw-s004.rsync.net
