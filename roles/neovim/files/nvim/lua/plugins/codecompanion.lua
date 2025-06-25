@@ -34,6 +34,44 @@ When given a task:
 4. You can only give one reply for each conversation turn.
 ]]
 
+-- Helper function to check if Anthropic credentials are available
+local function has_anthropic_credentials()
+  -- Check environment variable first
+  local api_key = os.getenv("ANTHROPIC_API_KEY")
+  if api_key and api_key ~= "" then
+    return true
+  end
+
+  -- Check if 1Password CLI is available and can access the key
+  local handle = io.popen("which op >/dev/null 2>&1 && echo 'available'")
+  if handle then
+    local result = handle:read("*a")
+    handle:close()
+    if result and result:match("available") then
+      return true -- Assume 1Password will work if CLI is available
+    end
+  end
+
+  return false
+end
+
+-- Determine which adapter to use based on credential availability
+local function get_primary_adapter()
+  if has_anthropic_credentials() then
+    return "anthropic"
+  else
+    return "copilot"
+  end
+end
+
+local function get_fast_adapter()
+  if has_anthropic_credentials() then
+    return "anthropic_fast"
+  else
+    return "copilot"
+  end
+end
+
 return {
   "olimorris/codecompanion.nvim",
   dependencies = {
@@ -81,11 +119,9 @@ return {
       },
       adapters = {
         anthropic = function()
-          local api_key = os.getenv("ANTHROPIC_API_KEY")
-
           return require("codecompanion.adapters").extend("anthropic", {
             env = {
-              api_key = api_key or "cmd:op read 'op://Private/Anthropic API key/credential' --no-newline",
+              api_key = "cmd:op read 'op://Private/Anthropic API key/credential' --no-newline",
             },
             schema = {
               model = {
@@ -126,11 +162,9 @@ return {
           })
         end,
         anthropic_fast = function()
-          local api_key = os.getenv("ANTHROPIC_API_KEY")
-
           return require("codecompanion.adapters").extend("anthropic", {
             env = {
-              api_key = api_key or "cmd:op read 'op://Private/Anthropic API key/credential' --no-newline",
+              api_key = "cmd:op read 'op://Private/Anthropic API key/credential' --no-newline",
             },
             schema = {
               model = {
@@ -154,21 +188,44 @@ return {
             },
           })
         end,
+        -- Copilot fallback adapter
+        copilot = function()
+          return require("codecompanion.adapters").extend("copilot", {
+            schema = {
+              model = {
+                default = "gpt-4o",
+              },
+              max_tokens = {
+                default = 4096,
+              },
+              temperature = {
+                default = 0.2,
+              },
+            },
+          })
+        end,
       },
       strategies = {
         chat = {
-          adapter = "anthropic",
+          adapter = get_primary_adapter(),
         },
         inline = {
-          adapter = "anthropic_fast",
+          adapter = get_fast_adapter(),
         },
         cmd = {
-          adapter = "anthropic_fast",
+          adapter = get_fast_adapter(),
         }
       },
       system_prompt = function(_)
         return system_prompt
       end,
     })
+
+    -- Only notify user if there's an issue or fallback is used
+    local primary_adapter = get_primary_adapter()
+    if primary_adapter == "copilot" then
+      vim.notify("CodeCompanion: Anthropic credentials not available, using Copilot fallback", vim.log.levels.WARN)
+    end
+    -- No notification when Anthropic is working normally
   end
 }
