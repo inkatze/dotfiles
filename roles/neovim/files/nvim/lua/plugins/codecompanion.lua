@@ -89,7 +89,7 @@ return {
             },
             schema = {
               model = {
-                default = "claude-3-5-sonnet-20241022",
+                default = "claude-3-5-sonnet-latest",
               },
               max_tokens = {
                 default = 8192,
@@ -101,9 +101,16 @@ return {
                 type = "enabled",
                 ["budget_tokens"] = 12000
               },
+              betas = { "web-search-2025-03-05" },
+              tools = {
+                {
+                  name = "web_search",
+                  type = "web_search_20250305"
+                }
+              },
             },
             headers = {
-              ["anthropic-beta"] = "prompt-caching-2024-07-31,message-batches-2024-09-24",
+              ["anthropic-beta"] = "prompt-caching-2024-07-31,message-batches-2024-09-24,web-search-2025-03-05",
             },
             cache_control = {
               -- Enable caching for system messages
