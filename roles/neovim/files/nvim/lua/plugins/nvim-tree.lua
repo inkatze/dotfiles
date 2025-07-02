@@ -47,7 +47,7 @@ return {
     })
 
     require("which-key").add({
-      { "<c-n>", "<cmd>NvimTreeToggle<cr>", desc = "Toggles nvim-tree", remap = false },
+      { "<c-N>", "<cmd>NvimTreeToggle<cr>", desc = "Toggles nvim-tree", remap = false },
     })
   end,
 }
