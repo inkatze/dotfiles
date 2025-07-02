@@ -42,6 +42,7 @@ return {
     "ravitemer/mcphub.nvim",
     "folke/which-key.nvim"
   },
+  build = "mise x -- npm i -g mcp-hub@latest",
   config = function(_, _)
     local wk = require("which-key")
     wk.add({

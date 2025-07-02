@@ -100,7 +100,7 @@ return {
       "nvim-lua/plenary.nvim",
       "nvim-lualine/lualine.nvim"
     },
-    build = "npm install -g mcp-hub@latest",
+    build = "mise x -- npm i -g mcp-hub@latest",
     opts = {
       cmd = "mise",
       cmdArgs = { "exec", "node", "--", "mcp-hub" },
