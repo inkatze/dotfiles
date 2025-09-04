@@ -81,87 +81,89 @@ return {
         auto_trigger = true
       },
       adapters = {
-        anthropic = function()
-          local api_key = os.getenv("ANTHROPIC_API_KEY")
+        http = {
+          anthropic = function()
+            local api_key = os.getenv("ANTHROPIC_API_KEY")
 
-          return require("codecompanion.adapters").extend("anthropic", {
-            env = {
-              api_key = api_key or "cmd:op read 'op://Private/Anthropic API key/credential' --no-newline",
-            },
-            schema = {
-              model = {
-                default = "claude-3-5-sonnet-latest",
+            return require("codecompanion.adapters").extend("anthropic", {
+              env = {
+                api_key = api_key or "cmd:op read 'op://Private/Anthropic API key/credential' --no-newline",
               },
-              max_tokens = {
-                default = 8192,
+              schema = {
+                model = {
+                  default = "claude-3-5-sonnet-latest",
+                },
+                max_tokens = {
+                  default = 8192,
+                },
+                temperature = {
+                  default = 0.2,
+                },
+                thinking = {
+                  type = "enabled",
+                  ["budget_tokens"] = 12000
+                },
+                betas = { "web-search-2025-03-05" },
+                tools = {
+                  {
+                    name = "web_search",
+                    type = "web_search_20250305"
+                  }
+                },
               },
-              temperature = {
-                default = 0.2,
+              headers = {
+                ["anthropic-beta"] = "prompt-caching-2024-07-31,message-batches-2024-09-24,web-search-2025-03-05",
               },
-              thinking = {
-                type = "enabled",
-                ["budget_tokens"] = 12000
+              cache_control = {
+                -- Enable caching for system messages
+                system = {
+                  type = "ephemeral"
+                },
+                -- Cache large code contexts and file contents
+                user = function(message)
+                  -- Cache messages with attachments (file contents)
+                  if message.attachments and #message.attachments > 0 then
+                    return { type = "ephemeral" }
+                  end
+                  -- Cache messages over 500 characters (likely code snippets)
+                  if message.content and #message.content > 500 then
+                    return { type = "ephemeral" }
+                  end
+                  return nil
+                end,
               },
-              betas = { "web-search-2025-03-05" },
-              tools = {
-                {
-                  name = "web_search",
-                  type = "web_search_20250305"
-                }
-              },
-            },
-            headers = {
-              ["anthropic-beta"] = "prompt-caching-2024-07-31,message-batches-2024-09-24,web-search-2025-03-05",
-            },
-            cache_control = {
-              -- Enable caching for system messages
-              system = {
-                type = "ephemeral"
-              },
-              -- Cache large code contexts and file contents
-              user = function(message)
-                -- Cache messages with attachments (file contents)
-                if message.attachments and #message.attachments > 0 then
-                  return { type = "ephemeral" }
-                end
-                -- Cache messages over 500 characters (likely code snippets)
-                if message.content and #message.content > 500 then
-                  return { type = "ephemeral" }
-                end
-                return nil
-              end,
-            },
-          })
-        end,
-        anthropic_fast = function()
-          local api_key = os.getenv("ANTHROPIC_API_KEY")
+            })
+          end,
+          anthropic_fast = function()
+            local api_key = os.getenv("ANTHROPIC_API_KEY")
 
-          return require("codecompanion.adapters").extend("anthropic", {
-            env = {
-              api_key = api_key or "cmd:op read 'op://Private/Anthropic API key/credential' --no-newline",
-            },
-            schema = {
-              model = {
-                -- Claude 3 Haiku for quick, simple tasks
-                default = "claude-3-haiku-20240307",
+            return require("codecompanion.adapters").extend("anthropic", {
+              env = {
+                api_key = api_key or "cmd:op read 'op://Private/Anthropic API key/credential' --no-newline",
               },
-              max_tokens = {
-                default = 4096,
+              schema = {
+                model = {
+                  -- Claude 3 Haiku for quick, simple tasks
+                  default = "claude-3-haiku-20240307",
+                },
+                max_tokens = {
+                  default = 4096,
+                },
+                temperature = {
+                  default = 0.1,
+                },
               },
-              temperature = {
-                default = 0.1,
+              headers = {
+                ["anthropic-beta"] = "prompt-caching-2024-07-31",
               },
-            },
-            headers = {
-              ["anthropic-beta"] = "prompt-caching-2024-07-31",
-            },
-            cache_control = {
-              system = {
-                type = "ephemeral"
+              cache_control = {
+                system = {
+                  type = "ephemeral"
+                },
               },
-            },
-          })
-        end,
+            })
+          end,
+        }
       },
       strategies = {
         chat = {
