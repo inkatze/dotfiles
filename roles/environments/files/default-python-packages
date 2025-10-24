@@ -1,5 +1,6 @@
 ansible
 ansible-lint
+basedpyright
 msgpack
 neovim
 pynvim

@@ -3,6 +3,7 @@ local M = {}
 local servers = {
   "angularls",
   "bashls",
+  "basedpyright",
   "graphql",
   "jsonls",
   "pyright",
