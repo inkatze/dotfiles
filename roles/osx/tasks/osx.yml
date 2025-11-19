@@ -1,5 +1,33 @@
 ---
 
+- name: Create Claude configuration directory
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.claude"
+    state: directory
+    mode: '0755'
+  tags: [osx]
+
+- name: Symlink Claude environment documentation
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/osx/files/CLAUDE.md"
+    dest: "{{ ansible_env.HOME }}/.claude/CLAUDE.md"
+    state: link
+  tags: [osx]
+
+- name: Create Cursor rules directory
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.cursor/rules"
+    state: directory
+    mode: '0755'
+  tags: [osx]
+
+- name: Symlink Cursor MDC rules file
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/osx/files/environment.mdc"
+    dest: "{{ ansible_env.HOME }}/.cursor/rules/environment.mdc"
+    state: link
+  tags: [osx]
+
 - name: Showing Library folder
   ansible.builtin.command: chflags nohidden ~/Library
   changed_when: false
