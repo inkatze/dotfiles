@@ -10,90 +10,169 @@ jobs:
   test-static:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v1
-      - name: Installing homebrew
-        run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            pip3 install "ansible>2.8,<2.10"
-      - name: Running static checks
-        run: make deps && ansible-playbook main.yml --syntax-check
-  test-homebrew:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v1
-      - name: Installing homebrew
-        run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            pip3 install "ansible>2.9,<2.10"
-      - name: Testing homebrew tasks
-        run: make homebrew
-  test-gpg:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v1
-      - name: Installing homebrew
-        run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            pip3 install "ansible>2.9,<2.10"
-      - name: Testing gpg tasks
-        run: make gpg
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ansible
+        run: pip3 install ansible
+
+      - name: Running syntax check
+        run: ansible-playbook main.yml --syntax-check
+
   test-ssh:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v1
-      - name: Installing homebrew
-        run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            pip3 install "ansible>2.9,<2.10"
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ansible
+        run: pip3 install ansible
+
       - name: Testing ssh tasks
         run: make ssh
+
   test-dotfiles:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v1
-      - name: Installing homebrew
-        run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            pip3 install "ansible>2.9,<2.10"
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ansible
+        run: pip3 install ansible
+
       - name: Testing dotfiles tasks
         run: make dotfiles
+
   test-tmux:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v1
-      - name: Installing homebrew
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
         run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            pip3 install "ansible>2.9,<2.10"
+          pip3 install ansible
+          brew install tmux
+
       - name: Testing tmux tasks
         run: make tmux
+
   test-fish:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v1
-      - name: Installing homebrew
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
         run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            pip3 install "ansible>2.9,<2.10"
+          pip3 install ansible
+          brew install fish
+
       - name: Testing fish tasks
         run: make fish
+
+  test-git:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ansible
+        run: pip3 install ansible
+
+      - name: Testing git tasks
+        run: make git
+
+  test-neovim:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip3 install ansible
+          brew install neovim
+
+      - name: Testing neovim tasks
+        run: make neovim
+
+  test-kitty:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ansible
+        run: pip3 install ansible
+
+      - name: Testing kitty tasks
+        run: make kitty
+
   test-osx:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v1
-      - name: Installing homebrew
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
         run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            pip3 install "ansible>2.9,<2.10"
+          pip3 install ansible
+          brew install mas
+
       - name: Testing osx tasks
         run: make osx
+
   test-upgrade:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v1
-      - name: Installing homebrew
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
         run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" && \
-            pip3 install "ansible>2.9,<2.10" && brew install mas
+          pip3 install ansible
+          brew install mas
+
       - name: Testing homebrew upgrade
         run: make upgrade
