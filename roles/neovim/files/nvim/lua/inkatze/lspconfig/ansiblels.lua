@@ -1,7 +1,14 @@
 local M = {}
 
 M.setup = function()
-  require("lspconfig").ansiblels.setup({
+  local base = require("inkatze.lspconfig")
+
+  base.setup_server('ansiblels', {
+    cmd = { 'ansible-language-server', '--stdio' },
+    root_dir = function(fname)
+      return vim.fs.root(fname, { 'ansible.cfg', '.ansible-lint' })
+    end,
+    capabilities = require("cmp_nvim_lsp").default_capabilities(),
     settings = {
       ansible = {
         ansible = {
@@ -22,7 +29,7 @@ M.setup = function()
         }
       }
     }
-  })
+  }, { 'yaml.ansible' })
 end
 
 return M

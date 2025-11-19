@@ -1,7 +1,14 @@
 local M = {}
 
 M.setup = function()
-  require("lspconfig").yamlls.setup({
+  local base = require("inkatze.lspconfig")
+
+  base.setup_server('yamlls', {
+    cmd = { 'yaml-language-server', '--stdio' },
+    root_dir = function(fname)
+      return vim.fs.root(fname, { '.git' })
+    end,
+    capabilities = require("cmp_nvim_lsp").default_capabilities(),
     settings = {
       yaml = {
         format = {
@@ -9,7 +16,7 @@ M.setup = function()
         },
       },
     }
-  })
+  }, { 'yaml', 'yaml.docker-compose', 'yaml.gitlab' })
 end
 
 return M

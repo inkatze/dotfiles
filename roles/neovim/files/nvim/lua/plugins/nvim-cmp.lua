@@ -130,8 +130,8 @@ return {
           ["*"] = {
             ["("] = {
               kind = {
-                cmp.lsp.CompletionItemKind.Function,
-                cmp.lsp.CompletionItemKind.Method,
+                require('cmp.types').lsp.CompletionItemKind.Function,
+                require('cmp.types').lsp.CompletionItemKind.Method,
               },
               handler = handlers["*"],
             },

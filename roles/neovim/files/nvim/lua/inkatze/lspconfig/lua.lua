@@ -3,12 +3,14 @@ local M = {}
 local runtime_path = vim.split(package.path, ";")
 
 M.setup = function()
-  require("lspconfig").lua_ls.setup({
-    filetypes = { "lua" },
-    on_attach = function(client, bufnr)
-      require("inkatze.lspconfig").on_attach(client, bufnr)
-      client.server_capabilities.documentFormattingProvider = true
-      client.server_capabilities.documentRangeFormattingProvider = true
+  local base = require("inkatze.lspconfig")
+
+  base.setup_server('lua_ls', {
+    cmd = { 'lua-language-server' },
+    root_dir = function(fname)
+      return vim.fs.root(fname,
+        { '.luarc.json', '.luarc.jsonc', '.luacheckrc', '.stylua.toml', 'stylua.toml', 'selene.toml', 'selene.yml',
+          '.git' })
     end,
     capabilities = require("cmp_nvim_lsp").default_capabilities(),
     settings = {
@@ -43,7 +45,7 @@ M.setup = function()
         },
       },
     },
-  })
+  }, { 'lua' })
 end
 
 return M

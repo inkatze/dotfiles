@@ -1,14 +1,15 @@
 return {
-  -- neovim's lsp pre-configurations
-  "neovim/nvim-lspconfig",
+  -- LSP configuration using Neovim 0.11 native vim.lsp.config API
+  -- Note: nvim-lspconfig plugin is no longer needed in Neovim 0.11+
+  name = "lsp-native-config",
+  dir = vim.fn.stdpath("config"), -- Dummy plugin, just runs our config
   dependencies = {
     "folke/which-key.nvim",
     { "onsails/lspkind.nvim", lazy = true },
     "ray-x/lsp_signature.nvim"
   },
-  build =
-  "brew install lua-language-server efm-langserver",
-  event = "BufRead",
+  lazy = false,   -- Load at startup
+  priority = 100, -- Load early
   config = function()
     require("inkatze.lspconfig.ansiblels").setup()
     require("inkatze.lspconfig.gradle").setup()
@@ -20,13 +21,13 @@ return {
     local wk = require("which-key")
     wk.add({
       { "<leader>ld",  group = "LSP diagnostics" },
-      { "<leader>ldl", vim.diagnostic.setloclist, desc = "Set loc list" },
-      { "<leader>ldn", function() vim.diagnostic.jump({count=1, float=true}) end,  desc = "Jump to next diagnostic" },
-      { "<leader>ldo", vim.diagnostic.open_float, desc = "Opens float window with diagnostic information" },
-      { "<leader>ldp", function() vim.diagnostic.jump({count=-1, float=true}) end,  desc = "Jump to pevious diagnostic" },
+      { "<leader>ldl", vim.diagnostic.setloclist,                                        desc = "Set loc list" },
+      { "<leader>ldn", function() vim.diagnostic.jump({ count = 1, float = true }) end,  desc = "Jump to next diagnostic" },
+      { "<leader>ldo", vim.diagnostic.open_float,                                        desc = "Opens float window with diagnostic information" },
+      { "<leader>ldp", function() vim.diagnostic.jump({ count = -1, float = true }) end, desc = "Jump to pevious diagnostic" },
     })
 
-    require("lspkind").init({
+    require("lspkind").setup({
       -- defines how annotations are shown
       -- default: symbol
       -- options: 'text', 'text_symbol', 'symbol_text', 'symbol'

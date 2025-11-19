@@ -1,22 +1,34 @@
 local M = {}
 
 M.setup = function()
-  require("lspconfig").ruby_lsp.setup({
-    on_attach = require("inkatze.lspconfig").on_attach,
-    capabilities = require("cmp_nvim_lsp").default_capabilities(),
-  })
+  local base = require("inkatze.lspconfig")
 
-  require("lspconfig").sorbet.setup({
+  -- ruby_lsp configuration
+  base.setup_server('ruby_lsp', {
+    cmd = { 'ruby-lsp' },
+    root_dir = function(fname)
+      return vim.fs.root(fname, { 'Gemfile', '.git' })
+    end,
+    capabilities = require("cmp_nvim_lsp").default_capabilities(),
+  }, { 'ruby' })
+
+  -- sorbet configuration
+  base.setup_server('sorbet', {
     cmd = { "bundle", "exec", "srb", "tc", "--lsp" },
-    on_attach = require("inkatze.lspconfig").on_attach,
+    root_dir = function(fname)
+      return vim.fs.root(fname, { 'Gemfile', '.git' })
+    end,
     capabilities = require("cmp_nvim_lsp").default_capabilities(),
-  })
+  }, { 'ruby' })
 
-  require("lspconfig").rubocop.setup({
+  -- rubocop configuration
+  base.setup_server('rubocop', {
     cmd = { "bundle", "exec", "rubocop", "--lsp" },
-    on_attach = require("inkatze.lspconfig").on_attach,
+    root_dir = function(fname)
+      return vim.fs.root(fname, { '.rubocop.yml', 'Gemfile', '.git' })
+    end,
     capabilities = require("cmp_nvim_lsp").default_capabilities(),
-  })
+  }, { 'ruby' })
 end
 
 return M
