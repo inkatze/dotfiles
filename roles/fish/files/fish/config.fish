@@ -68,7 +68,7 @@ if status --is-login
     set -xg PYENV_ROOT $HOME/.pyenv
 
     # Node stuff
-    set -xg MISE_NODEJS_AUTO_ENABLE_COREPACK 1
+    set -xg MISE_NODE_COREPACK 1
 
     # Terraform stuff
     set -xg MISE_HASHICORP_SKIP_VERIFY 1
