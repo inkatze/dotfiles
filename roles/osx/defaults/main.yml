@@ -66,6 +66,7 @@ osx_mas_formulas: [mas]
 osx_mas_applications:
   - { id: "1319884285", name: Black Out }
   - { id: "975937182", name: Fantastical }
+  - { id: "442160987", name: Flycut }
   - { id: "409183694", name: Keynote }
   - { id: "1263070803", name: Lungo }
   - { id: "1289197285", name: MindNode 5 }
