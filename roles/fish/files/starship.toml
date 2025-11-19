@@ -2,6 +2,11 @@
 
 palette = "catppuccin_mocha"
 
+[aws]
+format = 'on [$symbol($profile )(\($region\) )]($style)'
+expiration_symbol = ""
+force_display = false
+
 [character]
 # Note the use of Catppuccin color 'peach'
 success_symbol = "[[󰄛](green) ❯](peach)"
