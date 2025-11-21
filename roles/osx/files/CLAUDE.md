@@ -26,6 +26,39 @@ mise current           # Show current versions
 mise install node@20   # Install specific versions
 ```
 
+### Running Mise-Managed Tools
+**IMPORTANT**: When running any mise-managed tools, always use Fish shell with mise. The following languages and tools are managed by mise:
+- **Languages**: Ruby, Python, Node.js/JavaScript, Go, Rust, Java, Elixir, Erlang
+- **Tools**: Terraform, Ansible, and other CLI tools
+
+Examples of running mise-managed tools (use `fish -c "..."` to ensure mise is available):
+```bash
+# Run Python scripts
+fish -c "python script.py"
+
+# Run Ruby scripts
+fish -c "ruby script.rb"
+
+# Run Node.js
+fish -c "node app.js"
+fish -c "npm install"
+fish -c "npm run dev"
+
+# Run Go
+fish -c "go run main.go"
+
+# Run Rust
+fish -c "cargo build"
+
+# Run Terraform
+fish -c "terraform plan"
+
+# Run Ansible
+fish -c "ansible-playbook playbook.yml"
+```
+
+All these commands will automatically use the versions specified in `.mise.toml` or `.tool-versions` files in your project directories.
+
 ### Tmux Sessions
 Tmux is available for managing terminal sessions:
 ```fish
