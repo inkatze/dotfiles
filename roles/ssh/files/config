@@ -9,7 +9,14 @@ Host *
     ControlPath ~/.ssh/sockets/master-%r@%h:%p
     ControlPersist 12h
 
-Match host * exec "test -z $SSH_TTY"
+# Use 1Password agent socket when:
+# - Not in an interactive SSH session (SSH_TTY unset)
+# - SSH_AUTH_SOCK is unset OR points to macOS keychain (com.apple.launchd)
+# - Running on macOS (Darwin)
+# - 1Password socket exists
+# This ensures we use 1Password locally (overriding macOS keychain), but respect
+# forwarded agents when SSH_AUTH_SOCK is set and doesn't point to macOS keychain
+Match host * exec "sh -c 'test -z \"$SSH_TTY\" && uname | grep -q Darwin && test -S ~/Library/Group\ Containers/2BUA8C4S2C.com.1password/t/agent.sock && (test -z \"$SSH_AUTH_SOCK\" || echo \"$SSH_AUTH_SOCK\" | grep -q \"com.apple.launchd\")'"
     IdentityAgent "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
 
 Host crojtini
