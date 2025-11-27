@@ -67,6 +67,14 @@ tmux attach -t session # Attach to session
 tmux new -s session    # Create new session
 ```
 
+## Git Commit Conventions
+
+When creating git commits:
+- Do NOT add `Co-Authored-By: Claude` or any co-author attribution
+- Do NOT add the Claude Code generation footer
+- Keep commit messages clean and conventional (type: description)
+- The user will handle GPG signing
+
 ## Important Notes
 - Fish shell uses different syntax than bash/zsh (e.g., `set` instead of `export` for variables)
 - `mise` handles all runtime version management (replaces nvm, rbenv, pyenv, etc.)
