@@ -1,6 +1,5 @@
 ---
 homebrew_cask_applications:
-  - claude-code
   - DBngin
   - firefox
   - font-fantasque-sans-mono

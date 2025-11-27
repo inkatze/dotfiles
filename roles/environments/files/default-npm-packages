@@ -1,6 +1,7 @@
 @angular/language-server
 @angular/language-service@next
 @ansible/ansible-language-server
+@anthropic-ai/claude-code
 @tailwindcss/language-server
 bash-language-server
 diagnostic-languageserver

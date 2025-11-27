@@ -42,7 +42,6 @@ homebrew_lsps:
 homebrew_cask_applications:
   - 1password
   - 1password-cli
-  - claude-code
   - cyberduck
   - dbeaver-community
   - docker
