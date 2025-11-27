@@ -1,3 +1,6 @@
+[settings]
+node_corepack = true
+
 [tools]
 ruby = '3.4.2'
 nodejs = '22.14.0'
