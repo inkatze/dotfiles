@@ -79,31 +79,6 @@ return {
     opts = {
       completions = { lsp = { enabled = true } },
     },
-    ft = { "markdown", "codecompanion" }
+    ft = { "markdown" }
   },
-  {
-    "HakonHarnes/img-clip.nvim",
-    build = "brew install pngpaste",
-    opts = {
-      filetypes = {
-        codecompanion = {
-          prompt_for_file_name = false,
-          template = "[Image]($FILE_PATH)",
-          use_absolute_path = true,
-        },
-      },
-    },
-  },
-  {
-    "ravitemer/mcphub.nvim",
-    dependencies = {
-      "nvim-lua/plenary.nvim",
-      "nvim-lualine/lualine.nvim"
-    },
-    build = "mise x -- npm i -g mcp-hub@latest",
-    opts = {
-      cmd = "mise",
-      cmdArgs = { "exec", "node", "--", "mcp-hub" },
-    }
-  }
 }

@@ -75,9 +75,10 @@ return {
         end, { "i", "s" }),
       }),
       sources = cmp.config.sources({
-        { name = "nvim_lsp" },
-        { name = 'render-markdown' },
-        { name = "vsnip" }, -- For vsnip users.
+        { name = "copilot", priority = 100 },  -- GitHub Copilot
+        { name = "nvim_lsp", priority = 80 },
+        { name = 'render-markdown', priority = 70 },
+        { name = "vsnip", priority = 60 },
       }, {
         { name = "buffer" },
       }, {
@@ -91,12 +92,6 @@ return {
         { name = "cmp_git" }, -- You can specify the `cmp_git` source if you were installed it.
       }, {
         { name = "buffer" },
-      }),
-    })
-
-    cmp.setup.filetype("codecompanion", {
-      sources = cmp.config.sources({
-        { name = "codecompanion" },
       }),
     })
 
