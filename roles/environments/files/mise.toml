@@ -1,15 +1,11 @@
-[settings]
-node_corepack = true
-
 [tools]
 ruby = '3.4.2'
-nodejs = '22.14.0'
+node = { version = "24", postinstall = "corepack enable" }
 python = "3.13.3"
 java = "microsoft-21.0.7"
 erlang = "27.3.4"
 elixir = "1.18.4-otp-27"
 terraform = "1.12.1"
 terraform-ls = '0.36.4'
-node = "24.1.0"
 lua = "5.1.5"
 rust = "stable"
