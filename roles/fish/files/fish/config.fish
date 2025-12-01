@@ -96,8 +96,7 @@ starship init fish | source
 status --is-interactive; and source $HOME/.config/op/plugins.sh
 status --is-interactive; and direnv hook fish | source
 
-status --is-interactive; and fish_add_path ~/.local/share/mise/shims
-status --is-interactive; mise activate fish --shims | source
+status --is-interactive; mise activate fish | source
 status --is-interactive; and mise completion fish > ~/.config/fish/completions/mise.fish
 
 # Fish Theme
