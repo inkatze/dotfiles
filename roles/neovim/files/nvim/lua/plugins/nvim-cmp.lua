@@ -11,6 +11,7 @@ return {
   "hrsh7th/nvim-cmp",
   dependencies = {
     { "hrsh7th/cmp-nvim-lsp", lazy = true },
+    { "hrsh7th/cmp-nvim-lsp-signature-help", lazy = true },
     { "hrsh7th/cmp-buffer",   lazy = true },
     { "hrsh7th/cmp-path",     lazy = true },
     { "hrsh7th/cmp-cmdline",  lazy = true },
@@ -77,6 +78,7 @@ return {
       sources = cmp.config.sources({
         { name = "copilot", priority = 100 },  -- GitHub Copilot
         { name = "nvim_lsp", priority = 80 },
+        { name = "nvim_lsp_signature_help", priority = 75 },  -- LSP signature help
         { name = 'render-markdown', priority = 70 },
         { name = "vsnip", priority = 60 },
       }, {

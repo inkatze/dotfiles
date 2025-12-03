@@ -25,6 +25,20 @@ vim.opt.termguicolors = true
 vim.g.mapleader = ","
 vim.g.loaded_perl_provider = 0
 
+-- Clipboard: Use OSC 52 for remote SSH sessions
+-- This allows copying to your local clipboard when SSH'd into a remote machine
+vim.g.clipboard = {
+  name = 'OSC 52',
+  copy = {
+    ['+'] = require('vim.ui.clipboard.osc52').copy('+'),
+    ['*'] = require('vim.ui.clipboard.osc52').copy('*'),
+  },
+  paste = {
+    ['+'] = require('vim.ui.clipboard.osc52').paste('+'),
+    ['*'] = require('vim.ui.clipboard.osc52').paste('*'),
+  },
+}
+
 -- Makes invisible chars visible
 vim.opt.list = true
 vim.opt.listchars:append("space:⋅,trail:󱁐,tab:⋅")

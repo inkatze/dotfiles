@@ -6,7 +6,6 @@ return {
   dependencies = {
     "folke/which-key.nvim",
     { "onsails/lspkind.nvim", lazy = true },
-    "ray-x/lsp_signature.nvim"
   },
   lazy = false,   -- Load at startup
   priority = 100, -- Load early
