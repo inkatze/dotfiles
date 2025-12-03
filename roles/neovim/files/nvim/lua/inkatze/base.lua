@@ -27,6 +27,7 @@ vim.g.loaded_perl_provider = 0
 
 -- Clipboard: Use OSC 52 for remote SSH sessions
 -- This allows copying to your local clipboard when SSH'd into a remote machine
+-- Note: OSC 52 only supports copy (not paste), so paste uses default terminal behavior
 vim.g.clipboard = {
   name = 'OSC 52',
   copy = {
@@ -34,8 +35,12 @@ vim.g.clipboard = {
     ['*'] = require('vim.ui.clipboard.osc52').copy('*'),
   },
   paste = {
-    ['+'] = require('vim.ui.clipboard.osc52').paste('+'),
-    ['*'] = require('vim.ui.clipboard.osc52').paste('*'),
+    ['+'] = function()
+      return { vim.fn.getreg(''), vim.fn.getregtype('') }
+    end,
+    ['*'] = function()
+      return { vim.fn.getreg(''), vim.fn.getregtype('') }
+    end,
   },
 }
 
