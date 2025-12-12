@@ -4,6 +4,7 @@
   ansible.builtin.command: mas upgrade
   register: mas_upgrade_status
   changed_when: "(mas_upgrade_status.stdout is defined) and ('Nothing found to upgrade' not in mas_upgrade_status.stdout)"
+  failed_when: false
   tags: [upgrade]
 
 - name: Upgrade homebrew formulas
