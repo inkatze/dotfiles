@@ -3,8 +3,8 @@ ruby = '3.4.2'
 node = { version = "24", postinstall = "corepack enable" }
 python = "3.13.3"
 java = "microsoft-21.0.7"
-erlang = "27.3.4"
-elixir = "1.18.4-otp-27"
+erlang = "28.3"
+elixir = "1.19.4-otp-28"
 terraform = "1.12.1"
 terraform-ls = '0.36.4'
 lua = "5.1.5"
