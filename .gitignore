@@ -9,3 +9,4 @@ roles/fish/files/fish/completions
 roles/fish/files/fish/conf.d
 roles/fish/files/fish/functions/_*
 roles/fish/files/fish/functions/fisher.fish
+.claude/
