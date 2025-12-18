@@ -10,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "printf '\\x1b]99;;Claude Code task completed\\x1b\\\\'"
+            "command": "kitten notify 'Claude Code' 'Task completed'"
           }
         ]
       }
