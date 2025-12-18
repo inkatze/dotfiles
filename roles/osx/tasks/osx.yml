@@ -14,11 +14,11 @@
     state: link
   tags: [osx]
 
-- name: Generate Claude settings.json
-  ansible.builtin.copy:
-    content: "{{ claude_settings | to_nice_json }}\n"
+- name: Symlink Claude settings.json
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/osx/files/claude/settings.json"
     dest: "{{ ansible_env.HOME }}/.claude/settings.json"
-    mode: '0644'
+    state: link
   tags: [osx]
 
 - name: Create Cursor rules directory

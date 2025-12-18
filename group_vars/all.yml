@@ -1,8 +1,2 @@
 ---
 current_env: personal
-
-claude_settings:
-  alwaysThinkingEnabled: true
-  attribution:
-    commit: ""
-    pr: ""
