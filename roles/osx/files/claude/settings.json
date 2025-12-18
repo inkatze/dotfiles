@@ -3,5 +3,17 @@
   "attribution": {
     "commit": "",
     "pr": ""
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '\\x1b]99;;Claude Code task completed\\x1b\\\\'"
+          }
+        ]
+      }
+    ]
   }
 }
