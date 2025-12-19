@@ -10,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "kitten notify 'Claude Code' 'Task completed'"
+            "command": "fish -c \"tnotify 'Claude Code' 'Task completed'\""
           }
         ]
       }
