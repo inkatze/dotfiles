@@ -103,6 +103,11 @@ status --is-interactive; and mise completion fish > ~/.config/fish/completions/m
 set -xg fish_greeting '¡Hoal!'
 set -xg SPACEFISH_CHAR_SUFFIX '  '
 
+# Unlock keychain for SSH sessions (for Claude Code auth)
+if status --is-interactive; and set -q SSH_CONNECTION
+    security unlock-keychain -t 28800 ~/Library/Keychains/login.keychain-db
+end
+
 # Start tnotify watcher for Claude Code notifications (only in tmux, only once)
 if status --is-interactive; and set -q TMUX
     set -l _tnotify_pid (cat ~/.cache/tnotify.pid 2>/dev/null)
