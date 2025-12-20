@@ -102,3 +102,9 @@ status --is-interactive; and mise completion fish > ~/.config/fish/completions/m
 # Fish Theme
 set -xg fish_greeting '¡Hoal!'
 set -xg SPACEFISH_CHAR_SUFFIX '  '
+
+# Start tnotify watcher for Claude Code notifications (only in tmux, only once)
+if status --is-interactive; and set -q TMUX; and not test -p ~/.cache/tnotify.fifo
+    fish -c "tnotify-watch" &>/dev/null &
+    disown
+end
