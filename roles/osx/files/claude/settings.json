@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "fish -c \"tnotify-send 'Claude Code' 'Permission needed'\""
+            "command": "msg=$(cat | jq -r '.message') && fish -c \"tnotify-send 'Claude Code' \\\"$msg\\\"\""
           }
         ]
       },

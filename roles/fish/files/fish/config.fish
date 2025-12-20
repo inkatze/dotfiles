@@ -104,7 +104,11 @@ set -xg fish_greeting '¡Hoal!'
 set -xg SPACEFISH_CHAR_SUFFIX '  '
 
 # Start tnotify watcher for Claude Code notifications (only in tmux, only once)
-if status --is-interactive; and set -q TMUX; and not test -p ~/.cache/tnotify.fifo
-    fish -c "tnotify-watch" &>/dev/null &
-    disown
+if status --is-interactive; and set -q TMUX
+    set -l _tnotify_pid (cat ~/.cache/tnotify.pid 2>/dev/null)
+    if test -z "$_tnotify_pid"; or not kill -0 "$_tnotify_pid" 2>/dev/null
+        rm -f ~/.cache/tnotify.pid
+        fish -c "tnotify-watch" &>/dev/null &
+        disown
+    end
 end
