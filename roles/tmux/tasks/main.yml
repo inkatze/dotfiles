@@ -40,18 +40,21 @@
   when: color_profiles.rc != 0
   tags: [tmux]
 
+- name: Ensure tmux server is running
+  ansible.builtin.command: tmux start-server
+  changed_when: false
+  tags: [tmux]
+
 - name: Clean tpm plugins
   ansible.builtin.command: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/clean_plugins"
   register: cleaned_plugins
   changed_when: "'Removing' in cleaned_plugins.stdout"
-  when: lookup('ansible.builtin.env', 'TMUX', default='') | trim | length > 0
   tags: [tmux]
 
 - name: Install tpm plugins
   ansible.builtin.command: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/install_plugins"
   register: installed_plugins
   changed_when: "'Installing' in installed_plugins.stdout"
-  when: lookup('ansible.builtin.env', 'TMUX', default='') | trim | length > 0
   tags: [tmux]
 
 - name: Import upgrade tasks
