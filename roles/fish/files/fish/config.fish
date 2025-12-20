@@ -99,6 +99,11 @@ status --is-interactive; and direnv hook fish | source
 status --is-interactive; mise activate fish | source
 status --is-interactive; and mise completion fish > ~/.config/fish/completions/mise.fish
 
+# Set passthrough marker for kitten ssh when inside tmux
+if set -q TMUX
+    set -gx KITTY_TMUX_PASSTHROUGH 1
+end
+
 # Fish Theme
 set -xg fish_greeting '¡Hoal!'
 set -xg SPACEFISH_CHAR_SUFFIX '  '
