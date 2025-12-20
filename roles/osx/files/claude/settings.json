@@ -13,6 +13,36 @@
           }
         ]
       }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "fish -c \"tnotify 'Claude Code' 'Permission needed'\""
+          }
+        ]
+      },
+      {
+        "matcher": "idle_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "fish -c \"tnotify 'Claude Code' 'Waiting for input'\""
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "fish -c \"tnotify 'Claude Code' 'Subagent completed'\""
+          }
+        ]
+      }
     ]
   },
   "alwaysThinkingEnabled": true,
