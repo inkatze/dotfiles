@@ -9,7 +9,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "fish -c \"tnotify 'Claude Code' 'Task completed'\""
+            "command": "fish -c \"tnotify-send 'Claude Code' 'Task completed'\""
           }
         ]
       }
@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "fish -c \"tnotify 'Claude Code' 'Permission needed'\""
+            "command": "fish -c \"tnotify-send 'Claude Code' 'Permission needed'\""
           }
         ]
       },
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "fish -c \"tnotify 'Claude Code' 'Waiting for input'\""
+            "command": "fish -c \"tnotify-send 'Claude Code' 'Waiting for input'\""
           }
         ]
       }
@@ -39,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "fish -c \"tnotify 'Claude Code' 'Subagent completed'\""
+            "command": "fish -c \"tnotify-send 'Claude Code' 'Subagent completed'\""
           }
         ]
       }
