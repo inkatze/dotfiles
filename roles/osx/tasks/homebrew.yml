@@ -4,23 +4,26 @@
   community.general.homebrew_tap:
     name: "{{ item }}"
     state: present
-  with_items: "{{ homebrew_taps }}"
+  loop: "{{ homebrew_taps }}"
   tags: [osx]
 
 - name: Installing homebrew formulas
   community.general.homebrew:
-    name: "{{ homebrew_formulas }}"
+    name: "{{ item }}"
     state: present
+  loop: "{{ homebrew_formulas }}"
   tags: [osx]
 
 - name: Installing homebrew based LSPs
   community.general.homebrew:
-    name: "{{ homebrew_lsps }}"
+    name: "{{ item }}"
     state: present
+  loop: "{{ homebrew_lsps }}"
   tags: [osx]
 
 - name: Installing cask applications
   community.general.homebrew_cask:
-    name: "{{ homebrew_cask_applications }}"
+    name: "{{ item }}"
     state: present
+  loop: "{{ homebrew_cask_applications }}"
   tags: [osx]
