@@ -40,6 +40,13 @@
   when: color_profiles.rc != 0
   tags: [tmux]
 
+- name: Ensure tmux socket directory exists
+  ansible.builtin.file:
+    path: "/private/tmp/tmux-{{ ansible_facts.user_uid }}"
+    state: directory
+    mode: "0700"
+  tags: [tmux]
+
 - name: Ensure tmux server is running
   ansible.builtin.command: tmux start-server
   changed_when: false
