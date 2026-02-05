@@ -1,1 +1,15 @@
+zurg: v1
 token: {{ op://Private/Real-Debrid/credential }}
+
+directories:
+  shows:
+    group: media
+    group_order: 10
+    filters:
+      - has_episodes: true
+  movies:
+    group: media
+    group_order: 20
+    only_show_the_biggest_file: true
+    filters:
+      - regex: /.*/
