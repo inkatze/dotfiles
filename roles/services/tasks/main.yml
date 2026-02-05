@@ -1,21 +1,8 @@
 ---
 
-- name: Install homebrew formulas
-  community.general.homebrew:
-    name: "{{ services_homebrew_formulas }}"
-    state: present
-  tags: [services]
-
 - name: Symlink my.cnf
   ansible.builtin.file:
     src: "{{ ansible_env.PWD }}/roles/services/files/my.cnf"
     dest: "{{ ansible_env.HOME }}/.my.cnf"
     state: link
   tags: [services]
-
-- name: Upgrade homebrew formulas
-  community.general.homebrew:
-    name: "{{ services_homebrew_formulas }}"
-    state: latest
-    update_homebrew: true
-  tags: [upgrade]

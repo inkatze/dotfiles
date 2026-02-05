@@ -1,21 +1,10 @@
 ---
-- name: Install environments homebrew formulas
-  community.general.homebrew:
-    name: "{{ environments_homebrew_deps }}"
-    state: present
-  tags: [environments]
 
 - name: Get fish directory
   ansible.builtin.command: brew --prefix
   register: fish_dir
   changed_when: false
-  tags: [environments]
-
-- name: Install mise environment manager
-  community.general.homebrew:
-    name: mise
-    state: present
-  tags: [environments]
+  tags: [always]
 
 - name: Symlink mise configuration file
   ansible.builtin.file:
@@ -87,24 +76,4 @@
   args:
     executable: "{{ fish_dir.stdout }}/bin/fish"
   changed_when: false
-  tags: [environments]
-
-- name: Upgrade environment homebrew formulas
-  community.general.homebrew:
-    name: "{{ environments_homebrew_deps }}"
-    state: latest
-    update_homebrew: true
-  tags: [upgrade]
-
-- name: Upgrade mise environment manager
-  community.general.homebrew:
-    name: mise
-    state: latest
-  tags: [upgrade]
-
-- name: Reshim mise tools
-  ansible.builtin.shell: mise reshim
-  args:
-    executable: "{{ fish_dir.stdout }}/bin/fish"
-  changed_when: false
-  tags: [upgrade]
+  tags: [environments, upgrade]

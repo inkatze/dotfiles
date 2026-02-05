@@ -4,20 +4,7 @@
   ansible.builtin.command: brew --prefix
   register: fish_dir
   changed_when: false
-  tags: [fish]
-
-  # We need this duplication, otherwise it will get excluded due to these tags
-- name: Get fish directory
-  ansible.builtin.command: brew --prefix
-  register: fish_dir
-  changed_when: false
-  tags: [upgrade, shell]
-
-- name: Install fish formulas
-  community.general.homebrew:
-    name: "{{ fish_formulas }}"
-    state: present
-  tags: [fish]
+  tags: [always]
 
 - name: Create fish configuration directory
   ansible.builtin.file:
@@ -79,10 +66,3 @@
 - name: Import tasks to add fish to shells
   ansible.builtin.include_tasks: shell.yml
   tags: [shell]
-
-- name: Upgrade fish formulas
-  community.general.homebrew:
-    name: "{{ fish_formulas }}"
-    state: latest
-    update_homebrew: true
-  tags: [upgrade]

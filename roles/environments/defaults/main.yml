@@ -1,10 +1,5 @@
 ---
 
-environments_homebrew_deps:
-  - ruby-build
-  - libsodium # work project related
-  - watchman # sorbet dep
-
 environments_mise_tools:
   - { name: nodejs, defaults: default-npm-packages }
   - { name: ruby, defaults: default-gems }

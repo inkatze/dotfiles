@@ -52,4 +52,4 @@ run = "./scripts/playbook.sh -t fish,shell -K"
 
 [tasks.default]
 description = "Install and upgrade everything"
-depends = ["install", "upgrade"]
+run = "mise run install && mise run upgrade"

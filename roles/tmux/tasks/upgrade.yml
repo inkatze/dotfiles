@@ -12,10 +12,3 @@
   changed_when: false
   when: lookup('ansible.builtin.env', 'TMUX', default='') | trim | length > 0
   tags: [upgrade]
-
-- name: Upgrade tmux formulas
-  community.general.homebrew:
-    name: "{{ tmux_formulas }}"
-    state: latest
-    update_homebrew: true
-  tags: [upgrade]

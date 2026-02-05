@@ -1,0 +1,9 @@
+# Alt machine casks
+cask "adobe-creative-cloud"
+cask "google-chrome"
+cask "gcloud-cli"
+cask "google-drive-file-stream"
+cask "skype"
+cask "spotify"
+cask "sublime-text"
+cask "sublime-text2"

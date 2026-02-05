@@ -1,11 +1,5 @@
 ---
 
-- name: Install tmux formulas
-  community.general.homebrew:
-    name: "{{ tmux_formulas }}"
-    state: present
-  tags: [tmux]
-
 - name: Installing tmux Plugin Manager
   ansible.builtin.git:
     repo: https://github.com/tmux-plugins/tpm

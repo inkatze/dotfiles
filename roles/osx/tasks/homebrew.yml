@@ -1,26 +1,13 @@
 ---
 
-- name: Adding additional taps
-  community.general.homebrew_tap:
-    name: "{{ item }}"
-    state: present
-  with_items: "{{ homebrew_taps }}"
+- name: Install common packages from Brewfile
+  ansible.builtin.command: brew bundle --file={{ ansible_env.PWD }}/Brewfile
+  register: brew_bundle_common
+  changed_when: "'Installing' in brew_bundle_common.stdout"
   tags: [osx]
 
-- name: Installing homebrew formulas
-  community.general.homebrew:
-    name: "{{ homebrew_formulas }}"
-    state: present
-  tags: [osx]
-
-- name: Installing homebrew based LSPs
-  community.general.homebrew:
-    name: "{{ homebrew_lsps }}"
-    state: present
-  tags: [osx]
-
-- name: Installing cask applications
-  community.general.homebrew_cask:
-    name: "{{ homebrew_cask_applications }}"
-    state: present
+- name: Install host-specific packages from Brewfile
+  ansible.builtin.command: brew bundle --file={{ ansible_env.PWD }}/Brewfile.{{ inventory_hostname }}
+  register: brew_bundle_host
+  changed_when: "'Installing' in brew_bundle_host.stdout"
   tags: [osx]

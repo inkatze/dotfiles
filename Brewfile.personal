@@ -1,0 +1,13 @@
+# Personal machine casks
+cask "cyberduck"
+cask "dbeaver-community"
+cask "docker-desktop"
+cask "google-chrome"
+cask "gcloud-cli"
+cask "openemu@experimental"
+cask "plex"
+cask "plex-media-player"
+cask "plex-media-server"
+cask "steam"
+cask "transmission"
+cask "zoom"

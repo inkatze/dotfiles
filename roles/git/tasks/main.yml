@@ -1,11 +1,5 @@
 ---
 
-- name: Install git homebrew formulas
-  community.general.homebrew:
-    name: "{{ git_homebrew_formulas }}"
-    state: present
-  tags: [git]
-
 - name: Symlink gitconfig
   ansible.builtin.file:
     src: "{{ ansible_env.PWD }}/roles/git/files/gitconfig"
@@ -19,10 +13,3 @@
     dest: "{{ ansible_env.HOME }}/.gitignore"
     state: link
   tags: [git]
-
-- name: Upgrade git homebrew formulas
-  community.general.homebrew:
-    name: "{{ git_homebrew_formulas }}"
-    state: latest
-    update_homebrew: true
-  tags: [upgrade]

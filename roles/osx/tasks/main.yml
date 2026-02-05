@@ -4,12 +4,8 @@
   ansible.builtin.include_tasks: osx.yml
   tags: [osx]
 
-- name: Import hombrew tasks
+- name: Import homebrew tasks
   ansible.builtin.include_tasks: homebrew.yml
-  tags: [osx]
-
-- name: Import MAS tasks
-  ansible.builtin.include_tasks: mas.yml
   tags: [osx]
 
 - name: Import upgrade tasks

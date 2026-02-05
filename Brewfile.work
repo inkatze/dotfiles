@@ -1,0 +1,3 @@
+# Work machine casks
+cask "DBngin"
+cask "visual-studio-code"
