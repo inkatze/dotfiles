@@ -23,6 +23,20 @@
   when: inventory_hostname == 'personal'
   tags: [services, stremio]
 
+- name: Generate zurg config from 1Password
+  ansible.builtin.shell:
+    cmd: op inject -f -i "{{ ansible_env.PWD }}/roles/services/files/stremio/zurg-config.yml" -o "{{ ansible_env.HOME }}/.config/stremio-server/zurg-config.yml"
+  when: inventory_hostname == 'personal'
+  changed_when: true
+  tags: [services, stremio]
+
+- name: Set zurg config permissions
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.config/stremio-server/zurg-config.yml"
+    mode: "0600"
+  when: inventory_hostname == 'personal'
+  tags: [services, stremio]
+
 - name: Start colima service
   ansible.builtin.command:
     cmd: brew services start colima

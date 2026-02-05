@@ -13,5 +13,16 @@ services:
       - stremio-data:/root/.stremio-server
     restart: unless-stopped
 
+  zurg:
+    image: ghcr.io/debridmediamanager/zurg-testing:latest
+    container_name: zurg
+    ports:
+      - "9999:9999"
+    volumes:
+      - ./zurg-config.yml:/app/config.yml
+      - zurg-data:/app/data
+    restart: unless-stopped
+
 volumes:
   stremio-data:
+  zurg-data:
