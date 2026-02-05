@@ -55,7 +55,7 @@ osx_defaults:
   - domain: com.apple.menuextra.battery
     key: ShowPercent
     type: string
-    value: YES
+    value: "YES"
 
   # Section: I/O ->>2
   # -------------------------------------------------------------------------

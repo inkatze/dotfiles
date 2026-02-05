@@ -1,5 +1,6 @@
 ---
-- hosts: all
+- name: Configure development environment
+  hosts: all
   roles:
     - osx
     - kitty

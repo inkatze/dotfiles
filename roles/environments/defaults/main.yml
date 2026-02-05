@@ -1,11 +1,11 @@
 ---
 
 environments_mise_tools:
-  - { name: nodejs, defaults: default-npm-packages }
-  - { name: ruby, defaults: default-gems }
-  - { name: java }
-  - { name: python, defaults: default-python-packages }
-  - { name: erlang }
-  - { name: elixir, defaults: default-mix-commands }
-  - { name: terraform }
-  - { name: terraform-ls }
+  - {name: nodejs, defaults: default-npm-packages}
+  - {name: ruby, defaults: default-gems}
+  - {name: java}
+  - {name: python, defaults: default-python-packages}
+  - {name: erlang}
+  - {name: elixir, defaults: default-mix-commands}
+  - {name: terraform}
+  - {name: terraform-ls}

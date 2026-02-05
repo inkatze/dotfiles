@@ -14,10 +14,6 @@ run = "./scripts/playbook.sh -t osx"
 description = "Configure SSH"
 run = "./scripts/playbook.sh -t ssh"
 
-[tasks.dotfiles]
-description = "Install dotfiles"
-run = "./scripts/playbook.sh -t dotfiles"
-
 [tasks.tmux]
 description = "Configure tmux"
 run = "./scripts/playbook.sh -t tmux"

@@ -25,7 +25,10 @@
 
 - name: Generate zurg config from 1Password
   ansible.builtin.shell:
-    cmd: op inject -f -i "{{ ansible_env.PWD }}/roles/services/files/stremio/zurg-config.yml" -o "{{ ansible_env.HOME }}/.config/stremio-server/zurg-config.yml"
+    cmd: >-
+      op inject -f
+      -i "{{ ansible_env.PWD }}/roles/services/files/stremio/zurg-config.yml"
+      -o "{{ ansible_env.HOME }}/.config/stremio-server/zurg-config.yml"
   when: inventory_hostname == 'personal'
   changed_when: true
   tags: [services, stremio]

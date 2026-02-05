@@ -17,19 +17,21 @@
   tags: [tmux]
 
 - name: Ensuring color profile is installed
-  ansible.builtin.command: infocmp -x tmux-256color
+  ansible.builtin.command:
+    cmd: infocmp -x tmux-256color
   register: color_profiles
   changed_when: false
   failed_when: false
   tags: [tmux]
 
 - name: Installing color profile
-  ansible.builtin.shell: >
-    cd /tmp &&\
-      curl -LO https://invisible-island.net/datafiles/current/terminfo.src.gz &&\
-      gunzip terminfo.src.gz &&\
-      /usr/bin/tic -xe tmux-256color terminfo.src &&\
-      rm -rf terminfo.src*
+  ansible.builtin.shell:
+    cmd: >
+      cd /tmp &&\
+        curl -LO https://invisible-island.net/datafiles/current/terminfo.src.gz &&\
+        gunzip terminfo.src.gz &&\
+        /usr/bin/tic -xe tmux-256color terminfo.src &&\
+        rm -rf terminfo.src*
   changed_when: color_profiles.rc != 0
   when: color_profiles.rc != 0
   tags: [tmux]
@@ -42,18 +44,21 @@
   tags: [tmux]
 
 - name: Ensure tmux server is running
-  ansible.builtin.command: tmux start-server
+  ansible.builtin.command:
+    cmd: tmux start-server
   changed_when: false
   tags: [tmux]
 
 - name: Clean tpm plugins
-  ansible.builtin.command: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/clean_plugins"
+  ansible.builtin.command:
+    cmd: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/clean_plugins"
   register: cleaned_plugins
   changed_when: "'Removing' in cleaned_plugins.stdout"
   tags: [tmux]
 
 - name: Install tpm plugins
-  ansible.builtin.command: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/install_plugins"
+  ansible.builtin.command:
+    cmd: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/install_plugins"
   register: installed_plugins
   changed_when: "'Installing' in installed_plugins.stdout"
   tags: [tmux]

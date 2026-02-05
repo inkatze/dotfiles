@@ -22,26 +22,31 @@
   tags: [neovim]
 
 - name: Restore neovim plugins
-  ansible.builtin.command: nvim --headless '+Lazy! restore' +qa
+  ansible.builtin.command:
+    cmd: nvim --headless '+Lazy! restore' +qa
   changed_when: false
   tags: [neovim]
 
 - name: Install neovim plugins
-  ansible.builtin.command: nvim --headless '+Lazy! install' +qa
+  ansible.builtin.command:
+    cmd: nvim --headless '+Lazy! install' +qa
   changed_when: false
   tags: [neovim]
 
 - name: Install treesitter modules
-  ansible.builtin.command: nvim --headless '+TSInstallSync all' +qa
+  ansible.builtin.command:
+    cmd: nvim --headless '+TSInstallSync all' +qa
   changed_when: false
   tags: [neovim]
 
 - name: Upgrade neovim plugins
-  ansible.builtin.command: nvim --headless '+Lazy! sync' +qa
+  ansible.builtin.command:
+    cmd: nvim --headless '+Lazy! sync' +qa
   changed_when: false
   tags: [upgrade]
 
 - name: Upgrade treesitter modules
-  ansible.builtin.command: nvim --headless '+TSUpdateSync all' +qa
+  ansible.builtin.command:
+    cmd: nvim --headless '+TSUpdateSync all' +qa
   changed_when: false
   tags: [upgrade]

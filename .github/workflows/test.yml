@@ -6,8 +6,12 @@ on:
   push:
     branches: [main]
 
+env:
+  HOMEBREW_NO_AUTO_UPDATE: 1
+  HOMEBREW_BUNDLE_MAS_SKIP: 1
+
 jobs:
-  test-static:
+  lint:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,14 +21,53 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Ansible
-        run: pip3 install ansible
+      - name: Install linting tools
+        run: pip3 install ansible ansible-lint yamllint
 
-      - name: Running syntax check
+      - name: Run yamllint
+        run: yamllint .
+
+      - name: Run ansible-lint
+        run: ansible-lint
+
+      - name: Run syntax check
         run: ansible-playbook main.yml --syntax-check
 
-  test-ssh:
+  test:
+    needs: lint
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - role: ssh
+            brew_deps: ""
+            strict_idempotency: true
+          - role: git
+            brew_deps: ""
+            strict_idempotency: true
+          - role: kitty
+            brew_deps: ""
+            strict_idempotency: true
+          - role: tmux
+            brew_deps: tmux
+            strict_idempotency: false
+          - role: fish
+            brew_deps: fish
+            strict_idempotency: false
+          - role: neovim
+            brew_deps: ""
+            strict_idempotency: false
+          - role: osx
+            brew_deps: mas
+            strict_idempotency: false
+          - role: environments
+            brew_deps: "fish gpg"
+            strict_idempotency: false
+          - role: upgrade
+            brew_deps: "mas fish tmux"
+            strict_idempotency: false
+    name: test (${{ matrix.role }})
     steps:
       - uses: actions/checkout@v4
 
@@ -36,143 +79,31 @@ jobs:
       - name: Install Ansible
         run: pip3 install ansible
 
-      - name: Testing ssh tasks
-        run: make ssh
-
-  test-dotfiles:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Ansible
-        run: pip3 install ansible
-
-      - name: Testing dotfiles tasks
-        run: make dotfiles
-
-  test-tmux:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
+      - name: Install mise
         run: |
-          pip3 install ansible
-          brew install tmux
+          curl https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Testing tmux tasks
-        run: make tmux
+      - name: Install brew dependencies
+        if: matrix.brew_deps != ''
+        run: brew install ${{ matrix.brew_deps }}
 
-  test-fish:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
+      - name: Ensure /usr/local/bin exists
+        run: sudo mkdir -p /usr/local/bin && sudo chown "$USER" /usr/local/bin
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - name: Run ${{ matrix.role }} tasks
+        run: mise run ${{ matrix.role }}
 
-      - name: Install dependencies
+      - name: Idempotency check
         run: |
-          pip3 install ansible
-          brew install fish
-
-      - name: Testing fish tasks
-        run: make fish
-
-  test-git:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Ansible
-        run: pip3 install ansible
-
-      - name: Testing git tasks
-        run: make git
-
-  test-neovim:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          pip3 install ansible
-          brew install neovim
-
-      - name: Testing neovim tasks
-        run: make neovim
-
-  test-kitty:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Ansible
-        run: pip3 install ansible
-
-      - name: Testing kitty tasks
-        run: make kitty
-
-  test-osx:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          pip3 install ansible
-          brew install mas
-
-      - name: Testing osx tasks
-        run: make osx
-
-  test-upgrade:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          pip3 install ansible
-          brew install mas
-
-      - name: Testing homebrew upgrade
-        run: make upgrade
+          OUTPUT=$(mise run ${{ matrix.role }} 2>&1)
+          echo "$OUTPUT"
+          CHANGED=$(echo "$OUTPUT" | grep -o 'changed=[0-9]*' | grep -v 'changed=0' || true)
+          if [ -n "$CHANGED" ]; then
+            if [ "${{ matrix.strict_idempotency }}" = "true" ]; then
+              echo "::error::Idempotency failure: $CHANGED"
+              exit 1
+            else
+              echo "::warning::Non-idempotent tasks detected: $CHANGED"
+            fi
+          fi

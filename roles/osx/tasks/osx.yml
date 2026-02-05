@@ -1,12 +1,14 @@
 ---
 
 - name: Install Claude Code CLI
-  ansible.builtin.shell: curl -fsSL https://claude.ai/install.sh | bash
+  ansible.builtin.shell:
+    cmd: set -o pipefail && curl -fsSL https://claude.ai/install.sh | bash
   changed_when: false
   tags: [osx]
 
 - name: Update Claude Code CLI
-  ansible.builtin.command: "{{ ansible_env.HOME }}/.local/bin/claude update"
+  ansible.builtin.command:
+    cmd: "{{ ansible_env.HOME }}/.local/bin/claude update"
   changed_when: false
   tags: [osx, update]
 
@@ -46,7 +48,8 @@
   tags: [osx]
 
 - name: Showing Library folder
-  ansible.builtin.command: chflags nohidden ~/Library
+  ansible.builtin.command:
+    cmd: chflags nohidden ~/Library
   changed_when: false
   tags: [osx]
 
