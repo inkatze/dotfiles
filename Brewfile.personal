@@ -1,7 +1,11 @@
+# Container runtime (managed via brew services)
+brew "colima"
+brew "docker"
+brew "docker-compose"
+
 # Personal machine casks
 cask "cyberduck"
 cask "dbeaver-community"
-cask "docker-desktop"
 cask "google-chrome"
 cask "gcloud-cli"
 cask "openemu@experimental"

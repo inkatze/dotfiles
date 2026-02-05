@@ -6,3 +6,47 @@
     dest: "{{ ansible_env.HOME }}/.my.cnf"
     state: link
   tags: [services]
+
+- name: Create stremio config directory
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.config/stremio-server"
+    state: directory
+    mode: "0755"
+  when: inventory_hostname == 'personal'
+  tags: [services, stremio]
+
+- name: Symlink stremio docker-compose.yml
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/services/files/stremio/docker-compose.yml"
+    dest: "{{ ansible_env.HOME }}/.config/stremio-server/docker-compose.yml"
+    state: link
+  when: inventory_hostname == 'personal'
+  tags: [services, stremio]
+
+- name: Start colima service
+  ansible.builtin.command:
+    cmd: brew services start colima
+  register: colima_result
+  changed_when: "'Successfully started' in colima_result.stdout"
+  failed_when: false
+  when: inventory_hostname == 'personal'
+  tags: [services, stremio]
+
+- name: Wait for colima to be ready
+  ansible.builtin.command:
+    cmd: colima status
+  register: colima_status
+  until: colima_status.rc == 0
+  retries: 30
+  delay: 2
+  when: inventory_hostname == 'personal'
+  tags: [services, stremio]
+
+- name: Start stremio server
+  ansible.builtin.command:
+    cmd: docker compose up -d
+    chdir: "{{ ansible_env.HOME }}/.config/stremio-server"
+  register: stremio_result
+  changed_when: "'Started' in stremio_result.stdout or 'Creating' in stremio_result.stdout"
+  when: inventory_hostname == 'personal'
+  tags: [services, stremio]

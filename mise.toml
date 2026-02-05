@@ -42,6 +42,10 @@ run = "./scripts/playbook.sh -t git"
 description = "Install database services"
 run = "./scripts/playbook.sh -t services"
 
+[tasks.stremio]
+description = "Setup and start Stremio media server"
+run = "./scripts/playbook.sh -t stremio"
+
 [tasks.kitty]
 description = "Configure kitty terminal"
 run = "./scripts/playbook.sh -t kitty"
