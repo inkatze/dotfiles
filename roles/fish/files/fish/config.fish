@@ -80,6 +80,7 @@ if status --is-login
     fish_add_path $GOROOT/bin
     fish_add_path $CARGO_BIN
     fish_add_path $POSTGRES_BIN
+    fish_add_path $HOME/.local/bin
     fish_add_path /usr/local/bin
     fish_add_path -m $OPENSSL_PATH/bin
     fish_add_path -a (brew --prefix)/bin

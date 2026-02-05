@@ -1,5 +1,15 @@
 ---
 
+- name: Install Claude Code CLI
+  ansible.builtin.shell: curl -fsSL https://claude.ai/install.sh | bash
+  changed_when: false
+  tags: [osx]
+
+- name: Update Claude Code CLI
+  ansible.builtin.command: "{{ ansible_env.HOME }}/.local/bin/claude update"
+  changed_when: false
+  tags: [osx, update]
+
 - name: Create Claude configuration directory
   ansible.builtin.file:
     path: "{{ ansible_env.HOME }}/.claude"
