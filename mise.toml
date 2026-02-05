@@ -1,0 +1,55 @@
+[tasks.install]
+description = "Install everything (skip shell and upgrade)"
+run = "./scripts/playbook.sh --skip-tags shell,upgrade"
+
+[tasks.upgrade]
+description = "Upgrade all packages and plugins"
+run = "./scripts/playbook.sh -t upgrade"
+
+[tasks.osx]
+description = "Run OSX configuration"
+run = "./scripts/playbook.sh -t osx"
+
+[tasks.ssh]
+description = "Configure SSH"
+run = "./scripts/playbook.sh -t ssh"
+
+[tasks.dotfiles]
+description = "Install dotfiles"
+run = "./scripts/playbook.sh -t dotfiles"
+
+[tasks.tmux]
+description = "Configure tmux"
+run = "./scripts/playbook.sh -t tmux"
+
+[tasks.fish]
+description = "Configure fish shell"
+run = "./scripts/playbook.sh -t fish"
+
+[tasks.neovim]
+description = "Configure neovim"
+run = "./scripts/playbook.sh -t neovim"
+
+[tasks.environments]
+description = "Install language runtimes via mise"
+run = "./scripts/playbook.sh -t environments"
+
+[tasks.git]
+description = "Configure git"
+run = "./scripts/playbook.sh -t git"
+
+[tasks.services]
+description = "Install database services"
+run = "./scripts/playbook.sh -t services"
+
+[tasks.kitty]
+description = "Configure kitty terminal"
+run = "./scripts/playbook.sh -t kitty"
+
+[tasks.shell]
+description = "Change default shell (requires sudo)"
+run = "./scripts/playbook.sh -t fish,shell -K"
+
+[tasks.default]
+description = "Install and upgrade everything"
+depends = ["install", "upgrade"]
