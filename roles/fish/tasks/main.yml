@@ -35,7 +35,7 @@
   ansible.builtin.shell:
     cmd: fisher list
     executable: "{{ fish_dir.stdout }}/bin/fish"
-  register: fisherman_plugins
+  register: fish_fisherman_plugins
   changed_when: false
   failed_when: false
   when: fish_plugins | length > 0
@@ -46,7 +46,7 @@
     cmd: fisher install {{ item }}
     executable: "{{ fish_dir.stdout }}/bin/fish"
   with_items: "{{ fish_plugins }}"
-  when: "fish_plugins | list and item not in fisherman_plugins.stdout"
+  when: "fish_plugins | list and item not in fish_fisherman_plugins.stdout"
   changed_when: true  # It updates the plugin every time this runs
   tags: [fish]
 

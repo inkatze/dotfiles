@@ -8,21 +8,21 @@
 - name: Upgrade common packages from Brewfile
   ansible.builtin.command:
     cmd: brew bundle --file={{ ansible_env.PWD }}/Brewfile
-  register: brew_bundle_common
-  changed_when: "'Installing' in brew_bundle_common.stdout or 'Upgrading' in brew_bundle_common.stdout"
+  register: osx_brew_bundle_common
+  changed_when: "'Installing' in osx_brew_bundle_common.stdout or 'Upgrading' in osx_brew_bundle_common.stdout"
   tags: [upgrade]
 
 - name: Upgrade host-specific packages from Brewfile
   ansible.builtin.command:
     cmd: brew bundle --file={{ ansible_env.PWD }}/Brewfile.{{ inventory_hostname }}
-  register: brew_bundle_host
-  changed_when: "'Installing' in brew_bundle_host.stdout or 'Upgrading' in brew_bundle_host.stdout"
+  register: osx_brew_bundle_host
+  changed_when: "'Installing' in osx_brew_bundle_host.stdout or 'Upgrading' in osx_brew_bundle_host.stdout"
   tags: [upgrade]
 
 - name: Upgrade MAS apps
   ansible.builtin.command:
     cmd: mas upgrade
-  register: mas_upgrade_status
-  changed_when: "'Nothing found to upgrade' not in mas_upgrade_status.stdout"
+  register: osx_mas_upgrade_status
+  changed_when: "'Nothing found to upgrade' not in osx_mas_upgrade_status.stdout"
   failed_when: false
   tags: [upgrade]

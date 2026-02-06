@@ -3,7 +3,7 @@
 - name: Get fish directory
   ansible.builtin.command:
     cmd: brew --prefix
-  register: fish_dir
+  register: environments_fish_dir
   changed_when: false
   tags: [always]
 
@@ -17,7 +17,7 @@
 - name: Trust mise's config file
   ansible.builtin.shell:
     cmd: mise trust
-    executable: "{{ fish_dir.stdout }}/bin/fish"
+    executable: "{{ environments_fish_dir.stdout }}/bin/fish"
   changed_when: false
   tags: [environments]
 
@@ -33,9 +33,9 @@
 - name: Install mise plugins
   ansible.builtin.shell:
     cmd: mise plugins install {{ item.name }} {{ item.plugin }}
-    executable: "{{ fish_dir.stdout }}/bin/fish"
-  register: mise_installation_result
-  changed_when: "'already installed' not in mise_installation_result.stdout"
+    executable: "{{ environments_fish_dir.stdout }}/bin/fish"
+  register: environments_mise_installation_result
+  changed_when: "'already installed' not in environments_mise_installation_result.stdout"
   with_items: "{{ environments_mise_tools }}"
   when: item.plugin is defined
   tags: [environments]
@@ -55,17 +55,17 @@
       gpg --keyserver hkps://keys.openpgp.org --recv-keys 108F52B48DB57BB0CC439B2997B01419BD92F80A
       gpg --keyserver hkps://keys.openpgp.org --recv-keys A363A499291CBBC940DD62E41F10027AF002F8B0
       gpg --keyserver hkps://keys.openpgp.org --recv-keys 86C8D74642E67846F8E120284DAA80D1E737BC9F
-  register: gpg_import_result
-  changed_when: "'imported' in gpg_import_result.stderr"
+  register: environments_gpg_import_result
+  changed_when: "'imported' in environments_gpg_import_result.stderr"
   failed_when: false
   tags: [environments]
 
 - name: Install default tool versions
   ansible.builtin.shell:
     cmd: mise install {{ item.name }}
-    executable: "{{ fish_dir.stdout }}/bin/fish"
-  register: mise_installation_result
-  changed_when: "'already installed' not in mise_installation_result.stdout"
+    executable: "{{ environments_fish_dir.stdout }}/bin/fish"
+  register: environments_mise_installation_result
+  changed_when: "'already installed' not in environments_mise_installation_result.stdout"
   with_items: "{{ environments_mise_tools }}"
   tags: [environments]
 
@@ -76,6 +76,6 @@
 - name: Reshim mise tools
   ansible.builtin.shell:
     cmd: mise reshim
-    executable: "{{ fish_dir.stdout }}/bin/fish"
+    executable: "{{ environments_fish_dir.stdout }}/bin/fish"
   changed_when: false
   tags: [environments, upgrade]

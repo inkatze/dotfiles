@@ -43,8 +43,8 @@
 - name: Start colima service
   ansible.builtin.command:
     cmd: brew services start colima
-  register: colima_result
-  changed_when: "'Successfully started' in colima_result.stdout"
+  register: services_colima_result
+  changed_when: "'Successfully started' in services_colima_result.stdout"
   failed_when: false
   when: inventory_hostname == 'personal'
   tags: [services, stremio]
@@ -52,8 +52,8 @@
 - name: Wait for colima to be ready
   ansible.builtin.command:
     cmd: colima status
-  register: colima_status
-  until: colima_status.rc == 0
+  register: services_colima_status
+  until: services_colima_status.rc == 0
   retries: 30
   delay: 2
   when: inventory_hostname == 'personal'
@@ -63,7 +63,7 @@
   ansible.builtin.command:
     cmd: docker compose up -d
     chdir: "{{ ansible_env.HOME }}/.config/stremio-server"
-  register: stremio_result
-  changed_when: "'Started' in stremio_result.stdout or 'Creating' in stremio_result.stdout"
+  register: services_stremio_result
+  changed_when: "'Started' in services_stremio_result.stdout or 'Creating' in services_stremio_result.stdout"
   when: inventory_hostname == 'personal'
   tags: [services, stremio]

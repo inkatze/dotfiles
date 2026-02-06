@@ -3,8 +3,8 @@
 - name: Clean tpm plugins
   ansible.builtin.command:
     cmd: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/clean_plugins"
-  register: cleaned_plugins
-  changed_when: "'Removing' in cleaned_plugins.stdout"
+  register: tmux_cleaned_plugins
+  changed_when: "'Removing' in tmux_cleaned_plugins.stdout"
   when: lookup('ansible.builtin.env', 'TMUX', default='') | trim | length > 0
   tags: [upgrade]
 
