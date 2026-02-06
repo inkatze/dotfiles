@@ -1,0 +1,12 @@
+pre-commit:
+  parallel: true
+  commands:
+    yamllint:
+      glob: "*.{yml,yaml}"
+      run: yamllint .
+    ansible-lint:
+      glob: "*.{yml,yaml}"
+      run: ansible-lint
+    syntax-check:
+      glob: "*.{yml,yaml}"
+      run: ansible-playbook main.yml --syntax-check

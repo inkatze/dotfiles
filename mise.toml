@@ -1,3 +1,18 @@
+[tools]
+lefthook = "latest"
+
+[tasks.lint]
+description = "Run all linters (yamllint, ansible-lint, syntax-check)"
+run = """
+yamllint .
+ansible-lint
+ansible-playbook main.yml --syntax-check
+"""
+
+[tasks."hooks:install"]
+description = "Install lefthook git hooks"
+run = "lefthook install"
+
 [tasks.install]
 description = "Install everything (skip shell and upgrade)"
 run = "./scripts/playbook.sh --skip-tags shell,upgrade"
@@ -52,4 +67,4 @@ run = "./scripts/playbook.sh -t fish,shell -K"
 
 [tasks.default]
 description = "Install and upgrade everything"
-run = "mise run install && mise run upgrade"
+run = "mise run install && mise run upgrade && mise run hooks:install"
