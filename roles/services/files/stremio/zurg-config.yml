@@ -1,5 +1,5 @@
 zurg: v1
-token: {{ op://Private/Real-Debrid/credential }}
+token: {{ op://Dotfiles Service Account/Real-debrid/credential }}
 
 directories:
   shows:

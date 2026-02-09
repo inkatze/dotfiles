@@ -23,14 +23,91 @@
   when: inventory_hostname == 'personal'
   tags: [services, stremio]
 
+- name: Check if keychain is unlocked
+  ansible.builtin.command:
+    cmd: security show-keychain-info {{ ansible_env.HOME }}/Library/Keychains/login.keychain-db
+  register: services_keychain_check
+  failed_when: false
+  changed_when: false
+  when: inventory_hostname == 'personal'
+  tags: [services, stremio]
+
+- name: Prompt for keychain password
+  ansible.builtin.pause:
+    prompt: "Enter keychain password to unlock login keychain"
+    echo: false
+  register: services_keychain_password
+  no_log: true
+  when:
+    - inventory_hostname == 'personal'
+    - services_keychain_check.rc != 0
+  tags: [services, stremio]
+
+- name: Unlock login keychain
+  ansible.builtin.command:
+    cmd: >-
+      security unlock-keychain
+      -p {{ services_keychain_password.user_input }}
+      {{ ansible_env.HOME }}/Library/Keychains/login.keychain-db
+  no_log: true
+  when:
+    - inventory_hostname == 'personal'
+    - services_keychain_check.rc != 0
+  tags: [services, stremio]
+
+- name: Check for 1Password service account token in keychain
+  ansible.builtin.command:
+    cmd: security find-generic-password -a op-service-account -s OP_SERVICE_ACCOUNT_TOKEN -w
+  register: services_op_token
+  failed_when: false
+  changed_when: false
+  no_log: true
+  when: inventory_hostname == 'personal'
+  tags: [services, stremio]
+
+- name: Prompt for 1Password service account token
+  ansible.builtin.pause:
+    prompt: "Enter 1Password service account token (one-time setup)"
+    echo: false
+  register: services_op_token_input
+  no_log: true
+  when:
+    - inventory_hostname == 'personal'
+    - services_op_token.rc != 0
+  tags: [services, stremio]
+
+- name: Store 1Password service account token in keychain
+  ansible.builtin.command:
+    cmd: >-
+      security add-generic-password
+      -a op-service-account
+      -s OP_SERVICE_ACCOUNT_TOKEN
+      -w "{{ services_op_token_input.user_input }}"
+  no_log: true
+  when:
+    - inventory_hostname == 'personal'
+    - services_op_token.rc != 0
+  tags: [services, stremio]
+
+- name: Read 1Password service account token from keychain
+  ansible.builtin.command:
+    cmd: security find-generic-password -a op-service-account -s OP_SERVICE_ACCOUNT_TOKEN -w
+  register: services_op_token
+  no_log: true
+  when: inventory_hostname == 'personal'
+  tags: [services, stremio]
+
 - name: Generate zurg config from 1Password
-  ansible.builtin.shell:
+  ansible.builtin.command:
     cmd: >-
       op inject -f
       -i "{{ ansible_env.PWD }}/roles/services/files/stremio/zurg-config.yml"
       -o "{{ ansible_env.HOME }}/.config/stremio-server/zurg-config.yml"
+  environment:
+    OP_SERVICE_ACCOUNT_TOKEN: "{{ services_op_token.stdout }}"
   when: inventory_hostname == 'personal'
   changed_when: true
+  no_log: true
   tags: [services, stremio]
 
 - name: Set zurg config permissions
