@@ -25,4 +25,5 @@
   register: osx_mas_upgrade_status
   changed_when: "'Nothing found to upgrade' not in osx_mas_upgrade_status.stdout"
   failed_when: false
+  when: lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [upgrade]

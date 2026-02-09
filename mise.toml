@@ -1,5 +1,5 @@
 [tools]
-lefthook = "latest"
+lefthook = "2.0.4"
 
 [tasks.lint]
 description = "Run all linters (yamllint, ansible-lint, syntax-check)"
