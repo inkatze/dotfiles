@@ -9,7 +9,7 @@ on:
 env:
   HOMEBREW_NO_AUTO_UPDATE: 1
   HOMEBREW_BUNDLE_MAS_SKIP: 1
-  GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   lint:

@@ -104,9 +104,14 @@ status --is-interactive; and mise completion fish > ~/.config/fish/completions/m
 set -xg fish_greeting '¡Hoal!'
 set -xg SPACEFISH_CHAR_SUFFIX '  '
 
-# Unlock keychain for SSH sessions (for Claude Code auth)
+# Stabilize SSH_AUTH_SOCK for tmux sessions via a fixed symlink.
+# When reconnecting SSH, the new socket is symlinked to a stable path so
+# existing tmux panes don't get a stale SSH_AUTH_SOCK.
 if status --is-interactive; and set -q SSH_CONNECTION
-    security unlock-keychain ~/Library/Keychains/login.keychain-db
+    if test -S "$SSH_AUTH_SOCK"; and not string match -q '*/.ssh/auth_sock' "$SSH_AUTH_SOCK"
+        ln -sf "$SSH_AUTH_SOCK" ~/.ssh/auth_sock
+    end
+    set -gx SSH_AUTH_SOCK ~/.ssh/auth_sock
 end
 
 # Start tnotify watcher for Claude Code notifications (only in tmux, only once)
