@@ -5,6 +5,7 @@
     src: "{{ ansible_env.PWD }}/roles/git/files/gitconfig"
     dest: "{{ ansible_env.HOME }}/.gitconfig"
     state: link
+    force: true
   tags: [git]
 
 - name: Symlink gitignore
@@ -12,4 +13,5 @@
     src: "{{ ansible_env.PWD }}/roles/git/files/gitignore"
     dest: "{{ ansible_env.HOME }}/.gitignore"
     state: link
+    force: true
   tags: [git]

@@ -11,6 +11,7 @@
     src: "{{ ansible_env.PWD }}/roles/ssh/files/config"
     dest: "{{ ansible_env.HOME }}/.ssh/config"
     state: link
+    force: true
     mode: "0600"
   tags: [ssh]
 
@@ -19,5 +20,6 @@
     src: "{{ ansible_env.PWD }}/roles/ssh/files/known_hosts"
     dest: "{{ ansible_env.HOME }}/.ssh/known_hosts"
     state: link
+    force: true
     mode: "0600"
   tags: [ssh]
