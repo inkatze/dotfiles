@@ -28,6 +28,7 @@ brew "gh"
 brew "lazygit"
 
 # Development dependencies
+brew "mkcert"
 brew "libxslt"
 brew "llvm"
 brew "wxwidgets"
