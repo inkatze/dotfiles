@@ -79,6 +79,14 @@ When pushing:
 - MUST always specify the remote and branch explicitly: `git push origin branch-name`
 - Never use bare `git push` without arguments
 
+## Code & PR Reviews
+
+When reviewing code, features, or addressing PR feedback:
+- When presenting findings or acting on feedback, go through items **one by one** interactively
+- Analysing everything upfront is fine
+- For each item: present it, discuss it, and wait for the user's decision before moving to the next
+- This applies to: PR review comments, code review findings, feature review feedback, and any similar review workflow
+
 ## Important Notes
 - Fish shell uses different syntax than bash/zsh (e.g., `set` instead of `export` for variables)
 - `mise` handles all runtime version management (replaces nvm, rbenv, pyenv, etc.)
