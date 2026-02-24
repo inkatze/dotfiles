@@ -79,6 +79,13 @@ When pushing:
 - MUST always specify the remote and branch explicitly: `git push origin branch-name`
 - Never use bare `git push` without arguments
 
+## Plan Mode & Implementation
+
+Plans are written with limited context and the codebase may have changed since. When transitioning from a plan to implementation:
+- **Plans are directional, not prescriptive**: Treat plans as a guide for intent and scope, not as step-by-step instructions to follow blindly
+- **Verify before acting**: Always read the actual code before making changes — don't assume the plan's description of file contents, function signatures, or structure is accurate
+- **Adapt to reality**: If the code doesn't match what the plan expected, adjust your approach to fit the actual state of the codebase rather than forcing the plan's assumptions
+
 ## Code & PR Reviews
 
 When reviewing code, features, or addressing PR feedback:
