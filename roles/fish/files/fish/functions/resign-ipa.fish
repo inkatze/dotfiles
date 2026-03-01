@@ -1,9 +1,26 @@
 function resign-ipa -d "Re-sign an IPA with a provisioning profile and developer identity"
+    # Prerequisites (one-time Xcode setup):
+    # 1. Pair your device (e.g., Apple TV) with Xcode:
+    #    - Apple TV: Settings → Remotes and Devices → Remote App and Devices
+    #    - Xcode: Window → Devices and Simulators — verify device appears
+    # 2. Create a dummy Xcode project (e.g., tvOS app) with the desired bundle ID
+    #    (e.g., com.inkatze.stremio). Free accounts can't use existing App Store bundle IDs.
+    # 3. Set your team in Signing & Capabilities (click project → target → Signing & Capabilities)
+    # 4. Select the device as destination and build (Cmd+R) to generate a provisioning profile
+    # 5. After that, this function can re-sign IPAs using the generated profile.
+    #    Free developer accounts expire after 7 days, so re-run this when the app stops launching.
+
     argparse 'h/help' 'b/bundle-id=' 'p/profile=' 'i/identity=' 'o/output=' -- $argv
     or return 1
 
     if set -q _flag_help; or test (count $argv) -eq 0
         echo "Usage: resign-ipa [options] <path-to-ipa>"
+        echo ""
+        echo "Prerequisites (one-time Xcode setup):"
+        echo "  1. Pair device with Xcode (Window → Devices and Simulators)"
+        echo "  2. Create a dummy Xcode project with the desired bundle ID"
+        echo "  3. Set your team in Signing & Capabilities"
+        echo "  4. Build to the device (Cmd+R) to generate a provisioning profile"
         echo ""
         echo "Options:"
         echo "  -b, --bundle-id  Bundle ID to use (default: com.inkatze.stremio)"
