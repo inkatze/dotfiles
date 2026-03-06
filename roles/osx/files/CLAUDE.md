@@ -89,10 +89,12 @@ Plans are written with limited context and the codebase may have changed since. 
 ## Code & PR Reviews
 
 When reviewing code, features, or addressing PR feedback:
-- When presenting findings or acting on feedback, go through items **one by one** interactively
-- Analysing everything upfront is fine
-- For each item: present it, discuss it, and wait for the user's decision before moving to the next
-- This applies to: PR review comments, code review findings, feature review feedback, and any similar review workflow
+- **Verify issues are real**: Before reporting an issue, confirm it by reading the relevant code and running tests/linters if applicable. Do not report speculative or hypothetical issues — only confirmed ones.
+- **Present all issues first**: After analysis, present the complete list of confirmed issues as a numbered summary with brief descriptions.
+- **Let the user choose the workflow**: Ask whether they want to review items one by one or discuss the list as a whole (e.g., re-prioritize, dismiss items, group them). Do not assume they want all items addressed at once.
+- **Progress tracking**: When going one by one, always show a progress tracker (e.g., `[2/7]`) so the current position and total count are always visible.
+- For each item in one-by-one mode: present it, discuss it, and wait for the user's decision before moving to the next.
+- This applies to: PR review comments, code review findings, feature review feedback, and any similar review workflow.
 
 ## Important Notes
 - Fish shell uses different syntax than bash/zsh (e.g., `set` instead of `export` for variables)
