@@ -136,11 +136,45 @@
   when: inventory_hostname == 'personal'
   tags: [services, stremio]
 
+- name: Symlink stremio watchdog script
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/services/files/stremio/stremio-watchdog.sh"
+    dest: "{{ ansible_env.HOME }}/.config/stremio-server/stremio-watchdog.sh"
+    state: link
+  when: inventory_hostname == 'personal'
+  tags: [services, stremio]
+
+- name: Make stremio watchdog script executable
+  ansible.builtin.file:
+    path: "{{ ansible_env.PWD }}/roles/services/files/stremio/stremio-watchdog.sh"
+    mode: "0755"
+  when: inventory_hostname == 'personal'
+  tags: [services, stremio]
+
+- name: Template stremio watchdog launchd plist
+  ansible.builtin.template:
+    src: "{{ ansible_env.PWD }}/roles/services/templates/com.inkatze.stremio-watchdog.plist.j2"
+    dest: "{{ ansible_env.HOME }}/Library/LaunchAgents/com.inkatze.stremio-watchdog.plist"
+    mode: "0644"
+  when: inventory_hostname == 'personal'
+  tags: [services, stremio]
+
 - name: Start stremio server
   ansible.builtin.command:
     cmd: docker compose up -d
     chdir: "{{ ansible_env.HOME }}/.config/stremio-server"
   register: services_stremio_result
   changed_when: "'Started' in services_stremio_result.stdout or 'Creating' in services_stremio_result.stdout"
+  when: inventory_hostname == 'personal'
+  tags: [services, stremio]
+
+- name: Bootstrap and enable stremio watchdog launchd agent
+  ansible.builtin.command:
+    cmd: >-
+      launchctl bootstrap gui/{{ ansible_user_uid }}
+      {{ ansible_env.HOME }}/Library/LaunchAgents/com.inkatze.stremio-watchdog.plist
+  register: services_watchdog_bootstrap
+  failed_when: services_watchdog_bootstrap.rc != 0 and services_watchdog_bootstrap.rc != 37
+  changed_when: services_watchdog_bootstrap.rc == 0
   when: inventory_hostname == 'personal'
   tags: [services, stremio]

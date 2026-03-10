@@ -9,6 +9,14 @@ services:
     volumes:
       - stremio-data:/root/.stremio-server
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://[::1]:11470"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "autoheal=true"
 
   zurg:
     image: ghcr.io/debridmediamanager/zurg-testing:latest
@@ -18,6 +26,16 @@ services:
       - ./zurg-config.yml:/app/config.yml
       - zurg-data:/app/data
     restart: unless-stopped
+
+  autoheal:
+    image: willfarrell/autoheal
+    container_name: autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: "autoheal"
+      AUTOHEAL_INTERVAL: 60
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   stremio-data:
