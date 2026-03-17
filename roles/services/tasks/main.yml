@@ -174,7 +174,7 @@
       launchctl bootstrap gui/{{ ansible_user_uid }}
       {{ ansible_env.HOME }}/Library/LaunchAgents/com.inkatze.stremio-watchdog.plist
   register: services_watchdog_bootstrap
-  failed_when: services_watchdog_bootstrap.rc != 0 and services_watchdog_bootstrap.rc != 37
+  failed_when: services_watchdog_bootstrap.rc not in [0, 5, 37]
   changed_when: services_watchdog_bootstrap.rc == 0
   when: inventory_hostname == 'personal'
   tags: [services, stremio]
