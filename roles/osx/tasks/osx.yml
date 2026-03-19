@@ -33,6 +33,13 @@
     state: link
   tags: [osx]
 
+- name: Symlink Claude custom commands
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/osx/files/claude/commands"
+    dest: "{{ ansible_env.HOME }}/.claude/commands"
+    state: link
+  tags: [osx]
+
 - name: Create Cursor rules directory
   ansible.builtin.file:
     path: "{{ ansible_env.HOME }}/.cursor/rules"

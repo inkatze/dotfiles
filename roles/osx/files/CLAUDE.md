@@ -96,6 +96,16 @@ When reviewing code, features, or addressing PR feedback:
 - For each item in one-by-one mode: present it, discuss it, and wait for the user's decision before moving to the next.
 - This applies to: PR review comments, code review findings, feature review feedback, and any similar review workflow.
 
+### Review Workflows
+There are three distinct review workflows, each with a corresponding slash command:
+
+1. **Self-review** (`/self-review`): Comprehensive code review of the feature branch against main. Review, validate for false positives, iterate until clean, then push and create a draft PR.
+2. **Copilot review** (`/copilot-review`): Address unresolved GitHub Copilot review threads on the current PR. Fetch threads via GraphQL, validate each one (emphasis on catching false positives), address valid items, then comment and resolve threads via GraphQL.
+3. **Peer review** (`/peer-review`): Address unresolved peer review threads on the current PR. Same validation process as Copilot review, but responses must sound natural, human, and match the user's communication style.
+
+## Writing Style
+- Avoid em-dashes in prose unless strictly necessary. Use commas, parentheses, colons, or separate sentences instead.
+
 ## Important Notes
 - Fish shell uses different syntax than bash/zsh (e.g., `set` instead of `export` for variables)
 - `mise` handles all runtime version management (replaces nvm, rbenv, pyenv, etc.)
