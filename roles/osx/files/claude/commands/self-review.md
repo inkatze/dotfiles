@@ -22,9 +22,19 @@ Do a comprehensive code review of the current feature branch.
 
 5. Follow the standard review workflow (let me choose: all at once or one by one, with progress tracking).
 
-6. After all items are addressed, commit the changes.
+6. **Documentation check**: Before committing, verify that all documentation affected by the changes is up to date. For each changed file, consider whether any of the following need updates:
+   - **Docstrings and inline docs**: Functions, classes, or modules whose behavior or signature changed
+   - **READMEs**: Project-level or directory-level READMEs that describe affected features, setup steps, or usage
+   - **Requirements and design docs**: Specs, RFCs, ADRs, or similar documents that describe the changed behavior
+   - **Task and planning files**: TODOs, changelogs, or roadmap files that reference the changed functionality
+   - **Configuration docs**: If config options, environment variables, or CLI flags were added, removed, or changed
+   - **Any other prose in the repo** that references the changed code or behavior
 
-7. If the review found nothing substantive (or after addressing everything), offer to push and create a draft PR. Before creating it, check for PR templates and conventions:
+   Search the repo for references to changed function names, feature names, or concepts to catch docs that live in unexpected places. Include documentation issues in the review findings alongside code issues.
+
+7. After all items are addressed, commit the changes.
+
+8. If the review found nothing substantive (or after addressing everything), offer to push and create a draft PR. Before creating it, check for PR templates and conventions:
 
    **Check for templates:**
    - Look for `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, or templates in `.github/PULL_REQUEST_TEMPLATE/`
