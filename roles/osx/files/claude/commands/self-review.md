@@ -24,10 +24,22 @@ Do a comprehensive code review of the current feature branch.
 
 6. After all items are addressed, commit the changes.
 
-7. If the review found nothing substantive (or after addressing everything), offer to push and create a draft PR:
-   ```
-   gh pr create --draft --fill
-   ```
+7. If the review found nothing substantive (or after addressing everything), offer to push and create a draft PR. Before creating it, check for PR templates and conventions:
+
+   **Check for templates:**
+   - Look for `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, or templates in `.github/PULL_REQUEST_TEMPLATE/`
+   - If a template exists, use it as the structure for the PR body, filling in the sections based on the branch changes
+
+   **Check for conventions:**
+   - If no template exists, look at recent merged PRs for patterns:
+     ```
+     gh pr list --state merged --limit 5 --json title,body
+     ```
+   - If a clear pattern emerges (e.g., consistent sections, formatting), follow it
+
+   **Create the PR:**
+   - If a template or convention was found, use `gh pr create --draft` with a `--title` and `--body` that follows the discovered format
+   - If nothing was found, fall back to `gh pr create --draft --fill`
 
 ## Maintenance
 
