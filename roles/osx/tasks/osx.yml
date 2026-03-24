@@ -26,10 +26,10 @@
     state: link
   tags: [osx]
 
-- name: Symlink Claude settings.json
+- name: Symlink Claude settings.local.json
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/osx/files/claude/settings.json"
-    dest: "{{ ansible_env.HOME }}/.claude/settings.json"
+    src: "{{ ansible_env.PWD }}/roles/osx/files/claude/settings.local.json"
+    dest: "{{ ansible_env.HOME }}/.claude/settings.local.json"
     state: link
   tags: [osx]
 
