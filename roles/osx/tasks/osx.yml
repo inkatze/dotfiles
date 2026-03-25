@@ -26,11 +26,23 @@
     state: link
   tags: [osx]
 
-- name: Symlink Claude settings.local.json
-  ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/osx/files/claude/settings.local.json"
-    dest: "{{ ansible_env.HOME }}/.claude/settings.local.json"
-    state: link
+- name: Ensure Claude settings.json contains managed settings
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      file="{{ ansible_env.HOME }}/.claude/settings.json"
+      managed="{{ ansible_env.PWD }}/roles/osx/files/claude/settings.json"
+      [ ! -f "$file" ] && echo '{}' > "$file"
+      current=$(cat "$file")
+      updated=$(jq -s '.[0] * .[1]' "$file" "$managed")
+      if [ "$current" = "$updated" ]; then
+        echo "OK"
+      else
+        echo "$updated" > "$file"
+        echo "CHANGED"
+      fi
+  register: claude_settings
+  changed_when: "'CHANGED' in claude_settings.stdout"
   tags: [osx]
 
 - name: Symlink Claude custom commands
