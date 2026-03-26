@@ -67,6 +67,8 @@ After all items are addressed, commit the changes and push.
 
 ### 7. Reply to and resolve each thread
 
+**Important:** Always use multi-line query strings for GraphQL mutations. Single-line strings cause the shell to eat `$` in variable names like `$threadId`.
+
 For each thread, run both mutations in sequence:
 
 **Reply to the thread** (use the thread `id` from step 2, not the comment id):
