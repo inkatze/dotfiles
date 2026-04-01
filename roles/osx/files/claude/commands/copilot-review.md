@@ -9,7 +9,11 @@ gh pr view --json number -q '.number'
 gh repo view --json owner,name -q '.owner.login + " " + .name'
 ```
 
-### 2. Fetch unresolved review threads
+### 2. (Optional) Fetch Jira ticket for context
+
+Extract a Jira ticket key from the branch name or PR title. If a key is found, fetch the ticket using the Jira MCP tools (`getJiraIssue`) and note the description and acceptance criteria. Use this context when validating threads (e.g., a concern might be out of scope per the AC, or a missing check might be required by the AC). If no key is found or Jira tools are unavailable, skip this step.
+
+### 3. Fetch unresolved review threads
 
 Use this exact GraphQL query (substitute the owner, repo, and number values):
 
@@ -41,7 +45,7 @@ gh api graphql -f query='
 ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
 ```
 
-### 3. Validate each unresolved thread
+### 4. Validate each unresolved thread
 
 Filter to only unresolved threads (`isResolved: false`). For each one:
 
@@ -50,30 +54,33 @@ Filter to only unresolved threads (`isResolved: false`). For each one:
 - **Validate thoroughly**: Determine if the concern is legitimate by checking the real code. Copilot often produces false positives.
 - Classify as: **valid** (needs a fix), **false positive**, or **low-confidence**
 
-### 4. Present the validated list
+### 5. Present the validated list
 
 Show all threads with their classifications. Emphasize false positives so I can see what was caught. Include the thread ID for each item.
 
-### 5. Address items
+### 6. Address items
 
 Follow the standard review workflow (let me choose: all at once or one by one, with progress tracking).
 
 For false positives: prepare a brief dismissal comment.
 For valid items: fix the code and prepare a comment explaining the change.
 
-### 6. Commit and push
+### 7. Commit and push
 
 After all items are addressed, commit the changes and push.
 
-### 7. Reply to and resolve each thread
+### 8. Reply to and resolve each thread
 
-**Important:** Always use multi-line query strings for GraphQL mutations. Single-line strings cause the shell to eat `$` in variable names like `$threadId`.
+**Shell quoting rules:**
+- Always use multi-line query strings for GraphQL mutations. Single-line strings cause the shell to eat `$` in variable names like `$threadId`.
+- Always write the response body to a temp file and use `-F body=@file` to pass it. This avoids fish shell interpreting backticks in the body as command substitution.
 
 For each thread, run both mutations in sequence:
 
-**Reply to the thread** (use the thread `id` from step 2, not the comment id):
+**Reply to the thread** (use the thread `id` from step 3, not the comment id):
 
 ```bash
+printf '%s' 'RESPONSE_BODY' > /tmp/gh-review-comment.txt
 gh api graphql -f query='
   mutation($threadId: ID!, $body: String!) {
     addPullRequestReviewThreadReply(input: {
@@ -83,7 +90,7 @@ gh api graphql -f query='
       comment { id }
     }
   }
-' -f threadId='THREAD_ID' -f body='RESPONSE_BODY'
+' -f threadId='THREAD_ID' -F body=@/tmp/gh-review-comment.txt
 ```
 
 **Resolve the thread:**
