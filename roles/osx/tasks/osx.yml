@@ -41,8 +41,8 @@
         echo "$updated" > "$file"
         echo "CHANGED"
       fi
-  register: claude_settings
-  changed_when: "'CHANGED' in claude_settings.stdout"
+  register: osx_claude_settings
+  changed_when: "'CHANGED' in osx_claude_settings.stdout"
   tags: [osx]
 
 - name: Symlink Claude custom commands
