@@ -2,8 +2,7 @@
 
 ## File location and tracking
 
-- The system shall provide a `CLAUDE.md` file at the root of the dotfiles repo
-  (`/Users/inkatze/dev/dotfiles/CLAUDE.md`).
+- The system shall provide a `CLAUDE.md` file at the root of the dotfiles repo.
 - The file shall be tracked in git.
 - The file shall **not** be symlinked into `~/.claude/`. It is repo-scoped context,
   not global Claude config.
@@ -28,8 +27,8 @@
 
 ## Required content
 
-The file shall contain, at minimum, the following sections (omit any that turn out
-to have nothing non-obvious to say):
+The file should include the following sections when they satisfy the scope gate and
+have something non-obvious to say; sections that do not may be omitted:
 
 - **What this repo is.** One paragraph identifying the repo as personal dotfiles,
   Ansible-managed, source of truth for `~/.claude/*`, `~/.config/fish/*`, tmux,

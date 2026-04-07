@@ -27,7 +27,7 @@ a `specs/README.md` index can be added then.
 ## Context
 
 Source: improvement-plan item #11, originally framed as "dotfiles project memory"
-(an entry under `~/.claude/projects/-Users-inkatze-dev-dotfiles/memory/`). Wave B of
+(an entry in the Claude per-project memory directory for this repo). Wave B of
 the analysis surfaced no evidence for the original framing — hot-file re-reads were
 project source in tecpan/paycalc, not dotfiles config — and the global
 `~/.claude/CLAUDE.md` "What NOT to save in memory" rules forbid what-memory about
@@ -40,7 +40,7 @@ not run afoul of memory rules.
 
 ## Mechanism: repo-root CLAUDE.md, not memory
 
-The file lives at `/Users/inkatze/dev/dotfiles/CLAUDE.md`, tracked in git, and is
+The file lives at `CLAUDE.md` in the dotfiles repo root, tracked in git, and is
 **not** symlinked into `~/.claude/`. It is about *this repo*, not about the global
 Claude config. Claude Code auto-loads it whenever a session is started with cwd inside
 this repo, which is the only mechanism needed — no Ansible task, no symlink, no

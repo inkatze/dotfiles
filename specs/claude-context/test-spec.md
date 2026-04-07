@@ -7,7 +7,7 @@ fresh-session smoke test plus structural spot checks against the requirements.
 
 ### Auto-load
 
-- A fresh Claude session launched with `cwd = /Users/inkatze/dev/dotfiles` shows the
+- A fresh Claude session launched with cwd at the dotfiles repo root shows the
   new `CLAUDE.md` in its loaded context. The system reminder at session start cites
   the file path.
 - Sessions launched with cwd outside the dotfiles repo do **not** load the file
@@ -46,9 +46,10 @@ not meaningful while this spec is in Wave C / plan-only state.
 
 ### Memory hygiene
 
-- No new file is created under
-  `~/.claude/projects/-Users-inkatze-dev-dotfiles/memory/` as part of this work.
-- The existing `project_improvement_plan.md` memory entry is unchanged.
+- No new file is created in the Claude per-project memory directory for this repo
+  as part of this work.
+- The existing `project_improvement_plan.md` memory entry in that directory is
+  unchanged.
 
 ## Out of scope
 
