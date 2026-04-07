@@ -20,7 +20,7 @@
 ## Scope gate
 
 - Each fact in the file shall satisfy all three of:
-  1. Non-obvious from a quick `ls` or `cat .mise.toml` in the repo root.
+  1. Non-obvious from a quick `ls` or `cat mise.toml` in the repo root.
   2. Not already covered by global `~/.claude/CLAUDE.md`.
   3. Would change how Claude acts when working in this repo.
 - Facts that fail any leg of the test shall be excluded.
@@ -37,7 +37,9 @@ have something non-obvious to say; sections that do not may be omitted:
 - **How Claude config is materialized.** The non-obvious fact that files under
   `roles/osx/files/claude/` are the tracked source of truth and Ansible symlinks
   them into `~/.claude/`. Editing the symlink target directly is wrong; edit the
-  tracked source file. Applies equally to commands, skills, and hooks.
+  tracked source file. Today this covers `commands/` and `settings.json`; adding
+  new surfaces (skills, hooks) requires creating the tracked directory and a
+  matching symlink task in `roles/osx/tasks/osx.yml`.
 - **Permissions three-layer model.** A compact restatement of #8's decision:
   global `~/.claude/settings.json` (tracked via this repo) for durable cross-project
   allows plus the deny list; per-repo tracked `.claude/settings.json` for
@@ -45,10 +47,11 @@ have something non-obvious to say; sections that do not may be omitted:
   ephemeral, short, nukeable rules. Note that for the dotfiles repo itself, the
   tracked `.claude/settings.json` (created in #8) holds dotfiles-specific durable
   rules and the local file should stay near-empty.
-- **Adding a new Claude command, skill, or hook.** The path and propagation:
-  drop the file under `roles/osx/files/claude/{commands,skills,hooks}/`, commit,
-  let the Ansible symlink task pick it up, verify in a fresh session. Note that
-  `SKILL.md` and command front-matter are required for discovery.
+- **Adding a new Claude command.** The path and propagation: drop the file under
+  `roles/osx/files/claude/commands/`, commit, let the Ansible symlink task pick
+  it up, verify in a fresh session. Command front-matter is required for
+  discovery. Adding skills or hooks is out of scope for this section until those
+  surfaces are managed by Ansible (new tracked directory plus symlink task).
 - **Things to NOT edit directly in `~/.claude/`.** Anything symlinked from this
   repo. If in doubt, `readlink` the file first.
 - **Ansible role layout pointer.** A single-line hint that `roles/osx/` is the Mac

@@ -50,7 +50,7 @@ memory entry.
 
 A fact qualifies for inclusion only if it satisfies **all three** of:
 
-1. Non-obvious from a quick `ls` or `cat .mise.toml` in the repo root.
+1. Non-obvious from a quick `ls` or `cat mise.toml` in the repo root.
 2. Not already covered by global `~/.claude/CLAUDE.md`.
 3. Would change how Claude acts when working in this repo.
 
