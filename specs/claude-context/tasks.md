@@ -20,9 +20,9 @@ Target 60–120 lines. Sections, in order:
    `.claude/settings.json` (tracked, created in #8) holds dotfiles-specific durable
    rules; `.claude/settings.local.json` should stay near-empty.
 4. **Adding a new Claude command / skill / hook** — drop the file under
-   `roles/osx/files/claude/{commands,skills,hooks}/`, commit, let the Ansible
-   symlink task pick it up, verify in a fresh session. Front-matter / `SKILL.md`
-   required for discovery.
+   `roles/osx/files/claude/{commands,skills,hooks}/`, commit, run Ansible (or
+   let the symlink task pick it up on its next run), verify in a fresh session.
+   Front-matter / `SKILL.md` required for discovery.
 5. **Things to NOT edit directly in `~/.claude/`** — anything symlinked from this
    repo. If in doubt, `readlink` first.
 6. **Ansible role layout pointer** — one line: `roles/osx/` is the Mac role; most

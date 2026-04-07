@@ -38,7 +38,7 @@ fresh-session smoke test plus structural spot checks against the requirements.
 ### Git diff hygiene
 
 - The implementation commit touches only the new `CLAUDE.md` (and, for the spec
-  itself, only the files under `specs/dotfiles-claude-md/`). No stray edits to
+  itself, only the files under `specs/claude-context/`). No stray edits to
   unrelated config, roles, or settings files.
 
 ### Memory hygiene

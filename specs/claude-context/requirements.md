@@ -68,6 +68,12 @@ The file shall **not** contain:
 - A "Git conventions specific to this repo" section unless conventions actually
   diverge from the global rules. Omit rather than pad.
 
+## Files modified
+
+- No files outside the new `CLAUDE.md` (and this spec directory) shall be modified
+  as part of this work. The existing global `~/.claude/CLAUDE.md` is not touched;
+  there is no duplication.
+
 ## Memory system
 
 - No new memory file shall be created as part of this work.
