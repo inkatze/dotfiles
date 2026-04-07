@@ -20,13 +20,9 @@ a `specs/README.md` index can be added then.
   this item. This spec captures the resolved plan; the actual repo-root `CLAUDE.md`
   has not been written.
 - **Decisions resolved:** 2026-04-07.
-- **Source plan:** improvement-plan item #11 in
-  `~/.claude/plans/zippy-pondering-planet.md` (section `[11/18]`). This spec is the
-  durable form of that plan section for #11's own substance. The one external
-  dependency is #8's three-layer permissions reasoning (see "Soft dependency on
-  #8" below): once #8 has its own spec, the plan doc can be deleted without
-  losing context. Until then, the plan doc remains the only durable record of
-  #8's full rationale.
+- **Source plan:** improvement-plan item #11. This spec is the durable form of
+  that plan item for #11's own substance. The one external dependency is #8's
+  three-layer permissions reasoning (see "Soft dependency on #8" below).
 
 ## Context
 
@@ -88,9 +84,6 @@ detail. If #8's model changes during implementation, the corresponding CLAUDE.md
 section is updated to match. The dependency is soft because #8 is already planned
 in Wave A — drafting the section here can proceed against the planned model even
 if #8 has not yet shipped.
-
-Reference: see improvement-plan item #8 in
-`~/.claude/plans/zippy-pondering-planet.md` for the full three-layer reasoning.
 
 ## No memory file is created
 

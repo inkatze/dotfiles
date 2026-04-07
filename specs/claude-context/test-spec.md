@@ -25,6 +25,9 @@ fresh-session smoke test plus structural spot checks against the requirements.
 
 ### Structural spot checks
 
+These checks run at implementation time, against the actual `CLAUDE.md`. They are
+not meaningful while this spec is in Wave C / plan-only state.
+
 - File length is ≤ 120 lines.
 - No section duplicates content already in `~/.claude/CLAUDE.md` (Fish, mise,
   conventional commits, no-Claude-footer, GPG signing, explicit-remote-on-push).
