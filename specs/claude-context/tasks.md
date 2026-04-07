@@ -42,15 +42,18 @@ Apply the three-part scope gate (see `design.md`) to every line. Soft dependency
 
 ### 2. Verify in a fresh Claude session
 
-See `test-spec.md` for the verification checklist. No code or config changes; this
-task gates the commit on a manual fresh-session smoke test.
+See `test-spec.md` for the verification checklist. Using the `CLAUDE.md` drafted in
+step 1, make no additional code or config changes during this step; it gates the
+commit on a manual fresh-session smoke test before committing.
 
 ### 3. Commit on a feature branch
 
-Conventional-commit message, no Claude footer, no co-author trailer, GPG signed,
-explicit remote on push. Example: `docs(claude): add repo-root CLAUDE.md`. Do not
-push or open a PR as part of the spec work; that happens when the implementation
-task lands.
+Conventional-commit message, no Claude footer, no co-author trailer, GPG signed.
+Example: `docs(claude): add repo-root CLAUDE.md`. For this task, make the commit
+locally on your feature branch only. The push and PR for the implementation work
+happen later, as part of that implementation workflow, not as part of this task
+(this restriction is about the implementation step itself, not about the spec PR
+that introduces these documents).
 
 ## Effort
 
