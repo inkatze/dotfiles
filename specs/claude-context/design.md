@@ -7,9 +7,9 @@ minimum non-obvious context they need to act correctly in this repo.
 ## Template adaptation note
 
 This spec follows a four-file convention borrowed from another project of mine:
-`design.md` (decisions and rationale), `requirements.md` ("shall" language, no
-implementation details), `tasks.md` (implementation status), `test-spec.md` (test
-coverage by behavior). The dotfiles repo does not have a pre-existing `specs/` tree;
+`design.md` (decisions and rationale), `requirements.md` ("shall" language,
+behavior and constraints, with occasional repo-specific references where needed),
+`tasks.md` (implementation status), `test-spec.md` (test coverage by behavior). The dotfiles repo does not have a pre-existing `specs/` tree;
 this spec establishes one under `specs/claude-context/`. The convention is
 borrowed wholesale with no structural changes. If more specs land in this repo later,
 a `specs/README.md` index can be added then.
