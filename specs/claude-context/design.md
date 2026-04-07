@@ -1,8 +1,8 @@
 # Dotfiles Repo-Root CLAUDE.md Design Decisions
 
 Decisions specific to introducing a tracked `CLAUDE.md` at the root of the dotfiles repo
-so that Claude Code sessions launched with `cwd = ~/dev/dotfiles` have the minimum
-non-obvious context they need to act correctly in this repo.
+so that Claude Code sessions launched with cwd at the dotfiles repo root have the
+minimum non-obvious context they need to act correctly in this repo.
 
 ## Template adaptation note
 
