@@ -10,11 +10,15 @@ Create `CLAUDE.md` at the dotfiles repo root, tracked in git, not symlinked.
 Target 60–120 lines. Sections, in order:
 
 1. **What this repo is** — one paragraph: personal dotfiles, Ansible-managed,
-   source of truth for `~/.claude/*`, `~/.config/fish/*`, tmux, mise. Mental model:
+   source of truth for the managed parts of `~/.claude/` (`~/.claude/CLAUDE.md`,
+   `settings.json`, `commands/`), `~/.config/fish/*`, tmux, mise. Mental model:
    edits land here, Ansible run propagates.
-2. **How Claude config is materialized** — files under
-   `roles/osx/files/claude/` are the tracked source of truth; Ansible symlinks them
-   into `~/.claude/`. Edit the tracked source, not the symlink target.
+2. **How Claude config is materialized** — tracked Claude sources live in the
+   Ansible role: `roles/osx/files/claude/commands/` is symlinked into
+   `~/.claude/commands/`, `~/.claude/CLAUDE.md` is symlinked from
+   `roles/osx/files/CLAUDE.md` (outside the `claude/` directory), and
+   `settings.json` is produced by a jq merge/write task rather than symlinked.
+   Edit the tracked source, not the materialized file in `~/.claude/`.
 3. **Permissions three-layer model** — compact restatement of #8's resolved model
    (global tracked, per-repo tracked, per-repo local). Note that the dotfiles
    `.claude/settings.json` (tracked, created in #8) holds dotfiles-specific durable

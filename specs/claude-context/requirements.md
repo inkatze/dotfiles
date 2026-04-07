@@ -31,15 +31,19 @@ The file should include the following sections when they satisfy the scope gate 
 have something non-obvious to say; sections that do not may be omitted:
 
 - **What this repo is.** One paragraph identifying the repo as personal dotfiles,
-  Ansible-managed, source of truth for `~/.claude/*`, `~/.config/fish/*`, tmux,
-  mise, and similar. Explains the mental model: edits land in this repo, an Ansible
-  run propagates them.
-- **How Claude config is materialized.** The non-obvious fact that files under
-  `roles/osx/files/claude/` are the tracked source of truth and Ansible symlinks
-  them into `~/.claude/`. Editing the symlink target directly is wrong; edit the
-  tracked source file. Today this covers `commands/` and `settings.json`; adding
-  new surfaces (skills, hooks) requires creating the tracked directory and a
-  matching symlink task in `roles/osx/tasks/osx.yml`.
+  Ansible-managed, source of truth for the managed parts of `~/.claude/`,
+  `~/.config/fish/*`, tmux, mise, and similar. Explains the mental model: edits
+  land in this repo, an Ansible run propagates them.
+- **How Claude config is materialized.** The non-obvious fact that the tracked
+  Claude sources live in the Ansible role and are materialized by different
+  mechanisms: `roles/osx/files/claude/commands/` is symlinked into
+  `~/.claude/commands/`, `~/.claude/CLAUDE.md` is symlinked from
+  `roles/osx/files/CLAUDE.md` (note: outside the `claude/` directory), and
+  `roles/osx/files/claude/settings.json` is merged into `~/.claude/settings.json`
+  by a jq-based task rather than symlinked. Editing the materialized file
+  directly is wrong; edit the tracked source. Adding new surfaces (skills, hooks)
+  requires creating the tracked directory and matching management in
+  `roles/osx/tasks/osx.yml`.
 - **Permissions three-layer model.** A compact restatement of #8's decision:
   global `~/.claude/settings.json` (tracked via this repo) for durable cross-project
   allows plus the deny list; per-repo tracked `.claude/settings.json` for
