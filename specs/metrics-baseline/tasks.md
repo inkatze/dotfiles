@@ -26,10 +26,9 @@ Create the snapshots directory with the encryption support files:
   Documents the encrypt and decrypt commands:
   `age -R recipients.txt baseline-YYYY-MM.md > baseline-YYYY-MM.md.age`
   and `age -i ~/.ssh/<key> -d baseline-YYYY-MM.md.age`.
-- A `.gitignore` entry (or pre-commit guard) under `snapshots/` rejecting
-  plaintext `baseline-*.md` files. Implementation choice between gitignore
-  and pre-commit hook is left to the implementer; the pre-commit hook is
-  preferred because it fails loudly rather than silently dropping the file.
+- A pre-commit guard rejecting any staged plaintext `baseline-*.md` file
+  under `snapshots/`. A gitignore entry is not sufficient: the guard must
+  fail loudly rather than silently drop the file.
 
 ### 3. Produce the first snapshot (encrypted)
 
