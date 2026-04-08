@@ -27,8 +27,10 @@ Create the snapshots directory with the encryption support files:
   `age -R recipients.txt baseline-YYYY-MM.md > baseline-YYYY-MM.md.age`
   and `age -i ~/.ssh/<key> -d baseline-YYYY-MM.md.age`.
 - A pre-commit guard rejecting any staged plaintext `baseline-*.md` file
-  under `snapshots/`. A gitignore entry is not sufficient: the guard must
-  fail loudly rather than silently drop the file.
+  under `snapshots/`. Implement this as an additional `lefthook.yml`
+  pre-commit command, optionally calling a script under
+  `specs/metrics-baseline/`. A gitignore entry is not sufficient: the
+  guard must fail loudly rather than silently drop the file.
 
 ### 3. Produce the first snapshot (encrypted)
 

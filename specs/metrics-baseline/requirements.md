@@ -9,11 +9,15 @@
 
 ## Snapshot artifact
 
-- The system shall produce a tracked file at
-  `specs/metrics-baseline/snapshots/baseline-YYYY-MM.md` containing the metrics
-  defined below. The initial snapshot is `baseline-2026-04.md`.
-- The snapshot shall be tracked in git, not stored only in memory, so that
-  future re-runs can diff against it without depending on memory persistence.
+- The system shall produce a tracked encrypted file at
+  `specs/metrics-baseline/snapshots/baseline-YYYY-MM.md.age` containing the
+  metrics defined below. The initial snapshot is
+  `baseline-2026-04.md.age`.
+- The encrypted snapshot artifact shall be tracked in git, not stored only in
+  memory, so that future re-runs can diff against it without depending on
+  memory persistence.
+- Any plaintext `baseline-YYYY-MM.md` may exist only transiently during local
+  generation, review, or encryption, and shall not be committed to git.
 - The snapshot shall be self-contained: it does not require access to the
   source JSONL corpus to be interpreted later.
 
@@ -147,9 +151,11 @@ public so the approach is reviewable.
 
 ## Re-measurement protocol
 
-- The spec shall define the cadence and trigger for re-measurement (e.g., 30
-  days after the first improvement lands, or on demand) and the location for
-  follow-up snapshots (`snapshots/baseline-YYYY-MM.md.age`, same schema).
+- Re-measurement shall be performed on demand. The trigger is an explicit
+  request to capture a follow-up baseline so current metrics can be compared
+  against the stored baseline. Follow-up snapshots shall be stored as
+  additive artifacts at `snapshots/baseline-YYYY-MM.md.age` using the same
+  schema.
 - Follow-up snapshots shall not overwrite earlier ones. Each is additive.
 - Each follow-up snapshot shall fill in every field defined by the schema,
   even if the value is zero, so that diffs across snapshots remain

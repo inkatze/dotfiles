@@ -25,10 +25,12 @@ against fuzzy recollections.
 
 ## Mechanism: tracked snapshot files, not memory
 
-Snapshots live as markdown files under `specs/metrics-baseline/snapshots/`,
-named `baseline-YYYY-MM.md`. They are tracked in git so they survive memory
-pruning and are easy to diff. Memory entries remain the prose / narrative form;
-the snapshot is the structured, comparable form.
+Snapshots are committed under `specs/metrics-baseline/snapshots/` as encrypted
+`baseline-YYYY-MM.md.age` files. Only the encrypted `.age` artifact is tracked
+in git so snapshots survive memory pruning without committing plaintext.
+Plaintext markdown may exist only as local working material and must never be
+committed. Memory entries remain the prose / narrative form; the encrypted
+snapshot is the structured, comparable form.
 
 Snapshots are append-only: each re-measurement adds a new file rather than
 overwriting an earlier one. This preserves the trajectory.

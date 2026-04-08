@@ -7,9 +7,10 @@ against the schema and a sanity pass against the existing memory numbers.
 
 ### Schema conformance
 
-- The decrypted `snapshots/baseline-2026-04.md` contains every section
-  defined in `snapshots/SCHEMA.md`. Missing sections are a failure even if
-  the underlying number is zero.
+- The decrypted contents of `snapshots/baseline-2026-04.md.age` (for
+  example, decrypted to stdout or a temporary location outside
+  `snapshots/`) contain every section defined in `snapshots/SCHEMA.md`.
+  Missing sections are a failure even if the underlying number is zero.
 - Every volume and friction metric is reported along all three required
   dimensions: per-project, per-machine (personal vs work), and main-thread
   vs subagent. A metric reported only as a global aggregate is a failure.
@@ -26,8 +27,8 @@ against the schema and a sanity pass against the existing memory numbers.
 - Only `baseline-*.md.age` files exist under `snapshots/`. No plaintext
   `baseline-*.md` is committed, staged, or present on disk in the
   snapshots directory after the snapshot task completes.
-- The pre-commit guard (or gitignore) rejects a deliberate test commit
-  attempting to stage a plaintext `baseline-*.md` file.
+- The pre-commit guard rejects a deliberate test commit attempting to
+  stage a plaintext `baseline-*.md` file.
 - `recipients.txt` exists in plaintext, contains at least one valid SSH
   public key, and is committed.
 - The encrypted snapshot decrypts successfully with the user's SSH private
@@ -57,9 +58,11 @@ terraform bump, any others). Listing zero is acceptable only if zero is true.
 
 ### Diff hygiene
 
-The implementation commit touches only files under `specs/metrics-baseline/`
+The implementation commit touches only files under `specs/metrics-baseline/`,
 plus the single cross-link line in the `project_improvement_plan` memory
-entry. No stray edits to unrelated config, roles, or other specs.
+entry, plus any minimal repo-level hook or ignore configuration needed
+solely to enforce the plaintext `baseline-*.md` guard. No other stray
+edits to unrelated config, roles, or other specs.
 
 ### Re-measurement readiness
 
