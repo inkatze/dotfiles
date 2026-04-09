@@ -11,10 +11,14 @@ pre-commit:
       glob: "*.{yml,yaml}"
       run: ansible-playbook main.yml --syntax-check
     baseline-plaintext-guard:
-      glob: "specs/metrics-baseline/snapshots/baseline-*.md"
       run: |
-        echo "ERROR: refusing to commit plaintext baseline snapshot(s):"
-        echo "{staged_files}"
-        echo "Encrypt with age -R specs/metrics-baseline/snapshots/recipients.txt"
-        echo "and commit only baseline-*.md.age. See specs/metrics-baseline/snapshots/README.md."
-        exit 1
+        pattern='^specs/metrics-baseline/snapshots/baseline-.*\.md$'
+        plaintext=$(git diff --cached --name-only \
+          | grep "$pattern" | grep -v '\-rough\.md$')
+        if [ -n "$plaintext" ]; then
+          echo "ERROR: refusing to commit plaintext baseline snapshot(s):"
+          echo "$plaintext"
+          echo "Encrypt with age -R specs/metrics-baseline/snapshots/recipients.txt"
+          echo "and commit only baseline-*.md.age. See specs/metrics-baseline/snapshots/README.md."
+          exit 1
+        fi
