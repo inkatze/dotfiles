@@ -114,3 +114,11 @@ reference), it can be added then on its own merit, not bundled with this item.
   their own merit, not as part of this item.
 - **Effort estimate: XS–S, ~30 minutes.** Most of the effort is restraint —
   resisting the urge to dump structure that Claude can derive from a quick `ls`.
+
+## Archival
+
+This spec is archived once the repo-root `CLAUDE.md` lands. The repo-root file
+is the durable artifact; the spec is not maintained post-ship. If the produced
+`CLAUDE.md` needs substantive revision later, a new spec (or a short note in
+`specs/README.md`) captures the change — this one is frozen at the point of
+first implementation.

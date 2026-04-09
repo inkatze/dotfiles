@@ -64,16 +64,3 @@ restraint: resisting the urge to dump structure that Claude can derive on its ow
 
 `git rm CLAUDE.md` in the dotfiles repo. No other surfaces are touched.
 
-## Friction log
-
-Log events here during implementation. One timestamped line per event.
-Do not reconstruct after the fact — log at the moment it happens.
-
-**Event types:**
-- **R** (re-orientation): had to re-read a spec or file to remember a decision already made
-- **C** (constraint discovery): found a constraint mid-implementation that should have been in the spec
-- **P** (pivot): changed implementation direction because a spec assumption was wrong
-
-**Format:** `YYYY-MM-DD HH:MM | type | one line describing what happened`
-
-_No entries yet — implementation not started._
