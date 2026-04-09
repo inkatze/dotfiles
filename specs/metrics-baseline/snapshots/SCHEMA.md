@@ -35,6 +35,9 @@ a global aggregate is incomplete.
 | `conversation_counts.by_machine` | Map of machine → count. |
 | `conversation_counts.by_thread` | Map of `main`/`subagent` → count. |
 | `conversation_counts.daily` | Map of date → count (one entry per day in window). |
+| `conversation_counts.daily.by_project` | Map of project → map of date → count. |
+| `conversation_counts.daily.by_machine` | Map of machine → map of date → count. |
+| `conversation_counts.daily.by_thread` | Map of `main`/`subagent` → map of date → count. |
 
 Dimensions: project ✅, machine ✅, thread ✅.
 
