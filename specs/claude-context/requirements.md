@@ -1,7 +1,7 @@
 # Dotfiles Repo-Root CLAUDE.md Requirements
 
 **Status:** Ready
-**Cold-start next step:** Implement the plan — write `CLAUDE.md` at the dotfiles repo root per the Required Content section of this file. See `tasks.md` for the ordered task list.
+**Cold-start next step:** Implement the plan: write `CLAUDE.md` at the dotfiles repo root per the Required Content section of this file. See `tasks.md` for the ordered task list.
 **Last reviewed:** 2026-04-09
 
 ## File location and tracking
