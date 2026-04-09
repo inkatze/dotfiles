@@ -135,8 +135,9 @@ Dimensions: project ✅, machine ✅, thread ✅.
 | `features.memory_inventory` | List of memory files present at snapshot time, with size in bytes. |
 | `features.by_project` | Map of project → `{agent_share, plan_mode_invocations, subagent_invocations_by_type}`. |
 | `features.by_machine` | Map of machine → same shape as `features.by_project`. |
+| `features.by_thread` | Map of `main`/`subagent` → same shape as `features.by_project`. Emit `0`, `{}`, or `[]` for fields that are not applicable on a given thread so snapshots remain structurally comparable. |
 
-Dimensions: project ✅, machine ✅ (thread is implicit — Agent calls are main-thread only).
+Dimensions: project ✅, machine ✅, thread ✅.
 
 ## 9. Slash command usage
 
@@ -145,8 +146,9 @@ Dimensions: project ✅, machine ✅ (thread is implicit — Agent calls are mai
 | `slash_commands.top` | Top 10 slash commands as `[{command, invocations, successes, success_rate}]`. "Success" = the invocation reached its terminal action (commit landed, PR created, threads resolved) rather than bailing mid-flow. |
 | `slash_commands.by_project` | Map of project → top 10 `[{command, invocations, successes, success_rate}]`. |
 | `slash_commands.by_machine` | Map of machine → top 10, same shape. |
+| `slash_commands.by_thread` | Map of thread (`main`, `subagent`) → top 10, same shape. If slash commands cannot be invoked from subagents, emit `subagent` as an explicit empty list so snapshots remain structurally comparable. |
 
-Dimensions: project ✅, machine ✅.
+Dimensions: project ✅, machine ✅, thread ✅.
 
 ## 10. MCP tool usage
 
@@ -155,8 +157,9 @@ Dimensions: project ✅, machine ✅.
 | `mcp_usage` | Map of MCP server name (`Gmail`, `GCal`, …) → `{tools: {tool_name: calls}, total_calls}`. |
 | `mcp_usage.by_project` | Map of project → same shape as `mcp_usage`. |
 | `mcp_usage.by_machine` | Map of machine → same shape as `mcp_usage`. |
+| `mcp_usage.by_thread` | Map of thread (`main` \| `subagent`) → same shape as `mcp_usage`. Emit both keys; if no subagent MCP calls occurred, `subagent` is still present with zero-valued counts / empty maps. |
 
-Dimensions: project ✅, machine ✅.
+Dimensions: project ✅, machine ✅, thread ✅.
 
 ## 11. Hot-file re-reads
 
@@ -164,11 +167,12 @@ Dimensions: project ✅, machine ✅.
 |---|---|
 | `hot_files` | Map of project → list of top 20 `{path, session_id, reads}` entries, ranked by re-read count within a single session. |
 | `hot_files.by_machine` | Map of machine → map of project → top 20, same entry shape. |
+| `hot_files.by_thread` | Map of thread (`main` \| `subagent`) → map of project → top 20, same entry shape. Include subagent-session re-reads under `subagent`; never fold them into `main`. |
 
 Signal for whether project-scoped CLAUDE.md files reduce re-reads
 (improvement-plan item #11).
 
-Dimensions: project ✅ (inherent), machine ✅.
+Dimensions: project ✅ (inherent), machine ✅, thread ✅.
 
 ## 12. Conversation outcomes
 
@@ -179,9 +183,11 @@ Dimensions: project ✅ (inherent), machine ✅.
 | `outcomes.counts.by_project` | Map of project → map of outcome → count. |
 | `outcomes.counts.by_machine` | Map of machine → map of outcome → count. |
 | `outcomes.tool_calls_per_shipped_commit` | Map of project → ratio (`total tool calls / commits landed`); if `commits landed = 0` for a project in the window, emit `0` for that project rather than omission, `Infinity`, or `NaN`. |
+| `outcomes.counts.by_thread` | Map of `main`/`subagent` → map of outcome → count. Shipped outcomes (`commit`, `push`, `pr`) are attributed to `main`; `subagent` rows are still emitted and will typically be all zeros except `none`, because subagent JSONL does not independently ship commits, pushes, or PRs. |
 | `outcomes.tool_calls_per_shipped_commit.by_machine` | Map of machine → map of project → ratio, same zero-denominator rule. |
+| `outcomes.tool_calls_per_shipped_commit.by_thread` | Map of `main`/`subagent` → map of project → ratio, same zero-denominator rule. Subagent-thread rows cover tool calls made inside `<session-id>/subagents/` JSONL; emit `0` when no shipped commits are attributable. |
 
-Dimensions: project ✅, machine ✅.
+Dimensions: project ✅, machine ✅, thread ✅.
 
 ## 13. Interaction style indicators
 
