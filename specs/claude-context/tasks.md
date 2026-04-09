@@ -7,7 +7,7 @@ Tasks are ordered by dependency.
 ### 1. Draft `CLAUDE.md` at the dotfiles repo root
 
 Create `CLAUDE.md` at the dotfiles repo root, tracked in git, not symlinked.
-Target 60–120 lines. Sections, in order:
+Target 120 lines (hard ceiling 200). Sections, in order:
 
 1. **What this repo is** — one paragraph: personal dotfiles, Ansible-managed,
    source of truth for the managed parts of `~/.claude/` (`~/.claude/CLAUDE.md`,
@@ -64,16 +64,3 @@ restraint: resisting the urge to dump structure that Claude can derive on its ow
 
 `git rm CLAUDE.md` in the dotfiles repo. No other surfaces are touched.
 
-## Friction log
-
-Log events here during implementation. One timestamped line per event.
-Do not reconstruct after the fact — log at the moment it happens.
-
-**Event types:**
-- **R** (re-orientation): had to re-read a spec or file to remember a decision already made
-- **C** (constraint discovery): found a constraint mid-implementation that should have been in the spec
-- **P** (pivot): changed implementation direction because a spec assumption was wrong
-
-**Format:** `YYYY-MM-DD HH:MM | type | one line describing what happened`
-
-_No entries yet — implementation not started._

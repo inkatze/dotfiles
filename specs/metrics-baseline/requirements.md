@@ -78,6 +78,13 @@ The snapshot shall record, at minimum:
   ratio per project.
 - **Interaction style indicators.** Median user turns per conversation,
   median tool calls per conversation, interrupt rate, tool-rejection rate.
+- **Token and cost per session.** Input and output token counts and dollar
+  cost per session, broken down along the required dimensions. If the JSONL
+  corpus does not expose per-session cost directly, record the duration-based
+  proxy (session duration × model rate) and note the proxy in the methodology
+  section. Research: "budget inferno" ($200+ overnight API bills from
+  uncontrolled retries) is one of the six documented death spirals of
+  long-running AI agents and has no other proxy in the schema.
 
 The snapshot **may** also record (cheap to include, useful as secondary
 signals; do not block on these):
@@ -85,7 +92,6 @@ signals; do not block on these):
 - Time-of-day / day-of-week distribution of tool-call volume.
 - File-type breakdown of Edit / Write volume (which languages dominate).
 - TodoWrite / Task tool usage frequency.
-- Token / cost per session, if the JSONL exposes it.
 - **Top N user opener verbs.** First-word frequency from user messages
   (e.g., "lets" 372, "yes" 214, "fix" 46). Capped at top 20 to keep
   cardinality bounded. Useful for tracking shifts in interaction style.

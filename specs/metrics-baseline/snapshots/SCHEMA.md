@@ -206,7 +206,20 @@ Dimensions: project ✅, machine ✅, thread ✅.
 
 Dimensions: project ✅, machine ✅, thread ✅.
 
-## 14. Optional secondary signals
+## 14. Token and cost per session
+
+| Field | Definition |
+|---|---|
+| `tokens_cost.median_input_tokens_per_session` | Median input token count per session. |
+| `tokens_cost.median_output_tokens_per_session` | Median output token count per session. |
+| `tokens_cost.median_cost_per_session` | Median dollar cost per session. If the JSONL corpus does not expose per-session cost directly, record a duration-based proxy and note the proxy in the methodology section. |
+| `tokens_cost.by_project` | Map of project → `{median_input_tokens_per_session, median_output_tokens_per_session, median_cost_per_session}`. |
+| `tokens_cost.by_machine` | Map of machine → same shape. |
+| `tokens_cost.by_thread` | Map of `main`/`subagent` → same shape. |
+
+Dimensions: project ✅, machine ✅, thread ✅.
+
+## 15. Optional secondary signals
 
 These are cheap to include and useful as secondary signals, but do not block
 a snapshot. Omit the field entirely if not computed.
@@ -216,11 +229,10 @@ a snapshot. Omit the field entirely if not computed.
 | `optional.time_of_day_distribution` | Tool-call volume by hour-of-day and day-of-week. |
 | `optional.edit_write_file_types` | Map of file extension → Edit/Write call count. |
 | `optional.todowrite_task_usage` | Frequency of TodoWrite / Task tool invocations. |
-| `optional.tokens_per_session` | Per-session token / cost totals, if JSONL exposes it. |
 | `optional.top_user_opener_verbs` | Top 20 first-word frequencies from user messages (e.g. `lets: 372`). |
 | `optional.top_bash_patterns` | Top N bash invocation patterns, normalized to leading command + notable flags. **Only permitted while snapshots are encrypted at rest.** If encryption is ever disabled, this field must be removed from the schema rather than emitted in plaintext. |
 
-## 15. Methodology (required narrative section)
+## 16. Methodology (required narrative section)
 
 Every snapshot ends with a "How this was measured" section recording:
 

@@ -1,5 +1,9 @@
 # Dotfiles Repo-Root CLAUDE.md Requirements
 
+**Status:** Ready
+**Cold-start next step:** Implement the plan: write `CLAUDE.md` at the dotfiles repo root per the Required Content section of this file. See `tasks.md` for the ordered task list.
+**Last reviewed:** 2026-04-09
+
 ## File location and tracking
 
 - The system shall provide a `CLAUDE.md` file at the root of the dotfiles repo.
@@ -11,11 +15,18 @@
 
 ## Size and shape
 
-- The file shall be no longer than 120 lines.
+- The file shall target 120 lines and shall not exceed 200 lines. Research
+  shows CLAUDE.md files under 200 lines achieve 92% rule-application rate,
+  dropping to 71% above 400 lines (practitioner analysis, 2025). 120 is the
+  budget; 200 is the hard ceiling.
 - The file shall be organized into short, decision-oriented sections, each answering
   "when you're about to do X, know Y."
 - Sections shall be omitted rather than padded if they have nothing non-obvious to
   say.
+- Rules in the produced `CLAUDE.md` shall use imperative voice (`Always X`,
+  `Never Y`, `Do Z`), not descriptive phrasing (`We prefer`, `Consider`,
+  `Try to`). Research: imperative rules achieve 94% compliance; descriptive
+  phrasing drops to 73% (practitioner analysis, 2025).
 
 ## Scope gate
 
