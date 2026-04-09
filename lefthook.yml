@@ -10,3 +10,11 @@ pre-commit:
     syntax-check:
       glob: "*.{yml,yaml}"
       run: ansible-playbook main.yml --syntax-check
+    baseline-plaintext-guard:
+      glob: "specs/metrics-baseline/snapshots/baseline-*.md"
+      run: |
+        echo "ERROR: refusing to commit plaintext baseline snapshot(s):"
+        echo "{staged_files}"
+        echo "Encrypt with age -R specs/metrics-baseline/snapshots/recipients.txt"
+        echo "and commit only baseline-*.md.age. See specs/metrics-baseline/snapshots/README.md."
+        exit 1
