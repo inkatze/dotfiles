@@ -11,6 +11,7 @@ pre-commit:
       glob: "*.{yml,yaml}"
       run: ansible-playbook main.yml --syntax-check
     baseline-plaintext-guard:
+      glob: "specs/metrics-baseline/snapshots/baseline-*"
       run: |
         pattern='^specs/metrics-baseline/snapshots/baseline-.*\.md$'
         plaintext=$(git diff --cached --name-only \
