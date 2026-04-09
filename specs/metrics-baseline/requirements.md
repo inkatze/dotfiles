@@ -38,11 +38,17 @@ A metric reported only as a global aggregate is incomplete.
 
 The snapshot shall record, at minimum:
 
-- **Corpus scope.** Date range, machines included, per-project conversation
-  counts, total conversation count, dominant model, and daily conversation
-  counts within the window (one number per day).
+- **Corpus scope.** Date range, machines included, dominant model, and
+  conversation-count metrics: per-project conversation counts, total
+  conversation count, and daily conversation counts within the window (one
+  number per day). These conversation-count metrics shall also be emitted
+  under the required dimensions above: per project, per machine, and
+  main-thread vs subagent, with subagent conversations counted as
+  subagent-thread conversations for that split rather than folded into
+  main-thread totals. Global aggregates may be included in addition to,
+  not instead of, those breakdowns.
 - **Tool-call volumes.** Total tool calls under the dimensions above.
-- **Top tools by volume**, separately for main-thread and subagent.
+- **Top 10 tools by volume**, separately for main-thread and subagent.
 - **Per-tool error rate.** Errors / calls for each tool, normalized so a
   drop in errors cannot be confused with a drop in usage.
 - **Friction tallies.** Wasted-call counts per category, including at minimum:
@@ -59,12 +65,12 @@ The snapshot shall record, at minimum:
 - **Underused features.** Agent/subagent share, Plan mode invocation count,
   subagent invocations broken down by subagent type (Explore, Plan,
   general-purpose, custom), memory file inventory at snapshot time.
-- **Slash command usage.** Counts for the top slash commands (review, commit,
+- **Slash command usage.** Counts for the top 10 slash commands (review, commit,
   etc.) **and** their success rate (did the invocation reach its terminal
   action — commit landed, PR created, threads resolved — or bail mid-flow).
 - **MCP tool usage.** Counts per MCP server (Gmail, GCal, etc.), so
   integrations that fail to earn their keep are visible.
-- **Hot-file re-reads.** Top N most-re-read files per project per session.
+- **Hot-file re-reads.** Top 20 most-re-read files per project per session.
   This is the signal that drove the Wave B reframing of item #11; tracking
   it lets us see whether project-scoped CLAUDE.md files reduce re-reads.
 - **Conversation outcomes.** For each session, did it end with a commit /
