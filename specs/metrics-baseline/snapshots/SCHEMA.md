@@ -35,9 +35,9 @@ a global aggregate is incomplete.
 | `conversation_counts.by_machine` | Map of machine → count. |
 | `conversation_counts.by_thread` | Map of `main`/`subagent` → count. |
 | `conversation_counts.daily` | Map of date → count (one entry per day in window). |
-| `conversation_counts.daily.by_project` | Map of project → map of date → count. |
-| `conversation_counts.daily.by_machine` | Map of machine → map of date → count. |
-| `conversation_counts.daily.by_thread` | Map of `main`/`subagent` → map of date → count. |
+| `conversation_counts.daily.by_project` | Map of project → map of date → count (one entry per day in window per bucket; use `0` for zero-days). |
+| `conversation_counts.daily.by_machine` | Map of machine → map of date → count (one entry per day in window per bucket; use `0` for zero-days). |
+| `conversation_counts.daily.by_thread` | Map of `main`/`subagent` → map of date → count (one entry per day in window per bucket; use `0` for zero-days). |
 
 Dimensions: project ✅, machine ✅, thread ✅.
 
@@ -121,7 +121,7 @@ Dimensions: project ✅, machine ✅, thread ✅.
 | Field | Definition |
 |---|---|
 | `stuck_loops.sessions` | Count of sessions containing ≥3 consecutive same-tool calls where each errored. |
-| `stuck_loops.by_tool` | Map of tool → session count. |
+| `stuck_loops.by_tool` | Map of tool → session count. A session increments every tool bucket for which it contains at least one qualifying stuck-loop run; multiple runs of the same tool in one session count once. Therefore `sum(by_tool.values())` may exceed `stuck_loops.sessions`. |
 | `stuck_loops.by_project` | Map of project → `{sessions, by_tool}`. |
 | `stuck_loops.by_machine` | Map of machine → `{sessions, by_tool}`. |
 | `stuck_loops.by_thread` | Map of `main`/`subagent` → `{sessions, by_tool}`. |
