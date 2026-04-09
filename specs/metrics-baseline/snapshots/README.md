@@ -55,4 +55,4 @@ and, more importantly, it shouldn't exist there in the first place.
 
 Append the new `ssh-rsa …` / `ssh-ed25519 …` line to `recipients.txt`,
 commit, and re-encrypt existing snapshots so the new recipient can read
-them. Removing a recipient requires the same re-encrypt.
+them. Removing a recipient requires the same re-encryption.
