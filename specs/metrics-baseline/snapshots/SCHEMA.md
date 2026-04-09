@@ -1,23 +1,26 @@
 # Baseline Snapshot Schema
 
 This document defines the fields every `baseline-YYYY-MM.md(.age)` snapshot
-must contain. Every field is required unless marked *optional*. Missing data
-is recorded as `0` or an empty list, never omitted, so diffs across snapshots
-stay structurally comparable.
+must contain. Every field is required unless marked *optional*. Required
+(non-optional) fields are never omitted; if required data is missing, record
+it as `0` or an empty list so diffs across snapshots stay structurally
+comparable.
 
 ## Dimensions
 
-Every volume and friction metric below is broken down along **all three**
-of these dimensions (not only as a global aggregate):
+The schema supports these three breakdown dimensions for volume and friction
+metrics:
 
 - `project` — per-project key (e.g. `tecpan`, `paycalc-services`, `dotfiles`).
 - `machine` — `personal` | `work`.
 - `thread` — `main` | `subagent`. Subagent JSONL under
   `<session-id>/subagents/` counts as `subagent`, never folded into `main`.
 
-A metric shown with ✅ in a column below must be emitted split along that
-dimension. Global aggregates may be included *in addition to*, never
-*instead of*, the required breakdowns.
+A metric is required to be emitted split along a dimension only when its
+section explicitly marks that dimension as required (via a `Dimensions:` line
+and/or corresponding `by_*` / `per_*` fields). Global aggregates may be
+included *in addition to* required breakdowns. Metrics without an explicit
+dimensional requirement may be reported only as global aggregates.
 
 ## 1. Corpus scope
 
@@ -57,7 +60,7 @@ Dimensions: project ✅, machine ✅, thread ✅.
 
 | Field | Definition |
 |---|---|
-| `tool_error_rates` | Map of tool → `{calls, errors, error_rate}`. `error_rate = errors / calls`. Normalized so a drop in errors can't be confused with a drop in usage. |
+| `tool_error_rates` | Map of tool → `{calls, errors, error_rate}`. `error_rate = errors / calls` when `calls > 0`; when `calls = 0`, emit `{calls: 0, errors: 0, error_rate: 0}` to avoid `NaN`/`Infinity` while keeping snapshots structurally comparable. Normalized so a drop in errors can't be confused with a drop in usage. |
 
 Dimensions: thread ✅ (reported separately for main vs subagent).
 
@@ -73,7 +76,7 @@ Dimensions: thread ✅ (reported separately for main vs subagent).
 | `friction.gh_graphql_errors` | Count of `gh api graphql` errors. |
 | `friction.other` | Map of category → count for any additional wasted-call categories surfaced. |
 | `friction.total_wasted_calls` | Sum of all wasted-call categories. |
-| `friction.wasted_share` | `total_wasted_calls / tool_calls.total`. |
+| `friction.wasted_share` | `total_wasted_calls / tool_calls.total`; emit `0` when `tool_calls.total = 0`. |
 
 Dimensions: project ✅, machine ✅, thread ✅.
 
@@ -104,7 +107,7 @@ Dimensions: project ✅, machine ✅, thread ✅.
 
 | Field | Definition |
 |---|---|
-| `features.agent_share` | `Agent tool calls / tool_calls.total`. |
+| `features.agent_share` | `Agent tool calls / tool_calls.total`; emit `0` when `tool_calls.total = 0`. |
 | `features.plan_mode_invocations` | Count of Plan mode / ExitPlanMode invocations. |
 | `features.subagent_invocations_by_type` | Map of subagent type (`Explore`, `Plan`, `general-purpose`, custom names) → count. |
 | `features.memory_inventory` | List of memory files present at snapshot time, with size in bytes. |
@@ -144,7 +147,7 @@ Dimensions: project ✅ (inherent), machine ✅.
 |---|---|
 | `outcomes.by_session` | Map of session → one of `commit` \| `push` \| `pr` \| `none`. |
 | `outcomes.counts` | Map of outcome → count. |
-| `outcomes.tool_calls_per_shipped_commit` | Map of project → ratio (`total tool calls / commits landed`). |
+| `outcomes.tool_calls_per_shipped_commit` | Map of project → ratio (`total tool calls / commits landed`); if `commits landed = 0` for a project in the window, emit `0` for that project rather than omission, `Infinity`, or `NaN`. |
 
 Dimensions: project ✅, machine ✅.
 
