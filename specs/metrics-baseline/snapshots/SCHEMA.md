@@ -8,19 +8,19 @@ comparable.
 
 ## Dimensions
 
-The schema supports these three breakdown dimensions for volume and friction
-metrics:
+Every volume and friction metric in this schema must be emitted split along
+all three dimensions:
 
 - `project` — per-project key (e.g. `tecpan`, `paycalc-services`, `dotfiles`).
 - `machine` — `personal` | `work`.
 - `thread` — `main` | `subagent`. Subagent JSONL under
   `<session-id>/subagents/` counts as `subagent`, never folded into `main`.
 
-A metric is required to be emitted split along a dimension only when its
-section explicitly marks that dimension as required (via a `Dimensions:` line
-and/or corresponding `by_*` / `per_*` fields). Global aggregates may be
-included *in addition to* required breakdowns. Metrics without an explicit
-dimensional requirement may be reported only as global aggregates.
+Section-level `Dimensions:` lines and corresponding `by_*` / `per_*` fields
+document the required breakdown representations for each metric. Global
+aggregates may be included *in addition to* these required breakdowns, but
+never as a substitute for them. A volume or friction metric reported only as
+a global aggregate is incomplete.
 
 ## 1. Corpus scope
 
@@ -53,16 +53,29 @@ Dimensions: project ✅, machine ✅, thread ✅.
 
 | Field | Definition |
 |---|---|
-| `top_tools.main_thread` | Top 10 tools by call count on main thread, as `[{tool, calls}]`. |
-| `top_tools.subagent` | Top 10 tools by call count within subagent threads. |
+| `top_tools.by_thread.main` | Top 10 tools by call count on main thread, as `[{tool, calls}]`. |
+| `top_tools.by_thread.subagent` | Top 10 tools by call count within subagent threads, same shape. |
+| `top_tools.by_project` | Map of project → top 10 `[{tool, calls}]` for that project. |
+| `top_tools.by_machine` | Map of machine → top 10 `[{tool, calls}]` for that machine. |
+
+Dimensions: project ✅, machine ✅, thread ✅.
 
 ## 4. Per-tool error rate
 
+The entry shape everywhere in this section is `{calls, errors, error_rate}`
+where `error_rate = errors / calls` when `calls > 0`; when `calls = 0`, emit
+`{calls: 0, errors: 0, error_rate: 0}` to avoid `NaN`/`Infinity` while
+keeping snapshots structurally comparable. Normalized so a drop in errors
+can't be confused with a drop in usage.
+
 | Field | Definition |
 |---|---|
-| `tool_error_rates` | Map of tool → `{calls, errors, error_rate}`. `error_rate = errors / calls` when `calls > 0`; when `calls = 0`, emit `{calls: 0, errors: 0, error_rate: 0}` to avoid `NaN`/`Infinity` while keeping snapshots structurally comparable. Normalized so a drop in errors can't be confused with a drop in usage. |
+| `tool_error_rates.by_thread.main` | Map of tool → entry, for main-thread calls. |
+| `tool_error_rates.by_thread.subagent` | Map of tool → entry, for subagent-thread calls. |
+| `tool_error_rates.by_project` | Map of project → map of tool → entry. |
+| `tool_error_rates.by_machine` | Map of machine → map of tool → entry. |
 
-Dimensions: thread ✅ (reported separately for main vs subagent).
+Dimensions: project ✅, machine ✅, thread ✅.
 
 ## 5. Friction tallies (wasted calls)
 
@@ -77,6 +90,9 @@ Dimensions: thread ✅ (reported separately for main vs subagent).
 | `friction.other` | Map of category → count for any additional wasted-call categories surfaced. |
 | `friction.total_wasted_calls` | Sum of all wasted-call categories. |
 | `friction.wasted_share` | `total_wasted_calls / tool_calls.total`; emit `0` when `tool_calls.total = 0`. |
+| `friction.by_project` | Map of project → `{<same category fields as above>, total_wasted_calls, wasted_share}`. `wasted_share` uses that project's `tool_calls.by_project` denominator; emit `0` when the denominator is `0`. |
+| `friction.by_machine` | Map of machine → same shape as `friction.by_project`, using the corresponding `tool_calls.by_machine` denominator. |
+| `friction.by_thread` | Map of `main`/`subagent` → same shape, using the corresponding `tool_calls.by_thread` denominator. Subagent friction is never folded into main. |
 
 Dimensions: project ✅, machine ✅, thread ✅.
 
@@ -88,6 +104,9 @@ Dimensions: project ✅, machine ✅, thread ✅.
 | `permission_prompts.approved` | Count approved. |
 | `permission_prompts.denied` | Count denied. |
 | `permission_prompts.by_tool` | Map of tool → `{approved, denied}`. |
+| `permission_prompts.by_project` | Map of project → `{total, approved, denied, by_tool}`. |
+| `permission_prompts.by_machine` | Map of machine → `{total, approved, denied, by_tool}`. |
+| `permission_prompts.by_thread` | Map of `main`/`subagent` → `{total, approved, denied, by_tool}`. |
 
 Measurement target for improvement-plan items #3 (deny rules) and #4
 (permission pruning).
@@ -100,6 +119,9 @@ Dimensions: project ✅, machine ✅, thread ✅.
 |---|---|
 | `stuck_loops.sessions` | Count of sessions containing ≥3 consecutive same-tool calls where each errored. |
 | `stuck_loops.by_tool` | Map of tool → session count. |
+| `stuck_loops.by_project` | Map of project → `{sessions, by_tool}`. |
+| `stuck_loops.by_machine` | Map of machine → `{sessions, by_tool}`. |
+| `stuck_loops.by_thread` | Map of `main`/`subagent` → `{sessions, by_tool}`. |
 
 Dimensions: project ✅, machine ✅, thread ✅.
 
@@ -159,6 +181,9 @@ Dimensions: project ✅, machine ✅.
 | `interaction.median_tool_calls_per_conversation` | Median tool calls per conversation. |
 | `interaction.interrupt_rate` | Fraction of conversations containing a user interrupt. |
 | `interaction.tool_rejection_rate` | Fraction of tool calls rejected at permission prompt. |
+| `interaction.by_project` | Map of project → `{median_user_turns_per_conversation, median_tool_calls_per_conversation, interrupt_rate, tool_rejection_rate}`. |
+| `interaction.by_machine` | Map of machine → same shape as `interaction.by_project`. |
+| `interaction.by_thread` | Map of `main`/`subagent` → same shape. Subagent-thread rows cover tool calls made inside `<session-id>/subagents/` JSONL. |
 
 Dimensions: project ✅, machine ✅, thread ✅.
 
