@@ -7,7 +7,7 @@ Tasks are ordered by dependency.
 ### 1. Draft `CLAUDE.md` at the dotfiles repo root
 
 Create `CLAUDE.md` at the dotfiles repo root, tracked in git, not symlinked.
-Target 60–120 lines. Sections, in order:
+Target 120 lines (hard ceiling 200). Sections, in order:
 
 1. **What this repo is** — one paragraph: personal dotfiles, Ansible-managed,
    source of truth for the managed parts of `~/.claude/` (`~/.claude/CLAUDE.md`,

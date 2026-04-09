@@ -210,10 +210,10 @@ Dimensions: project ✅, machine ✅, thread ✅.
 
 | Field | Definition |
 |---|---|
-| `tokens_cost.input_tokens_per_session` | Per-session input token count. |
-| `tokens_cost.output_tokens_per_session` | Per-session output token count. |
-| `tokens_cost.cost_per_session` | Per-session dollar cost. If the JSONL corpus does not expose per-session cost directly, record a duration-based proxy and note the proxy in the methodology section. |
-| `tokens_cost.by_project` | Map of project → `{input_tokens_per_session, output_tokens_per_session, cost_per_session}`. |
+| `tokens_cost.median_input_tokens_per_session` | Median input token count per session. |
+| `tokens_cost.median_output_tokens_per_session` | Median output token count per session. |
+| `tokens_cost.median_cost_per_session` | Median dollar cost per session. If the JSONL corpus does not expose per-session cost directly, record a duration-based proxy and note the proxy in the methodology section. |
+| `tokens_cost.by_project` | Map of project → `{median_input_tokens_per_session, median_output_tokens_per_session, median_cost_per_session}`. |
 | `tokens_cost.by_machine` | Map of machine → same shape. |
 | `tokens_cost.by_thread` | Map of `main`/`subagent` → same shape. |
 
