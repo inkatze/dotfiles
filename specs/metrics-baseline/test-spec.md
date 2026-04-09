@@ -20,7 +20,8 @@ against the schema and a sanity pass against the existing memory numbers.
   per-tool error rate, permission prompts (approve/deny per tool),
   hook failures broken down by hook name, Edit `old_string` mismatch rate,
   slash command success rate, hot-file re-reads, conversation outcomes,
-  stuck-loop sessions, subagent type breakdown, and MCP usage.
+  stuck-loop sessions, subagent type breakdown, MCP usage, and
+  token/cost per session.
 - **[automated]** The methodology section names every directory walked, including
   `<session-id>/subagents/`, and the exact date window.
 
