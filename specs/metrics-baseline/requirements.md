@@ -160,7 +160,8 @@ public so the approach is reviewable.
 - Re-measurement shall be performed on demand. The trigger is an explicit
   request to capture a follow-up baseline so current metrics can be compared
   against the stored baseline. Follow-up snapshots shall be stored as
-  additive artifacts at `snapshots/baseline-YYYY-MM.md.age` using the same
+  additive artifacts at
+  `specs/metrics-baseline/snapshots/baseline-YYYY-MM.md.age` using the same
   schema.
 - Follow-up snapshots shall not overwrite earlier ones. Each is additive.
 - Each follow-up snapshot shall fill in every field defined by the schema,

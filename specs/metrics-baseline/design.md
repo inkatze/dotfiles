@@ -37,9 +37,10 @@ overwriting an earlier one. This preserves the trajectory.
 
 ## Schema, not just numbers
 
-The first snapshot defines a schema by example. Every subsequent snapshot must
-fill in the same fields with the same definitions, even if a number is zero,
-so that diffs are meaningful. The schema covers: corpus scope, tool-call
+`specs/metrics-baseline/snapshots/SCHEMA.md` defines the snapshot schema.
+The first snapshot is the first instance of that schema, and every snapshot
+must fill in the same fields with the same definitions, even if a number is
+zero, so that diffs are meaningful. The schema covers: corpus scope, tool-call
 volumes (main vs subagent split), top tools, friction tallies by category,
 underused features, slash command usage, interaction style indicators.
 
@@ -226,7 +227,8 @@ or any other improvement.
   diffable and survive memory pruning.
 - **Append-only snapshots, one per re-measurement.** Preserves trajectory and
   prevents accidental loss of historical data.
-- **Schema defined by the first snapshot, fixed thereafter.** Comparability
+- **Schema defined by `specs/metrics-baseline/snapshots/SCHEMA.md`, fixed
+  thereafter unless explicitly changed/versioned there.** Comparability
   requires that every future snapshot fill in the same fields with the same
   definitions.
 - **Main-thread vs subagent split is mandatory for every volume metric.**

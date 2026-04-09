@@ -7,10 +7,12 @@ against the schema and a sanity pass against the existing memory numbers.
 
 ### Schema conformance
 
-- The decrypted contents of `snapshots/baseline-2026-04.md.age` (for
-  example, decrypted to stdout or a temporary location outside
-  `snapshots/`) contain every section defined in `snapshots/SCHEMA.md`.
-  Missing sections are a failure even if the underlying number is zero.
+- The decrypted contents of
+  `specs/metrics-baseline/snapshots/baseline-2026-04.md.age` (for example,
+  decrypted to stdout or a temporary location outside
+  `specs/metrics-baseline/snapshots/`) contain every section defined in
+  `specs/metrics-baseline/snapshots/SCHEMA.md`. Missing sections are a
+  failure even if the underlying number is zero.
 - Every volume and friction metric is reported along all three required
   dimensions: per-project, per-machine (personal vs work), and main-thread
   vs subagent. A metric reported only as a global aggregate is a failure.
@@ -24,18 +26,21 @@ against the schema and a sanity pass against the existing memory numbers.
 
 ### Encryption hygiene
 
-- Only `baseline-*.md.age` files exist under `snapshots/`. No plaintext
-  `baseline-*.md` is committed, staged, or present on disk in the
-  snapshots directory after the snapshot task completes.
+- Only `baseline-*.md.age` files exist under
+  `specs/metrics-baseline/snapshots/`. No plaintext `baseline-*.md` is
+  committed, staged, or present on disk in the snapshots directory after
+  the snapshot task completes.
 - The pre-commit guard rejects a deliberate test commit attempting to
   stage a plaintext `baseline-*.md` file.
-- `recipients.txt` exists in plaintext, contains at least one valid SSH
-  public key, and is committed.
+- `specs/metrics-baseline/snapshots/recipients.txt` exists in plaintext,
+  contains at least one valid SSH public key, and is committed.
 - The encrypted snapshot decrypts successfully with the user's SSH private
   key (`age -i ~/.ssh/<key> -d`) on at least one of the user's machines,
   and the decrypted contents pass the schema conformance checks above.
-- `SCHEMA.md`, the four spec files, `recipients.txt`, `README.md`, and any
-  helper script remain plaintext and reviewable.
+- `specs/metrics-baseline/snapshots/SCHEMA.md`, the four spec files,
+  `specs/metrics-baseline/snapshots/recipients.txt`,
+  `specs/metrics-baseline/snapshots/README.md`, and any helper script
+  remain plaintext and reviewable.
 
 ### Sanity against memory
 
