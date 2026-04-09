@@ -16,8 +16,8 @@ all three dimensions:
 - `thread` — `main` | `subagent`. Subagent JSONL under
   `<session-id>/subagents/` counts as `subagent`, never folded into `main`.
 
-Section-level `Dimensions:` lines and corresponding `by_*` / `per_*` fields
-document the required breakdown representations for each metric. Global
+Section-level `Dimensions:` lines and corresponding `by_*` fields document
+the required breakdown representations for each metric. Global
 aggregates may be included *in addition to* these required breakdowns, but
 never as a substitute for them. A volume or friction metric reported only as
 a global aggregate is incomplete.
@@ -31,9 +31,9 @@ a global aggregate is incomplete.
 | `dominant_model` | Most-used model ID across the window. |
 | `directories_walked` | Absolute paths walked, explicitly including `<session-id>/subagents/`. |
 | `conversation_counts.total` | Total conversation count in window. |
-| `conversation_counts.per_project` | Map of project → count. |
-| `conversation_counts.per_machine` | Map of machine → count. |
-| `conversation_counts.per_thread` | Map of `main`/`subagent` → count. |
+| `conversation_counts.by_project` | Map of project → count. |
+| `conversation_counts.by_machine` | Map of machine → count. |
+| `conversation_counts.by_thread` | Map of `main`/`subagent` → count. |
 | `conversation_counts.daily` | Map of date → count (one entry per day in window). |
 
 Dimensions: project ✅, machine ✅, thread ✅.
@@ -133,6 +133,8 @@ Dimensions: project ✅, machine ✅, thread ✅.
 | `features.plan_mode_invocations` | Count of Plan mode / ExitPlanMode invocations. |
 | `features.subagent_invocations_by_type` | Map of subagent type (`Explore`, `Plan`, `general-purpose`, custom names) → count. |
 | `features.memory_inventory` | List of memory files present at snapshot time, with size in bytes. |
+| `features.by_project` | Map of project → `{agent_share, plan_mode_invocations, subagent_invocations_by_type}`. |
+| `features.by_machine` | Map of machine → same shape as `features.by_project`. |
 
 Dimensions: project ✅, machine ✅ (thread is implicit — Agent calls are main-thread only).
 
@@ -141,6 +143,8 @@ Dimensions: project ✅, machine ✅ (thread is implicit — Agent calls are mai
 | Field | Definition |
 |---|---|
 | `slash_commands.top` | Top 10 slash commands as `[{command, invocations, successes, success_rate}]`. "Success" = the invocation reached its terminal action (commit landed, PR created, threads resolved) rather than bailing mid-flow. |
+| `slash_commands.by_project` | Map of project → top 10 `[{command, invocations, successes, success_rate}]`. |
+| `slash_commands.by_machine` | Map of machine → top 10, same shape. |
 
 Dimensions: project ✅, machine ✅.
 
@@ -149,6 +153,8 @@ Dimensions: project ✅, machine ✅.
 | Field | Definition |
 |---|---|
 | `mcp_usage` | Map of MCP server name (`Gmail`, `GCal`, …) → `{tools: {tool_name: calls}, total_calls}`. |
+| `mcp_usage.by_project` | Map of project → same shape as `mcp_usage`. |
+| `mcp_usage.by_machine` | Map of machine → same shape as `mcp_usage`. |
 
 Dimensions: project ✅, machine ✅.
 
@@ -157,6 +163,7 @@ Dimensions: project ✅, machine ✅.
 | Field | Definition |
 |---|---|
 | `hot_files` | Map of project → list of top 20 `{path, session_id, reads}` entries, ranked by re-read count within a single session. |
+| `hot_files.by_machine` | Map of machine → map of project → top 20, same entry shape. |
 
 Signal for whether project-scoped CLAUDE.md files reduce re-reads
 (improvement-plan item #11).
@@ -169,7 +176,10 @@ Dimensions: project ✅ (inherent), machine ✅.
 |---|---|
 | `outcomes.by_session` | Map of session → one of `commit` \| `push` \| `pr` \| `none`. |
 | `outcomes.counts` | Map of outcome → count. |
+| `outcomes.counts.by_project` | Map of project → map of outcome → count. |
+| `outcomes.counts.by_machine` | Map of machine → map of outcome → count. |
 | `outcomes.tool_calls_per_shipped_commit` | Map of project → ratio (`total tool calls / commits landed`); if `commits landed = 0` for a project in the window, emit `0` for that project rather than omission, `Infinity`, or `NaN`. |
+| `outcomes.tool_calls_per_shipped_commit.by_machine` | Map of machine → map of project → ratio, same zero-denominator rule. |
 
 Dimensions: project ✅, machine ✅.
 
