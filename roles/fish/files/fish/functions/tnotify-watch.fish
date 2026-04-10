@@ -6,7 +6,7 @@ function tnotify-watch -d "Watch for notifications and send via tnotify"
     echo %self > "$pidfile"
 
     # Clean up on exit
-    function _tnotify_cleanup --on-signal INT --on-signal TERM --on-process-exit %self
+    function _tnotify_cleanup --on-signal INT --on-signal TERM --on-signal HUP --on-process-exit %self
         rm -f "$HOME/.cache/tnotify.pid"
         functions -e _tnotify_cleanup
     end

@@ -119,7 +119,7 @@ if status --is-interactive; and set -q TMUX
     set -l _tnotify_pid (cat ~/.cache/tnotify.pid 2>/dev/null)
     if test -z "$_tnotify_pid"; or not kill -0 "$_tnotify_pid" 2>/dev/null
         rm -f ~/.cache/tnotify.pid
-        fish -c "tnotify-watch" &>/dev/null &
+        nohup fish -c "tnotify-watch" &>/dev/null &
         disown
     end
 end
