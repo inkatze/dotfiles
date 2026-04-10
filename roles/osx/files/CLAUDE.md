@@ -106,7 +106,10 @@ There are three distinct review workflows, each with a corresponding slash comma
 ## Writing Style
 - Avoid em-dashes in prose unless strictly necessary. Use commas, parentheses, colons, or separate sentences instead.
 
-## Important Notes
-- Fish shell uses different syntax than bash/zsh (e.g., `set` instead of `export` for variables)
-- `mise` handles all runtime version management (replaces nvm, rbenv, pyenv, etc.)
-- Configuration files are managed through Ansible and symlinked from this dotfiles repository
+## Non-obvious Tools
+
+- **`fish`**: Default shell. Use Fish syntax, not bash/zsh (e.g., `set` not `export`).
+- **`mise`**: Runtime version manager for all languages (replaces nvm, rbenv, pyenv).
+- **`age`**: File encryption tool for metrics snapshots under `specs/metrics-baseline/`.
+- **`lefthook`**: Git hooks manager. Pre-commit hooks are defined in `lefthook.yml`.
+- **`jq`**: JSON processor. Used by Ansible to merge `settings.json` into `~/.claude/`.
