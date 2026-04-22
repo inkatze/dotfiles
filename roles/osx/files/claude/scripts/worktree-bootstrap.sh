@@ -33,11 +33,21 @@ cwd="${CLAUDE_PROJECT_DIR:-$PWD}"
 
 # Only interested in git worktrees. In a worktree, .git is a *file* pointing
 # at the per-worktree gitdir; in the primary checkout it's a directory.
+# Note: submodules also use a `.git` pointer file, so the file check alone
+# is ambiguous. The gitdir vs git-common-dir comparison below is the real
+# worktree predicate.
 [ -f "$cwd/.git" ] || exit 0
 
 # Resolve the real per-worktree gitdir (the .git file is a pointer).
 gitdir=$(git -C "$cwd" rev-parse --git-dir 2>/dev/null)
 [ -n "$gitdir" ] || exit 0
+# In a linked worktree, --git-dir points at <main>/.git/worktrees/<name> while
+# --git-common-dir points at <main>/.git (they differ). In a primary checkout
+# and in submodules, the two paths resolve to the same directory. Bail if
+# they match so submodules aren't mistaken for worktrees.
+common_dir=$(git -C "$cwd" rev-parse --git-common-dir 2>/dev/null)
+[ -n "$common_dir" ] || exit 0
+[ "$gitdir" != "$common_dir" ] || exit 0
 # Make absolute so a later `cd` in the background subshell doesn't break it.
 case "$gitdir" in
     /*) ;;
@@ -84,12 +94,18 @@ log() { printf '[%s] %s\n' "$(ts)" "$*" >>"$log_file"; }
 log "bootstrap start: $cwd"
 
 # Step 1: trust mise synchronously so subsequent tool invocations work.
+# mise_status: "ok" if trust succeeded, "failed" if it ran but errored, or
+# empty if no mise config is present / mise isn't installed. The summary
+# below uses this so it doesn't falsely claim trust on a failure.
+mise_status=""
 if [ -f "$cwd/.mise.toml" ] || [ -f "$cwd/mise.toml" ] || [ -f "$cwd/.tool-versions" ]; then
     if command -v mise >/dev/null 2>&1; then
         if mise trust "$cwd" >>"$log_file" 2>&1; then
             log "mise trusted"
+            mise_status="ok"
         else
             log "mise trust failed (continuing)"
+            mise_status="failed"
         fi
     fi
 fi
@@ -187,10 +203,16 @@ if [ $has_repo_hook -eq 1 ]; then
     joined="${joined}repo-bootstrap"
 fi
 
+case "$mise_status" in
+    ok)     mise_phrase="Trusted mise config" ;;
+    failed) mise_phrase="mise trust failed (see log)" ;;
+    *)      mise_phrase="No mise config to trust" ;;
+esac
+
 if [ -z "$joined" ]; then
-    summary="Fresh git worktree detected. Trusted mise config if present. No package lockfiles or repo bootstrap script found."
+    summary="Fresh git worktree detected. ${mise_phrase}. No package lockfiles or repo bootstrap script found."
 else
-    summary="Fresh git worktree detected. Trusted mise config if present; running installs in background: ${joined}. Log: ~/.claude/cache/worktree-bootstrap.log. Marker: ${marker} (delete to force re-run)."
+    summary="Fresh git worktree detected. ${mise_phrase}; running installs in background: ${joined}. Log: ~/.claude/cache/worktree-bootstrap.log. Marker: ${marker} (delete to force re-run)."
 fi
 
 printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":%s}}\n' \
