@@ -5,9 +5,27 @@
     update_homebrew: true
   tags: [upgrade]
 
+# mas entries are skipped in brew bundle (it shells out via sudo, which fails
+# without a TTY for apps owned by root:wheel in /Applications). The separate
+# "Upgrade MAS apps" task below handles mas with failed_when: false.
+- name: Collect MAS app IDs to skip in brew bundle
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      cat {{ ansible_env.PWD }}/Brewfile {{ ansible_env.PWD }}/Brewfile.{{ inventory_hostname }}
+      | grep -oE 'id:[[:space:]]*[0-9]+'
+      | grep -oE '[0-9]+'
+      | tr '\n' ' '
+    executable: /bin/bash
+  register: osx_brewfile_mas_ids
+  changed_when: false
+  tags: [upgrade]
+
 - name: Upgrade common packages from Brewfile
   ansible.builtin.command:
     cmd: brew bundle --file={{ ansible_env.PWD }}/Brewfile
+  environment:
+    HOMEBREW_BUNDLE_MAS_SKIP: "{{ osx_brewfile_mas_ids.stdout }}"
   register: osx_brew_bundle_common
   changed_when: "'Installing' in osx_brew_bundle_common.stdout or 'Upgrading' in osx_brew_bundle_common.stdout"
   tags: [upgrade]
@@ -15,6 +33,8 @@
 - name: Upgrade host-specific packages from Brewfile
   ansible.builtin.command:
     cmd: brew bundle --file={{ ansible_env.PWD }}/Brewfile.{{ inventory_hostname }}
+  environment:
+    HOMEBREW_BUNDLE_MAS_SKIP: "{{ osx_brewfile_mas_ids.stdout }}"
   register: osx_brew_bundle_host
   changed_when: "'Installing' in osx_brew_bundle_host.stdout or 'Upgrading' in osx_brew_bundle_host.stdout"
   tags: [upgrade]
