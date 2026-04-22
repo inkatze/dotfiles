@@ -122,7 +122,7 @@ has_repo_hook=0
 # the fish children inherit that working directory — no inner cd inside
 # `fish -c`, which also avoids quoting pitfalls if $cwd contains odd chars.
 (
-    cd "$cwd" || exit 0
+    cd "$cwd" || { rm -f "$marker"; exit 0; }
     n=${#installer_cmds[@]}
     succeeded=1
 
