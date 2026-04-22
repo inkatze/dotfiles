@@ -26,9 +26,11 @@ Target 120 lines (hard ceiling 200). Sections, in order:
 4. **Adding a new Claude command** — drop the file under
    `roles/osx/files/claude/commands/`, commit, run Ansible (or let the symlink
    task pick it up on its next run), verify in a fresh session. Command
-   front-matter required for discovery. Skills/hooks are not currently managed
-   by Ansible; adding them would require a new tracked directory plus a matching
-   symlink task and is out of scope here.
+   front-matter required for discovery. Hook scripts live under
+   `roles/osx/files/claude/scripts/` and are symlinked by a matching task in
+   `roles/osx/tasks/osx.yml`; they are wired from `settings.json`. Skills are
+   not yet managed by Ansible; adding them would require a new tracked
+   directory plus a matching symlink task and is out of scope here.
 5. **Things to NOT edit directly in `~/.claude/`** — anything symlinked from this
    repo. If in doubt, `readlink` first.
 6. **Ansible role layout pointer** — one line: `roles/osx/` is the Mac role; most

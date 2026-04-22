@@ -61,6 +61,11 @@ project-specific extra steps (codegen, DB setup, etc.). Marker:
 `.git/claude-bootstrap-done` (delete to force re-run). Log:
 `~/.claude/cache/worktree-bootstrap.log`.
 
+**Trust caveat:** the hook runs `.claude/worktree-bootstrap` from the repo
+with no sandboxing, so opening Claude in an untrusted checkout executes
+whatever that script contains. Same trust model as `mise trust`: inspect the
+script before opening a repo you did not author.
+
 ## Do not edit directly in `~/.claude/`
 
 Any file symlinked from this repo is overwritten on the next Ansible run.

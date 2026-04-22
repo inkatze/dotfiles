@@ -11,7 +11,8 @@
 set -u
 
 event="${1:-unknown}"
-json=$(cat 2>/dev/null || printf '{}')
+json=$(cat)
+[ -z "$json" ] && json='{}'
 
 cwd=$(printf '%s' "$json" | jq -r '.cwd // empty' 2>/dev/null)
 [ -z "$cwd" ] && cwd="$PWD"
