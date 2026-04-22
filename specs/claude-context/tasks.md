@@ -15,10 +15,12 @@ Target 120 lines (hard ceiling 200). Sections, in order:
    edits land here, Ansible run propagates.
 2. **How Claude config is materialized** — tracked Claude sources live in the
    Ansible role: `roles/osx/files/claude/commands/` is symlinked into
-   `~/.claude/commands/`, `~/.claude/CLAUDE.md` is symlinked from
-   `roles/osx/files/CLAUDE.md` (outside the `claude/` directory), and
-   `settings.json` is produced by a jq merge/write task rather than symlinked.
-   Edit the tracked source, not the materialized file in `~/.claude/`.
+   `~/.claude/commands/`, `roles/osx/files/claude/scripts/` is symlinked into
+   `~/.claude/scripts/` (hook scripts invoked from `settings.json`),
+   `~/.claude/CLAUDE.md` is symlinked from `roles/osx/files/CLAUDE.md`
+   (outside the `claude/` directory), and `settings.json` is produced by a jq
+   merge/write task rather than symlinked. Edit the tracked source, not the
+   materialized file in `~/.claude/`.
 3. **Permissions three-layer model** — compact restatement of #8's resolved model
    (global tracked, per-repo tracked, per-repo local). Note that the dotfiles
    `.claude/settings.json` (tracked, created in #8) holds dotfiles-specific durable
