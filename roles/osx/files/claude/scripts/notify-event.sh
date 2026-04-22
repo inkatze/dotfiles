@@ -17,7 +17,7 @@ json=$(cat)
 cwd=$(printf '%s' "$json" | jq -r '.cwd // empty' 2>/dev/null)
 [ -z "$cwd" ] && cwd="$PWD"
 project=$(basename "$cwd")
-branch=$(git -C "$cwd" branch --show-current 2>/dev/null | tr -d '\n\t' || true)
+branch=$(git -C "$cwd" branch --show-current 2>/dev/null | tr -d '\n\t')
 
 context="$project"
 [ -n "$branch" ] && context="$project · $branch"

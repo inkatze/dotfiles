@@ -71,8 +71,8 @@ mkdir -p "$log_dir"
 
 # Truncate log if it has grown past ~256KB. Cheap unbounded-growth guard.
 if [ -f "$log_file" ]; then
-    log_size=$(wc -c <"$log_file" 2>/dev/null || echo 0)
-    [ "$log_size" -gt 262144 ] && : > "$log_file"
+    log_size=$(wc -c <"$log_file" 2>/dev/null | tr -d '[:space:]')
+    [ -n "$log_size" ] && [ "$log_size" -gt 262144 ] && : > "$log_file"
 fi
 
 ts() { date '+%Y-%m-%dT%H:%M:%S'; }
@@ -168,7 +168,7 @@ has_repo_hook=0
     fi
     log "bootstrap end (ran_any=$ran_any succeeded=$succeeded)"
 ) >/dev/null 2>&1 &
-disown
+disown 2>/dev/null || true
 
 # Emit additionalContext so Claude knows this happened. Build the joined
 # list with an index-based loop to keep bash-3.2 + `set -u` happy on
