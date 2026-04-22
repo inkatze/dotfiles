@@ -65,8 +65,10 @@ have something non-obvious to say; sections that do not may be omitted:
 - **Adding a new Claude command.** The path and propagation: drop the file under
   `roles/osx/files/claude/commands/`, commit, let the Ansible symlink task pick
   it up, verify in a fresh session. Command front-matter is required for
-  discovery. Adding skills or hooks is out of scope for this section until those
-  surfaces are managed by Ansible (new tracked directory plus symlink task).
+  discovery. Hook scripts are now managed under `roles/osx/files/claude/scripts/`
+  with a matching symlink task and are wired from `settings.json`. Skills are
+  still out of scope for this section and would require a new tracked directory
+  plus symlink task.
 - **Things to NOT edit directly in `~/.claude/`.** Anything symlinked from this
   repo. If in doubt, `readlink` the file first.
 - **Ansible role layout pointer.** A single-line hint that `roles/osx/` is the Mac

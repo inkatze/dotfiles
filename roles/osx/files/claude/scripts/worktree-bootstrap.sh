@@ -3,7 +3,8 @@
 # Wired from ~/.claude/settings.json as a SessionStart hook.
 #
 # Behavior (runs once per worktree; marker at .git/claude-bootstrap-done):
-#   1. Exit quietly if not a git worktree or already bootstrapped.
+#   1. Exit quietly if not a git worktree or already bootstrapped. Primary
+#      checkouts (where .git is a directory) are intentionally skipped.
 #   2. Synchronously: `mise trust` the worktree so .mise.toml / .tool-versions
 #      are accepted. This is fast and fixes the first-use friction.
 #   3. In the background: run a best-effort dependency install based on
@@ -13,6 +14,13 @@
 #   4. If the repo ships an executable .claude/worktree-bootstrap script,
 #      invoke it after the language installers so projects can layer on
 #      additional steps (codegen, DB setup, etc.).
+#
+# Marker state machine (file: .git/claude-bootstrap-done):
+#   - Absent         → run bootstrap.
+#   - Empty          → bootstrap in progress (or crashed mid-run).
+#                      If mtime < 30 min old, assume in-progress and skip.
+#                      If mtime >= 30 min old, assume stale and retake.
+#   - "ok <ts>"      → previous run succeeded. Skip.
 #
 # To force a re-run: rm .git/claude-bootstrap-done in the worktree.
 
@@ -33,10 +41,26 @@ case "$gitdir" in
     *) gitdir="$cwd/$gitdir" ;;
 esac
 
+marker="$gitdir/claude-bootstrap-done"
+
+# State check: skip if a previous run succeeded, or if another session is
+# currently bootstrapping (empty marker, recent mtime). Reclaim a stale
+# empty marker older than 30 min (longer than any realistic installer run).
+if [ -f "$marker" ]; then
+    if grep -q '^ok' "$marker" 2>/dev/null; then
+        exit 0
+    fi
+    if [ -n "$(find "$marker" -mmin -30 -print 2>/dev/null)" ]; then
+        exit 0
+    fi
+    rm -f "$marker"
+fi
+
 # Atomic claim via noclobber: `set -C` makes `>` fail if the target exists,
 # so two concurrent SessionStart hooks can't both pass through here. Only
-# the winner proceeds to the installers below.
-marker="$gitdir/claude-bootstrap-done"
+# the winner proceeds to the installers below. The empty marker signals
+# "in progress" until the background subshell overwrites it with "ok" or
+# removes it on failure.
 if ! ( set -C; : > "$marker" ) 2>/dev/null; then
     exit 0
 fi
@@ -44,6 +68,12 @@ fi
 log_dir="$HOME/.claude/cache"
 log_file="$log_dir/worktree-bootstrap.log"
 mkdir -p "$log_dir"
+
+# Truncate log if it has grown past ~256KB. Cheap unbounded-growth guard.
+if [ -f "$log_file" ]; then
+    log_size=$(wc -c <"$log_file" 2>/dev/null || echo 0)
+    [ "$log_size" -gt 262144 ] && : > "$log_file"
+fi
 
 ts() { date '+%Y-%m-%dT%H:%M:%S'; }
 log() { printf '[%s] %s\n' "$(ts)" "$*" >>"$log_file"; }
@@ -118,8 +148,16 @@ has_repo_hook=0
     fi
 
     ran_any=0
-    [ $n -gt 0 ] && ran_any=1
+    [ "$n" -gt 0 ] && ran_any=1
     [ $has_repo_hook -eq 1 ] && ran_any=1
+
+    # Finalize the marker: "ok <ts>" on success (parent wrote empty marker),
+    # or remove it on failure so the next session retries.
+    if [ $succeeded -eq 1 ]; then
+        printf 'ok %s\n' "$(ts)" > "$marker"
+    else
+        rm -f "$marker"
+    fi
 
     if [ $ran_any -eq 1 ]; then
         if [ $succeeded -eq 1 ]; then

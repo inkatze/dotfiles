@@ -58,8 +58,11 @@ directory requires a matching symlink task in `roles/osx/tasks/osx.yml`.
 trusts mise, then kicks off lockfile-detected dep installs in the background.
 Each repo may ship an executable `.claude/worktree-bootstrap` script for
 project-specific extra steps (codegen, DB setup, etc.). Marker:
-`.git/claude-bootstrap-done` (delete to force re-run). Log:
-`~/.claude/cache/worktree-bootstrap.log`.
+`.git/claude-bootstrap-done` (empty while running, `ok <ts>` on success;
+removed on failure so the next session retries). Log:
+`~/.claude/cache/worktree-bootstrap.log` (truncated when it exceeds ~256KB).
+In a primary checkout (`.git` is a directory, not a pointer file) the hook
+is a silent no-op by design.
 
 **Trust caveat:** the hook runs `.claude/worktree-bootstrap` from the repo
 with no sandboxing, so opening Claude in an untrusted checkout executes
