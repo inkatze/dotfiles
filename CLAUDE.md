@@ -54,8 +54,9 @@ directory requires a matching symlink task in `roles/osx/tasks/osx.yml`.
 
 ### Per-repo worktree bootstrap hook
 
-`scripts/worktree-bootstrap.sh` runs on `SessionStart`. In a git worktree it
-trusts mise, then kicks off lockfile-detected dep installs in the background.
+`roles/osx/files/claude/scripts/worktree-bootstrap.sh` runs on `SessionStart`.
+In a git worktree it trusts mise, then kicks off lockfile-detected dep installs
+in the background.
 Each repo may ship an executable `.claude/worktree-bootstrap` script for
 project-specific extra steps (codegen, DB setup, etc.). Marker:
 `.git/claude-bootstrap-done` (empty while running, `ok <ts>` on success;
