@@ -7,7 +7,7 @@
 #   2. Synchronously: `mise trust` the worktree so .mise.toml / .tool-versions
 #      are accepted. This is fast and fixes the first-use friction.
 #   3. In the background: run a best-effort dependency install based on
-#      detected lockfiles (npm/yarn/pnpm, bundler, mix, cargo, go mod, uv,
+#      detected lockfiles (npm/pnpm/yarn, bundler, mix, cargo, go mod, uv,
 #      poetry). Logs go to ~/.claude/cache/worktree-bootstrap.log.
 #      A desktop notification fires when the install finishes.
 #   4. If the repo ships an executable .claude/worktree-bootstrap script,
@@ -33,12 +33,13 @@ case "$gitdir" in
     *) gitdir="$cwd/$gitdir" ;;
 esac
 
+# Atomic claim via noclobber: `set -C` makes `>` fail if the target exists,
+# so two concurrent SessionStart hooks can't both pass through here. Only
+# the winner proceeds to the installers below.
 marker="$gitdir/claude-bootstrap-done"
-[ -f "$marker" ] && exit 0
-
-# Claim the marker up-front so concurrent SessionStart hooks short-circuit
-# before they get to the (heavy) background installers below.
-touch "$marker"
+if ! ( set -C; : > "$marker" ) 2>/dev/null; then
+    exit 0
+fi
 
 log_dir="$HOME/.claude/cache"
 log_file="$log_dir/worktree-bootstrap.log"
@@ -60,44 +61,65 @@ if [ -f "$cwd/.mise.toml" ] || [ -f "$cwd/mise.toml" ] || [ -f "$cwd/.tool-versi
     fi
 fi
 
-# Step 2: background dependency install.
+# Detect package managers once. Same list drives both the background
+# installer and the additionalContext summary, so adding a new language is
+# a single-site change. Node package managers are mutually exclusive:
+# precedence npm > pnpm > yarn.
+detected_names=()
+installer_cmds=()
+
+add_installer() {
+    detected_names+=("$1")
+    installer_cmds+=("$2")
+}
+
+has_npm=0
+has_pnpm=0
+[ -f "$cwd/package-lock.json" ] && { has_npm=1; add_installer "npm" "npm ci"; }
+[ -f "$cwd/pnpm-lock.yaml" ] && [ $has_npm -eq 0 ] && { has_pnpm=1; add_installer "pnpm" "pnpm install --frozen-lockfile"; }
+[ -f "$cwd/yarn.lock" ] && [ $has_npm -eq 0 ] && [ $has_pnpm -eq 0 ] && add_installer "yarn" "yarn install --frozen-lockfile"
+[ -f "$cwd/Gemfile.lock" ] && add_installer "bundler" "bundle install"
+[ -f "$cwd/mix.exs" ] && add_installer "mix" "mix deps.get"
+[ -f "$cwd/go.mod" ] && add_installer "go" "go mod download"
+[ -f "$cwd/Cargo.lock" ] && add_installer "cargo" "cargo fetch"
+[ -f "$cwd/uv.lock" ] && add_installer "uv" "uv sync"
+[ -f "$cwd/poetry.lock" ] && add_installer "poetry" "poetry install --no-root"
+
+has_repo_hook=0
+[ -x "$cwd/.claude/worktree-bootstrap" ] && has_repo_hook=1
+
+# Step 2: background dependency install. The subshell cd's to $cwd once, so
+# the fish children inherit that working directory — no inner cd inside
+# `fish -c`, which also avoids quoting pitfalls if $cwd contains odd chars.
 (
     cd "$cwd" || exit 0
-    ran_any=0
+    n=${#installer_cmds[@]}
     succeeded=1
 
-    run() {
-        ran_any=1
-        log "run: $*"
-        if fish -c "cd '$cwd'; and $*" >>"$log_file" 2>&1; then
-            log "ok: $*"
+    for ((i=0; i<n; i++)); do
+        cmd="${installer_cmds[$i]}"
+        log "run: $cmd"
+        if fish -c "$cmd" >>"$log_file" 2>&1; then
+            log "ok: $cmd"
         else
-            log "fail: $*"
+            log "fail: $cmd"
             succeeded=0
         fi
-    }
+    done
 
-    [ -f "$cwd/package-lock.json" ] && run "npm ci"
-    [ -f "$cwd/yarn.lock" ] && [ ! -f "$cwd/package-lock.json" ] && run "yarn install --frozen-lockfile"
-    [ -f "$cwd/pnpm-lock.yaml" ] && [ ! -f "$cwd/package-lock.json" ] && run "pnpm install --frozen-lockfile"
-    [ -f "$cwd/Gemfile.lock" ] && run "bundle install"
-    [ -f "$cwd/mix.exs" ] && run "mix deps.get"
-    [ -f "$cwd/go.mod" ] && run "go mod download"
-    [ -f "$cwd/Cargo.lock" ] && run "cargo fetch"
-    [ -f "$cwd/uv.lock" ] && run "uv sync"
-    [ -f "$cwd/poetry.lock" ] && run "poetry install --no-root"
-
-    # Per-repo hook: runs after language installers.
-    if [ -x "$cwd/.claude/worktree-bootstrap" ]; then
-        ran_any=1
+    if [ $has_repo_hook -eq 1 ]; then
         log "run: .claude/worktree-bootstrap"
-        if fish -c "cd '$cwd'; and ./.claude/worktree-bootstrap" >>"$log_file" 2>&1; then
+        if fish -c "./.claude/worktree-bootstrap" >>"$log_file" 2>&1; then
             log "ok: .claude/worktree-bootstrap"
         else
             log "fail: .claude/worktree-bootstrap"
             succeeded=0
         fi
     fi
+
+    ran_any=0
+    [ $n -gt 0 ] && ran_any=1
+    [ $has_repo_hook -eq 1 ] && ran_any=1
 
     if [ $ran_any -eq 1 ]; then
         if [ $succeeded -eq 1 ]; then
@@ -110,23 +132,23 @@ fi
 ) >/dev/null 2>&1 &
 disown
 
-# Emit additionalContext so Claude knows this happened.
-detected=()
-[ -f "$cwd/package-lock.json" ] && detected+=("npm")
-[ -f "$cwd/yarn.lock" ] && [ ! -f "$cwd/package-lock.json" ] && detected+=("yarn")
-[ -f "$cwd/pnpm-lock.yaml" ] && [ ! -f "$cwd/package-lock.json" ] && detected+=("pnpm")
-[ -f "$cwd/Gemfile.lock" ] && detected+=("bundler")
-[ -f "$cwd/mix.exs" ] && detected+=("mix")
-[ -f "$cwd/go.mod" ] && detected+=("go")
-[ -f "$cwd/Cargo.lock" ] && detected+=("cargo")
-[ -f "$cwd/uv.lock" ] && detected+=("uv")
-[ -f "$cwd/poetry.lock" ] && detected+=("poetry")
-[ -x "$cwd/.claude/worktree-bootstrap" ] && detected+=("repo-bootstrap")
+# Emit additionalContext so Claude knows this happened. Build the joined
+# list with an index-based loop to keep bash-3.2 + `set -u` happy on
+# empty arrays.
+joined=""
+total=${#detected_names[@]}
+for ((i=0; i<total; i++)); do
+    [ -n "$joined" ] && joined="$joined,"
+    joined="$joined${detected_names[$i]}"
+done
+if [ $has_repo_hook -eq 1 ]; then
+    [ -n "$joined" ] && joined="$joined,"
+    joined="${joined}repo-bootstrap"
+fi
 
-if [ ${#detected[@]} -eq 0 ]; then
+if [ -z "$joined" ]; then
     summary="Fresh git worktree detected. Trusted mise config if present. No package lockfiles or repo bootstrap script found."
 else
-    joined=$(IFS=, ; echo "${detected[*]}")
     summary="Fresh git worktree detected. Trusted mise config; running installs in background: ${joined}. Log: ~/.claude/cache/worktree-bootstrap.log. Marker: .git/claude-bootstrap-done (delete to force re-run)."
 fi
 
