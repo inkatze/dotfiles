@@ -77,18 +77,18 @@ fi
         fi
     }
 
-    [ -f package-lock.json ] && run "npm ci"
-    [ -f yarn.lock ] && [ ! -f package-lock.json ] && run "yarn install --frozen-lockfile"
-    [ -f pnpm-lock.yaml ] && run "pnpm install --frozen-lockfile"
-    [ -f Gemfile.lock ] && run "bundle install"
-    [ -f mix.exs ] && run "mix deps.get"
-    [ -f go.mod ] && run "go mod download"
-    [ -f Cargo.lock ] && run "cargo fetch"
-    [ -f uv.lock ] && run "uv sync"
-    [ -f poetry.lock ] && run "poetry install --no-root"
+    [ -f "$cwd/package-lock.json" ] && run "npm ci"
+    [ -f "$cwd/yarn.lock" ] && [ ! -f "$cwd/package-lock.json" ] && run "yarn install --frozen-lockfile"
+    [ -f "$cwd/pnpm-lock.yaml" ] && [ ! -f "$cwd/package-lock.json" ] && run "pnpm install --frozen-lockfile"
+    [ -f "$cwd/Gemfile.lock" ] && run "bundle install"
+    [ -f "$cwd/mix.exs" ] && run "mix deps.get"
+    [ -f "$cwd/go.mod" ] && run "go mod download"
+    [ -f "$cwd/Cargo.lock" ] && run "cargo fetch"
+    [ -f "$cwd/uv.lock" ] && run "uv sync"
+    [ -f "$cwd/poetry.lock" ] && run "poetry install --no-root"
 
     # Per-repo hook: runs after language installers.
-    if [ -x ".claude/worktree-bootstrap" ]; then
+    if [ -x "$cwd/.claude/worktree-bootstrap" ]; then
         ran_any=1
         log "run: .claude/worktree-bootstrap"
         if fish -c "cd '$cwd'; and ./.claude/worktree-bootstrap" >>"$log_file" 2>&1; then
@@ -114,7 +114,7 @@ disown
 detected=()
 [ -f "$cwd/package-lock.json" ] && detected+=("npm")
 [ -f "$cwd/yarn.lock" ] && [ ! -f "$cwd/package-lock.json" ] && detected+=("yarn")
-[ -f "$cwd/pnpm-lock.yaml" ] && detected+=("pnpm")
+[ -f "$cwd/pnpm-lock.yaml" ] && [ ! -f "$cwd/package-lock.json" ] && detected+=("pnpm")
 [ -f "$cwd/Gemfile.lock" ] && detected+=("bundler")
 [ -f "$cwd/mix.exs" ] && detected+=("mix")
 [ -f "$cwd/go.mod" ] && detected+=("go")
