@@ -2,7 +2,8 @@
 # Bootstrap a fresh git worktree when Claude Code starts in one.
 # Wired from ~/.claude/settings.json as a SessionStart hook.
 #
-# Behavior (runs once per worktree; marker at .git/claude-bootstrap-done):
+# Behavior (runs once per worktree; marker at <gitdir>/claude-bootstrap-done,
+# where <gitdir> is the per-worktree gitdir resolved via `git rev-parse --git-dir`):
 #   1. Exit quietly if not a git worktree or already bootstrapped. Primary
 #      checkouts (where .git is a directory) are intentionally skipped.
 #   2. Synchronously: `mise trust` the worktree so .mise.toml / .tool-versions
@@ -15,14 +16,16 @@
 #      invoke it after the language installers so projects can layer on
 #      additional steps (codegen, DB setup, etc.).
 #
-# Marker state machine (file: .git/claude-bootstrap-done):
+# Marker state machine (file: <gitdir>/claude-bootstrap-done):
 #   - Absent         → run bootstrap.
 #   - Empty          → bootstrap in progress (or crashed mid-run).
 #                      If mtime < 30 min old, assume in-progress and skip.
 #                      If mtime >= 30 min old, assume stale and retake.
 #   - "ok <ts>"      → previous run succeeded. Skip.
 #
-# To force a re-run: rm .git/claude-bootstrap-done in the worktree.
+# To force a re-run: rm "$(git rev-parse --git-dir)/claude-bootstrap-done"
+# (the marker lives in the per-worktree gitdir, not in the worktree root,
+# because .git is a pointer file in a worktree).
 
 set -u
 
@@ -187,7 +190,7 @@ fi
 if [ -z "$joined" ]; then
     summary="Fresh git worktree detected. Trusted mise config if present. No package lockfiles or repo bootstrap script found."
 else
-    summary="Fresh git worktree detected. Trusted mise config; running installs in background: ${joined}. Log: ~/.claude/cache/worktree-bootstrap.log. Marker: .git/claude-bootstrap-done (delete to force re-run)."
+    summary="Fresh git worktree detected. Trusted mise config; running installs in background: ${joined}. Log: ~/.claude/cache/worktree-bootstrap.log. Marker: ${marker} (delete to force re-run)."
 fi
 
 printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":%s}}\n' \

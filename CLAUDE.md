@@ -59,8 +59,10 @@ In a git worktree it trusts mise, then kicks off lockfile-detected dep installs
 in the background.
 Each repo may ship an executable `.claude/worktree-bootstrap` script for
 project-specific extra steps (codegen, DB setup, etc.). Marker:
-`.git/claude-bootstrap-done` (empty while running, `ok <ts>` on success;
-removed on failure so the next session retries). Log:
+`claude-bootstrap-done` inside the per-worktree gitdir (resolve with
+`git rev-parse --git-dir`; in a worktree `.git` is a pointer file, so the
+marker is not under `<worktree>/.git/`). Empty while running, `ok <ts>` on
+success; removed on failure so the next session retries. Log:
 `~/.claude/cache/worktree-bootstrap.log` (truncated when it exceeds ~256KB).
 In a primary checkout (`.git` is a directory, not a pointer file) the hook
 is a silent no-op by design.
