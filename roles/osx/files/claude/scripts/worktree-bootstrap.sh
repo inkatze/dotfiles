@@ -36,6 +36,10 @@ esac
 marker="$gitdir/claude-bootstrap-done"
 [ -f "$marker" ] && exit 0
 
+# Claim the marker up-front so concurrent SessionStart hooks short-circuit
+# before they get to the (heavy) background installers below.
+touch "$marker"
+
 log_dir="$HOME/.claude/cache"
 log_file="$log_dir/worktree-bootstrap.log"
 mkdir -p "$log_dir"
@@ -55,9 +59,6 @@ if [ -f "$cwd/.mise.toml" ] || [ -f "$cwd/mise.toml" ] || [ -f "$cwd/.tool-versi
         fi
     fi
 fi
-
-# Mark early so concurrent session starts don't double-run.
-touch "$marker"
 
 # Step 2: background dependency install.
 (
@@ -130,6 +131,6 @@ else
 fi
 
 printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":%s}}\n' \
-    "$(printf '%s' "$summary" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
+    "$(printf '%s' "$summary" | jq -Rs .)"
 
 exit 0

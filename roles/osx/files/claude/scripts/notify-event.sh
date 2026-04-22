@@ -47,5 +47,6 @@ sanitize() { printf '%s' "$1" | tr '\t\n' '  '; }
 title=$(sanitize "$title")
 body=$(sanitize "$body")
 
+# shellcheck disable=SC2016  # single quotes are intentional: fish does the expansion.
 TNOTIFY_TITLE="$title" TNOTIFY_BODY="$body" \
     fish -c 'tnotify-send $TNOTIFY_TITLE $TNOTIFY_BODY' >/dev/null 2>&1 || true
