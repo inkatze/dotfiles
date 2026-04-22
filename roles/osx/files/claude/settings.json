@@ -4,12 +4,22 @@
     "pr": ""
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/worktree-bootstrap.sh"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "fish -c \"tnotify-send 'Claude Code' 'Task completed'\""
+            "command": "$HOME/.claude/scripts/notify-event.sh done"
           }
         ]
       }
@@ -20,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "msg=$(cat | jq -r '.message') && fish -c \"tnotify-send 'Claude Code' \\\"$msg\\\"\""
+            "command": "$HOME/.claude/scripts/notify-event.sh permission"
           }
         ]
       },
@@ -29,21 +39,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "fish -c \"tnotify-send 'Claude Code' 'Waiting for input'\""
+            "command": "$HOME/.claude/scripts/notify-event.sh idle"
           }
         ]
       }
     ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "fish -c \"tnotify-send 'Claude Code' 'Subagent completed'\""
-          }
-        ]
-      }
-    ]
+    "SubagentStop": []
   },
   "enabledPlugins": {
     "pyright-lsp@claude-plugins-official": true,

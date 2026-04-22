@@ -14,6 +14,7 @@ runtime:
 |---|---|---|
 | `~/.claude/CLAUDE.md` | `roles/osx/files/CLAUDE.md` | Symlink (outside `claude/` subdirectory) |
 | `~/.claude/commands/*` | `roles/osx/files/claude/commands/` | Symlink |
+| `~/.claude/scripts/*` | `roles/osx/files/claude/scripts/` | Symlink (hook scripts invoked from `settings.json`) |
 | `~/.claude/settings.json` | `roles/osx/files/claude/settings.json` | jq merge (not symlink) |
 
 Always edit the tracked source. The materialized file in `~/.claude/` is
@@ -39,8 +40,25 @@ near-empty.
 3. Commit and run Ansible (or wait for the next symlink task run).
 4. Verify in a fresh Claude session.
 
-Skills and hooks are not managed by Ansible yet. Adding them requires a new
-tracked directory plus a matching symlink task in `roles/osx/tasks/osx.yml`.
+Hook logic lives in `roles/osx/files/claude/scripts/` and is wired from
+`settings.json`. Skills are not managed by Ansible yet. Adding a new tracked
+directory requires a matching symlink task in `roles/osx/tasks/osx.yml`.
+
+## Adding a new hook
+
+1. Write the script under `roles/osx/files/claude/scripts/` and `chmod +x` it.
+2. Reference it from `roles/osx/files/claude/settings.json` under `hooks.<Event>`
+   via `$HOME/.claude/scripts/<name>.sh`.
+3. To remove an existing hook event, set its array to `[]` in the tracked
+   `settings.json` so the jq merge overwrites the materialized entry.
+
+### Per-repo worktree bootstrap hook
+
+`scripts/worktree-bootstrap.sh` runs on `SessionStart`. In a git worktree it
+trusts mise, then kicks off lockfile-detected dep installs in the background.
+Each repo may ship an executable `.claude/worktree-bootstrap` script for
+project-specific extra steps (codegen, DB setup, etc.). Marker:
+`.git/claude-bootstrap-done` (delete to force re-run).
 
 ## Do not edit directly in `~/.claude/`
 
