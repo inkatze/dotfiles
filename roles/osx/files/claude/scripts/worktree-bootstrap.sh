@@ -190,7 +190,7 @@ fi
 if [ -z "$joined" ]; then
     summary="Fresh git worktree detected. Trusted mise config if present. No package lockfiles or repo bootstrap script found."
 else
-    summary="Fresh git worktree detected. Trusted mise config; running installs in background: ${joined}. Log: ~/.claude/cache/worktree-bootstrap.log. Marker: ${marker} (delete to force re-run)."
+    summary="Fresh git worktree detected. Trusted mise config if present; running installs in background: ${joined}. Log: ~/.claude/cache/worktree-bootstrap.log. Marker: ${marker} (delete to force re-run)."
 fi
 
 printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":%s}}\n' \
