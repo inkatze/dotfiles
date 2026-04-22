@@ -37,20 +37,27 @@ Do a comprehensive code review of the current feature branch.
 
 8. After all items are addressed, commit the changes.
 
-9. If the review found nothing substantive (or after addressing everything), offer to push and create a draft PR. Before creating it, check for PR templates and conventions:
+9. If the review found nothing substantive (or after addressing everything), offer to push the branch. Then handle the PR, gracefully reusing an existing one if present:
 
-   **Check for templates:**
+   **Check if a PR already exists for this branch:**
+   ```
+   gh pr view --json number,url,state,isDraft,title 2>/dev/null
+   ```
+   - If a PR exists: push the branch (`git push origin <branch>`) so the existing PR picks up the new commits. Report the existing PR's URL and state (draft/ready, open/merged). Do NOT create a new PR. If the existing PR is merged or closed, ask the user whether to reopen it or create a fresh one instead of assuming.
+   - If no PR exists: proceed with the template/convention check below and create a draft PR.
+
+   **Check for templates (only when creating a new PR):**
    - Look for `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, or templates in `.github/PULL_REQUEST_TEMPLATE/`
    - If a template exists, use it as the structure for the PR body, filling in the sections based on the branch changes
 
-   **Check for conventions:**
+   **Check for conventions (only when creating a new PR):**
    - If no template exists, look at recent merged PRs for patterns:
      ```
      gh pr list --state merged --limit 5 --json title,body
      ```
    - If a clear pattern emerges (e.g., consistent sections, formatting), follow it
 
-   **Create the PR:**
+   **Create the PR (only when none exists):**
    - If a template or convention was found, use `gh pr create --draft` with a `--title` and `--body` that follows the discovered format
    - If nothing was found, fall back to `gh pr create --draft --fill`
 

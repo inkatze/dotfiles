@@ -15,10 +15,12 @@ Target 120 lines (hard ceiling 200). Sections, in order:
    edits land here, Ansible run propagates.
 2. **How Claude config is materialized** — tracked Claude sources live in the
    Ansible role: `roles/osx/files/claude/commands/` is symlinked into
-   `~/.claude/commands/`, `~/.claude/CLAUDE.md` is symlinked from
-   `roles/osx/files/CLAUDE.md` (outside the `claude/` directory), and
-   `settings.json` is produced by a jq merge/write task rather than symlinked.
-   Edit the tracked source, not the materialized file in `~/.claude/`.
+   `~/.claude/commands/`, `roles/osx/files/claude/scripts/` is symlinked into
+   `~/.claude/scripts/` (hook scripts invoked from `settings.json`),
+   `~/.claude/CLAUDE.md` is symlinked from `roles/osx/files/CLAUDE.md`
+   (outside the `claude/` directory), and `settings.json` is produced by a jq
+   merge/write task rather than symlinked. Edit the tracked source, not the
+   materialized file in `~/.claude/`.
 3. **Permissions three-layer model** — compact restatement of #8's resolved model
    (global tracked, per-repo tracked, per-repo local). Note that the dotfiles
    `.claude/settings.json` (tracked, created in #8) holds dotfiles-specific durable
@@ -26,9 +28,11 @@ Target 120 lines (hard ceiling 200). Sections, in order:
 4. **Adding a new Claude command** — drop the file under
    `roles/osx/files/claude/commands/`, commit, run Ansible (or let the symlink
    task pick it up on its next run), verify in a fresh session. Command
-   front-matter required for discovery. Skills/hooks are not currently managed
-   by Ansible; adding them would require a new tracked directory plus a matching
-   symlink task and is out of scope here.
+   front-matter required for discovery. Hook scripts live under
+   `roles/osx/files/claude/scripts/` and are symlinked by a matching task in
+   `roles/osx/tasks/osx.yml`; they are wired from `settings.json`. Skills are
+   not yet managed by Ansible; adding them would require a new tracked
+   directory plus a matching symlink task and is out of scope here.
 5. **Things to NOT edit directly in `~/.claude/`** — anything symlinked from this
    repo. If in doubt, `readlink` first.
 6. **Ansible role layout pointer** — one line: `roles/osx/` is the Mac role; most

@@ -48,13 +48,14 @@ have something non-obvious to say; sections that do not may be omitted:
 - **How Claude config is materialized.** The non-obvious fact that the tracked
   Claude sources live in the Ansible role and are materialized by different
   mechanisms: `roles/osx/files/claude/commands/` is symlinked into
-  `~/.claude/commands/`, `~/.claude/CLAUDE.md` is symlinked from
-  `roles/osx/files/CLAUDE.md` (note: outside the `claude/` directory), and
-  `roles/osx/files/claude/settings.json` is merged into `~/.claude/settings.json`
-  by a jq-based task rather than symlinked. Editing the materialized file
-  directly is wrong; edit the tracked source. Adding new surfaces (skills, hooks)
-  requires creating the tracked directory and matching management in
-  `roles/osx/tasks/osx.yml`.
+  `~/.claude/commands/`, `roles/osx/files/claude/scripts/` is symlinked into
+  `~/.claude/scripts/` (hook scripts invoked from `settings.json`),
+  `~/.claude/CLAUDE.md` is symlinked from `roles/osx/files/CLAUDE.md` (note:
+  outside the `claude/` directory), and `roles/osx/files/claude/settings.json`
+  is merged into `~/.claude/settings.json` by a jq-based task rather than
+  symlinked. Editing the materialized file directly is wrong; edit the tracked
+  source. Adding further surfaces (e.g., skills) requires creating the tracked
+  directory and matching management in `roles/osx/tasks/osx.yml`.
 - **Permissions three-layer model.** A compact restatement of #8's decision:
   global `~/.claude/settings.json` (tracked via this repo) for durable cross-project
   allows plus the deny list; per-repo tracked `.claude/settings.json` for
@@ -65,8 +66,10 @@ have something non-obvious to say; sections that do not may be omitted:
 - **Adding a new Claude command.** The path and propagation: drop the file under
   `roles/osx/files/claude/commands/`, commit, let the Ansible symlink task pick
   it up, verify in a fresh session. Command front-matter is required for
-  discovery. Adding skills or hooks is out of scope for this section until those
-  surfaces are managed by Ansible (new tracked directory plus symlink task).
+  discovery. Hook scripts are now managed under `roles/osx/files/claude/scripts/`
+  with a matching symlink task and are wired from `settings.json`. Skills are
+  still out of scope for this section and would require a new tracked directory
+  plus symlink task.
 - **Things to NOT edit directly in `~/.claude/`.** Anything symlinked from this
   repo. If in doubt, `readlink` the file first.
 - **Ansible role layout pointer.** A single-line hint that `roles/osx/` is the Mac
