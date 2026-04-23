@@ -5,18 +5,57 @@
     update_homebrew: true
   tags: [upgrade]
 
+# Install-missing pass runs first without MAS_SKIP so newly-added mas entries
+# get installed during `mise run upgrade` (fresh mas installs don't need sudo).
+# --no-upgrade leaves already-installed mas apps as "Using", so the root:wheel
+# sudo prompt is avoided.
+- name: Install missing packages from Brewfile
+  ansible.builtin.command:
+    cmd: brew bundle install --no-upgrade --file={{ ansible_env.PWD }}/Brewfile
+  register: osx_brew_bundle_common_install
+  changed_when: "'Installing' in osx_brew_bundle_common_install.stdout"
+  tags: [upgrade]
+
+- name: Install missing host-specific packages from Brewfile
+  ansible.builtin.command:
+    cmd: brew bundle install --no-upgrade --file={{ ansible_env.PWD }}/Brewfile.{{ inventory_hostname }}
+  register: osx_brew_bundle_host_install
+  changed_when: "'Installing' in osx_brew_bundle_host_install.stdout"
+  tags: [upgrade]
+
+# mas entries are skipped in the upgrade pass below (brew bundle shells out via
+# sudo for mas apps owned by root:wheel in /Applications, which fails without a
+# TTY). The separate "Upgrade MAS apps" task handles mas with failed_when:
+# false.
+- name: Collect MAS app IDs to skip in brew bundle upgrade
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      cat {{ ansible_env.PWD }}/Brewfile {{ ansible_env.PWD }}/Brewfile.{{ inventory_hostname }}
+      | { grep -oE 'id:[[:space:]]*[0-9]+'
+      | grep -oE '[0-9]+' || true; }
+      | tr '\n' ' '
+    executable: /bin/bash
+  register: osx_brewfile_mas_ids
+  changed_when: false
+  tags: [upgrade]
+
 - name: Upgrade common packages from Brewfile
   ansible.builtin.command:
     cmd: brew bundle --file={{ ansible_env.PWD }}/Brewfile
+  environment:
+    HOMEBREW_BUNDLE_MAS_SKIP: "{{ osx_brewfile_mas_ids.stdout }}"
   register: osx_brew_bundle_common
-  changed_when: "'Installing' in osx_brew_bundle_common.stdout or 'Upgrading' in osx_brew_bundle_common.stdout"
+  changed_when: "'Upgrading' in osx_brew_bundle_common.stdout"
   tags: [upgrade]
 
 - name: Upgrade host-specific packages from Brewfile
   ansible.builtin.command:
     cmd: brew bundle --file={{ ansible_env.PWD }}/Brewfile.{{ inventory_hostname }}
+  environment:
+    HOMEBREW_BUNDLE_MAS_SKIP: "{{ osx_brewfile_mas_ids.stdout }}"
   register: osx_brew_bundle_host
-  changed_when: "'Installing' in osx_brew_bundle_host.stdout or 'Upgrading' in osx_brew_bundle_host.stdout"
+  changed_when: "'Upgrading' in osx_brew_bundle_host.stdout"
   tags: [upgrade]
 
 - name: Upgrade MAS apps

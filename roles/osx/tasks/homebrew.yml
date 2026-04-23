@@ -2,14 +2,14 @@
 
 - name: Install common packages from Brewfile
   ansible.builtin.command:
-    cmd: brew bundle --file={{ ansible_env.PWD }}/Brewfile
+    cmd: brew bundle install --no-upgrade --file={{ ansible_env.PWD }}/Brewfile
   register: osx_brew_bundle_common
   changed_when: "'Installing' in osx_brew_bundle_common.stdout"
   tags: [osx]
 
 - name: Install host-specific packages from Brewfile
   ansible.builtin.command:
-    cmd: brew bundle --file={{ ansible_env.PWD }}/Brewfile.{{ inventory_hostname }}
+    cmd: brew bundle install --no-upgrade --file={{ ansible_env.PWD }}/Brewfile.{{ inventory_hostname }}
   register: osx_brew_bundle_host
   changed_when: "'Installing' in osx_brew_bundle_host.stdout"
   tags: [osx]
