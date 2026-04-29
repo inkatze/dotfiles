@@ -19,11 +19,13 @@ Host *
 Match host * exec "sh -c 'test -z \"$SSH_TTY\" && uname | grep -q Darwin && test -S ~/Library/Group\ Containers/2BUA8C4S2C.com.1password/t/agent.sock && (test -z \"$SSH_AUTH_SOCK\" || echo \"$SSH_AUTH_SOCK\" | grep -q \"com.apple.launchd\")'"
     IdentityAgent "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
 
-Host crojtini
-    Hostname crojtini.local
+Host crojtini 192.168.1.100
     User inkatze
     ForwardAgent yes
     SendEnv ANTHROPIC_API_KEY
+
+Host crojtini
+    Hostname crojtini.local
 
 Host rfh.rsync.net
     Hostname usw-s004.rsync.net
