@@ -23,10 +23,7 @@ You want a hands-off pairing pass with Copilot. The skill loops: address Copilot
    ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
    ```
    Use the actual `Bot` login if it differs.
-4. **Snapshot baseline state**:
-   - Current HEAD SHA (`git rev-parse HEAD`).
-   - Set of currently-open Copilot thread IDs.
-   - Iteration counter = 0.
+4. **Initialize iteration counter** = 0. The loop's per-iteration filter is `isResolved: false` (step (a)), so we don't need to snapshot HEAD or the baseline thread-ID set.
 
 ## Iteration loop
 
@@ -65,23 +62,55 @@ For **false positives**, draft the dismissal reply (citing the three passes) but
 
 Run whatever the project ships for local verification: tests, linters, type checkers, formatters. Common entry points: `npm test`, `pytest`, `go test ./...`, `cargo test`, `bundle exec rspec`, `mise run test`, `lefthook run pre-commit`. If the project has a single canonical command, prefer it. If anything fails (even a pre-existing failure unrelated to our changes), trigger the **Test failure** stop condition.
 
-### e. Reply, resolve, commit, push
+### e. Commit, push, reply, resolve
 
-- Reply to and resolve every thread using `/copilot-review` step 8 mutations (multi-line GraphQL, body via temp file).
-- If this iteration produced **no code changes** (every thread was classified `already-handled` and we only re-fired the resolves), skip the commit / push and go to step (f.5) below: do not re-request review against an unchanged HEAD, since Copilot will not respond and step (g) will time out.
-- Otherwise: `git add` only the files we actually changed for this iteration (never `git add -A`). Commit with a message of the form `chore(copilot): iter N, address <short summary>`. Push: `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or any rebase flag.
-- Immediately after the push completes, capture the timestamp and persist it for step (g): `date -u +%Y-%m-%dT%H:%M:%SZ > /tmp/copilot-pairing-push-ts`. The Bash tool spawns a fresh shell per invocation, so a plain shell variable will not be visible to the step (g) script. Use the temp file, or inline the literal value into the step (g) script when you send it. This timestamp is the high-water mark used by step (g)'s poll filter; capturing it any earlier risks matching a Copilot review that pre-dates this iteration's push.
+Order matters: land the code first, then talk about it. If we replied/resolved before pushing and the push failed, threads would sit resolved without an actual fix landed and the next iteration would not see them as unresolved (silent loss of work).
 
-### f. Re-request Copilot review
+**Branch on whether this iteration produced code changes.**
 
-Trigger a new Copilot review by re-adding it to the requested reviewers list:
+**Path A — code changes were made (the common path):**
+
+1. **Commit and push.**
+   - `git add` only the files we actually changed for this iteration (never `git add -A`).
+   - Commit with a message of the form `chore(copilot): iter N, address <short summary>`.
+   - Push: `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or any rebase flag.
+2. **Capture push timestamp.** Immediately after push completes:
+   ```bash
+   date -u +%Y-%m-%dT%H:%M:%SZ > /tmp/copilot-pairing-push-ts
+   ```
+   The Bash tool spawns a fresh shell per invocation, so a plain shell variable will not be visible to the step (g) script. Use the temp file, or inline the literal value into the step (g) script when you send it. This timestamp is the high-water mark for step (g)'s poll filter; capturing it any earlier risks matching a Copilot review that pre-dates this push.
+3. **Reply to threads** using `/copilot-review` step 8 mutations (multi-line GraphQL, body via temp file). **Use `addPullRequestReviewThreadReply` only** — see the DO-NOT-USE callout in `/copilot-review` step 8 about `addPullRequestReviewComment`.
+4. **Resolve threads** using `/copilot-review` step 8's `resolveReviewThread` mutation.
+5. Proceed to step (f).
+
+**Path B — no code changes (every thread was `already-handled`):**
+
+1. Skip commit/push and skip the push-timestamp capture (no new HEAD; step (g) is skipped on this path).
+2. Reply to each thread with a short body referencing the prior commit that actually addressed it (find the commit via `git log --oneline -- <file>` for the relevant file). Use `addPullRequestReviewThreadReply` (same DO-NOT-USE callout applies).
+3. Resolve threads via `resolveReviewThread`.
+4. Proceed to step (f.5), not (f): do not re-request review against an unchanged HEAD, since Copilot will not respond and step (g) will time out.
+
+### f. Re-request Copilot review (best-effort)
+
+Try to trigger a new Copilot review by re-adding it to the requested reviewers list:
 
 ```bash
 gh api -X POST "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
   -f 'reviewers[]=copilot-pull-request-reviewer'
 ```
 
-If the request returns 422 because Copilot is already a requested reviewer, remove it then re-run the POST:
+This call is **best-effort**, not load-bearing. The actual signal the loop relies on is step (g)'s GraphQL poll for a new review. Repos where Copilot is installed as a GitHub App typically auto-review on push, so an explicit re-request is unnecessary (and the REST endpoint will reject it).
+
+Inspect the response and branch:
+
+| Outcome | Body contains | Action |
+|---|---|---|
+| 2xx | — | Proceed to step (g). |
+| 422 | `already requested` (or similar "duplicate reviewer") | DELETE the reviewer, re-POST. Then proceed to step (g). |
+| 422 | `not a collaborator` (or any other 422) | Log a single-line warning that the explicit re-request was rejected (likely auto-review-on-push repo). Proceed to step (g). |
+| Other (4xx/5xx) | — | Log warning. Proceed to step (g). |
+
+DELETE+POST retry pattern (only for the `already requested` case):
 
 ```bash
 gh api -X DELETE "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
@@ -91,7 +120,7 @@ gh api -X POST "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
   -f 'reviewers[]=copilot-pull-request-reviewer'
 ```
 
-**First-run verification.** This re-request path has not been live-tested for every account / repo combination. On iteration 1, after firing the POST, confirm: (a) the call returned 2xx, and (b) Copilot actually starts a new review (visible in step (g)'s poll). If either fails, trigger the **No response** stop condition and hand back to me; do not blindly continue looping.
+Do NOT trigger the **No response** stop condition based on this step's HTTP outcome. **No response** is reserved for step (g)'s 10-minute poll timing out — that is the only authoritative signal that Copilot did not review.
 
 ### f.5. Resolve-only iteration short-circuit
 
@@ -137,11 +166,25 @@ echo "TIMEOUT"; exit 1
 
 **Alternative**: `Monitor` the same script with an until-loop if you want streaming progress lines.
 
-After the script reports `NEW_REVIEW`, re-fetch reviewThreads and compare against the baseline:
-- **Zero new unresolved Copilot threads**: success. Exit the loop.
-- **One or more new threads**: increment iteration counter and loop back to (a).
+Branch on the script's exit:
 
-If the script reports `TIMEOUT`, trigger the **No response** stop condition.
+- **Exit 0 (`NEW_REVIEW`)**: re-fetch reviewThreads. If any are unresolved, increment iteration counter and loop back to (a). If zero unresolved, success — exit the loop.
+- **Exit 1 (`TIMEOUT`)**: trigger the **No response** stop condition.
+- **Exit 2 (bad input)**: step (e) failed to capture `push_ts`. Bug in our flow. Stop and surface the script's stderr.
+- **Any other exit code (e.g. 144 from external SIGTERM, OOM kill, harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly using the `push_ts` from `/tmp/copilot-pairing-push-ts`:
+  ```bash
+  push_ts=$(cat /tmp/copilot-pairing-push-ts)
+  gh api graphql -f query='...same as the poll script...' \
+    -f owner='OWNER' -f repo='REPO' -F number=NUMBER \
+    | jq --arg bot 'copilot-pull-request-reviewer' --arg ts "$push_ts" '
+        .data.repository.pullRequest.reviews.nodes
+        | map(select(.author.login == $bot and .submittedAt > $ts))'
+  ```
+  - **New Copilot review found**: treat as `NEW_REVIEW` and proceed as above.
+  - **No new review, still inside the 10-minute window** (compare `push_ts + 600s` to current `date +%s`): restart the background poll script. Cap restarts at **2** per iteration to prevent thrashing — after that, treat as **No response**.
+  - **No new review, past deadline**: treat as `TIMEOUT` and trigger **No response**.
+
+Never assume "loop succeeded" from a non-zero, non-1 exit code. Always cross-check via GraphQL.
 
 ### h. Iteration summary
 

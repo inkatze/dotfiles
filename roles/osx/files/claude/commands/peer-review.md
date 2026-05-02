@@ -95,6 +95,8 @@ After all items are addressed, commit the changes and push.
 
 ### 8. Reply to and resolve each thread (only after I approve the response)
 
+**Use `addPullRequestReviewThreadReply` only.** Do **NOT** use `addPullRequestReviewComment` (with or without `inReplyTo`) for this workflow. `addPullRequestReviewComment` builds up a *pending* review that must be submitted via a separate `submitPullRequestReview` mutation, and replies posted that way silently sit as drafts until someone clicks Submit. The right mutation for replying to an existing review thread is `addPullRequestReviewThreadReply`, which posts the reply immediately.
+
 **Shell quoting rules:**
 - Always use multi-line query strings for GraphQL mutations. Single-line strings cause the shell to eat `$` in variable names like `$threadId`.
 - Always write the response body to a temp file and use `-F body=@file` to pass it. This avoids fish shell interpreting backticks in the body as command substitution.
