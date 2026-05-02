@@ -34,7 +34,7 @@ For each iteration (cap = **10**):
 
 ### a. Fetch Copilot's open threads
 
-Use the same GraphQL query as `/copilot-review` step 3. Filter to threads where `isResolved: false` AND first comment author login == Copilot bot login. If a thread's first comment was created before the last commit SHA we pushed, skip it (it predates the latest review and may be stale).
+Use the same GraphQL query as `/copilot-review` step 3. Filter to threads where `isResolved: false` AND first comment author login == Copilot bot login. Do not add a "skip if older than last push" filter: `isResolved: false` is the canonical signal. If a previous iteration's resolve mutation failed silently, we want this loop to retry it, not skip it. Re-processing an already-fixed thread is safe (passes will classify it as no-op / already-handled and the resolve mutation re-fires).
 
 ### b. Validate every thread (strict, three passes minimum)
 
