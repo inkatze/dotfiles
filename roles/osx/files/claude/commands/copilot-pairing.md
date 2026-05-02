@@ -34,7 +34,9 @@ For each iteration (cap = **10**):
 
 ### a. Fetch Copilot's open threads
 
-Use the same GraphQL query as `/copilot-review` step 3. Filter to threads where `isResolved: false` AND first comment author login == Copilot bot login. Do not add a "skip if older than last push" filter: `isResolved: false` is the canonical signal. If a previous iteration's resolve mutation failed silently, we want this loop to retry it, not skip it. Re-processing an already-fixed thread is safe (passes will classify it as no-op / already-handled and the resolve mutation re-fires).
+Use the same GraphQL query as `/copilot-review` step 3. Filter to threads where `isResolved: false` AND first comment author login == Copilot bot login. Do not add a "skip if older than last push" filter: `isResolved: false` is the canonical signal, and a previous iteration's resolve mutation may have failed silently; this loop should retry it, not skip it.
+
+**Pre-check for already-handled threads.** Before running the validation passes, read the referenced file and decide whether the code already implements what Copilot asked for (because a prior iteration applied the fix but the resolve mutation never landed). If yes, classify the thread as `already-handled`, skip steps (b) and (c) for it, and let step (e) post a brief reply ("addressed in <commit-sha>") and re-fire the resolve mutation. This is what keeps a benign retry from tripping the **Cannot reproduce** stop condition in step (b)'s Pass 1.
 
 ### b. Validate every thread (strict, three passes minimum)
 
@@ -90,29 +92,40 @@ gh api -X DELETE "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
 
 ### g. Wait for Copilot's response
 
-Poll the PR's reviews list every 30s, capped at **10 minutes** total per iteration:
+We need to wait up to **10 minutes** for a new Copilot review. Do not foreground-sleep or chain `sleep` calls between polls: the harness's Bash tool blocks long sleeps and chained sleeps. Use one of the two patterns below.
+
+**Preferred: a single backgrounded poll script** (`Bash` with `run_in_background=true`). The script polls itself and exits when the condition is met or the deadline passes. You'll be notified when it exits.
 
 ```bash
-gh api graphql -f query='
-  query($owner: String!, $repo: String!, $number: Int!) {
-    repository(owner: $owner, name: $repo) {
-      pullRequest(number: $number) {
-        reviews(last: 5) {
-          nodes { author { login } state submittedAt }
+push_ts='ITERATION_PUSH_ISO8601'   # the push time from step (e)
+deadline=$(( $(date +%s) + 600 ))
+while [ $(date +%s) -lt $deadline ]; do
+  latest=$(gh api graphql -f query='
+    query($owner: String!, $repo: String!, $number: Int!) {
+      repository(owner: $owner, name: $repo) {
+        pullRequest(number: $number) {
+          reviews(last: 5) { nodes { author { login } state submittedAt } }
         }
       }
     }
-  }
-' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
+  ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER \
+    | jq -r --arg bot 'copilot-pull-request-reviewer' --arg ts "$push_ts" '
+        .data.repository.pullRequest.reviews.nodes
+        | map(select(.author.login == $bot and .submittedAt > $ts))
+        | last // empty')
+  if [ -n "$latest" ]; then echo "NEW_REVIEW $latest"; exit 0; fi
+  sleep 30
+done
+echo "TIMEOUT"; exit 1
 ```
 
-A new Copilot review is one where `author.login == bot login` and `submittedAt > our iteration's push timestamp`.
+**Alternative**: `Monitor` the same script with an until-loop if you want streaming progress lines.
 
-After the new review appears, re-fetch reviewThreads and compare against the baseline:
+After the script reports `NEW_REVIEW`, re-fetch reviewThreads and compare against the baseline:
 - **Zero new unresolved Copilot threads**: success. Exit the loop.
 - **One or more new threads**: increment iteration counter and loop back to (a).
 
-If the 10-minute poll window expires with no new Copilot review, trigger the **No response** stop condition.
+If the script reports `TIMEOUT`, trigger the **No response** stop condition.
 
 ### h. Iteration summary
 

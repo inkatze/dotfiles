@@ -35,7 +35,7 @@ gh api graphql -f query='
               nodes {
                 id
                 body
-                author { login }
+                author { __typename login }
                 createdAt
               }
             }
@@ -49,7 +49,7 @@ gh api graphql -f query='
 
 ### 4. Validate each unresolved thread: three passes minimum (different angle each)
 
-Filter to only unresolved threads (`isResolved: false`). For each one, apply the canonical rigor in CLAUDE.md `Validation Rigor (Issue Identification)`:
+Filter to threads where `isResolved: false` AND the first comment author is NOT a `Bot` (`__typename != "Bot"`). Bot threads (Copilot and friends) belong to `/copilot-review` or `/copilot-pairing`; processing them here would generate human-tone replies to a bot. For each remaining thread, apply the canonical rigor in CLAUDE.md `Validation Rigor (Issue Identification)`:
 
 - **Read first.** The full comment thread (all comments, not just the first), the actual source at the referenced location, and the reviewer's likely intent.
 - **Pass 1: direct reproduction.** When the concern is about runtime behavior, reproduce it. Failing test, repro script, trace through the code with concrete inputs. Inability to reproduce is a strong signal it may be a preference or a false positive.
