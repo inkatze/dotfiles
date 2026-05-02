@@ -76,11 +76,11 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
    - `git add` only the files we actually changed for this iteration (never `git add -A`).
    - Commit with a message of the form `chore(copilot): iter N, address <short summary>`.
    - Push: `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or any rebase flag.
-2. **Capture push timestamp.** Immediately after push completes:
+2. **Capture push timestamp.** Immediately after push completes (substitute the PR number from pre-flight step 1):
    ```bash
-   date -u +%Y-%m-%dT%H:%M:%SZ > /tmp/copilot-pairing-push-ts
+   date -u +%Y-%m-%dT%H:%M:%SZ > /tmp/copilot-pairing-push-ts.NUMBER
    ```
-   The Bash tool spawns a fresh shell per invocation, so a plain shell variable will not be visible to the step (g) script. Use the temp file, or inline the literal value into the step (g) script when you send it. This timestamp is the high-water mark for step (g)'s poll filter; capturing it any earlier risks matching a Copilot review that pre-dates this push.
+   The Bash tool spawns a fresh shell per invocation, so a plain shell variable will not be visible to the step (g) script. Use the temp file, or inline the literal value into the step (g) script when you send it. The filename is namespaced by PR number so concurrent pairing sessions on different PRs (e.g., separate worktrees) do not clobber each other's timestamp. This timestamp is the high-water mark for step (g)'s poll filter; capturing it any earlier risks matching a Copilot review that pre-dates this push.
 3. **Reply to threads** using `/copilot-review` step 8 mutations (multi-line GraphQL, body via temp file). **Use `addPullRequestReviewThreadReply` only**; see the DO-NOT-USE callout in `/copilot-review` step 8 about `addPullRequestReviewComment`.
 4. **Resolve threads** using `/copilot-review` step 8's `resolveReviewThread` mutation.
 5. Proceed to step (f).
@@ -88,7 +88,7 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
 **Path B (no code changes, every thread was `already-handled`):**
 
 1. Skip commit/push and skip the push-timestamp capture (no new HEAD; step (g) is skipped on this path).
-2. Reply to each thread with a short body referencing the prior commit that actually addressed it. Find the commit via `git log main..HEAD --oneline -- <file>` (scoped to this branch's commits, top entry is the most recent). Use `addPullRequestReviewThreadReply` (same DO-NOT-USE callout applies).
+2. Reply to each thread with a short body referencing the prior commit that actually addressed it. Find the commit via `git log "$(gh pr view --json baseRefName -q '.baseRefName')..HEAD" --oneline -- <file>` (scoped to this branch's commits, top entry is the most recent). Do not hardcode `main`: PRs targeting `develop`, `release/*`, or any other base branch would otherwise return wrong or empty commits. Use `addPullRequestReviewThreadReply` (same DO-NOT-USE callout applies).
 3. Resolve threads via `resolveReviewThread`.
 4. Proceed to step (f.5), not (f): do not re-request review against an unchanged HEAD, since Copilot will not respond and step (g) will time out.
 
@@ -154,8 +154,9 @@ We need to wait up to **10 minutes** for a new Copilot review. Do not foreground
 ```bash
 # Read push_ts from the temp file written in step (e). Bash tool calls do not
 # share shell state, so reading from the file (or inlining the literal value
-# before sending the script) is required.
-push_ts=$(cat /tmp/copilot-pairing-push-ts 2>/dev/null)
+# before sending the script) is required. The file is namespaced by PR number;
+# substitute NUMBER from pre-flight step 1.
+push_ts=$(cat /tmp/copilot-pairing-push-ts.NUMBER 2>/dev/null)
 [ -n "$push_ts" ] || { echo "push_ts not set; capture it in step (e) before running"; exit 2; }
 deadline=$(( $(date +%s) + 600 ))
 while [ $(date +%s) -lt $deadline ]; do
@@ -185,9 +186,9 @@ Branch on the script's exit:
 - **Exit 0 (`NEW_REVIEW`)**: re-fetch reviewThreads. If any are unresolved, increment iteration counter and loop back to (a). If zero unresolved, success: exit the loop.
 - **Exit 1 (`TIMEOUT`)**: trigger the **No response** stop condition.
 - **Exit 2 (bad input)**: step (e) failed to capture `push_ts`. Bug in our flow. Stop and surface the script's stderr.
-- **Any other exit code (e.g. 144 from external SIGTERM, OOM kill, harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly using the `push_ts` from `/tmp/copilot-pairing-push-ts`:
+- **Any other exit code (e.g. 144 from external SIGTERM, OOM kill, harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly using the `push_ts` from `/tmp/copilot-pairing-push-ts.NUMBER`:
   ```bash
-  push_ts=$(cat /tmp/copilot-pairing-push-ts)
+  push_ts=$(cat /tmp/copilot-pairing-push-ts.NUMBER)
   gh api graphql -f query='...same as the poll script...' \
     -f owner='OWNER' -f repo='REPO' -F number=NUMBER \
     | jq --arg bot 'copilot-pull-request-reviewer' --arg ts "$push_ts" '

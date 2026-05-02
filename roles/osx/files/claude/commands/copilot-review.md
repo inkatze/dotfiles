@@ -61,6 +61,16 @@ gh api graphql -f query='
 
 Use the actual `Bot` login if it differs. If the PR has threads from other authors too, leave those for `/peer-review`.
 
+Concretely, pipe the reviewThreads response into jq (substitute the verified bot login if it isn't the default):
+
+```bash
+| jq --arg bot 'copilot-pull-request-reviewer' '
+    .data.repository.pullRequest.reviewThreads.nodes
+    | map(select(.isResolved == false and .comments.nodes[0].author.login == $bot))'
+```
+
+Filter on `login` rather than `__typename == "Bot"` so other bot integrations (CodeQL, Dependabot review, etc.) don't get pulled in.
+
 ### 4. Validate every thread: three passes minimum (different angle each)
 
 Apply the canonical rigor in CLAUDE.md `Validation Rigor (Issue Identification)`. For each unresolved Copilot thread:

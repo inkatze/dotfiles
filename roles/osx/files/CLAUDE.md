@@ -122,6 +122,8 @@ There are four distinct review workflows, each with a corresponding slash comman
 3. **Copilot pairing** (`/copilot-pairing`): Same rigor as `/copilot-review`, but loops autonomously: address Copilot's threads, push, re-request review, wait for Copilot's response, repeat until Copilot has no new comments. Hard stop conditions (ambiguity, scope creep, test failure, security-sensitive code, loop detection, iteration cap of 10) hand control back to the human.
 4. **Peer review** (`/peer-review`): Address unresolved peer review threads on the current PR. Same validation process as Copilot review, but responses must sound natural, human, and match the user's communication style.
 
+For reviewing **someone else's** PR (not your own), use `/code-review` instead. It checks out the PR, applies the same three-pass validation rigor, and drafts comments for the user to submit manually.
+
 ## Writing Style
 - Avoid em-dashes in prose unless strictly necessary. Use commas, parentheses, colons, or separate sentences instead.
 
