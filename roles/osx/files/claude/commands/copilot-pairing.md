@@ -104,7 +104,7 @@ App-mode repo, auto-review on push will trigger Copilot. Skipping explicit re-re
 
 Then proceed to step (g). **Step (g) is mandatory in App mode.** Auto-review-on-push triggers Copilot, but only step (g)'s poll confirms it actually reviewed. Skipping (g) on the assumption that "push = review" is the regression this branch's wording was written to prevent.
 
-**`collaborator` mode:** try to trigger a new Copilot review by re-adding it to the requested reviewers list.
+**`collaborator` mode:** try to trigger a new Copilot review by re-adding it to the requested reviewers list. Substitute the verified bot login from pre-flight step 3 if it differs from the default.
 
 ```bash
 gh api -X POST "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
@@ -139,7 +139,7 @@ Do NOT trigger the **No response** stop condition based on this step's HTTP outc
 Only reached if step (e) produced no commits. Re-fetch reviewThreads (same query as step (a)) and count unresolved Copilot threads:
 
 - **Zero remaining**: success. Exit the loop. Print the iteration summary noting "resolve-only iteration, no new code, all Copilot threads now resolved".
-- **One or more remaining** (rare: a resolve mutation failed again): increment iteration counter and loop back to step (a). If the same threads remain unresolved across two consecutive iterations, trigger the **Loop detection** stop condition.
+- **One or more remaining** (rare: a resolve mutation failed again): increment iteration counter and loop back to step (a). If the same threads remain unresolved across two consecutive iterations, trigger the **Persistent resolve failure** stop condition.
 
 Skip steps (f) and (g) on this path.
 
@@ -149,7 +149,7 @@ Skip steps (f) and (g) on this path.
 
 We need to wait up to **10 minutes** for a new Copilot review. Do not foreground-sleep or chain `sleep` calls between polls: the harness's Bash tool blocks long sleeps and chained sleeps. Use one of the two patterns below.
 
-**Preferred: a single backgrounded poll script** (`Bash` with `run_in_background=true`). The script polls itself and exits when the condition is met or the deadline passes. You'll be notified when it exits.
+**Preferred: a single backgrounded poll script** (`Bash` with `run_in_background=true`). The script polls itself and exits when the condition is met or the deadline passes. You'll be notified when it exits. Substitute the verified bot login from pre-flight step 3 in the `--arg bot ...` flag if it differs from the default.
 
 ```bash
 # Read push_ts from the temp file written in step (e). Bash tool calls do not
@@ -186,7 +186,7 @@ Branch on the script's exit:
 - **Exit 0 (`NEW_REVIEW`)**: re-fetch reviewThreads. If any are unresolved, increment iteration counter and loop back to (a). If zero unresolved, success: exit the loop.
 - **Exit 1 (`TIMEOUT`)**: trigger the **No response** stop condition.
 - **Exit 2 (bad input)**: step (e) failed to capture `push_ts`. Bug in our flow. Stop and surface the script's stderr.
-- **Any other exit code (e.g. 144 from external SIGTERM, OOM kill, harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly using the `push_ts` from `/tmp/copilot-pairing-push-ts.NUMBER`:
+- **Any other exit code (e.g. 143 from SIGTERM, 137 from SIGKILL/OOM, or any 128+N signal exit from a harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly using the `push_ts` from `/tmp/copilot-pairing-push-ts.NUMBER`:
   ```bash
   push_ts=$(cat /tmp/copilot-pairing-push-ts.NUMBER)
   gh api graphql -f query='...same as the poll script...' \
@@ -220,6 +220,7 @@ If any condition fires, **stop**. Print the latest iteration table, name the con
 |---|---|
 | **Ambiguity** | Comment is unclear, has multiple valid interpretations, or requires a product/UX call. |
 | **Loop detection** | Copilot raised a substantively similar concern (same file, same root issue) in two consecutive iterations. |
+| **Persistent resolve failure** | A `resolveReviewThread` mutation has silently failed (or been rolled back) for the same threads across two consecutive iterations, so the resolve-only short-circuit in step f.5 cannot drain the queue. |
 | **Scope creep** | A fix would touch code outside the PR's existing diff, or contradicts the PR's stated intent / Jira AC. |
 | **Test failure** | Any test, linter, type-check, or formatter fails after our change, including pre-existing failures we surface for the first time. |
 | **Security-sensitive** | The change touches auth, secrets handling, crypto, permissions, IAM, SQL/shell construction, or sandbox boundaries. Always pause. |
