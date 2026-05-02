@@ -41,7 +41,7 @@ If the diff is large, review file-by-file using `git diff <base>...HEAD -- <path
 - Dead code or unnecessary changes
 - If a Jira ticket was found: whether the changes satisfy each acceptance criterion, and whether anything is missing or inconsistent with the ticket requirements
 
-### 6. Validate every finding — three passes minimum (different angle each)
+### 6. Validate every finding: three passes minimum (different angle each)
 
 Apply the canonical rigor in CLAUDE.md `Validation Rigor (Issue Identification)`. For each potential issue:
 
@@ -50,7 +50,7 @@ Apply the canonical rigor in CLAUDE.md `Validation Rigor (Issue Identification)`
 - **Pass 2: orthogonal angle.** A different lens: callers and what they assume, related code paths and side effects, project conventions, sibling implementations, existing test coverage.
 - **Pass 3: outside-in angle.** Sources outside the diff: `git log` / `git blame` for the why-it-is-the-way-it-is, repo-wide search for similar patterns, and for text/research-based claims (API correctness, spec compliance, deprecated patterns, security claims, library behavior) consult official docs, the library's own source/tests, deepwiki MCP, GitHub issues, RFCs, web search. Note what was checked.
 
-Drop or downgrade items where the three passes do not converge. We are leaving comments on someone else's PR — false positives have a higher cost here than in self-review.
+Drop or downgrade items where the three passes do not converge. We are leaving comments on someone else's PR, so false positives have a higher cost here than in self-review.
 
 ### 7. Present the validated list
 

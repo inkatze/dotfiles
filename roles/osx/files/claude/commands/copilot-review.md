@@ -47,7 +47,7 @@ gh api graphql -f query='
 
 Filter to threads where `isResolved: false` AND the first comment author login is `copilot-pull-request-reviewer` (the Copilot bot). If the PR has threads from other authors too, leave those for `/peer-review`.
 
-### 4. Validate every thread — three passes minimum (different angle each)
+### 4. Validate every thread: three passes minimum (different angle each)
 
 Apply the canonical rigor in CLAUDE.md `Validation Rigor (Issue Identification)`. For each unresolved Copilot thread:
 
@@ -58,7 +58,7 @@ Apply the canonical rigor in CLAUDE.md `Validation Rigor (Issue Identification)`
 
 **Do not take Copilot's recommendation as correct.** Even when the underlying concern is real, design the best solution from first principles. Copilot's suggested fix may be insufficient (treating a symptom not the cause), wrong (introduces a new bug), unidiomatic for the codebase, or out of scope. Apply the same three-pass rigor to the proposed fix: does it actually resolve the issue, does it survive an orthogonal angle, does it match what docs/conventions/external references would recommend.
 
-Classify each thread as **valid** (needs a fix), **false positive** (no real problem), or **low-confidence** (passes did not converge — never guess). Look for issues Copilot did not flag that are adjacent to what it did. Surface those as extra rows tagged "adjacent finding".
+Classify each thread as **valid** (needs a fix), **false positive** (no real problem), or **low-confidence** (passes did not converge; never guess). Look for issues Copilot did not flag that are adjacent to what it did. Surface those as extra rows tagged "adjacent finding".
 
 ### 5. Present the validated table
 
@@ -71,18 +71,18 @@ Notes on columns:
 - **What we found**: the result of our investigation (the actual behavior, the real root cause, or "no issue, code already handles X").
 - **Reproduced?**: `yes` / `no` / `n/a` (n/a for items not reproducible by their nature, e.g. style/naming).
 - **Classification**: `valid` / `false positive` / `low-confidence` / `adjacent finding`.
-- **Confidence**: `high` / `medium` / `low` — how sure we are about the classification.
+- **Confidence**: `high` / `medium` / `low`. How sure we are about the classification.
 - **Our proposed fix**: a one-line description of the change we want to make. May explicitly differ from Copilot's suggestion.
 
 If a column is not useful for the current PR (or you want a different cut), say so before printing the table and adjust. Optional add-ons worth considering case by case: `Severity`, `Test plan`, `Copilot's suggested fix` (when it diverges meaningfully from ours), `Files touched by fix`, `Scope risk` (in-scope / out-of-scope).
 
-### 6. Address items — solution validated with two or three test angles
+### 6. Address items: solution validated with two or three test angles
 
 Follow the standard review workflow (let me choose: all at once or one by one, with progress tracking).
 
 For **valid** items that affect runtime behavior, apply the canonical rigor in CLAUDE.md `Validation Rigor (Solutions)`:
 
-1. **Targeted test.** Write a test that demonstrates the bug. Run it and confirm it fails for the expected reason — not for an unrelated reason like a missing import. Apply the fix. Re-run the test and confirm it now passes.
+1. **Targeted test.** Write a test that demonstrates the bug. Run it and confirm it fails for the expected reason (not for an unrelated reason like a missing import). Apply the fix. Re-run the test and confirm it now passes.
 2. **Wider check.** Run the broader project test suite, linters, and type-checkers. Watch for regressions, including in code paths the fix did not directly touch.
 3. **Edge / integration / manual** (when relevant). Boundary cases (null, empty, max size, concurrency), an integration or smoke test, or manual exercise of the user-facing flow.
 

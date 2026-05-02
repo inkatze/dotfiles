@@ -47,7 +47,7 @@ gh api graphql -f query='
 ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
 ```
 
-### 4. Validate each unresolved thread — three passes minimum (different angle each)
+### 4. Validate each unresolved thread: three passes minimum (different angle each)
 
 Filter to only unresolved threads (`isResolved: false`). For each one, apply the canonical rigor in CLAUDE.md `Validation Rigor (Issue Identification)`:
 
@@ -56,7 +56,7 @@ Filter to only unresolved threads (`isResolved: false`). For each one, apply the
 - **Pass 2: orthogonal angle.** A different lens: callers and what they assume, related code paths, project conventions and sibling implementations, existing test coverage that may already prove the case safe.
 - **Pass 3: outside-in angle.** Sources outside the diff: `git log` / `git blame` for the why-it-is-the-way-it-is, repo-wide search for similar patterns, and for text/research-based claims (API correctness, spec compliance, deprecated patterns, security claims, library behavior) consult official docs, library source/tests, deepwiki MCP, GitHub issues, RFCs, web search. Note what was checked.
 
-Classify each as **valid**, **false positive**, **preference**, or **low-confidence** (passes did not converge — never guess). When the concern is a matter of preference, surface the trade-off rather than asserting correctness.
+Classify each as **valid**, **false positive**, **preference**, or **low-confidence** (passes did not converge; never guess). When the concern is a matter of preference, surface the trade-off rather than asserting correctness.
 
 ### 5. Present the validated list
 
