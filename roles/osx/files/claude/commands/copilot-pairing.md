@@ -82,27 +82,55 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
    ```
    The Bash tool spawns a fresh shell per invocation, so a plain shell variable will not be visible to the step (g) script. Use the temp file, or inline the literal value into the step (g) script when you send it. The filename is namespaced by PR number so concurrent pairing sessions on different PRs (e.g., separate worktrees) do not clobber each other's timestamp. This timestamp is the high-water mark for step (g)'s poll filter; capturing it any earlier risks matching a Copilot review that pre-dates this push.
 3. **Reply to threads** using `/copilot-review` step 8 mutations (multi-line GraphQL, body via temp file). **Use `addPullRequestReviewThreadReply` only**; see the DO-NOT-USE callout in `/copilot-review` step 8 about `addPullRequestReviewComment`.
-4. **Resolve threads** using `/copilot-review` step 8's `resolveReviewThread` mutation.
-5. Proceed to step (f).
+4. **Submit any auto-vivified pending review (mandatory).** `addPullRequestReviewThreadReply` can create a new pending review owned by the viewer when none is in progress; the replies posted in (e.3) then stay invisible (to GitHub UI, to Copilot, to humans) until that review is submitted. See `/copilot-review` step 8's "Submit any auto-vivified pending review" sub-step for the exact GraphQL. Procedure: query the PR's `reviews(states: PENDING)` filtered by `author.login == viewer.login`; for each, call `submitPullRequestReview(id, event: COMMENT)`. Re-query and assert zero pending reviews owned by the viewer remain before proceeding to step (e.5). If a pending review cannot be submitted, stop with the **Pending reply unsubmittable** condition.
+5. **Resolve threads** using `/copilot-review` step 8's `resolveReviewThread` mutation.
+6. Proceed to step (f).
 
 **Path B (no code changes, every thread was `already-handled`):**
 
 1. Skip commit/push and skip the push-timestamp capture (no new HEAD; step (g) is skipped on this path).
 2. Reply to each thread with a short body referencing the prior commit that actually addressed it. Find the commit via `git log "$(gh pr view --json baseRefName -q '.baseRefName')..HEAD" --oneline -- <file>` (scoped to this branch's commits, top entry is the most recent). Do not hardcode `main`: PRs targeting `develop`, `release/*`, or any other base branch would otherwise return wrong or empty commits. Use `addPullRequestReviewThreadReply` (same DO-NOT-USE callout applies).
-3. Resolve threads via `resolveReviewThread`.
-4. Proceed to step (f.5), not (f): do not re-request review against an unchanged HEAD, since Copilot will not respond and step (g) will time out.
+3. **Submit any auto-vivified pending review (mandatory).** Same procedure as Path A step 4. The auto-vivify failure mode applies here too because we still call `addPullRequestReviewThreadReply`.
+4. Resolve threads via `resolveReviewThread`.
+5. Proceed to step (f.5), not (f): do not re-request review against an unchanged HEAD, since Copilot will not respond and step (g) will time out.
 
-### f. Re-request Copilot review (best-effort, mode-aware)
+### f. Re-request Copilot review (mode-aware, verify-loud)
 
 Branch on `repo_mode` from pre-flight step 3.
 
-**`app` mode (`__typename == "Bot"` in pre-flight):** skip the POST entirely. Auto-review on push handles the trigger. Log a single line for the iteration summary:
+**`app` mode (`__typename == "Bot"` in pre-flight):** auto-review on push is **not** guaranteed. Verified failure mode (2026-05-02 live run on `SymmetrySoftware/stl-poc#13`): push completed, `reviewRequests.nodes` came back empty, no auto-review fired, and step (g) would have timed out silently after 10 minutes. Do not skip the request.
+
+Explicitly request Copilot via the GitHub MCP tool:
 
 ```
-App-mode repo, auto-review on push will trigger Copilot. Skipping explicit re-request.
+mcp__<github-server>__request_copilot_review
+params: { owner, repo, pullNumber }
 ```
 
-Then proceed to step (g). **Step (g) is mandatory in App mode.** Auto-review-on-push triggers Copilot, but only step (g)'s poll confirms it actually reviewed. Skipping (g) on the assumption that "push = review" is the regression this branch's wording was written to prevent.
+The substitute for `<github-server>` depends on the active MCP server (e.g. `claude_ai_Github-Symmetry`, `claude_ai_Github-Gusto`). The REST endpoint `POST /repos/{owner}/{repo}/pulls/{n}/requested_reviewers` returns 422 "not a collaborator" for Bot reviewers and must NOT be used in app mode; the MCP tool wraps an internal Copilot-review-request endpoint that accepts Bot reviewers. If no `request_copilot_review` MCP tool is available on the active server, stop with **No response** and report; do not assume push alone will trigger a review.
+
+After the MCP call returns success, **verify** Copilot is actually on the requested-reviewer list:
+
+```bash
+gh api graphql -f query='
+  query($owner: String!, $repo: String!, $number: Int!) {
+    repository(owner: $owner, name: $repo) {
+      pullRequest(number: $number) {
+        reviewRequests(first: 10) {
+          nodes {
+            requestedReviewer {
+              ... on Bot { login }
+              ... on User { login }
+            }
+          }
+        }
+      }
+    }
+  }
+' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
+```
+
+If the verified Copilot bot login (from pre-flight step 3) is in `reviewRequests.nodes`, proceed to step (g). If not, log a warning ("MCP request_copilot_review returned success but reviewRequests does not include the bot") and proceed to step (g) anyway: the poll is the authoritative confirmation. **Step (g) is mandatory in app mode.** Skipping it on the assumption that the request "must have worked" is the regression earlier wording was written to prevent.
 
 **`collaborator` mode:** try to trigger a new Copilot review by re-adding it to the requested reviewers list. Substitute the verified bot login from pre-flight step 3 if it differs from the default.
 
@@ -229,6 +257,7 @@ If any condition fires, **stop**. Print the latest iteration table, name the con
 | **Cannot reproduce** | Issue is not reproducible and the proposed fix is non-trivial. |
 | **Migrations / data / destructive ops** | Schema migrations, data backfills, deletes, drops, or anything irreversible. Always human-driven. |
 | **No response** | 10-minute poll window expires with no new Copilot review. |
+| **Pending reply unsubmittable** | A pending review owned by the viewer cannot be submitted via `submitPullRequestReview` in step (e.4), so replies posted in (e.3) would remain invisible to GitHub, Copilot, and humans. |
 | **Conflicting signals** | Copilot's later review contradicts an earlier one we already addressed. Pause to decide which to honor. |
 
 ## Auto-execution invariants
@@ -242,6 +271,8 @@ These hold at every step:
 - **Never** modify CI configuration, `.env`, secrets, or lockfiles unless the Copilot thread is specifically about that file.
 - **Never** post anything to chat platforms or tickets.
 - **Never** skip step (g) after a Path-A push. The 10-minute poll is the only authoritative signal that Copilot has (or has not) reviewed. App-mode auto-review, step (f)'s HTTP outcome, prior iterations' patterns, and elapsed iteration count are not substitutes. Confirmation bias from a long successful run is the failure mode this invariant catches.
+- **Never** leave replies in a pending review. `addPullRequestReviewThreadReply` may auto-vivify a pending review owned by the viewer when none is in progress; step (e.4) submits it before resolving threads. A run that completes with replies still pending is a silent failure: GitHub, Copilot, and humans see no replies, and the next iteration polls Copilot reviewing against a state where it has no record of our responses (confirmation-bias path: looks fine, isn't).
+- **Never** trust an external-effect step's happy-path response without re-querying state. After step (f)'s `request_copilot_review` MCP call, verify the bot is on `reviewRequests.nodes`; after step (e.3)'s reply mutation, verify zero pending reviews owned by the viewer remain. Both bugs that motivated this section's wording (2026-05-02 live run on `SymmetrySoftware/stl-poc#13`) returned success and looked fine.
 
 ## Maintenance
 
