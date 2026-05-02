@@ -68,9 +68,9 @@ Run whatever the project ships for local verification: tests, linters, type chec
 ### e. Reply, resolve, commit, push
 
 - Reply to and resolve every thread using `/copilot-review` step 8 mutations (multi-line GraphQL, body via temp file).
-- `git add` only the files we actually changed for this iteration. Never `git add -A`.
-- Commit with a message of the form: `chore(copilot): iter N, address <short summary>`.
-- Push: `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or any rebase flag.
+- If this iteration produced **no code changes** (every thread was classified `already-handled` and we only re-fired the resolves), skip the commit / push and go to step (f.5) below: do not re-request review against an unchanged HEAD, since Copilot will not respond and step (g) will time out.
+- Otherwise: `git add` only the files we actually changed for this iteration (never `git add -A`). Commit with a message of the form `chore(copilot): iter N, address <short summary>`. Push: `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or any rebase flag.
+- Immediately after the push completes, capture `push_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)`. This is the high-water mark used by step (g)'s poll filter; capturing it any earlier risks matching a Copilot review that pre-dates this iteration's push.
 
 ### f. Re-request Copilot review
 
@@ -81,14 +81,26 @@ gh api -X POST "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
   -f 'reviewers[]=copilot-pull-request-reviewer'
 ```
 
-If the request returns 422 because Copilot is already a requested reviewer, first remove it then re-add:
+If the request returns 422 because Copilot is already a requested reviewer, remove it then re-run the POST:
 
 ```bash
 gh api -X DELETE "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
   -f 'reviewers[]=copilot-pull-request-reviewer'
+
+gh api -X POST "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
+  -f 'reviewers[]=copilot-pull-request-reviewer'
 ```
 
 **First-run verification.** This re-request path has not been live-tested for every account / repo combination. On iteration 1, after firing the POST, confirm: (a) the call returned 2xx, and (b) Copilot actually starts a new review (visible in step (g)'s poll). If either fails, trigger the **No response** stop condition and hand back to me; do not blindly continue looping.
+
+### f.5. Resolve-only iteration short-circuit
+
+Only reached if step (e) produced no commits. Re-fetch reviewThreads (same query as step (a)) and count unresolved Copilot threads:
+
+- **Zero remaining**: success. Exit the loop. Print the iteration summary noting "resolve-only iteration, no new code, all Copilot threads now resolved".
+- **One or more remaining** (rare: a resolve mutation failed again): increment iteration counter and loop back to step (a). If the same threads remain unresolved across two consecutive iterations, trigger the **Loop detection** stop condition.
+
+Skip step (g) entirely on this path.
 
 ### g. Wait for Copilot's response
 
@@ -97,7 +109,9 @@ We need to wait up to **10 minutes** for a new Copilot review. Do not foreground
 **Preferred: a single backgrounded poll script** (`Bash` with `run_in_background=true`). The script polls itself and exits when the condition is met or the deadline passes. You'll be notified when it exits.
 
 ```bash
-push_ts='ITERATION_PUSH_ISO8601'   # the push time from step (e)
+# `push_ts` must already be set in this shell from step (e)'s capture.
+# Sanity check; abort rather than silently using an empty filter:
+[ -n "$push_ts" ] || { echo "push_ts not set; capture it in step (e) before running"; exit 2; }
 deadline=$(( $(date +%s) + 600 ))
 while [ $(date +%s) -lt $deadline ]; do
   latest=$(gh api graphql -f query='
