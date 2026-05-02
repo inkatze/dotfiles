@@ -70,7 +70,7 @@ Run whatever the project ships for local verification: tests, linters, type chec
 - Reply to and resolve every thread using `/copilot-review` step 8 mutations (multi-line GraphQL, body via temp file).
 - If this iteration produced **no code changes** (every thread was classified `already-handled` and we only re-fired the resolves), skip the commit / push and go to step (f.5) below: do not re-request review against an unchanged HEAD, since Copilot will not respond and step (g) will time out.
 - Otherwise: `git add` only the files we actually changed for this iteration (never `git add -A`). Commit with a message of the form `chore(copilot): iter N, address <short summary>`. Push: `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or any rebase flag.
-- Immediately after the push completes, capture `push_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)`. This is the high-water mark used by step (g)'s poll filter; capturing it any earlier risks matching a Copilot review that pre-dates this iteration's push.
+- Immediately after the push completes, capture the timestamp and persist it for step (g): `date -u +%Y-%m-%dT%H:%M:%SZ > /tmp/copilot-pairing-push-ts`. The Bash tool spawns a fresh shell per invocation, so a plain shell variable will not be visible to the step (g) script. Use the temp file, or inline the literal value into the step (g) script when you send it. This timestamp is the high-water mark used by step (g)'s poll filter; capturing it any earlier risks matching a Copilot review that pre-dates this iteration's push.
 
 ### f. Re-request Copilot review
 
@@ -100,7 +100,7 @@ Only reached if step (e) produced no commits. Re-fetch reviewThreads (same query
 - **Zero remaining**: success. Exit the loop. Print the iteration summary noting "resolve-only iteration, no new code, all Copilot threads now resolved".
 - **One or more remaining** (rare: a resolve mutation failed again): increment iteration counter and loop back to step (a). If the same threads remain unresolved across two consecutive iterations, trigger the **Loop detection** stop condition.
 
-Skip step (g) entirely on this path.
+Skip steps (f) and (g) on this path.
 
 ### g. Wait for Copilot's response
 
@@ -109,8 +109,10 @@ We need to wait up to **10 minutes** for a new Copilot review. Do not foreground
 **Preferred: a single backgrounded poll script** (`Bash` with `run_in_background=true`). The script polls itself and exits when the condition is met or the deadline passes. You'll be notified when it exits.
 
 ```bash
-# `push_ts` must already be set in this shell from step (e)'s capture.
-# Sanity check; abort rather than silently using an empty filter:
+# Read push_ts from the temp file written in step (e). Bash tool calls do not
+# share shell state, so reading from the file (or inlining the literal value
+# before sending the script) is required.
+push_ts=$(cat /tmp/copilot-pairing-push-ts 2>/dev/null)
 [ -n "$push_ts" ] || { echo "push_ts not set; capture it in step (e) before running"; exit 2; }
 deadline=$(( $(date +%s) + 600 ))
 while [ $(date +%s) -lt $deadline ]; do
