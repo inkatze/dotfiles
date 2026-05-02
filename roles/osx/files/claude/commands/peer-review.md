@@ -47,20 +47,22 @@ gh api graphql -f query='
 ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
 ```
 
-### 4. Validate each unresolved thread
+### 4. Validate each unresolved thread — three passes minimum (different angle each)
 
-Filter to only unresolved threads (`isResolved: false`). For each one:
+Filter to only unresolved threads (`isResolved: false`). For each one, apply the canonical rigor in CLAUDE.md `Validation Rigor (Issue Identification)`:
 
-- Read the full comment thread (all comments, not just the first)
-- Read the actual source code at the referenced location
-- **Validate carefully**: Determine if the concern is legitimate, a false positive, or a matter of preference
-- Consider the reviewer's perspective and intent
+- **Read first.** The full comment thread (all comments, not just the first), the actual source at the referenced location, and the reviewer's likely intent.
+- **Pass 1: direct reproduction.** When the concern is about runtime behavior, reproduce it. Failing test, repro script, trace through the code with concrete inputs. Inability to reproduce is a strong signal it may be a preference or a false positive.
+- **Pass 2: orthogonal angle.** A different lens: callers and what they assume, related code paths, project conventions and sibling implementations, existing test coverage that may already prove the case safe.
+- **Pass 3: outside-in angle.** Sources outside the diff: `git log` / `git blame` for the why-it-is-the-way-it-is, repo-wide search for similar patterns, and for text/research-based claims (API correctness, spec compliance, deprecated patterns, security claims, library behavior) consult official docs, library source/tests, deepwiki MCP, GitHub issues, RFCs, web search. Note what was checked.
+
+Classify each as **valid**, **false positive**, **preference**, or **low-confidence** (passes did not converge — never guess). When the concern is a matter of preference, surface the trade-off rather than asserting correctness.
 
 ### 5. Present the validated list
 
 For each item, include:
 - The reviewer's concern (summarized)
-- Your assessment (valid, false positive, preference)
+- Your assessment (valid, false positive, preference, low-confidence) with a one-line note on which validation passes converged
 - A proposed response draft
 - The proposed code change (if any)
 
@@ -78,6 +80,14 @@ Follow the standard review workflow (let me choose: all at once or one by one, w
 - Sound natural and human, like me writing the response myself
 
 Present each response draft for my approval before posting. I may want to adjust wording.
+
+**Solution validation when fixes are involved.** When a thread leads to a code change, apply the canonical rigor in CLAUDE.md `Validation Rigor (Solutions)`:
+
+1. **Targeted test.** Write a failing test for the bug's exact reason, confirm it fails for the right reason, apply the fix, confirm it now passes.
+2. **Wider check.** Run the broader test suite, linters, type-checkers. Watch for regressions.
+3. **Edge / integration / manual** (when relevant). Boundary cases, integration / smoke tests, or manual exercise of the user-facing flow.
+
+For non-testable changes, substitute review angles per the canonical doctrine and note in the reply why no test was added.
 
 ### 7. Commit and push
 

@@ -1,0 +1,159 @@
+Iterate with GitHub Copilot autonomously until it stops requesting changes on the current PR.
+
+Same validation rigor as `/copilot-review`, executed on autopilot, with hard stop conditions baked in for safety.
+
+## When to use
+
+You want a hands-off pairing pass with Copilot. The skill loops: address Copilot's threads, push, re-request review, wait, repeat. It pauses for human input the moment anything is ambiguous, looping, expanding scope, or breaking tests.
+
+## Pre-flight (once per run)
+
+1. **Get PR / repo info** (same as `/copilot-review` step 1).
+2. **(Optional) Jira context** (same as `/copilot-review` step 2).
+3. **Confirm the Copilot bot login.** Default is `copilot-pull-request-reviewer`. Verify by inspecting an existing review on the PR:
+   ```bash
+   gh api graphql -f query='
+     query($owner: String!, $repo: String!, $number: Int!) {
+       repository(owner: $owner, name: $repo) {
+         pullRequest(number: $number) {
+           reviews(first: 5) { nodes { author { __typename login } } }
+         }
+       }
+     }
+   ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
+   ```
+   Use the actual `Bot` login if it differs.
+4. **Snapshot baseline state**:
+   - Current HEAD SHA (`git rev-parse HEAD`).
+   - Set of currently-open Copilot thread IDs.
+   - Iteration counter = 0.
+
+## Iteration loop
+
+For each iteration (cap = **10**):
+
+### a. Fetch Copilot's open threads
+
+Use the same GraphQL query as `/copilot-review` step 3. Filter to threads where `isResolved: false` AND first comment author login == Copilot bot login. If a thread's first comment was created before the last commit SHA we pushed, skip it (it predates the latest review and may be stale).
+
+### b. Validate every thread (strict, three passes minimum)
+
+Apply `/copilot-review` step 4 in full: the canonical three-pass rigor in CLAUDE.md `Validation Rigor (Issue Identification)`. Pass 1 reproduces, pass 2 takes an orthogonal angle, pass 3 consults outside-the-diff sources (git history, repo-wide search, official docs, library source/tests, deepwiki MCP, GitHub issues, RFCs, web search for text/research-based claims).
+
+Be more conservative than in `/copilot-review` because nobody is checking our work in real time:
+
+- If the three passes do not converge, mark `low-confidence` and trigger the **Cannot reproduce** or **Ambiguity** stop condition (whichever fits).
+- If two valid interpretations exist, trigger **Ambiguity**.
+- If the fix would touch a file outside the PR's existing diff, trigger **Scope creep**.
+- Apply the same three-pass rigor to every proposed fix. Do not trust Copilot's recommendation; design our own from first principles, then validate it from three angles before accepting.
+
+### c. Implement valid items — solution validated with two or three test angles
+
+Apply `/copilot-review` step 6 (canonical rigor in CLAUDE.md `Validation Rigor (Solutions)`):
+
+1. **Targeted test.** Write a failing test for the bug's exact reason, confirm it fails for the right reason, apply the fix, confirm it now passes.
+2. **Wider check.** Run the broader project test suite, linters, type-checkers. Any regression — even in unrelated areas — triggers the **Test failure** stop condition.
+3. **Edge / integration / manual** (when relevant). Boundary cases, integration or smoke tests, manual exercise of the user-facing flow.
+
+Skip the targeted-test step only for non-behavioral changes (docs, comments, pure renames, formatting). For those, substitute review angles per the canonical doctrine.
+
+For **false positives**, draft the dismissal reply (citing the three passes) but do NOT post yet. We post all replies in step (e) after the build is green.
+
+### d. Run the full local check suite
+
+Run whatever the project ships for local verification: tests, linters, type checkers, formatters. Common entry points: `npm test`, `pytest`, `go test ./...`, `cargo test`, `bundle exec rspec`, `mise run test`, `lefthook run pre-commit`. If the project has a single canonical command, prefer it. If anything fails — even a pre-existing failure unrelated to our changes — trigger the **Test failure** stop condition.
+
+### e. Reply, resolve, commit, push
+
+- Reply to and resolve every thread using `/copilot-review` step 9 mutations (multi-line GraphQL, body via temp file).
+- `git add` only the files we actually changed for this iteration. Never `git add -A`.
+- Commit with a message of the form: `chore(copilot): iter N — address <short summary>`.
+- Push: `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or any rebase flag.
+
+### f. Re-request Copilot review
+
+Trigger a new Copilot review by re-adding it to the requested reviewers list:
+
+```bash
+gh api -X POST "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
+  -f 'reviewers[]=copilot-pull-request-reviewer'
+```
+
+If the request returns 422 because Copilot is already a requested reviewer, first remove it then re-add:
+
+```bash
+gh api -X DELETE "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
+  -f 'reviewers[]=copilot-pull-request-reviewer'
+```
+
+### g. Wait for Copilot's response
+
+Poll the PR's reviews list every 30s, capped at **10 minutes** total per iteration:
+
+```bash
+gh api graphql -f query='
+  query($owner: String!, $repo: String!, $number: Int!) {
+    repository(owner: $owner, name: $repo) {
+      pullRequest(number: $number) {
+        reviews(last: 5) {
+          nodes { author { login } state submittedAt }
+        }
+      }
+    }
+  }
+' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
+```
+
+A new Copilot review is one where `author.login == bot login` and `submittedAt > our iteration's push timestamp`.
+
+After the new review appears, re-fetch reviewThreads and compare against the baseline:
+- **Zero new unresolved Copilot threads**: success — exit the loop.
+- **One or more new threads**: increment iteration counter and loop back to (a).
+
+If the 10-minute poll window expires with no new Copilot review, trigger the **No response** stop condition.
+
+### h. Iteration summary
+
+After each iteration, print a short summary:
+- Iteration number / cap
+- Threads addressed (counts by classification: valid / false positive / adjacent finding)
+- Commit SHA pushed
+- Test command run + result
+- Re-review request status
+
+This is what I scroll back through to audit the run.
+
+## Stop conditions (mandatory human handoff)
+
+If any condition fires, **stop**. Print the latest iteration table, name the condition, and wait for me. Do not push, do not reply, do not re-request review.
+
+| Condition | Trigger |
+|---|---|
+| **Ambiguity** | Comment is unclear, has multiple valid interpretations, or requires a product/UX call. |
+| **Loop detection** | Copilot raised a substantively similar concern (same file, same root issue) in two consecutive iterations. |
+| **Scope creep** | A fix would touch code outside the PR's existing diff, or contradicts the PR's stated intent / Jira AC. |
+| **Test failure** | Any test, linter, type-check, or formatter fails after our change — including pre-existing failures we surface for the first time. |
+| **Security-sensitive** | The change touches auth, secrets handling, crypto, permissions, IAM, SQL/shell construction, or sandbox boundaries. Always pause. |
+| **High false-positive ratio** | More than half of an iteration's threads are false positives — model may be misreading the change. Pause for re-alignment. |
+| **Iteration cap** | 10 iterations completed without convergence. Stop and report. |
+| **Cannot reproduce** | Issue is not reproducible and the proposed fix is non-trivial. |
+| **Migrations / data / destructive ops** | Schema migrations, data backfills, deletes, drops, or anything irreversible. Always human-driven. |
+| **No response** | 10-minute poll window expires with no new Copilot review. |
+| **Conflicting signals** | Copilot's later review contradicts an earlier one we already addressed. Pause to decide which to honor. |
+
+## Auto-execution invariants
+
+These hold at every step:
+- **Never** `git push --force` or `--force-with-lease`.
+- **Never** amend, squash, or rebase commits already pushed.
+- **Never** dismiss a thread without an explanatory reply.
+- **Never** skip the failing-test-first step on a behavior-changing fix.
+- **Never** commit or touch files outside the PR's diff to "fix" something we noticed in passing — surface it as an adjacent finding for human review instead.
+- **Never** modify CI configuration, `.env`, secrets, or lockfiles unless the Copilot thread is specifically about that file.
+- **Never** post anything to chat platforms or tickets.
+
+## Maintenance
+
+After completing the workflow (or stopping), check if any part of these instructions seem outdated or misaligned with current tooling: GraphQL schema changes, deprecated fields, new `gh` CLI capabilities, changes to how Copilot reviews are requested or to the bot's login. If something looks off, flag it and offer a ready-to-use prompt I can paste into a new dotfiles session to update this command.
+
+$ARGUMENTS

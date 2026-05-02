@@ -33,7 +33,7 @@ gh api graphql -f query='
               nodes {
                 id
                 body
-                author { login }
+                author { __typename login }
                 createdAt
               }
             }
@@ -45,25 +45,51 @@ gh api graphql -f query='
 ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
 ```
 
-### 4. Validate each unresolved thread
+Filter to threads where `isResolved: false` AND the first comment author login is `copilot-pull-request-reviewer` (the Copilot bot). If the PR has threads from other authors too, leave those for `/peer-review`.
 
-Filter to only unresolved threads (`isResolved: false`). For each one:
+### 4. Validate every thread — three passes minimum (different angle each)
 
-- Read the comment body and identify the referenced file path and line(s)
-- Read the actual source code at that location
-- **Validate thoroughly**: Determine if the concern is legitimate by checking the real code. Copilot often produces false positives.
-- Classify as: **valid** (needs a fix), **false positive**, or **low-confidence**
+Apply the canonical rigor in CLAUDE.md `Validation Rigor (Issue Identification)`. For each unresolved Copilot thread:
 
-### 5. Present the validated list
+- **Read first.** Comment body, referenced file:line, plus enough surrounding context (callers, related modules) to understand the real behavior.
+- **Pass 1: direct reproduction.** When the claim is about runtime behavior, try to reproduce it. Write a failing test, run a script, trace through the code with concrete inputs, or construct an input that triggers the claimed bug. Inability to reproduce is a strong signal of a false positive.
+- **Pass 2: orthogonal angle.** Look at it from a different perspective: callers and what they assume, related code paths and side effects, hidden invariants, project conventions, sibling implementations, existing test coverage that may already prove the case safe.
+- **Pass 3: outside-in angle.** Sources outside the diff. `git log` / `git blame` for the why-it-is-the-way-it-is. Repo-wide search for similar patterns to see if the concern applies elsewhere or only here. For text/research-based claims (API correctness, spec compliance, deprecated patterns, security claims, library behavior): official docs, the library's own source/tests, deepwiki MCP, GitHub issues, RFCs, web search. Note what was consulted.
 
-Show all threads with their classifications. Emphasize false positives so I can see what was caught. Include the thread ID for each item.
+**Do not take Copilot's recommendation as correct.** Even when the underlying concern is real, design the best solution from first principles. Copilot's suggested fix may be insufficient (treating a symptom not the cause), wrong (introduces a new bug), unidiomatic for the codebase, or out of scope. Apply the same three-pass rigor to the proposed fix: does it actually resolve the issue, does it survive an orthogonal angle, does it match what docs/conventions/external references would recommend.
 
-### 6. Address items
+Classify each thread as **valid** (needs a fix), **false positive** (no real problem), or **low-confidence** (passes did not converge — never guess). Look for issues Copilot did not flag that are adjacent to what it did. Surface those as extra rows tagged "adjacent finding".
+
+### 5. Present the validated table
+
+Output one Markdown table. Default columns:
+
+| # | Thread ID | File:Line | Copilot's concern | What we found | Reproduced? | Classification | Confidence | Our proposed fix |
+
+Notes on columns:
+- **Copilot's concern**: a tight one-line summary of what the bot said, not a copy-paste.
+- **What we found**: the result of our investigation (the actual behavior, the real root cause, or "no issue, code already handles X").
+- **Reproduced?**: `yes` / `no` / `n/a` (n/a for items not reproducible by their nature, e.g. style/naming).
+- **Classification**: `valid` / `false positive` / `low-confidence` / `adjacent finding`.
+- **Confidence**: `high` / `medium` / `low` — how sure we are about the classification.
+- **Our proposed fix**: a one-line description of the change we want to make. May explicitly differ from Copilot's suggestion.
+
+If a column is not useful for the current PR (or you want a different cut), say so before printing the table and adjust. Optional add-ons worth considering case by case: `Severity`, `Test plan`, `Copilot's suggested fix` (when it diverges meaningfully from ours), `Files touched by fix`, `Scope risk` (in-scope / out-of-scope).
+
+### 6. Address items — solution validated with two or three test angles
 
 Follow the standard review workflow (let me choose: all at once or one by one, with progress tracking).
 
-For false positives: prepare a brief dismissal comment.
-For valid items: fix the code and prepare a comment explaining the change.
+For **valid** items that affect runtime behavior, apply the canonical rigor in CLAUDE.md `Validation Rigor (Solutions)`:
+
+1. **Targeted test.** Write a test that demonstrates the bug. Run it and confirm it fails for the expected reason — not for an unrelated reason like a missing import. Apply the fix. Re-run the test and confirm it now passes.
+2. **Wider check.** Run the broader project test suite, linters, and type-checkers. Watch for regressions, including in code paths the fix did not directly touch.
+3. **Edge / integration / manual** (when relevant). Boundary cases (null, empty, max size, concurrency), an integration or smoke test, or manual exercise of the user-facing flow.
+
+"When applicable" means: skip targeted-test for non-behavioral changes (doc-only fixes, comment changes, pure renames, type-only adjustments, formatting). For those, substitute review angles per the canonical doctrine: re-read the diff, read it from each caller's perspective, grep for places the change could silently break. Note in the reply why no test was added.
+
+For **false positives**: prepare a brief dismissal comment explaining what we checked (cite the three passes) and why the concern does not apply.
+For **low-confidence**: pause and ask me before taking action.
 
 ### 7. Commit and push
 
@@ -109,6 +135,6 @@ gh api graphql -f query='
 
 ## Maintenance
 
-After completing the workflow, check if any part of these instructions seem outdated, incorrect, or misaligned with the current project's tooling or workflow (e.g., GraphQL schema changes, deprecated fields, new `gh` CLI capabilities). If something looks off, flag it and offer a ready-to-use prompt I can paste into a new dotfiles session to update this command.
+After completing the workflow, check if any part of these instructions seem outdated, incorrect, or misaligned with the current project's tooling or workflow (e.g., GraphQL schema changes, deprecated fields, new `gh` CLI capabilities, Copilot bot login changes). If something looks off, flag it and offer a ready-to-use prompt I can paste into a new dotfiles session to update this command.
 
 $ARGUMENTS
