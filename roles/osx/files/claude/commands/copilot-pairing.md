@@ -68,7 +68,7 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
 
 **Branch on whether this iteration produced code changes.**
 
-**Path A — code changes were made (the common path):**
+**Path A (code changes were made, the common path):**
 
 1. **Commit and push.**
    - `git add` only the files we actually changed for this iteration (never `git add -A`).
@@ -79,14 +79,14 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
    date -u +%Y-%m-%dT%H:%M:%SZ > /tmp/copilot-pairing-push-ts
    ```
    The Bash tool spawns a fresh shell per invocation, so a plain shell variable will not be visible to the step (g) script. Use the temp file, or inline the literal value into the step (g) script when you send it. This timestamp is the high-water mark for step (g)'s poll filter; capturing it any earlier risks matching a Copilot review that pre-dates this push.
-3. **Reply to threads** using `/copilot-review` step 8 mutations (multi-line GraphQL, body via temp file). **Use `addPullRequestReviewThreadReply` only** — see the DO-NOT-USE callout in `/copilot-review` step 8 about `addPullRequestReviewComment`.
+3. **Reply to threads** using `/copilot-review` step 8 mutations (multi-line GraphQL, body via temp file). **Use `addPullRequestReviewThreadReply` only**; see the DO-NOT-USE callout in `/copilot-review` step 8 about `addPullRequestReviewComment`.
 4. **Resolve threads** using `/copilot-review` step 8's `resolveReviewThread` mutation.
 5. Proceed to step (f).
 
-**Path B — no code changes (every thread was `already-handled`):**
+**Path B (no code changes, every thread was `already-handled`):**
 
 1. Skip commit/push and skip the push-timestamp capture (no new HEAD; step (g) is skipped on this path).
-2. Reply to each thread with a short body referencing the prior commit that actually addressed it (find the commit via `git log --oneline -- <file>` for the relevant file). Use `addPullRequestReviewThreadReply` (same DO-NOT-USE callout applies).
+2. Reply to each thread with a short body referencing the prior commit that actually addressed it. Find the commit via `git log main..HEAD --oneline -- <file>` (scoped to this branch's commits, top entry is the most recent). Use `addPullRequestReviewThreadReply` (same DO-NOT-USE callout applies).
 3. Resolve threads via `resolveReviewThread`.
 4. Proceed to step (f.5), not (f): do not re-request review against an unchanged HEAD, since Copilot will not respond and step (g) will time out.
 
@@ -120,7 +120,7 @@ gh api -X POST "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
   -f 'reviewers[]=copilot-pull-request-reviewer'
 ```
 
-Do NOT trigger the **No response** stop condition based on this step's HTTP outcome. **No response** is reserved for step (g)'s 10-minute poll timing out — that is the only authoritative signal that Copilot did not review.
+Do NOT trigger the **No response** stop condition based on this step's HTTP outcome. **No response** is reserved for step (g)'s 10-minute poll timing out, the only authoritative signal that Copilot did not review.
 
 ### f.5. Resolve-only iteration short-circuit
 
@@ -168,7 +168,7 @@ echo "TIMEOUT"; exit 1
 
 Branch on the script's exit:
 
-- **Exit 0 (`NEW_REVIEW`)**: re-fetch reviewThreads. If any are unresolved, increment iteration counter and loop back to (a). If zero unresolved, success — exit the loop.
+- **Exit 0 (`NEW_REVIEW`)**: re-fetch reviewThreads. If any are unresolved, increment iteration counter and loop back to (a). If zero unresolved, success: exit the loop.
 - **Exit 1 (`TIMEOUT`)**: trigger the **No response** stop condition.
 - **Exit 2 (bad input)**: step (e) failed to capture `push_ts`. Bug in our flow. Stop and surface the script's stderr.
 - **Any other exit code (e.g. 144 from external SIGTERM, OOM kill, harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly using the `push_ts` from `/tmp/copilot-pairing-push-ts`:
@@ -181,7 +181,7 @@ Branch on the script's exit:
         | map(select(.author.login == $bot and .submittedAt > $ts))'
   ```
   - **New Copilot review found**: treat as `NEW_REVIEW` and proceed as above.
-  - **No new review, still inside the 10-minute window** (compare `push_ts + 600s` to current `date +%s`): restart the background poll script. Cap restarts at **2** per iteration to prevent thrashing — after that, treat as **No response**.
+  - **No new review, still inside the 10-minute window** (compare `push_ts + 600s` to current `date +%s`): restart the background poll script. Cap restarts at **2** per iteration to prevent thrashing; after that, treat as **No response**.
   - **No new review, past deadline**: treat as `TIMEOUT` and trigger **No response**.
 
 Never assume "loop succeeded" from a non-zero, non-1 exit code. Always cross-check via GraphQL.

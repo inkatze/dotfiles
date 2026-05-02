@@ -45,7 +45,21 @@ gh api graphql -f query='
 ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
 ```
 
-Filter to threads where `isResolved: false` AND the first comment author login is `copilot-pull-request-reviewer` (the Copilot bot). If the PR has threads from other authors too, leave those for `/peer-review`.
+Filter to threads where `isResolved: false` AND the first comment author is the Copilot bot. The standard bot login is `copilot-pull-request-reviewer` (`__typename: Bot`), but verify per run, especially on GHES or repos with custom bot integrations:
+
+```bash
+gh api graphql -f query='
+  query($owner: String!, $repo: String!, $number: Int!) {
+    repository(owner: $owner, name: $repo) {
+      pullRequest(number: $number) {
+        reviews(first: 5) { nodes { author { __typename login } } }
+      }
+    }
+  }
+' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
+```
+
+Use the actual `Bot` login if it differs. If the PR has threads from other authors too, leave those for `/peer-review`.
 
 ### 4. Validate every thread: three passes minimum (different angle each)
 
