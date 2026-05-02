@@ -10,7 +10,7 @@ You want a hands-off pairing pass with Copilot. The skill loops: address Copilot
 
 1. **Get PR / repo info** (same as `/copilot-review` step 1).
 2. **(Optional) Jira context** (same as `/copilot-review` step 2).
-3. **Confirm the Copilot bot login.** Default is `copilot-pull-request-reviewer`. Verify by inspecting an existing review on the PR:
+3. **Confirm the Copilot bot login and detect repo mode.** Default login is `copilot-pull-request-reviewer`. Verify by inspecting an existing review on the PR:
    ```bash
    gh api graphql -f query='
      query($owner: String!, $repo: String!, $number: Int!) {
@@ -22,7 +22,9 @@ You want a hands-off pairing pass with Copilot. The skill loops: address Copilot
      }
    ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
    ```
-   Use the actual `Bot` login if it differs.
+   Use the actual `Bot` login if it differs. Then set `repo_mode` from the same `__typename` field:
+   - `__typename == "Bot"` → `repo_mode = "app"`. Copilot is installed as a GitHub App and auto-reviews on push. The REST endpoint `POST /repos/{owner}/{repo}/pulls/{n}/requested_reviewers` will always return 422 ("not a collaborator") because Apps are not collaborators; the auto-review-on-push behavior is the actual mechanism.
+   - Otherwise → `repo_mode = "collaborator"`. Use the explicit re-request POST in step (f).
 4. **Initialize iteration counter** = 0. The loop's per-iteration filter is `isResolved: false` (step (a)), so we don't need to snapshot HEAD or the baseline thread-ID set.
 
 ## Iteration loop
@@ -90,16 +92,26 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
 3. Resolve threads via `resolveReviewThread`.
 4. Proceed to step (f.5), not (f): do not re-request review against an unchanged HEAD, since Copilot will not respond and step (g) will time out.
 
-### f. Re-request Copilot review (best-effort)
+### f. Re-request Copilot review (best-effort, mode-aware)
 
-Try to trigger a new Copilot review by re-adding it to the requested reviewers list:
+Branch on `repo_mode` from pre-flight step 3.
+
+**`app` mode (`__typename == "Bot"` in pre-flight):** skip the POST entirely. Auto-review on push handles the trigger. Log a single line for the iteration summary:
+
+```
+App-mode repo, auto-review on push will trigger Copilot. Skipping explicit re-request.
+```
+
+Then proceed to step (g). **Step (g) is mandatory in App mode.** Auto-review-on-push triggers Copilot, but only step (g)'s poll confirms it actually reviewed. Skipping (g) on the assumption that "push = review" is the regression this branch's wording was written to prevent.
+
+**`collaborator` mode:** try to trigger a new Copilot review by re-adding it to the requested reviewers list.
 
 ```bash
 gh api -X POST "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
   -f 'reviewers[]=copilot-pull-request-reviewer'
 ```
 
-This call is **best-effort**, not load-bearing. The actual signal the loop relies on is step (g)'s GraphQL poll for a new review. Repos where Copilot is installed as a GitHub App typically auto-review on push, so an explicit re-request is unnecessary (and the REST endpoint will reject it).
+This call is **best-effort**, not load-bearing. The actual signal the loop relies on is step (g)'s GraphQL poll for a new review.
 
 Inspect the response and branch:
 
@@ -107,7 +119,7 @@ Inspect the response and branch:
 |---|---|---|
 | 2xx | — | Proceed to step (g). |
 | 422 | `already requested` (or similar "duplicate reviewer") | DELETE the reviewer, re-POST. Then proceed to step (g). |
-| 422 | `not a collaborator` (or any other 422) | Log a single-line warning that the explicit re-request was rejected (likely auto-review-on-push repo). Proceed to step (g). |
+| 422 | `not a collaborator` | Pre-flight mode detection was wrong (the bot is no longer a Bot-typed reviewer). Log the mismatch and proceed to step (g). On the next run, re-check pre-flight step 3. |
 | Other (4xx/5xx) | — | Log warning. Proceed to step (g). |
 
 DELETE+POST retry pattern (only for the `already requested` case):
@@ -132,6 +144,8 @@ Only reached if step (e) produced no commits. Re-fetch reviewThreads (same query
 Skip steps (f) and (g) on this path.
 
 ### g. Wait for Copilot's response
+
+**This step is mandatory after every Path-A push, in both `app` and `collaborator` modes.** Do not infer that Copilot has reviewed from any other signal: not the push itself, not step (f)'s HTTP outcome, not "the last N iterations all converged so this one will too". The poll below is the only authoritative confirmation.
 
 We need to wait up to **10 minutes** for a new Copilot review. Do not foreground-sleep or chain `sleep` calls between polls: the harness's Bash tool blocks long sleeps and chained sleeps. Use one of the two patterns below.
 
@@ -193,7 +207,7 @@ After each iteration, print a short summary:
 - Threads addressed (counts by classification: valid / false positive / adjacent finding)
 - Commit SHA pushed
 - Test command run + result
-- Re-review request status
+- Re-review request status: in `app` mode, report `n/a (App-mode auto-review)`; in `collaborator` mode, report the actual HTTP outcome from step (f).
 
 This is what I scroll back through to audit the run.
 
@@ -225,6 +239,7 @@ These hold at every step:
 - **Never** commit or touch files outside the PR's diff to "fix" something we noticed in passing. Surface it as an adjacent finding for human review instead.
 - **Never** modify CI configuration, `.env`, secrets, or lockfiles unless the Copilot thread is specifically about that file.
 - **Never** post anything to chat platforms or tickets.
+- **Never** skip step (g) after a Path-A push. The 10-minute poll is the only authoritative signal that Copilot has (or has not) reviewed. App-mode auto-review, step (f)'s HTTP outcome, prior iterations' patterns, and elapsed iteration count are not substitutes. Confirmation bias from a long successful run is the failure mode this invariant catches.
 
 ## Maintenance
 
