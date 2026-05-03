@@ -77,7 +77,6 @@ mas "MindNode 5", id: 1289197285
 mas "Moneywiz", id: 1511185140
 mas "Pages", id: 409201541
 mas "Spark", id: 6445813049
-mas "Telegram", id: 747648890
 mas "Xcode", id: 497799835
 
 # Common casks (all hosts)
