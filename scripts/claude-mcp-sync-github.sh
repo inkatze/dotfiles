@@ -14,6 +14,11 @@
 
 set -eu
 
+fail() {
+  echo "FAILED: $*" >&2
+  exit 1
+}
+
 ITEM_UUID="co7bb5b6pfej3lhfni4skvonki"
 SERVER_NAME="github"
 SERVER_URL="https://api.githubcopilot.com/mcp"
@@ -105,8 +110,13 @@ if [ "$current_entry" = "$desired_entry" ]; then
   exit 0
 fi
 
-mkdir -p "$(dirname "$config")"
-tmp=$(mktemp "${config}.XXXXXX")
+config_dir=$(dirname "$config")
+mkdir_err=$(mkdir -p "$config_dir" 2>&1) \
+  || fail "could not create config directory $config_dir: $mkdir_err"
+
+tmp=$(mktemp "${config}.XXXXXX" 2>&1) \
+  || fail "could not create temp file next to $config: $tmp"
+
 seed=""
 backup=""
 jq_err=""
@@ -115,11 +125,14 @@ trap 'rm -f "$tmp" "$seed" "$backup" "$jq_err"' EXIT
 src="$config"
 if [ ! -f "$config" ]; then
   seed="${tmp}.seed"
-  printf '{}\n' > "$seed"
+  seed_err=$({ printf '{}\n' > "$seed"; } 2>&1) \
+    || fail "could not write seed file $seed: $seed_err"
   src="$seed"
 fi
 
-jq_err=$(mktemp)
+jq_err=$(mktemp 2>&1) \
+  || fail "could not create jq error capture file: $jq_err"
+
 if ! GITHUB_PAT="$pat" jq \
   --arg name "$SERVER_NAME" \
   --arg type "$SERVER_TYPE" \
@@ -132,29 +145,35 @@ if ! GITHUB_PAT="$pat" jq \
         headers: {Authorization: ("Bearer " + env.GITHUB_PAT)}
       }
   ' "$src" > "$tmp" 2>"$jq_err"; then
-  echo "FAILED: jq could not update $config: $(cat "$jq_err")" >&2
-  exit 1
+  fail "jq could not update $config: $(cat "$jq_err")"
 fi
 
 # Backup the previous config in the same directory (so the rollback `mv` is
 # atomic on the same filesystem) before swapping in the new file.
 if [ -f "$config" ]; then
-  backup=$(mktemp "${config}.bak.XXXXXX")
-  cp -p "$config" "$backup"
+  backup=$(mktemp "${config}.bak.XXXXXX" 2>&1) \
+    || fail "could not create backup file next to $config: $backup"
+  cp_err=$(cp -p "$config" "$backup" 2>&1) \
+    || fail "could not back up $config to $backup: $cp_err"
 fi
 
-mv "$tmp" "$config"
+mv_err=$(mv "$tmp" "$config" 2>&1) \
+  || fail "could not move new config into place at $config: $mv_err"
 
 if ! "$claude_bin" mcp get "$SERVER_NAME" >/dev/null 2>&1; then
   if [ -n "$backup" ]; then
-    mv "$backup" "$config"
-    backup=""
-    echo "FAILED: claude could not load $SERVER_NAME MCP entry after update; restored previous $config" >&2
+    if rb_err=$(mv "$backup" "$config" 2>&1); then
+      backup=""
+      fail "claude could not load $SERVER_NAME MCP entry after update; restored previous $config"
+    else
+      preserved="$backup"
+      backup=""  # keep the file on disk for manual recovery; trap must not rm it
+      fail "claude could not load $SERVER_NAME MCP entry after update; rollback also failed ($rb_err); previous config preserved at $preserved"
+    fi
   else
-    rm -f "$config"
-    echo "FAILED: claude could not load $SERVER_NAME MCP entry after update; no prior config to restore" >&2
+    rm -f "$config" 2>/dev/null || true
+    fail "claude could not load $SERVER_NAME MCP entry after update; no prior config to restore"
   fi
-  exit 1
 fi
 
 echo "CHANGED"
