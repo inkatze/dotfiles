@@ -81,11 +81,30 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
    - `git add` only the files we actually changed for this iteration (never `git add -A`).
    - Commit with a message of the form `chore(copilot): iter N, address <short summary>`.
    - Push: `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or any rebase flag.
-2. **Capture push timestamp** as a Unix epoch, used for both deadline math and the poll filter (substitute the PR number from pre-flight step 1):
+2. **Capture push timestamp and baseline Copilot-review id** (substitute the PR number from pre-flight step 1):
    ```bash
    date +%s > /tmp/copilot-pairing-push-epoch.NUMBER
+   gh api graphql -f query='
+     query($owner: String!, $repo: String!, $number: Int!) {
+       repository(owner: $owner, name: $repo) {
+         pullRequest(number: $number) {
+           reviews(last: 5) { nodes { id author { login } } }
+         }
+       }
+     }
+   ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER \
+     | jq -r --arg bot 'copilot-pull-request-reviewer' '
+         .data.repository.pullRequest.reviews.nodes
+         | map(select(.author.login == $bot))
+         | last // empty
+         | .id // ""' \
+     > /tmp/copilot-pairing-baseline-review-id.NUMBER
    ```
-   The Bash tool spawns a fresh shell per invocation, so a plain shell variable will not be visible to the step (g) script. Use the temp file, or inline the literal value into the step (g) script when you send it. The filename is namespaced by PR number so concurrent pairing sessions on different PRs (e.g., separate worktrees) do not clobber each other's timestamps. We use epoch (not ISO-8601) so the poll filter can compare numerically via `fromdateiso8601` and avoid lexicographic edge cases at sub-second precision. This high-water mark is the floor for step (g)'s poll filter; capturing it any earlier risks matching a Copilot review that pre-dates this push.
+   The Bash tool spawns a fresh shell per invocation, so plain shell variables will not be visible to the step (g) script. Use the temp files, or inline the literal values into the step (g) script when you send it. Filenames are namespaced by PR number so concurrent pairing sessions on different PRs (e.g., separate worktrees) do not clobber each other.
+
+   We capture two values because step (g) needs both:
+   - **`push_epoch`** drives the 10-minute deadline math.
+   - **`baseline_review_id`** lets the poll match a *new* Copilot review unambiguously even when its `submittedAt` rounds down to the same second as `push_epoch`. Filtering on `submittedAt > push_epoch` alone misses same-second submissions (jq's `fromdateiso8601` is second-precision, and macOS `date` doesn't support sub-second `%N`). Filtering on `id != baseline_review_id` alone would re-match older Copilot reviews. Combining both (`submittedAt >= push_epoch AND id != baseline_review_id`) excludes pre-existing reviews and accepts same-second submissions. If there is no prior Copilot review, the baseline file holds the empty string and any non-empty review id passes.
 3. **Reply to threads** using `/copilot-review` step 8 mutations (multi-line GraphQL, body via temp file). **Use `addPullRequestReviewThreadReply` only**; see the DO-NOT-USE callout in `/copilot-review` step 8 about `addPullRequestReviewComment`. Reply body varies by classification, since this iteration may have a mix:
    - **`valid`**: short reply describing the change we made, ideally referencing the new commit SHA from (e.1).
    - **`already-handled`**: reply with `addressed in <commit-sha>` per Path B step 2, using the same `git log "$(gh pr view --json baseRefName -q '.baseRefName')..HEAD" --oneline -- <file>` lookup. Do not hardcode `main` as the base.
@@ -157,7 +176,7 @@ Inspect the response and branch:
 |---|---|---|
 | 2xx | n/a | Proceed to step (g). |
 | 422 | `already requested` (or similar "duplicate reviewer") | DELETE the reviewer, re-POST. Then proceed to step (g). |
-| 422 | `not a collaborator` | Pre-flight mode detection was wrong (the bot is no longer a Bot-typed reviewer). Log the mismatch and proceed to step (g). On the next run, re-check pre-flight step 3. |
+| 422 | `not a collaborator` | REST cannot request this reviewer. Possible causes: pre-flight mode detection was wrong (bot is App-typed), the bot lost collaborator status mid-run, or the login is otherwise ineligible. Log the outcome and proceed to step (g); the poll is the authoritative signal. Re-check pre-flight step 3 on the next run. |
 | Other (4xx/5xx) | n/a | Log warning. Proceed to step (g). |
 
 DELETE+POST retry pattern (only for the `already requested` case):
@@ -190,11 +209,12 @@ We need to wait up to **10 minutes** for a new Copilot review. Do not foreground
 **Preferred: a single backgrounded poll script** (`Bash` with `run_in_background=true`). The script polls itself and exits when the condition is met or the deadline passes. You'll be notified when it exits. Substitute the verified bot login from pre-flight step 3 in the `--arg bot ...` flag if it differs from the default.
 
 ```bash
-# Read push_epoch from the temp file written in step (e). Bash tool calls do
-# not share shell state, so reading from the file (or inlining the literal
-# value before sending the script) is required. File is namespaced by PR
-# number; substitute NUMBER from pre-flight step 1.
+# Read push_epoch and baseline_id from the temp files written in step (e).
+# Bash tool calls do not share shell state, so reading from the files (or
+# inlining the literal values before sending the script) is required. Files
+# are namespaced by PR number; substitute NUMBER from pre-flight step 1.
 push_epoch=$(cat /tmp/copilot-pairing-push-epoch.NUMBER 2>/dev/null)
+baseline_id=$(cat /tmp/copilot-pairing-baseline-review-id.NUMBER 2>/dev/null)
 [ -n "$push_epoch" ] || { echo "push_epoch not set; capture it in step (e) before running"; exit 2; }
 deadline=$(( push_epoch + 600 ))
 while [ $(date +%s) -lt $deadline ]; do
@@ -202,14 +222,18 @@ while [ $(date +%s) -lt $deadline ]; do
     query($owner: String!, $repo: String!, $number: Int!) {
       repository(owner: $owner, name: $repo) {
         pullRequest(number: $number) {
-          reviews(last: 5) { nodes { author { login } state submittedAt } }
+          reviews(last: 5) { nodes { id author { login } state submittedAt } }
         }
       }
     }
   ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER \
-    | jq -r --arg bot 'copilot-pull-request-reviewer' --argjson since "$push_epoch" '
+    | jq -r --arg bot 'copilot-pull-request-reviewer' --arg baseline "$baseline_id" --argjson since "$push_epoch" '
         .data.repository.pullRequest.reviews.nodes
-        | map(select(.author.login == $bot and (.submittedAt | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) > $since))
+        | map(select(
+            .author.login == $bot
+            and .id != $baseline
+            and (.submittedAt | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) >= $since
+          ))
         | last // empty')
   if [ -n "$latest" ]; then echo "NEW_REVIEW $latest"; exit 0; fi
   sleep 30
@@ -224,14 +248,19 @@ Branch on the script's exit:
 - **Exit 0 (`NEW_REVIEW`)**: re-fetch reviewThreads. If any are unresolved, increment iteration counter and loop back to (a). If zero unresolved, success: exit the loop.
 - **Exit 1 (`TIMEOUT`)**: trigger the **No response** stop condition.
 - **Exit 2 (bad input)**: step (e) failed to capture `push_epoch`. Bug in our flow. Stop and surface the script's stderr.
-- **Any other exit code (e.g. 143 from SIGTERM, 137 from SIGKILL/OOM, or any 128+N signal exit from a harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly, reading `push_epoch` from `/tmp/copilot-pairing-push-epoch.NUMBER` for both the deadline check and the poll filter:
+- **Any other exit code (e.g. 143 from SIGTERM, 137 from SIGKILL/OOM, or any 128+N signal exit from a harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly, reading `push_epoch` and `baseline_id` from the temp files:
   ```bash
   push_epoch=$(cat /tmp/copilot-pairing-push-epoch.NUMBER)
+  baseline_id=$(cat /tmp/copilot-pairing-baseline-review-id.NUMBER)
   gh api graphql -f query='...same as the poll script...' \
     -f owner='OWNER' -f repo='REPO' -F number=NUMBER \
-    | jq --arg bot 'copilot-pull-request-reviewer' --argjson since "$push_epoch" '
+    | jq --arg bot 'copilot-pull-request-reviewer' --arg baseline "$baseline_id" --argjson since "$push_epoch" '
         .data.repository.pullRequest.reviews.nodes
-        | map(select(.author.login == $bot and (.submittedAt | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) > $since))'
+        | map(select(
+            .author.login == $bot
+            and .id != $baseline
+            and (.submittedAt | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) >= $since
+          ))'
   ```
   - **New Copilot review found**: treat as `NEW_REVIEW` and proceed as above.
   - **No new review, still inside the 10-minute window** (`[ $(date +%s) -lt $((push_epoch + 600)) ]`): restart the background poll script. Cap restarts at **2** per iteration to prevent thrashing; after that, treat as **No response**.
