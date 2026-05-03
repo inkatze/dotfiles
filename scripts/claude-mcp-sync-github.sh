@@ -8,9 +8,12 @@
 # The PAT is passed to jq via the GITHUB_PAT env var (never on argv where `ps`
 # could read it) and is scoped to the jq invocations only — the `claude mcp
 # get` sanity check at the end does not inherit it. The new ~/.claude.json is
-# built in a temp file in the same directory and renamed into place; a backup
-# of the previous file is kept so a failed sanity check rolls back instead of
-# leaving the user with a broken or missing MCP entry.
+# built in a temp file in the same directory and renamed into place. When a
+# previous ~/.claude.json existed it is backed up first and restored if the
+# sanity check fails; on a first-time registration there is nothing to roll
+# back to, so a failed sanity check removes the partially-written file and
+# exits FAILED: with a "no prior config to restore" message, leaving the
+# machine in its pre-run state.
 
 set -eu
 
@@ -105,7 +108,13 @@ if [ -f "$config" ]; then
   current_entry=$(jq -c --arg name "$SERVER_NAME" '.mcpServers[$name] // null' "$config")
 fi
 
-if [ "$current_entry" = "$desired_entry" ]; then
+# Structural compare so a hand-edited or tool-written entry with the same
+# values but different JSON key order is still treated as OK rather than
+# pointlessly rewritten.
+if jq -ne \
+  --argjson a "$current_entry" \
+  --argjson b "$desired_entry" \
+  '$a == $b' >/dev/null 2>&1; then
   echo "OK"
   exit 0
 fi

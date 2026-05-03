@@ -97,9 +97,11 @@ argv is visible to other processes on the box; env vars aren't, by default.
 Before writing, the existing `~/.claude.json` is checked for valid JSON and
 an object-typed `.mcpServers`; either is rejected with a `FAILED:` message
 rather than letting a raw `jq` parse error leak through. After the rename it
-runs `claude mcp get github` as a sanity check; on failure the previous file
-is restored from a backup so a botched run cannot leave the machine without
-a working MCP entry.
+runs `claude mcp get github` as a sanity check; if a previous file existed
+it is restored from a backup, and on a first-time registration the
+partially-written file is removed and the script exits with a "no prior
+config to restore" `FAILED:` message — in either case the machine ends in
+a coherent state rather than carrying a half-broken config.
 
 It runs in two places: at the end of `homebrew.yml` (so brew has already
 installed `1password-cli` on a fresh machine) and at the end of `upgrade.yml`
