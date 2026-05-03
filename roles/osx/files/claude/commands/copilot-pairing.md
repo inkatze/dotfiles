@@ -1,4 +1,4 @@
-Iterate with GitHub Copilot autonomously until it stops requesting changes on the current PR.
+Iterate with GitHub Copilot autonomously until it has no unresolved threads on the current PR. Copilot reviews land as `state: COMMENTED` (not `CHANGES_REQUESTED`), so the termination signal is "the latest Copilot review after our push leaves zero unresolved Copilot threads", not a state change.
 
 Same validation rigor as `/copilot-review`, executed on autopilot, with hard stop conditions baked in for safety.
 
