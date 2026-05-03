@@ -204,7 +204,7 @@ Skip steps (f) and (g) on this path.
 
 **This step is mandatory after every Path-A push, in both `app` and `collaborator` modes.** Do not infer that Copilot has reviewed from any other signal: not the push itself, not step (f)'s HTTP outcome, not "the last N iterations all converged so this one will too". The poll below is the only authoritative confirmation.
 
-We need to wait up to **10 minutes** for a new Copilot review. Do not foreground-sleep or chain `sleep` calls between polls: the harness's Bash tool blocks long sleeps and chained sleeps. Use one of the two patterns below.
+We need to wait up to **10 minutes** for a new Copilot review. The harness's Bash tool blocks long leading sleeps and shorter sleeps chained across multiple tool calls (the limit applies at the tool-invocation boundary, not inside a running process). So do not poll by issuing one Bash tool call per attempt with `sleep` between them. Both patterns below are safe because the sleeping happens *inside* a single backgrounded invocation that the harness does not introspect.
 
 **Preferred: a single backgrounded poll script** (`Bash` with `run_in_background=true`). The script polls itself and exits when the condition is met or the deadline passes. You'll be notified when it exits. Substitute the verified bot login from pre-flight step 3 in the `--arg bot ...` flag if it differs from the default.
 
