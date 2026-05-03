@@ -79,8 +79,10 @@ Any server that needs a secret is registered through a sync script under
 `scripts/` so the secret stays in 1Password and never lands in this repo.
 
 `scripts/claude-mcp-sync-github.sh` reads the GitHub PAT from 1Password item
-`co7bb5b6pfej3lhfni4skvonki` (tries the `credential`, `password`, then `token`
-field) and registers the GitHub Copilot MCP server. It is idempotent: prints
+`co7bb5b6pfej3lhfni4skvonki` (tries the `token` field, then `credential`; the
+LOGIN-category `password` field is deliberately not a fallback because it
+resolves to the GitHub account password) and registers the GitHub Copilot
+MCP server. It is idempotent: prints
 `OK` when the configured `.mcpServers.github` entry already matches the
 desired `type`/`url`/`Authorization`, `CHANGED` when it had to (re-)register,
 and exits non-zero with a `FAILED:` message otherwise. The Ansible tasks call
@@ -88,10 +90,16 @@ it with `changed_when: 'CHANGED' in …stdout` so PAT rotations show up as a
 single changed step.
 
 The script writes `~/.claude.json` directly via `jq` (atomic temp-file +
-rename) and passes the PAT through the `GITHUB_PAT` env var, never on the
-command line. Both choices are deliberate: argv is visible to other processes
-on the box; env vars aren't, by default. After the write it runs
-`claude mcp get github` as a sanity check.
+rename) and passes the PAT through the `GITHUB_PAT` env var, scoped only to
+the `jq` invocations that need it (the rest of the script, including the
+`claude mcp get` sanity check, never sees it). Both choices are deliberate:
+argv is visible to other processes on the box; env vars aren't, by default.
+Before writing, the existing `~/.claude.json` is checked for valid JSON and
+an object-typed `.mcpServers`; either is rejected with a `FAILED:` message
+rather than letting a raw `jq` parse error leak through. After the rename it
+runs `claude mcp get github` as a sanity check; on failure the previous file
+is restored from a backup so a botched run cannot leave the machine without
+a working MCP entry.
 
 It runs in two places: at the end of `homebrew.yml` (so brew has already
 installed `1password-cli` on a fresh machine) and at the end of `upgrade.yml`
