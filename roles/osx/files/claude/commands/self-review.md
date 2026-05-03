@@ -19,11 +19,21 @@ Do a comprehensive code review of the current feature branch.
    - Dead code or unnecessary changes
    - If a Jira ticket was found: whether the changes satisfy each acceptance criterion, and whether anything is missing or inconsistent with the ticket requirements
 
-4. **Validate every finding**: For each potential issue, read the full source file to understand context. Eliminate false positives and speculative concerns. Only report issues you are confident about.
+4. **Validate every finding with the three-pass rigor** (canonical spec in CLAUDE.md `Validation Rigor (Issue Identification)`). For each potential issue:
+   - **Pass 1 (reproduce):** when the claim is about runtime behavior, reproduce it. Failing test, repro script, trace through the code path with concrete inputs, or construct the failing input.
+   - **Pass 2 (orthogonal angle):** look at callers / upstream context, related code paths, project conventions, sibling implementations, existing tests that may already cover the case.
+   - **Pass 3 (outside-in):** consult `git log` / `git blame` for context, repo-wide search for similar patterns, and for text/research-based claims (API correctness, spec compliance, deprecated patterns, security claims, library behavior) consult official docs, library source/tests, deepwiki MCP, GitHub issues, RFCs, web search. Note what was checked.
 
-5. Present the validated list as a numbered summary with brief descriptions. Clearly state the confidence level. If nothing substantive remains, say so.
+   Drop or downgrade items where the three passes do not converge. Eliminate false positives and speculative concerns. Only report issues you are confident about.
 
-6. Follow the standard review workflow (let me choose: all at once or one by one, with progress tracking).
+5. Present the validated list as a numbered summary with brief descriptions. For each item, include the confidence level and a one-line note on which validation passes converged. If nothing substantive remains, say so.
+
+6. Follow the standard review workflow (let me choose: all at once or one by one, with progress tracking). When implementing fixes, apply the **two-or-three-angle solution validation** (canonical spec in CLAUDE.md `Validation Rigor (Solutions)`):
+   - Targeted failing test for the bug's exact reason → fix → confirm test passes.
+   - Run the broader test suite, linters, and type-checkers. Watch for regressions.
+   - When relevant: edge cases (null, empty, max, concurrency), integration / smoke tests, or manual exercise of the user-facing flow.
+
+   For non-testable changes, substitute review angles (re-read the diff, read from each caller's perspective, grep for places the change could silently break) and note why no test was added.
 
 7. **Documentation check**: Before committing, verify that all documentation affected by the changes is up to date. For each changed file, consider whether any of the following need updates:
    - **Docstrings and inline docs**: Functions, classes, or modules whose behavior or signature changed

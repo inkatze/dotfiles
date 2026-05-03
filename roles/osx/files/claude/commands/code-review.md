@@ -41,9 +41,16 @@ If the diff is large, review file-by-file using `git diff <base>...HEAD -- <path
 - Dead code or unnecessary changes
 - If a Jira ticket was found: whether the changes satisfy each acceptance criterion, and whether anything is missing or inconsistent with the ticket requirements
 
-### 6. Validate every finding
+### 6. Validate every finding: three passes minimum (different angle each)
 
-For each potential issue, read the full source file to understand context. Eliminate false positives and speculative concerns. Only report issues you are confident about.
+Apply the canonical rigor in CLAUDE.md `Validation Rigor (Issue Identification)`. For each potential issue:
+
+- **Read first.** The full source file to understand context, plus callers and related modules.
+- **Pass 1: direct reproduction.** When the issue concerns runtime behavior, reproduce it. Failing test, repro script, trace through the code with concrete inputs, or construct an input that triggers the bug. Inability to reproduce is a strong signal of a false positive.
+- **Pass 2: orthogonal angle.** A different lens: callers and what they assume, related code paths and side effects, project conventions, sibling implementations, existing test coverage.
+- **Pass 3: outside-in angle.** Sources outside the diff: `git log` / `git blame` for the why-it-is-the-way-it-is, repo-wide search for similar patterns, and for text/research-based claims (API correctness, spec compliance, deprecated patterns, security claims, library behavior) consult official docs, the library's own source/tests, deepwiki MCP, GitHub issues, RFCs, web search. Note what was checked.
+
+Drop or downgrade items where the three passes do not converge. We are leaving comments on someone else's PR, so false positives have a higher cost here than in self-review.
 
 ### 7. Present the validated list
 
@@ -51,6 +58,7 @@ For each item, include:
 - File path and line number
 - Severity: **blocker**, **concern**, **suggestion**, or **nit**
 - A clear description of the issue
+- One-line note on which validation passes converged (e.g. "reproduced via failing test in pass 1, confirmed by sibling implementation in pass 2, library docs in pass 3")
 - A proposed inline comment draft
 
 If nothing substantive remains, say so.
