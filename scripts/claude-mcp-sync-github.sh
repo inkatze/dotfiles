@@ -1,20 +1,32 @@
 #!/usr/bin/env bash
 # Sync the GitHub Copilot MCP server registration in Claude Code with the
 # GitHub PAT stored in 1Password. Idempotent: prints OK when the configured
-# token already matches, CHANGED when it had to (re-)register, and exits
-# non-zero with a FAILED: message on any precondition failure.
+# entry already matches the desired type/url/Authorization, CHANGED when it
+# had to (re-)register, and exits non-zero with a FAILED: message on any
+# precondition failure.
+#
+# The PAT is passed to jq via the GITHUB_PAT env var so it never lands in any
+# subprocess argv (where `ps` could read it). The new ~/.claude.json is built
+# in a temp file in the same directory and renamed into place, so a failure
+# midway never leaves the user with no GitHub MCP entry at all.
 
 set -eu
 
 ITEM_UUID="co7bb5b6pfej3lhfni4skvonki"
 SERVER_NAME="github"
 SERVER_URL="https://api.githubcopilot.com/mcp"
+SERVER_TYPE="http"
 
 claude_bin="${CLAUDE_BIN:-$HOME/.local/bin/claude}"
 config="$HOME/.claude.json"
 
 if ! command -v op >/dev/null 2>&1; then
   echo "FAILED: 1Password CLI (op) not installed" >&2
+  exit 1
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "FAILED: jq not installed" >&2
   exit 1
 fi
 
@@ -38,17 +50,53 @@ if [ -z "$pat" ]; then
   exit 1
 fi
 
-current=""
+export GITHUB_PAT="$pat"
+
+desired_entry=$(jq -nc \
+  --arg type "$SERVER_TYPE" \
+  --arg url "$SERVER_URL" \
+  '{type: $type, url: $url, headers: {Authorization: ("Bearer " + env.GITHUB_PAT)}}')
+
+current_entry="null"
 if [ -f "$config" ]; then
-  current=$(jq -r --arg name "$SERVER_NAME" '.mcpServers[$name].headers.Authorization // ""' "$config" 2>/dev/null || true)
+  current_entry=$(jq -c --arg name "$SERVER_NAME" '.mcpServers[$name] // null' "$config" 2>/dev/null || echo "null")
 fi
 
-if [ "$current" = "Bearer $pat" ]; then
+if [ "$current_entry" = "$desired_entry" ]; then
   echo "OK"
   exit 0
 fi
 
-"$claude_bin" mcp remove "$SERVER_NAME" --scope user >/dev/null 2>&1 || true
-desired=$(printf '{"type":"http","url":"%s","headers":{"Authorization":"Bearer %s"}}' "$SERVER_URL" "$pat")
-"$claude_bin" mcp add-json "$SERVER_NAME" "$desired" --scope user >/dev/null
+mkdir -p "$(dirname "$config")"
+tmp=$(mktemp "${config}.XXXXXX")
+seed=""
+trap 'rm -f "$tmp" "$seed"' EXIT
+
+src="$config"
+if [ ! -f "$config" ]; then
+  seed="${tmp}.seed"
+  printf '{}\n' > "$seed"
+  src="$seed"
+fi
+
+jq \
+  --arg name "$SERVER_NAME" \
+  --arg type "$SERVER_TYPE" \
+  --arg url "$SERVER_URL" \
+  '
+    .mcpServers //= {}
+    | .mcpServers[$name] = {
+        type: $type,
+        url: $url,
+        headers: {Authorization: ("Bearer " + env.GITHUB_PAT)}
+      }
+  ' "$src" > "$tmp"
+
+mv "$tmp" "$config"
+
+if ! "$claude_bin" mcp get "$SERVER_NAME" >/dev/null 2>&1; then
+  echo "FAILED: claude could not load $SERVER_NAME MCP entry after update" >&2
+  exit 1
+fi
+
 echo "CHANGED"

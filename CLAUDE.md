@@ -74,23 +74,32 @@ script before opening a repo you did not author.
 
 ## MCP server registration
 
-User-scope MCP servers live in `~/.claude.json` under `.mcpServers.<name>` and
-are managed via `claude mcp add-json … --scope user`. Any server that needs a
-secret is registered through a sync script under `scripts/` so the secret stays
-in 1Password and never lands in this repo.
+User-scope MCP servers live in `~/.claude.json` under `.mcpServers.<name>`.
+Any server that needs a secret is registered through a sync script under
+`scripts/` so the secret stays in 1Password and never lands in this repo.
 
 `scripts/claude-mcp-sync-github.sh` reads the GitHub PAT from 1Password item
 `co7bb5b6pfej3lhfni4skvonki` (tries the `credential`, `password`, then `token`
 field) and registers the GitHub Copilot MCP server. It is idempotent: prints
-`OK` when the configured bearer token already matches, `CHANGED` when it had
-to (re-)register. The Ansible tasks call it with `changed_when: 'CHANGED' in
-…stdout` so PAT rotations show up as a single changed step.
+`OK` when the configured `.mcpServers.github` entry already matches the
+desired `type`/`url`/`Authorization`, `CHANGED` when it had to (re-)register,
+and exits non-zero with a `FAILED:` message otherwise. The Ansible tasks call
+it with `changed_when: 'CHANGED' in …stdout` so PAT rotations show up as a
+single changed step.
+
+The script writes `~/.claude.json` directly via `jq` (atomic temp-file +
+rename) and passes the PAT through the `GITHUB_PAT` env var, never on the
+command line. Both choices are deliberate: argv is visible to other processes
+on the box; env vars aren't, by default. After the write it runs
+`claude mcp get github` as a sanity check.
 
 It runs in two places: at the end of `homebrew.yml` (so brew has already
 installed `1password-cli` on a fresh machine) and at the end of `upgrade.yml`
-(so `mise run upgrade` picks up rotated PATs). To add another secret-bearing
-MCP server, follow the same pattern: new script under `scripts/`, new task in
-both files.
+(so `mise run upgrade` picks up rotated PATs). Both invocations are guarded
+with `when: lookup('ansible.builtin.env', 'CI', default='') == ''` so the CI
+matrix (which has neither an unlocked 1Password session nor `op` installed)
+skips them. To add another secret-bearing MCP server, follow the same
+pattern: new script under `scripts/`, new task in both files, same CI guard.
 
 ## Do not edit directly in `~/.claude/`
 

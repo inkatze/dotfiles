@@ -19,4 +19,5 @@
     cmd: "{{ ansible_env.PWD }}/scripts/claude-mcp-sync-github.sh"
   register: osx_claude_mcp_github
   changed_when: "'CHANGED' in osx_claude_mcp_github.stdout"
+  when: lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [osx]
