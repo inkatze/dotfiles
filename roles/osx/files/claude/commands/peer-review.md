@@ -35,7 +35,7 @@ gh api graphql -f query='
               nodes {
                 id
                 body
-                author { login }
+                author { __typename login }
                 createdAt
               }
             }
@@ -47,20 +47,33 @@ gh api graphql -f query='
 ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
 ```
 
-### 4. Validate each unresolved thread
+### 4. Validate each unresolved thread: three passes minimum (different angle each)
 
-Filter to only unresolved threads (`isResolved: false`). For each one:
+Filter to threads where `isResolved: false` AND the first comment author is NOT a `Bot` (`__typename != "Bot"`). Bot threads (Copilot and friends) belong to `/copilot-review` or `/copilot-pairing`; processing them here would generate human-tone replies to a bot.
 
-- Read the full comment thread (all comments, not just the first)
-- Read the actual source code at the referenced location
-- **Validate carefully**: Determine if the concern is legitimate, a false positive, or a matter of preference
-- Consider the reviewer's perspective and intent
+**Known gap.** This filter excludes *all* bots, but `/copilot-review` and `/copilot-pairing` only handle the Copilot bot specifically (filtered by `author.login`). Non-Copilot bot threads (e.g., CodeQL, Dependabot review) are therefore not handled by any of these workflows. Address them out-of-band: reply/resolve manually, or copy this command and narrow the filter to a specific bot login plus adjust the tone instructions for that bot. The current trade-off is deliberate: human tone is wrong for a bot, and Copilot tone is wrong for non-Copilot bots, so silent exclusion beats applying the wrong workflow.
+
+Pipe the previous query's output through this jq filter:
+
+```bash
+jq '.data.repository.pullRequest.reviewThreads.nodes
+    | map(select(.isResolved == false and .comments.nodes[0].author.__typename != "Bot"))'
+```
+
+For each remaining thread, apply the canonical rigor in CLAUDE.md `Validation Rigor (Issue Identification)`:
+
+- **Read first.** The full comment thread (all comments, not just the first), the actual source at the referenced location, and the reviewer's likely intent.
+- **Pass 1: direct reproduction.** When the concern is about runtime behavior, reproduce it. Failing test, repro script, trace through the code with concrete inputs. Inability to reproduce is a strong signal it may be a preference or a false positive.
+- **Pass 2: orthogonal angle.** A different lens: callers and what they assume, related code paths, project conventions and sibling implementations, existing test coverage that may already prove the case safe.
+- **Pass 3: outside-in angle.** Sources outside the diff: `git log` / `git blame` for the why-it-is-the-way-it-is, repo-wide search for similar patterns, and for text/research-based claims (API correctness, spec compliance, deprecated patterns, security claims, library behavior) consult official docs, library source/tests, deepwiki MCP, GitHub issues, RFCs, web search. Note what was checked.
+
+Classify each as **valid**, **false positive**, **preference**, or **low-confidence** (passes did not converge; never guess). When the concern is a matter of preference, surface the trade-off rather than asserting correctness.
 
 ### 5. Present the validated list
 
 For each item, include:
 - The reviewer's concern (summarized)
-- Your assessment (valid, false positive, preference)
+- Your assessment (valid, false positive, preference, low-confidence) with a one-line note on which validation passes converged
 - A proposed response draft
 - The proposed code change (if any)
 
@@ -79,17 +92,34 @@ Follow the standard review workflow (let me choose: all at once or one by one, w
 
 Present each response draft for my approval before posting. I may want to adjust wording.
 
+**Solution validation when fixes are involved.** When a thread leads to a code change, apply the canonical rigor in CLAUDE.md `Validation Rigor (Solutions)`:
+
+1. **Targeted test.** Write a failing test for the bug's exact reason, confirm it fails for the right reason, apply the fix, confirm it now passes.
+2. **Wider check.** Run the broader test suite, linters, type-checkers. Watch for regressions.
+3. **Edge / integration / manual** (when relevant). Boundary cases, integration / smoke tests, or manual exercise of the user-facing flow.
+
+For non-testable changes, substitute review angles per the canonical doctrine and note in the reply why no test was added.
+
 ### 7. Commit and push
 
 After all items are addressed, commit the changes and push.
 
 ### 8. Reply to and resolve each thread (only after I approve the response)
 
+**Use `addPullRequestReviewThreadReply` only.** Do **NOT** use `addPullRequestReviewComment` (with or without `inReplyTo`) for this workflow.
+
+Both mutations can leave replies invisible by attaching them to a *pending* review owned by the viewer:
+
+- `addPullRequestReviewComment` always builds onto a review and creates a pending one if none is in progress; replies sit as drafts until someone manually clicks Submit.
+- `addPullRequestReviewThreadReply` is the more direct mutation, but per a 2026-05-02 live-run failure on `SymmetrySoftware/stl-poc#13` it can also auto-vivify a pending review when the viewer has none in progress. The reply then stays invisible (to GitHub UI, to the human reviewer, to anyone else) until the pending review is submitted.
+
+After the batch of replies, **always** submit any pending review you own on this PR before resolving threads (see "Submit any auto-vivified pending review" below). A successful-looking run can otherwise complete with all replies silently invisible: the human reviewer sees no response and the threads still appear unanswered to them.
+
 **Shell quoting rules:**
 - Always use multi-line query strings for GraphQL mutations. Single-line strings cause the shell to eat `$` in variable names like `$threadId`.
 - Always write the response body to a temp file and use `-F body=@file` to pass it. This avoids fish shell interpreting backticks in the body as command substitution.
 
-For each thread, run both mutations in sequence:
+For each thread, run the reply mutation. After the whole batch of replies, run the pending-review submit step **once**, then run the resolve mutation per thread.
 
 **Reply to the thread** (use the thread `id` from step 3, not the comment id):
 
@@ -106,6 +136,42 @@ gh api graphql -f query='
   }
 ' -f threadId='THREAD_ID' -F body=@/tmp/gh-review-comment.txt
 ```
+
+**Submit any auto-vivified pending review** (run once after all replies are posted, before resolving):
+
+Query the PR's pending reviews and the viewer's login in one round-trip, then submit each pending review owned by the viewer:
+
+```bash
+gh api graphql -f query='
+  query($owner: String!, $repo: String!, $number: Int!) {
+    viewer { login }
+    repository(owner: $owner, name: $repo) {
+      pullRequest(number: $number) {
+        reviews(states: PENDING, first: 10) {
+          nodes { id author { login } }
+        }
+      }
+    }
+  }
+' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
+```
+
+For each `reviews.nodes` entry where `author.login == viewer.login`:
+
+```bash
+gh api graphql -f query='
+  mutation($id: ID!) {
+    submitPullRequestReview(input: {
+      pullRequestReviewId: $id,
+      event: COMMENT
+    }) {
+      pullRequestReview { id state submittedAt }
+    }
+  }
+' -f id='REVIEW_ID'
+```
+
+Re-run the pending-reviews query and assert no pending reviews owned by the viewer remain. If a pending review cannot be submitted, stop and surface the error rather than silently resolving threads on top of invisible replies.
 
 **Resolve the thread:**
 
