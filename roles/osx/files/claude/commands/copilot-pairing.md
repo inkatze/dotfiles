@@ -23,7 +23,7 @@ You want a hands-off pairing pass with Copilot. The skill loops: address Copilot
    ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
    ```
    Use the actual `Bot` login if it differs. Then set `repo_mode` from the same `__typename` field:
-   - `__typename == "Bot"` → `repo_mode = "app"`. Copilot is installed as a GitHub App and auto-reviews on push. The REST endpoint `POST /repos/{owner}/{repo}/pulls/{n}/requested_reviewers` will always return 422 ("not a collaborator") because Apps are not collaborators; the auto-review-on-push behavior is the actual mechanism.
+   - `__typename == "Bot"` → `repo_mode = "app"`. Copilot is installed as a GitHub App, not a collaborator. The REST endpoint `POST /repos/{owner}/{repo}/pulls/{n}/requested_reviewers` returns 422 ("not a collaborator") for App-typed reviewers and must NOT be used in this mode. Step (f) instead calls the `request_copilot_review` MCP tool (which wraps an internal endpoint that accepts Bot reviewers). Do not assume push alone will trigger a Copilot review: auto-review-on-push has been observed to silently no-op (see step (f) for the verified failure mode), so step (g)'s 10-minute poll is the only authoritative confirmation that Copilot has reviewed.
    - Otherwise → `repo_mode = "collaborator"`. Use the explicit re-request POST in step (f).
 4. **Initialize iteration counter** = 0. The loop's per-iteration filter is `isResolved: false` (step (a)), so we don't need to snapshot HEAD or the baseline thread-ID set.
 
@@ -236,7 +236,7 @@ After each iteration, print a short summary:
 - Threads addressed (counts by classification: valid / false positive / adjacent finding)
 - Commit SHA pushed
 - Test command run + result
-- Re-review request status: in `app` mode, report `n/a (App-mode auto-review)`; in `collaborator` mode, report the actual HTTP outcome from step (f).
+- Re-review request status: in `app` mode, report the outcome of step (f)'s `request_copilot_review` MCP call plus the `reviewRequests.nodes` verification result; in `collaborator` mode, report the actual HTTP outcome from step (f).
 
 This is what I scroll back through to audit the run.
 
@@ -266,7 +266,7 @@ If any condition fires, **stop**. Print the latest iteration table, name the con
 These hold at every step:
 - **Never** `git push --force` or `--force-with-lease`.
 - **Never** amend, squash, or rebase commits already pushed.
-- **Never** dismiss a thread without an explanatory reply.
+- **Never** resolve a thread without an explanatory reply.
 - **Never** skip the failing-test-first step on a behavior-changing fix.
 - **Never** commit or touch files outside the PR's diff to "fix" something we noticed in passing. Surface it as an adjacent finding for human review instead.
 - **Never** modify CI configuration, `.env`, secrets, or lockfiles unless the Copilot thread is specifically about that file.
