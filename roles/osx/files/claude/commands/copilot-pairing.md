@@ -48,6 +48,7 @@ Be more conservative than in `/copilot-review` because nobody is checking our wo
 - If the three passes do not converge, mark `low-confidence` and trigger the **Cannot reproduce** or **Ambiguity** stop condition (whichever fits).
 - If two valid interpretations exist, trigger **Ambiguity**.
 - If the fix would touch a file outside the PR's existing diff, trigger **Scope creep**.
+- After classifying every thread, if more than half of this iteration's threads are `false positive`, trigger **High false-positive ratio** (the model may be misreading the change; pause for re-alignment rather than spamming dismissals).
 - Apply the same three-pass rigor to every proposed fix. Do not trust Copilot's recommendation; design our own from first principles, then validate it from three angles before accepting.
 
 ### c. Implement valid items: solution validated with two or three test angles
@@ -78,21 +79,22 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
    - `git add` only the files we actually changed for this iteration (never `git add -A`).
    - Commit with a message of the form `chore(copilot): iter N, address <short summary>`.
    - Push: `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or any rebase flag.
-2. **Capture push timestamp** in two forms, ISO-8601 for the GraphQL string compare and Unix epoch for deadline math (substitute the PR number from pre-flight step 1):
+2. **Capture push timestamp** as a Unix epoch, used for both deadline math and the poll filter (substitute the PR number from pre-flight step 1):
    ```bash
-   date -u +%Y-%m-%dT%H:%M:%SZ > /tmp/copilot-pairing-push-ts.NUMBER
-   date +%s                    > /tmp/copilot-pairing-push-epoch.NUMBER
+   date +%s > /tmp/copilot-pairing-push-epoch.NUMBER
    ```
-   The Bash tool spawns a fresh shell per invocation, so a plain shell variable will not be visible to the step (g) script. Use the temp files, or inline the literal values into the step (g) script when you send it. The filenames are namespaced by PR number so concurrent pairing sessions on different PRs (e.g., separate worktrees) do not clobber each other's timestamps. Capture both timestamps in the same `Bash` call so they cannot drift from each other. This high-water mark is the floor for step (g)'s poll filter; capturing it any earlier risks matching a Copilot review that pre-dates this push.
+   The Bash tool spawns a fresh shell per invocation, so a plain shell variable will not be visible to the step (g) script. Use the temp file, or inline the literal value into the step (g) script when you send it. The filename is namespaced by PR number so concurrent pairing sessions on different PRs (e.g., separate worktrees) do not clobber each other's timestamps. We use epoch (not ISO-8601) so the poll filter can compare numerically via `fromdateiso8601` and avoid lexicographic edge cases at sub-second precision. This high-water mark is the floor for step (g)'s poll filter; capturing it any earlier risks matching a Copilot review that pre-dates this push.
 3. **Reply to threads** using `/copilot-review` step 8 mutations (multi-line GraphQL, body via temp file). **Use `addPullRequestReviewThreadReply` only**; see the DO-NOT-USE callout in `/copilot-review` step 8 about `addPullRequestReviewComment`.
 4. **Submit any auto-vivified pending review (mandatory).** `addPullRequestReviewThreadReply` can create a new pending review owned by the viewer when none is in progress; the replies posted in (e.3) then stay invisible (to GitHub UI, to Copilot, to humans) until that review is submitted. See `/copilot-review` step 8's "Submit any auto-vivified pending review" sub-step for the exact GraphQL. Procedure: query the PR's `reviews(states: PENDING)` filtered by `author.login == viewer.login`; for each, call `submitPullRequestReview(id, event: COMMENT)`. Re-query and assert zero pending reviews owned by the viewer remain before proceeding to step (e.5). If a pending review cannot be submitted, stop with the **Pending reply unsubmittable** condition.
 5. **Resolve threads** using `/copilot-review` step 8's `resolveReviewThread` mutation.
 6. Proceed to step (f).
 
-**Path B (no code changes, every thread was `already-handled`):**
+**Path B (no code changes; every thread was `already-handled` or `false positive`):**
 
 1. Skip commit/push and skip the push-timestamp capture (no new HEAD; step (g) is skipped on this path).
-2. Reply to each thread with a short body referencing the prior commit that actually addressed it. Find the commit via `git log "$(gh pr view --json baseRefName -q '.baseRefName')..HEAD" --oneline -- <file>` (scoped to this branch's commits, top entry is the most recent). Do not hardcode `main`: PRs targeting `develop`, `release/*`, or any other base branch would otherwise return wrong or empty commits. Use `addPullRequestReviewThreadReply` (same DO-NOT-USE callout applies).
+2. Post the reply for each thread, varying by classification (use `addPullRequestReviewThreadReply` either way; same DO-NOT-USE callout applies):
+   - **`already-handled`**: reply with a short body referencing the prior commit that actually addressed it. Find the commit via `git log "$(gh pr view --json baseRefName -q '.baseRefName')..HEAD" --oneline -- <file>` (scoped to this branch's commits, top entry is the most recent). Do not hardcode `main`: PRs targeting `develop`, `release/*`, or any other base branch would otherwise return wrong or empty commits.
+   - **`false positive`**: post the dismissal reply drafted in step (b) (citing the three passes and why the concern does not apply).
 3. **Submit any auto-vivified pending review (mandatory).** Same procedure as Path A step 4. The auto-vivify failure mode applies here too because we still call `addPullRequestReviewThreadReply`.
 4. Resolve threads via `resolveReviewThread`.
 5. Proceed to step (f.5), not (f): do not re-request review against an unchanged HEAD, since Copilot will not respond and step (g) will time out.
@@ -183,13 +185,12 @@ We need to wait up to **10 minutes** for a new Copilot review. Do not foreground
 **Preferred: a single backgrounded poll script** (`Bash` with `run_in_background=true`). The script polls itself and exits when the condition is met or the deadline passes. You'll be notified when it exits. Substitute the verified bot login from pre-flight step 3 in the `--arg bot ...` flag if it differs from the default.
 
 ```bash
-# Read push_ts and push_epoch from the temp files written in step (e). Bash
-# tool calls do not share shell state, so reading from the files (or inlining
-# the literal values before sending the script) is required. Files are
-# namespaced by PR number; substitute NUMBER from pre-flight step 1.
-push_ts=$(cat /tmp/copilot-pairing-push-ts.NUMBER 2>/dev/null)
+# Read push_epoch from the temp file written in step (e). Bash tool calls do
+# not share shell state, so reading from the file (or inlining the literal
+# value before sending the script) is required. File is namespaced by PR
+# number; substitute NUMBER from pre-flight step 1.
 push_epoch=$(cat /tmp/copilot-pairing-push-epoch.NUMBER 2>/dev/null)
-[ -n "$push_ts" ] && [ -n "$push_epoch" ] || { echo "push_ts/push_epoch not set; capture them in step (e) before running"; exit 2; }
+[ -n "$push_epoch" ] || { echo "push_epoch not set; capture it in step (e) before running"; exit 2; }
 deadline=$(( push_epoch + 600 ))
 while [ $(date +%s) -lt $deadline ]; do
   latest=$(gh api graphql -f query='
@@ -201,9 +202,9 @@ while [ $(date +%s) -lt $deadline ]; do
       }
     }
   ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER \
-    | jq -r --arg bot 'copilot-pull-request-reviewer' --arg ts "$push_ts" '
+    | jq -r --arg bot 'copilot-pull-request-reviewer' --argjson since "$push_epoch" '
         .data.repository.pullRequest.reviews.nodes
-        | map(select(.author.login == $bot and .submittedAt > $ts))
+        | map(select(.author.login == $bot and (.submittedAt | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) > $since))
         | last // empty')
   if [ -n "$latest" ]; then echo "NEW_REVIEW $latest"; exit 0; fi
   sleep 30
@@ -217,16 +218,15 @@ Branch on the script's exit:
 
 - **Exit 0 (`NEW_REVIEW`)**: re-fetch reviewThreads. If any are unresolved, increment iteration counter and loop back to (a). If zero unresolved, success: exit the loop.
 - **Exit 1 (`TIMEOUT`)**: trigger the **No response** stop condition.
-- **Exit 2 (bad input)**: step (e) failed to capture `push_ts` or `push_epoch`. Bug in our flow. Stop and surface the script's stderr.
-- **Any other exit code (e.g. 143 from SIGTERM, 137 from SIGKILL/OOM, or any 128+N signal exit from a harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly using the `push_ts` from `/tmp/copilot-pairing-push-ts.NUMBER`, and read `push_epoch` from `/tmp/copilot-pairing-push-epoch.NUMBER` for the deadline check:
+- **Exit 2 (bad input)**: step (e) failed to capture `push_epoch`. Bug in our flow. Stop and surface the script's stderr.
+- **Any other exit code (e.g. 143 from SIGTERM, 137 from SIGKILL/OOM, or any 128+N signal exit from a harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly, reading `push_epoch` from `/tmp/copilot-pairing-push-epoch.NUMBER` for both the deadline check and the poll filter:
   ```bash
-  push_ts=$(cat /tmp/copilot-pairing-push-ts.NUMBER)
   push_epoch=$(cat /tmp/copilot-pairing-push-epoch.NUMBER)
   gh api graphql -f query='...same as the poll script...' \
     -f owner='OWNER' -f repo='REPO' -F number=NUMBER \
-    | jq --arg bot 'copilot-pull-request-reviewer' --arg ts "$push_ts" '
+    | jq --arg bot 'copilot-pull-request-reviewer' --argjson since "$push_epoch" '
         .data.repository.pullRequest.reviews.nodes
-        | map(select(.author.login == $bot and .submittedAt > $ts))'
+        | map(select(.author.login == $bot and (.submittedAt | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) > $since))'
   ```
   - **New Copilot review found**: treat as `NEW_REVIEW` and proceed as above.
   - **No new review, still inside the 10-minute window** (`[ $(date +%s) -lt $((push_epoch + 600)) ]`): restart the background poll script. Cap restarts at **2** per iteration to prevent thrashing; after that, treat as **No response**.
