@@ -51,6 +51,8 @@ gh api graphql -f query='
 
 Filter to threads where `isResolved: false` AND the first comment author is NOT a `Bot` (`__typename != "Bot"`). Bot threads (Copilot and friends) belong to `/copilot-review` or `/copilot-pairing`; processing them here would generate human-tone replies to a bot.
 
+**Known gap.** This filter excludes *all* bots, but `/copilot-review` and `/copilot-pairing` only handle the Copilot bot specifically (filtered by `author.login`). Non-Copilot bot threads (e.g., CodeQL, Dependabot review) are therefore not handled by any of these workflows. Address them out-of-band: reply/resolve manually, or copy this command and narrow the filter to a specific bot login plus adjust the tone instructions for that bot. The current trade-off is deliberate: human tone is wrong for a bot, and Copilot tone is wrong for non-Copilot bots, so silent exclusion beats applying the wrong workflow.
+
 Pipe the previous query's output through this jq filter:
 
 ```bash
