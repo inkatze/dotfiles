@@ -61,10 +61,10 @@ gh api graphql -f query='
 
 Use the actual `Bot` login if it differs. If the PR has threads from other authors too, leave those for `/peer-review`.
 
-Concretely, pipe the reviewThreads response into jq (substitute the verified bot login if it isn't the default):
+Pipe the previous query's output through this jq filter (substitute the verified bot login if it isn't the default):
 
 ```bash
-| jq --arg bot 'copilot-pull-request-reviewer' '
+jq --arg bot 'copilot-pull-request-reviewer' '
     .data.repository.pullRequest.reviewThreads.nodes
     | map(select(.isResolved == false and .comments.nodes[0].author.login == $bot))'
 ```

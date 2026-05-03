@@ -51,10 +51,10 @@ gh api graphql -f query='
 
 Filter to threads where `isResolved: false` AND the first comment author is NOT a `Bot` (`__typename != "Bot"`). Bot threads (Copilot and friends) belong to `/copilot-review` or `/copilot-pairing`; processing them here would generate human-tone replies to a bot.
 
-Concretely, pipe the reviewThreads response into jq:
+Pipe the previous query's output through this jq filter:
 
 ```bash
-| jq '.data.repository.pullRequest.reviewThreads.nodes
+jq '.data.repository.pullRequest.reviewThreads.nodes
     | map(select(.isResolved == false and .comments.nodes[0].author.__typename != "Bot"))'
 ```
 
