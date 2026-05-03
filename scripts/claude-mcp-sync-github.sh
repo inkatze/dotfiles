@@ -38,14 +38,20 @@ if [ ! -x "$claude_bin" ]; then
 fi
 
 # Validate the existing config before we read or rewrite it. Without this, a
-# malformed file (or a non-object .mcpServers) would propagate raw `jq` parse
-# errors instead of the FAILED:-prefixed contract this script promises.
+# malformed file (or a root/.mcpServers of an unexpected type) would propagate
+# raw `jq` parse errors instead of the FAILED:-prefixed contract this script
+# promises.
 if [ -f "$config" ]; then
   if ! jq empty "$config" >/dev/null 2>&1; then
     echo "FAILED: $config is not valid JSON; refusing to overwrite. Inspect and repair manually." >&2
     exit 1
   fi
-  servers_type=$(jq -r '.mcpServers | type' "$config")
+  root_type=$(jq -r 'type' "$config")
+  if [ "$root_type" != "object" ]; then
+    echo "FAILED: $config root is of type $root_type, expected object. Inspect and repair manually." >&2
+    exit 1
+  fi
+  servers_type=$(jq -r '(.mcpServers // null) | type' "$config")
   case "$servers_type" in
     object|null) ;;
     *)

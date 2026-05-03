@@ -106,8 +106,14 @@ installed `1password-cli` on a fresh machine) and at the end of `upgrade.yml`
 (so `mise run upgrade` picks up rotated PATs). Both invocations are guarded
 with `when: lookup('ansible.builtin.env', 'CI', default='') == ''` so the CI
 matrix (which has neither an unlocked 1Password session nor `op` installed)
-skips them. To add another secret-bearing MCP server, follow the same
-pattern: new script under `scripts/`, new task in both files, same CI guard.
+skips them. Both also assume an authenticated `op` session at run time on a
+non-CI machine: `mise run install` or `mise run upgrade` will exit with
+`FAILED: could not read GitHub PAT …` if 1Password is locked, so sign in via
+`op signin` (or unlock the desktop app with the CLI integration enabled)
+before running either. The strict-fail behavior is deliberate: a silent
+skip on a locked vault would let stale PATs land unnoticed. To add another
+secret-bearing MCP server, follow the same pattern: new script under
+`scripts/`, new task in both files, same CI guard.
 
 ## Do not edit directly in `~/.claude/`
 
