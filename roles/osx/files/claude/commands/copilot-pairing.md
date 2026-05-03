@@ -31,6 +31,8 @@ You want a hands-off pairing pass with Copilot. The skill loops: address Copilot
 
 For each iteration (cap = **10**):
 
+**Cap check (run at the start of every iteration, before step (a)).** Read the iteration counter (initialized to 0 in pre-flight step 4; incremented in step (g) on `NEW_REVIEW` and in step (f.5) on "one or more remaining"). If the counter has reached **10**, do not enter step (a). Trigger the **Iteration cap** stop condition and hand control back. This is the only place the cap is enforced; the counter increments in (g) and (f.5) do not enforce it themselves.
+
 ### a. Fetch Copilot's open threads
 
 Use the same GraphQL query as `/copilot-review` step 3. Filter to threads where `isResolved: false` AND first comment author login == Copilot bot login. Do not add a "skip if older than last push" filter: `isResolved: false` is the canonical signal, and a previous iteration's resolve mutation may have failed silently; this loop should retry it, not skip it.
@@ -84,7 +86,10 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
    date +%s > /tmp/copilot-pairing-push-epoch.NUMBER
    ```
    The Bash tool spawns a fresh shell per invocation, so a plain shell variable will not be visible to the step (g) script. Use the temp file, or inline the literal value into the step (g) script when you send it. The filename is namespaced by PR number so concurrent pairing sessions on different PRs (e.g., separate worktrees) do not clobber each other's timestamps. We use epoch (not ISO-8601) so the poll filter can compare numerically via `fromdateiso8601` and avoid lexicographic edge cases at sub-second precision. This high-water mark is the floor for step (g)'s poll filter; capturing it any earlier risks matching a Copilot review that pre-dates this push.
-3. **Reply to threads** using `/copilot-review` step 8 mutations (multi-line GraphQL, body via temp file). **Use `addPullRequestReviewThreadReply` only**; see the DO-NOT-USE callout in `/copilot-review` step 8 about `addPullRequestReviewComment`.
+3. **Reply to threads** using `/copilot-review` step 8 mutations (multi-line GraphQL, body via temp file). **Use `addPullRequestReviewThreadReply` only**; see the DO-NOT-USE callout in `/copilot-review` step 8 about `addPullRequestReviewComment`. Reply body varies by classification, since this iteration may have a mix:
+   - **`valid`**: short reply describing the change we made, ideally referencing the new commit SHA from (e.1).
+   - **`already-handled`**: reply with `addressed in <commit-sha>` per Path B step 2, using the same `git log "$(gh pr view --json baseRefName -q '.baseRefName')..HEAD" --oneline -- <file>` lookup. Do not hardcode `main` as the base.
+   - **`false positive`**: post the dismissal reply drafted in step (b) (citing the three passes and why the concern does not apply).
 4. **Submit any auto-vivified pending review (mandatory).** `addPullRequestReviewThreadReply` can create a new pending review owned by the viewer when none is in progress; the replies posted in (e.3) then stay invisible (to GitHub UI, to Copilot, to humans) until that review is submitted. See `/copilot-review` step 8's "Submit any auto-vivified pending review" sub-step for the exact GraphQL. Procedure: query the PR's `reviews(states: PENDING)` filtered by `author.login == viewer.login`; for each, call `submitPullRequestReview(id, event: COMMENT)`. Re-query and assert zero pending reviews owned by the viewer remain before proceeding to step (e.5). If a pending review cannot be submitted, stop with the **Pending reply unsubmittable** condition.
 5. **Resolve threads** using `/copilot-review` step 8's `resolveReviewThread` mutation.
 6. Proceed to step (f).
