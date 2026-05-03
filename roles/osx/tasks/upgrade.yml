@@ -66,3 +66,10 @@
   failed_when: false
   when: lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [upgrade]
+
+- name: Sync GitHub MCP server registration with Claude Code
+  ansible.builtin.command:
+    cmd: "{{ ansible_env.PWD }}/scripts/claude-mcp-sync-github.sh"
+  register: osx_claude_mcp_github_upgrade
+  changed_when: "'CHANGED' in osx_claude_mcp_github_upgrade.stdout"
+  tags: [upgrade]

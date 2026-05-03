@@ -72,6 +72,26 @@ with no sandboxing, so opening Claude in an untrusted checkout executes
 whatever that script contains. Same trust model as `mise trust`: inspect the
 script before opening a repo you did not author.
 
+## MCP server registration
+
+User-scope MCP servers live in `~/.claude.json` under `.mcpServers.<name>` and
+are managed via `claude mcp add-json … --scope user`. Any server that needs a
+secret is registered through a sync script under `scripts/` so the secret stays
+in 1Password and never lands in this repo.
+
+`scripts/claude-mcp-sync-github.sh` reads the GitHub PAT from 1Password item
+`co7bb5b6pfej3lhfni4skvonki` (tries the `credential`, `password`, then `token`
+field) and registers the GitHub Copilot MCP server. It is idempotent: prints
+`OK` when the configured bearer token already matches, `CHANGED` when it had
+to (re-)register. The Ansible tasks call it with `changed_when: 'CHANGED' in
+…stdout` so PAT rotations show up as a single changed step.
+
+It runs in two places: at the end of `homebrew.yml` (so brew has already
+installed `1password-cli` on a fresh machine) and at the end of `upgrade.yml`
+(so `mise run upgrade` picks up rotated PATs). To add another secret-bearing
+MCP server, follow the same pattern: new script under `scripts/`, new task in
+both files.
+
 ## Do not edit directly in `~/.claude/`
 
 Any file symlinked from this repo is overwritten on the next Ansible run.
