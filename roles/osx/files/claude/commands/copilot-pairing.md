@@ -243,10 +243,11 @@ Never assume "loop succeeded" from a non-zero, non-1 exit code. Always cross-che
 
 After each iteration, print a short summary:
 - Iteration number / cap
-- Threads addressed (counts by classification: valid / false positive / adjacent finding)
-- Commit SHA pushed
-- Test command run + result
-- Re-review request status: in `app` mode, report the outcome of step (f)'s `request_copilot_review` MCP call plus the `reviewRequests.nodes` verification result; in `collaborator` mode, report the actual HTTP outcome from step (f).
+- Path taken (A = code changes pushed, B = resolve-only)
+- Threads addressed (counts by classification: valid / already-handled / false positive / adjacent finding)
+- Commit SHA pushed (Path A only; `n/a` on Path B)
+- Test command run + result (Path A only; `n/a` on Path B since no code changed)
+- Re-review request status: Path A only. In `app` mode, report the outcome of step (f)'s `request_copilot_review` MCP call plus the `reviewRequests.nodes` verification result; in `collaborator` mode, report the actual HTTP outcome from step (f). On Path B, `n/a` (step (f) is skipped).
 
 This is what I scroll back through to audit the run.
 

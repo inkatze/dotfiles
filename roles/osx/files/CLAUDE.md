@@ -83,13 +83,13 @@ When pushing:
 
 Plans are written with limited context and the codebase may have changed since. When transitioning from a plan to implementation:
 - **Plans are directional, not prescriptive**: Treat plans as a guide for intent and scope, not as step-by-step instructions to follow blindly
-- **Verify before acting**: Always read the actual code before making changes — don't assume the plan's description of file contents, function signatures, or structure is accurate
+- **Verify before acting**: Always read the actual code before making changes. Don't assume the plan's description of file contents, function signatures, or structure is accurate
 - **Adapt to reality**: If the code doesn't match what the plan expected, adjust your approach to fit the actual state of the codebase rather than forcing the plan's assumptions
 
 ## Code & PR Reviews
 
 When reviewing code, features, or addressing PR feedback:
-- **Verify issues are real**: Before reporting an issue, confirm it by reading the relevant code and running tests/linters if applicable. Do not report speculative or hypothetical issues — only confirmed ones.
+- **Verify issues are real**: Before reporting an issue, confirm it by reading the relevant code and running tests/linters if applicable. Do not report speculative or hypothetical issues, only confirmed ones.
 - **Present all issues first**: After analysis, present the complete list of confirmed issues as a numbered summary with brief descriptions.
 - **Let the user choose the workflow**: Ask whether they want to review items one by one or discuss the list as a whole (e.g., re-prioritize, dismiss items, group them). Do not assume they want all items addressed at once.
 - **Progress tracking**: When going one by one, always show a progress tracker (e.g., `[2/7]`) so the current position and total count are always visible.
