@@ -10,13 +10,13 @@ You want a hands-off pairing pass with Copilot. The skill loops: address Copilot
 
 1. **Get PR / repo info** (same as `/copilot-review` step 1).
 2. **(Optional) Jira context** (same as `/copilot-review` step 2).
-3. **Confirm the Copilot bot login and detect repo mode.** Default login is `copilot-pull-request-reviewer`. Verify by inspecting an existing review on the PR:
+3. **Confirm the Copilot bot login and detect repo mode.** Default login is `copilot-pull-request-reviewer`. Verify by inspecting an existing review on the PR (`reviews(last: 5)` so we surface the most-recent reviews; `first: 5` would return the oldest and may not include Copilot on a long-lived PR):
    ```bash
    gh api graphql -f query='
      query($owner: String!, $repo: String!, $number: Int!) {
        repository(owner: $owner, name: $repo) {
          pullRequest(number: $number) {
-           reviews(first: 5) { nodes { author { __typename login } } }
+           reviews(last: 5) { nodes { author { __typename login } } }
          }
        }
      }

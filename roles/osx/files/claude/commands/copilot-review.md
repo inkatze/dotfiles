@@ -45,14 +45,14 @@ gh api graphql -f query='
 ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
 ```
 
-Filter to threads where `isResolved: false` AND the first comment author is the Copilot bot. The standard bot login is `copilot-pull-request-reviewer` (`__typename: Bot`), but verify per run, especially on GHES or repos with custom bot integrations:
+Filter to threads where `isResolved: false` AND the first comment author is the Copilot bot. The standard bot login is `copilot-pull-request-reviewer` (`__typename: Bot`), but verify per run, especially on GHES or repos with custom bot integrations. Use `reviews(last: 5)` so the query surfaces the most-recent reviews; `first: 5` would return the oldest and may not include Copilot on a long-lived PR:
 
 ```bash
 gh api graphql -f query='
   query($owner: String!, $repo: String!, $number: Int!) {
     repository(owner: $owner, name: $repo) {
       pullRequest(number: $number) {
-        reviews(first: 5) { nodes { author { __typename login } } }
+        reviews(last: 5) { nodes { author { __typename login } } }
       }
     }
   }
@@ -89,6 +89,7 @@ Classify each thread as **valid** (needs a fix), **false positive** (no real pro
 Output one Markdown table. Default columns:
 
 | # | Thread ID | File:Line | Copilot's concern | What we found | Reproduced? | Classification | Confidence | Our proposed fix |
+|---|---|---|---|---|---|---|---|---|
 
 Notes on columns:
 - **Copilot's concern**: a tight one-line summary of what the bot said, not a copy-paste.

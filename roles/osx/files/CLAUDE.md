@@ -118,7 +118,7 @@ For non-testable changes (docs, comments, formatting, pure renames, type-only ad
 There are four distinct review workflows, each with a corresponding slash command:
 
 1. **Self-review** (`/self-review`): Comprehensive code review of the feature branch against main. Review, validate for false positives, iterate until clean, then push and create a draft PR.
-2. **Copilot review** (`/copilot-review`): Address unresolved GitHub Copilot review threads on the current PR. Fetch threads via GraphQL, reproduce each issue when relevant, design our own fix (do not trust Copilot's recommendation), do a second-pass validation, present findings as a table, then implement test-first when applicable, comment, and resolve threads via GraphQL.
+2. **Copilot review** (`/copilot-review`): Address unresolved GitHub Copilot review threads on the current PR. Fetch threads via GraphQL, reproduce each issue when relevant, design our own fix (do not trust Copilot's recommendation), validate via the three-pass rigor, present findings as a table, then implement test-first when applicable, comment, and resolve threads via GraphQL.
 3. **Copilot pairing** (`/copilot-pairing`): Same rigor as `/copilot-review`, but loops autonomously: address Copilot's threads, push, re-request review, wait for Copilot's response, repeat until Copilot has no new comments. Hard stop conditions (ambiguity, scope creep, test failure, security-sensitive code, loop detection, iteration cap of 10) hand control back to the human.
 4. **Peer review** (`/peer-review`): Address unresolved peer review threads on the current PR. Same validation process as Copilot review, but responses must sound natural, human, and match the user's communication style.
 
