@@ -107,7 +107,7 @@ mcp__<github-server>__request_copilot_review
 params: { owner, repo, pullNumber }
 ```
 
-The substitute for `<github-server>` depends on the active MCP server (e.g. `claude_ai_Github-Symmetry`, `claude_ai_Github-Gusto`). The REST endpoint `POST /repos/{owner}/{repo}/pulls/{n}/requested_reviewers` returns 422 "not a collaborator" for Bot reviewers and must NOT be used in app mode; the MCP tool wraps an internal Copilot-review-request endpoint that accepts Bot reviewers. If no `request_copilot_review` MCP tool is available on the active server, stop with **No response** and report; do not assume push alone will trigger a review.
+The substitute for `<github-server>` depends on the active MCP server (e.g. `claude_ai_Github-Symmetry`, `claude_ai_Github-Gusto`). The REST endpoint `POST /repos/{owner}/{repo}/pulls/{n}/requested_reviewers` returns 422 "not a collaborator" for Bot reviewers and must NOT be used in app mode; the MCP tool wraps an internal Copilot-review-request endpoint that accepts Bot reviewers. If no `request_copilot_review` MCP tool is available on the active server, stop with **Re-review unavailable** and report; do not assume push alone will trigger a review.
 
 After the MCP call returns success, **verify** Copilot is actually on the requested-reviewer list:
 
@@ -145,10 +145,10 @@ Inspect the response and branch:
 
 | Outcome | Body contains | Action |
 |---|---|---|
-| 2xx | — | Proceed to step (g). |
+| 2xx | n/a | Proceed to step (g). |
 | 422 | `already requested` (or similar "duplicate reviewer") | DELETE the reviewer, re-POST. Then proceed to step (g). |
 | 422 | `not a collaborator` | Pre-flight mode detection was wrong (the bot is no longer a Bot-typed reviewer). Log the mismatch and proceed to step (g). On the next run, re-check pre-flight step 3. |
-| Other (4xx/5xx) | — | Log warning. Proceed to step (g). |
+| Other (4xx/5xx) | n/a | Log warning. Proceed to step (g). |
 
 DELETE+POST retry pattern (only for the `already requested` case):
 
@@ -256,7 +256,8 @@ If any condition fires, **stop**. Print the latest iteration table, name the con
 | **Iteration cap** | 10 iterations completed without convergence. Stop and report. |
 | **Cannot reproduce** | Issue is not reproducible and the proposed fix is non-trivial. |
 | **Migrations / data / destructive ops** | Schema migrations, data backfills, deletes, drops, or anything irreversible. Always human-driven. |
-| **No response** | 10-minute poll window expires with no new Copilot review. |
+| **No response** | 10-minute poll window in step (g) expires with no new Copilot review. |
+| **Re-review unavailable** | Step (f) `app` mode found no `request_copilot_review` MCP tool on the active server, so we cannot trigger a Copilot review and step (g)'s poll would never see one. |
 | **Pending reply unsubmittable** | A pending review owned by the viewer cannot be submitted via `submitPullRequestReview` in step (e.4), so replies posted in (e.3) would remain invisible to GitHub, Copilot, and humans. |
 | **Conflicting signals** | Copilot's later review contradicts an earlier one we already addressed. Pause to decide which to honor. |
 
