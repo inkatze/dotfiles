@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Sync the GitHub Copilot MCP server registration in Claude Code with the
 # GitHub PAT stored in 1Password. Idempotent: prints OK when the configured
-# entry already matches the desired type/url/Authorization, CHANGED when it
-# had to (re-)register, and exits non-zero with a FAILED: message on any
-# precondition failure.
+# entry matches the desired type/url/Authorization AND `claude mcp get`
+# confirms it is loadable, CHANGED when it had to (re-)register, and exits
+# non-zero with a FAILED: message on any precondition failure (including a
+# matching-but-unloadable entry caused by drift elsewhere in the file).
 #
 # The PAT is passed to jq via the GITHUB_PAT env var (never on argv where `ps`
 # could read it) and is scoped to the jq invocations only — the `claude mcp
@@ -110,13 +111,19 @@ fi
 
 # Structural compare so a hand-edited or tool-written entry with the same
 # values but different JSON key order is still treated as OK rather than
-# pointlessly rewritten.
+# pointlessly rewritten. Even when the entry already matches, run the same
+# `claude mcp get` sanity check the write path runs — otherwise a matching
+# entry could sit on disk while drift in some other top-level field makes
+# claude refuse to load the file, and we'd silently report OK.
 if jq -ne \
   --argjson a "$current_entry" \
   --argjson b "$desired_entry" \
   '$a == $b' >/dev/null 2>&1; then
-  echo "OK"
-  exit 0
+  if "$claude_bin" mcp get "$SERVER_NAME" >/dev/null 2>&1; then
+    echo "OK"
+    exit 0
+  fi
+  fail "$config already declares the desired $SERVER_NAME entry but '$claude_bin mcp get $SERVER_NAME' could not load it. Inspect the file for drift in another top-level field."
 fi
 
 config_dir=$(dirname "$config")

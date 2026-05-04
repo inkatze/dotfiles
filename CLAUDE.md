@@ -93,7 +93,12 @@ The script writes `~/.claude.json` directly via `jq` (atomic temp-file +
 rename) and passes the PAT through the `GITHUB_PAT` env var, scoped only to
 the `jq` invocations that need it (the rest of the script, including the
 `claude mcp get` sanity check, never sees it). Both choices are deliberate:
-argv is visible to other processes on the box; env vars aren't, by default.
+argv is world-readable via `ps` on shared hosts (the threat the original
+"embed the PAT in `claude mcp add-json $token`" pattern hit); env vars are
+not in argv, but they are still readable by *same-user* processes via
+`/proc/<pid>/environ` on Linux (macOS does not expose them outside the
+process), so the per-jq scoping shrinks even that same-user window to the
+duration of the two jq calls that consume the PAT.
 Before writing, the existing `~/.claude.json` is checked for valid JSON and
 an object-typed `.mcpServers`; either is rejected with a `FAILED:` message
 rather than letting a raw `jq` parse error leak through. After the rename it
