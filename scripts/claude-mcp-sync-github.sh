@@ -6,9 +6,12 @@
 # non-zero with a FAILED: message on any precondition failure (including a
 # matching-but-unloadable entry caused by drift elsewhere in the file).
 #
-# The PAT is passed to jq via the GITHUB_PAT env var (never on argv where `ps`
-# could read it) and is scoped to the jq invocations only — the `claude mcp
-# get` sanity check at the end does not inherit it. The new ~/.claude.json is
+# The PAT is passed to jq via the GITHUB_PAT env var so it never lands in
+# argv (where `ps -A -o args=` would expose it across users); env vars are
+# still readable to same-user processes (via /proc/<pid>/environ on Linux,
+# `ps eww <pid>` on macOS), so the var is scoped to the jq invocations only
+# — the `claude mcp get` sanity check at the end does not inherit it, which
+# narrows the same-user window to the two jq calls. The new ~/.claude.json is
 # built in a temp file in the same directory and renamed into place. When a
 # previous ~/.claude.json existed it is backed up first and restored if the
 # sanity check fails; on a first-time registration there is nothing to roll

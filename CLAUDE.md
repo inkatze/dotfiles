@@ -88,17 +88,17 @@ a `FAILED:` line on any precondition failure. Ansible gates
 `changed_when` on `CHANGED` so PAT rotations surface as a single
 changed step.
 
-Writes happen via `jq` (atomic temp + rename) with `GITHUB_PAT` scoped
-only to the two jq invocations that need it. Argv is world-readable via
-`ps` on shared hosts; env vars are readable by same-user processes (via
-`/proc/<pid>/environ` on Linux; macOS does not expose them outside the
-process), so the per-jq scoping is the real mitigation. Pre-validation
-rejects unreadable, malformed, non-object, symlinked, or non-regular
-paths with `FAILED:` rather than leaking raw `jq` errors. The post-rename
-`claude mcp get` sanity check restores the backup on failure when a
-previous file existed; first-time registrations have nothing to roll
-back to, so the partial write is removed and the script exits with a
-"no prior config to restore" `FAILED:` message.
+Writes happen via `jq` (atomic temp + rename) with `GITHUB_PAT` scoped only
+to the two jq invocations that need it. Argv is world-readable via `ps -A
+-o args=`; env vars are not in argv, but same-user processes can still
+inspect them (`/proc/<pid>/environ` on Linux, `ps eww <pid>` on macOS), so
+the per-jq scoping shrinks the same-user window to those two jq calls.
+Pre-validation rejects unreadable, malformed, non-object, symlinked, or
+non-regular paths with `FAILED:` rather than leaking raw `jq` errors. The
+post-rename `claude mcp get` sanity check restores the backup on failure
+when a previous file existed; first-time registrations have nothing to
+roll back to, so the partial write is removed and the script exits with
+a "no prior config to restore" `FAILED:` message.
 
 It runs from `homebrew.yml` (under `mise run install` (`--skip-tags
 shell,upgrade`) and `mise run osx` (`-t osx`); both reach `homebrew.yml`
