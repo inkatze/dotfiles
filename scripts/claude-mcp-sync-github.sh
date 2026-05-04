@@ -46,6 +46,13 @@ if [ ! -x "$claude_bin" ]; then
   exit 1
 fi
 
+# Refuse to overwrite a symlinked config: this script writes a regular file
+# in place via mv, which would silently replace the symlink with a regular
+# file and decouple the user's other dotfiles management from the result.
+if [ -L "$config" ]; then
+  fail "$config is a symlink (target: $(readlink "$config")); refusing to overwrite. Resolve by removing the symlink (this script will regenerate the file) or by having your dotfiles repo manage the github MCP entry directly."
+fi
+
 # Validate the existing config before we read or rewrite it. Without this, a
 # malformed file (or a root/.mcpServers of an unexpected type) would propagate
 # raw `jq` parse errors instead of the FAILED:-prefixed contract this script
@@ -73,7 +80,8 @@ fi
 pat=""
 op_errors=""
 for field in token credential; do
-  op_err=$(mktemp)
+  op_err=$(mktemp 2>&1) \
+    || fail "could not create temp file for op stderr capture: $op_err"
   if value=$(op item get "$ITEM_UUID" --fields "$field" --reveal 2>"$op_err"); then
     if [ -n "$value" ]; then
       pat="$value"

@@ -108,19 +108,22 @@ partially-written file is removed and the script exits with a "no prior
 config to restore" `FAILED:` message — in either case the machine ends in
 a coherent state rather than carrying a half-broken config.
 
-It runs in two places: at the end of `homebrew.yml` (so brew has already
-installed `1password-cli` on a fresh machine) and at the end of `upgrade.yml`
-(so `mise run upgrade` picks up rotated PATs). Both invocations are guarded
-with `when: lookup('ansible.builtin.env', 'CI', default='') == ''` so the CI
+It runs in two task files: `homebrew.yml` (which fires under both
+`mise run install` and `mise run osx` because both pull the `osx` tag, and
+brew has already installed `1password-cli` by that point on a fresh
+machine) and `upgrade.yml` (under `mise run upgrade`, so rotated PATs land
+on the next upgrade). Both invocations are guarded with
+`when: lookup('ansible.builtin.env', 'CI', default='') == ''` so the CI
 matrix (which has neither an unlocked 1Password session nor `op` installed)
 skips them. Both also assume an authenticated `op` session at run time on a
-non-CI machine: `mise run install` or `mise run upgrade` will exit with
-`FAILED: could not read GitHub PAT …` if 1Password is locked, so sign in via
-`op signin` (or unlock the desktop app with the CLI integration enabled)
-before running either. The strict-fail behavior is deliberate: a silent
-skip on a locked vault would let stale PATs land unnoticed. To add another
-secret-bearing MCP server, follow the same pattern: new script under
-`scripts/`, new task in both files, same CI guard.
+non-CI machine: `mise run install`, `mise run osx`, or `mise run upgrade`
+will exit with `FAILED: could not read GitHub PAT …` if 1Password is
+locked, so sign in via `op signin` (or unlock the desktop app with the CLI
+integration enabled) before running any of them. The strict-fail behavior
+is deliberate: a silent skip on a locked vault would let stale PATs land
+unnoticed. To add another secret-bearing MCP server, follow the same
+pattern: new script under `scripts/`, new task in both files, same CI
+guard.
 
 ## Do not edit directly in `~/.claude/`
 
