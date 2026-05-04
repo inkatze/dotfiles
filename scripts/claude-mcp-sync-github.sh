@@ -84,6 +84,19 @@ if [ -f "$config" ]; then
   esac
 fi
 
+# Snapshot $config's starting state BEFORE any potentially-slow step (op
+# fetch, jq write) so the pre-mv recheck can detect modifications or
+# creations that happened during the run. Captured here, after pre-
+# validation, so we can canonicalize on the JSON we have already proved
+# to be a parseable object. config_existed plus config_snapshot together
+# encode the starting state: existed-and-content-was-X, or did-not-exist.
+config_existed=false
+config_snapshot=""
+if [ -f "$config" ]; then
+  config_existed=true
+  config_snapshot=$(jq -cS '.' "$config")
+fi
+
 pat=""
 op_errors=""
 for field in token credential; do
@@ -120,17 +133,10 @@ desired_entry=$(GITHUB_PAT="$pat" jq -nc \
   '{type: $type, url: $url, headers: {Authorization: ("Bearer " + env.GITHUB_PAT)}}')
 
 current_entry="null"
-config_snapshot=""
-if [ -f "$config" ]; then
-  current_entry=$(jq -c --arg name "$SERVER_NAME" '.mcpServers[$name] // null' "$config")
-  # Canonical full-file snapshot used for a TOCTOU narrowing right before mv:
-  # if a concurrent writer (claude itself, another sync helper, manual edit)
-  # changes $config between this read and the swap, we abort instead of
-  # clobbering their write. This is best-effort, not a hard lock — a writer
-  # that lands inside the millisecond window between the recheck and mv is
-  # still possible. Adding flock-style locking would change the dependency
-  # surface and is out of scope for this change.
-  config_snapshot=$(jq -cS '.' "$config")
+if $config_existed; then
+  # Reuse the canonical snapshot captured before the op loop; equivalent to
+  # `jq -c '.mcpServers[$name] // null' "$config"` on the original content.
+  current_entry=$(jq -c --arg name "$SERVER_NAME" '.mcpServers[$name] // null' <<<"$config_snapshot")
 fi
 
 # Structural compare so a hand-edited or tool-written entry with the same
@@ -197,14 +203,17 @@ if [ -f "$config" ]; then
     || fail "could not back up $config to $backup: $cp_err"
 fi
 
-# Re-snapshot $config and abort if a concurrent writer modified it between
-# the initial read and now. Skipped on first-time registration where there
-# was nothing to snapshot.
-if [ -n "$config_snapshot" ]; then
+# Re-check $config and abort if a concurrent writer modified or created it
+# between the initial read and now. Pre-existing file: full-snapshot diff.
+# First-time registration: assert the file still doesn't exist (a concurrent
+# creator would have content we'd otherwise clobber).
+if $config_existed; then
   current_snapshot=$(jq -cS '.' "$config" 2>/dev/null) || current_snapshot=""
   if [ "$current_snapshot" != "$config_snapshot" ]; then
     fail "$config was modified by another process during this run; refusing to overwrite to avoid clobbering concurrent writes. Re-run the task."
   fi
+elif [ -e "$config" ] || [ -L "$config" ]; then
+  fail "$config did not exist when this run started but does now; another process appears to have created it concurrently. Refusing to overwrite. Re-run the task."
 fi
 
 mv_err=$(mv "$tmp" "$config" 2>&1) \
