@@ -72,10 +72,47 @@ with no sandboxing, so opening Claude in an untrusted checkout executes
 whatever that script contains. Same trust model as `mise trust`: inspect the
 script before opening a repo you did not author.
 
-## Do not edit directly in `~/.claude/`
+## MCP server registration
 
-Any file symlinked from this repo is overwritten on the next Ansible run.
-Always `readlink` first. Edit the tracked source instead.
+User-scope MCP servers live in `~/.claude.json` under `.mcpServers.<name>`.
+Any server that needs a secret is registered through a sync script under
+`scripts/` so the secret stays in 1Password and never lands in this repo.
+
+`scripts/claude-mcp-sync-github.sh` reads the GitHub PAT from 1Password
+item `co7bb5b6pfej3lhfni4skvonki` (tries `token` then `credential`; the
+LOGIN-category `password` field is intentionally skipped because it
+resolves to the account password). Idempotent: `OK` when the configured
+entry matches the desired `type`/`url`/`Authorization` AND `claude mcp
+get` confirms it is loadable, `CHANGED` on (re-)register, non-zero with
+a `FAILED:` line on any precondition failure. Ansible gates
+`changed_when` on `CHANGED` so PAT rotations surface as a single
+changed step.
+
+Writes happen via `jq` (atomic temp + rename) with `GITHUB_PAT` scoped only
+to the two jq invocations that need it. Argv is world-readable via `ps -A
+-o args=`; env vars are not in argv, but same-user processes can still
+inspect them (`/proc/<pid>/environ` on Linux, `ps eww <pid>` on macOS), so
+the per-jq scoping shrinks the same-user window to those two jq calls.
+Pre-validation rejects unreadable, malformed, non-object, symlinked, or
+non-regular paths with `FAILED:` rather than leaking raw `jq` errors. The
+post-rename `claude mcp get` sanity check restores the backup on failure
+when a previous file existed; first-time registrations have nothing to
+roll back to, so the partial write is removed and the script exits with
+a "no prior config to restore" `FAILED:` message.
+
+It runs from `homebrew.yml` (under `mise run install` (`--skip-tags
+shell,upgrade`) and `mise run osx` (`-t osx`); both reach `homebrew.yml`
+because it carries the `osx` tag) and `upgrade.yml` (under `mise run
+upgrade`). Both invocations are guarded with
+`when: lookup('ansible.builtin.env', 'CI', default='') == ''` so the CI
+matrix skips them. Both also assume an authenticated `op` session on
+non-CI machines — sign in via `op signin` (or unlock the desktop app
+with the CLI integration enabled) before running, otherwise the script
+exits `FAILED: could not read GitHub PAT …`. The strict-fail on a
+locked vault is deliberate: a silent skip would let stale PATs land
+unnoticed. To add another secret-bearing MCP server, mirror this
+layout: new script under `scripts/`, new task in both files, same CI
+guard.
 
 ## Ansible role layout
 
