@@ -46,33 +46,40 @@ if [ ! -x "$claude_bin" ]; then
   exit 1
 fi
 
-# Refuse to overwrite a symlinked config: this script writes a regular file
-# in place via mv, which would silently replace the symlink with a regular
-# file and decouple the user's other dotfiles management from the result.
+# Refuse to overwrite anything that isn't a plain regular file. This script
+# writes via mv-into-place, which would (a) silently replace a symlink with
+# a regular file and decouple another dotfiles repo's management from the
+# result, or (b) move the temp file *inside* the path if it is a directory,
+# leaving stray state with no clean rollback. `[ -L ]` is checked first so
+# `[ -e ]` (which follows symlinks) does not classify a dangling symlink as
+# nonexistent.
 if [ -L "$config" ]; then
   fail "$config is a symlink (target: $(readlink "$config")); refusing to overwrite. Resolve by removing the symlink (this script will regenerate the file) or by having your dotfiles repo manage the github MCP entry directly."
 fi
+if [ -e "$config" ] && [ ! -f "$config" ]; then
+  fail "$config exists but is not a regular file (likely a directory or special file); refusing to overwrite. Inspect and clean up manually."
+fi
 
-# Validate the existing config before we read or rewrite it. Without this, a
-# malformed file (or a root/.mcpServers of an unexpected type) would propagate
-# raw `jq` parse errors instead of the FAILED:-prefixed contract this script
-# promises.
+# Validate the existing config before we read or rewrite it. Distinguish
+# unreadable-file from invalid-JSON so a permissions issue does not get
+# reported as JSON corruption; otherwise a `jq empty` failure would swallow
+# permission errors and steer the user toward repairing valid content.
 if [ -f "$config" ]; then
+  if [ ! -r "$config" ]; then
+    fail "$config is not readable (permission issue?). Inspect ownership/perms."
+  fi
   if ! jq empty "$config" >/dev/null 2>&1; then
-    echo "FAILED: $config is not valid JSON; refusing to overwrite. Inspect and repair manually." >&2
-    exit 1
+    fail "$config is not valid JSON; refusing to overwrite. Inspect and repair manually."
   fi
   root_type=$(jq -r 'type' "$config")
   if [ "$root_type" != "object" ]; then
-    echo "FAILED: $config root is of type $root_type, expected object. Inspect and repair manually." >&2
-    exit 1
+    fail "$config root is of type $root_type, expected object. Inspect and repair manually."
   fi
   servers_type=$(jq -r '(.mcpServers // null) | type' "$config")
   case "$servers_type" in
     object|null) ;;
     *)
-      echo "FAILED: $config has .mcpServers of type $servers_type, expected object. Inspect and repair manually." >&2
-      exit 1
+      fail "$config has .mcpServers of type $servers_type, expected object. Inspect and repair manually."
       ;;
   esac
 fi
@@ -113,8 +120,17 @@ desired_entry=$(GITHUB_PAT="$pat" jq -nc \
   '{type: $type, url: $url, headers: {Authorization: ("Bearer " + env.GITHUB_PAT)}}')
 
 current_entry="null"
+config_snapshot=""
 if [ -f "$config" ]; then
   current_entry=$(jq -c --arg name "$SERVER_NAME" '.mcpServers[$name] // null' "$config")
+  # Canonical full-file snapshot used for a TOCTOU narrowing right before mv:
+  # if a concurrent writer (claude itself, another sync helper, manual edit)
+  # changes $config between this read and the swap, we abort instead of
+  # clobbering their write. This is best-effort, not a hard lock — a writer
+  # that lands inside the millisecond window between the recheck and mv is
+  # still possible. Adding flock-style locking would change the dependency
+  # surface and is out of scope for this change.
+  config_snapshot=$(jq -cS '.' "$config")
 fi
 
 # Structural compare so a hand-edited or tool-written entry with the same
@@ -179,6 +195,16 @@ if [ -f "$config" ]; then
     || fail "could not create backup file next to $config: $backup"
   cp_err=$(cp -p "$config" "$backup" 2>&1) \
     || fail "could not back up $config to $backup: $cp_err"
+fi
+
+# Re-snapshot $config and abort if a concurrent writer modified it between
+# the initial read and now. Skipped on first-time registration where there
+# was nothing to snapshot.
+if [ -n "$config_snapshot" ]; then
+  current_snapshot=$(jq -cS '.' "$config" 2>/dev/null) || current_snapshot=""
+  if [ "$current_snapshot" != "$config_snapshot" ]; then
+    fail "$config was modified by another process during this run; refusing to overwrite to avoid clobbering concurrent writes. Re-run the task."
+  fi
 fi
 
 mv_err=$(mv "$tmp" "$config" 2>&1) \
