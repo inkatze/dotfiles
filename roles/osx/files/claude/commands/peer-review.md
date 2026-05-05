@@ -75,17 +75,19 @@ Split per CLAUDE.md `Finding Categorization`. Both tables always appear; if a bu
 
 **Auto-applicable** (the reviewer flagged something tool-grounded and mechanical; reply can be a terse "Done in `<sha>`"):
 
-| # | Thread ID | File:Line | Reviewer's concern | Our assessment | Rule cited | Validation passes | Recommendation | Draft response |
+| # | Thread ID | File:Line | Reviewer's concern | What we found | Rule cited | Validation passes | Recommendation | Draft response |
 |---|---|---|---|---|---|---|---|---|
 
+- **What we found**: a one-line, plain-prose verdict from our investigation. For Auto-applicable items this is usually "tool confirmed, fix is mechanical" or similar.
 - **Rule cited**: the linter / type-checker / formatter rule that confirms the reviewer's concern.
 - **Draft response**: short, polite. "Done in `<sha>`" or "Good catch, fixed in `<sha>`" is usually enough.
 
 **Needs human attention** (preference, design, refactor, ambiguity, low-confidence, anything that needs a real reply):
 
-| # | Thread ID | File:Line | Reviewer's concern | Our assessment | Classification | Confidence | Validation passes | Recommendation | Draft response |
+| # | Thread ID | File:Line | Reviewer's concern | What we found | Classification | Confidence | Validation passes | Recommendation | Draft response |
 |---|---|---|---|---|---|---|---|---|---|
 
+- **What we found**: a one-line, plain-prose verdict from our investigation (the rationale that supports the `Classification` bucket).
 - **Classification**: valid / false positive / preference / low-confidence.
 - **Confidence**: high / medium / low.
 - **Recommendation**: implement fix / dismiss / defer to follow-up / acknowledge preference and explain trade-off / etc.

@@ -36,8 +36,11 @@ fi
 if [ -f Makefile ] || [ -f makefile ] || [ -f GNUmakefile ]; then
     add "Makefile (\`make\` targets; try \`make help\`)"
 fi
-if [ -f mise.toml ] || [ -f .mise.toml ] || [ -f .tool-versions ]; then
+if [ -f mise.toml ] || [ -f .mise.toml ]; then
     add "mise tasks (\`mise tasks\` to list)"
+fi
+if [ -f .tool-versions ]; then
+    add ".tool-versions (runtime version pins; \`mise current\` to inspect)"
 fi
 
 # Ruby
