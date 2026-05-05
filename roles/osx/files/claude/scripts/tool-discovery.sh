@@ -121,7 +121,7 @@ done
 
 # If nothing detected, stay silent.
 total=${#names[@]}
-[ $total -eq 0 ] && exit 0
+[ "$total" -eq 0 ] && exit 0
 
 # Build markdown summary.
 summary="## Project tooling (auto-detected)
