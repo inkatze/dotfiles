@@ -78,9 +78,11 @@ script before opening a repo you did not author.
 alongside the worktree bootstrap. It scans the cwd for known config files
 (linters, formatters, type checkers, hook managers, CI workflows) and emits
 a markdown summary as `additionalContext`, so the agent sees what the project
-ships without grepping. Silent no-op when nothing is detected. Read-only,
-runs ~30 file-existence checks plus a handful of `grep -q` probes; no
-caching, no side effects. Discovery feeds
+ships without grepping. Silent no-op (exit 0, no output) when any of: nothing
+is detected, the cwd is outside a git work tree, or `jq` is unavailable; a
+missing summary therefore does not necessarily mean "no tooling found".
+Read-only, runs ~30 file-existence checks plus a handful of `grep -q` probes;
+no caching, no side effects. Discovery feeds
 the `Discovery Rigor` and `Refactor Instinct` rules in the user-global
 `CLAUDE.md`, both of which prefer tool-grounded findings over judgment.
 To extend: add another `[ -f ... ] && add "<tool> (\`<command>\`)"` block

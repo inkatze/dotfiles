@@ -8,8 +8,9 @@
 # session start so the agent sees a short list without having to grep around.
 #
 # Output: a small JSON blob with `additionalContext` if any tooling is
-# detected, or no output (silent) if nothing is found. Uses bash 3.2 +
-# `set -u` to stay compatible with the macOS default bash.
+# detected. Silent no-op (no output, exit 0) when any of: nothing
+# detected, the cwd is outside a git work tree, or `jq` is unavailable.
+# Uses bash 3.2 + `set -u` to stay compatible with the macOS default bash.
 
 set -u
 

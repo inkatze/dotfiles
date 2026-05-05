@@ -1,4 +1,4 @@
-Iterate `/self-review` autonomously, applying only Auto-applicable items, until none remain. Hand control back the moment anything Needs human attention or any safety condition fires.
+Iterate `/self-review` autonomously, applying only Auto-applicable items, until none remain. Hand control back when no Auto-applicable items are left to drain (surfacing any Needs human attention items in that final table) or any safety condition fires.
 
 Same Discovery + Validation rigor as `/self-review`, executed on autopilot, with hard stop conditions baked in for safety.
 
