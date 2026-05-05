@@ -79,7 +79,8 @@ alongside the worktree bootstrap. It scans the cwd for known config files
 (linters, formatters, type checkers, hook managers, CI workflows) and emits
 a markdown summary as `additionalContext`, so the agent sees what the project
 ships without grepping. Silent no-op when nothing is detected. Read-only,
-takes a few `test -f` calls; no caching, no side effects. Discovery feeds
+runs ~30 file-existence checks plus a handful of `grep -q` probes; no
+caching, no side effects. Discovery feeds
 the `Discovery Rigor` and `Refactor Instinct` rules in the user-global
 `CLAUDE.md`, both of which prefer tool-grounded findings over judgment.
 To extend: add another `[ -f ... ] && add "<tool> (\`<command>\`)"` block
