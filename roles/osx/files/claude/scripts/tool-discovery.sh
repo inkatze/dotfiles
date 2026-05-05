@@ -17,6 +17,11 @@ cwd="${CLAUDE_PROJECT_DIR:-$PWD}"
 [ -d "$cwd" ] || exit 0
 cd "$cwd" 2>/dev/null || exit 0
 
+# Stay silent outside git work trees: tool-grounded discovery is meaningful
+# only inside a project, and the PR test plan calls for no output here.
+command -v git >/dev/null 2>&1 || exit 0
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
+
 names=()
 add() { names+=("$1"); }
 
@@ -100,7 +105,7 @@ fi
 [ -f build.gradle ] || [ -f build.gradle.kts ] || [ -f pom.xml ] && add "JVM build (\`./gradlew check\` or \`mvn verify\`)"
 
 # Shell
-[ -f .shellcheckrc ] && add "shellcheck (\`shellcheck **/*.sh\`)"
+[ -f .shellcheckrc ] && add "shellcheck (\`git ls-files '*.sh' | xargs shellcheck\`)"
 
 # YAML / Ansible (this dotfiles repo uses these)
 [ -f .yamllint ] || [ -f .yamllint.yml ] || [ -f .yamllint.yaml ] && add "yamllint (\`yamllint .\`)"
@@ -122,6 +127,11 @@ done
 # If nothing detected, stay silent.
 total=${#names[@]}
 [ "$total" -eq 0 ] && exit 0
+
+# Need jq to safely encode the summary as JSON. Stay silent if it's missing
+# rather than emitting an invalid `additionalContext` payload that would
+# break SessionStart hook processing.
+command -v jq >/dev/null 2>&1 || exit 0
 
 # Build markdown summary.
 summary="## Project tooling (auto-detected)

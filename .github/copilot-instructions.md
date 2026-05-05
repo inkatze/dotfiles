@@ -91,9 +91,10 @@ each finding before posting:
 2. **Orthogonal check.** Look at callers, sibling implementations, existing
    tests, project conventions. If the pattern is intentional and consistent
    elsewhere, it is probably not a bug.
-3. **Outside-in check.** Consult `git log` / `git blame` for why-it-is-the-way-
-   it-is. Check `CLAUDE.md`, `specs/README.md`, and per-directory docs for
-   documented conventions before flagging a "violation."
+3. **Outside-in check.** Consult `git log` / `git blame` for context on why
+   the code is shaped the way it is. Check `CLAUDE.md`, `specs/README.md`,
+   and per-directory docs for documented conventions before flagging a
+   "violation."
 
 Findings that fail any of these three should be dropped, not softened.
 
