@@ -69,13 +69,33 @@ For each remaining thread, apply the canonical rigor in CLAUDE.md `Validation Ri
 
 Classify each as **valid**, **false positive**, **preference**, or **low-confidence** (passes did not converge; never guess). When the concern is a matter of preference, surface the trade-off rather than asserting correctness.
 
-### 5. Present the validated list
+### 5. Present the validated threads as two tables
 
-For each item, include:
-- The reviewer's concern (summarized)
-- Your assessment (valid, false positive, preference, low-confidence) with a one-line note on which validation passes converged
-- A proposed response draft
-- The proposed code change (if any)
+Split per CLAUDE.md `Finding Categorization`. Both tables always appear; if a bucket is empty, print a single `none` row.
+
+**Auto-applicable** (the reviewer flagged something tool-grounded and mechanical; reply can be a terse "Done in `<sha>`"):
+
+| # | Thread ID | File:Line | Reviewer's concern | What we found | Rule cited | Validation passes | Recommendation | Draft response |
+|---|---|---|---|---|---|---|---|---|
+
+- **What we found**: a one-line, plain-prose verdict from our investigation. For Auto-applicable items this is usually "tool confirmed, fix is mechanical" or similar.
+- **Rule cited**: the linter / type-checker / formatter rule that confirms the reviewer's concern.
+- **Draft response**: short, polite. "Done in `<sha>`" or "Good catch, fixed in `<sha>`" is usually enough.
+
+**Needs human attention** (preference, design, refactor, ambiguity, low-confidence, anything that needs a real reply):
+
+| # | Thread ID | File:Line | Reviewer's concern | What we found | Classification | Confidence | Validation passes | Recommendation | Draft response |
+|---|---|---|---|---|---|---|---|---|---|
+
+- **What we found**: a one-line, plain-prose verdict from our investigation (the rationale that supports the `Classification` bucket).
+- **Classification**: valid / false positive / preference / low-confidence.
+- **Confidence**: high / medium / low.
+- **Recommendation**: implement fix / dismiss / defer to follow-up / acknowledge preference and explain trade-off / etc.
+- **Draft response**: literal reply you would post. See step 6 tone requirements (concise but not curt, acknowledges good points, no corporate speak, no em-dashes, sounds natural and human, written as if the user wrote it themselves).
+
+If a column is not useful for this PR, say so before printing the table and adjust. Optional add-ons worth considering: `Severity`, `Files touched by fix`, `Scope risk` (in-scope / out-of-scope).
+
+No lens-coverage table here: this skill validates pre-existing human threads, it does not generate net-new findings via Discovery Rigor (a full-diff sweep belongs in `/self-review`).
 
 ### 6. Address items
 
@@ -117,14 +137,17 @@ After the batch of replies, **always** submit any pending review you own on this
 
 **Shell quoting rules:**
 - Always use multi-line query strings for GraphQL mutations. Single-line strings cause the shell to eat `$` in variable names like `$threadId`.
-- Always write the response body to a temp file and use `-F body=@file` to pass it. This avoids fish shell interpreting backticks in the body as command substitution.
+- Construct the response body as an inline single-quoted bash heredoc inside the same `Bash` invocation that runs the GraphQL mutation. The single-quoted delimiter (`<<'EOF'`) keeps backticks, `$variables`, and other shell metacharacters literal, so the body is safe to embed without escaping. The previously-suggested temp-file pattern (`printf` to `/tmp/...` then `-F body=@file` in a separate `Bash` call) has been observed to trip harness permission denials with the rationale "body content is unverifiable" because the harness can flag chained file-write-then-public-post sequences as suspicious. Inline heredoc keeps body construction and posting in a single tool invocation. Fall back to a temp file only when the body is genuinely too large to inline (rare).
 
 For each thread, run the reply mutation. After the whole batch of replies, run the pending-review submit step **once**, then run the resolve mutation per thread.
 
 **Reply to the thread** (use the thread `id` from step 3, not the comment id):
 
 ```bash
-printf '%s' 'RESPONSE_BODY' > /tmp/gh-review-comment.txt
+body=$(cat <<'EOF'
+RESPONSE_BODY (multi-line ok; backticks and $vars stay literal)
+EOF
+)
 gh api graphql -f query='
   mutation($threadId: ID!, $body: String!) {
     addPullRequestReviewThreadReply(input: {
@@ -134,7 +157,7 @@ gh api graphql -f query='
       comment { id }
     }
   }
-' -f threadId='THREAD_ID' -F body=@/tmp/gh-review-comment.txt
+' -f threadId='THREAD_ID' -f body="$body"
 ```
 
 **Submit any auto-vivified pending review** (run once after all replies are posted, before resolving):

@@ -31,15 +31,23 @@ git diff <base>...HEAD
 
 If the diff is large, review file-by-file using `git diff <base>...HEAD -- <path>`.
 
-### 5. Review all changes thoroughly for:
+### 5. Generate findings via parallel lens fan-out
 
-- Bugs, logic errors, and edge cases
-- Security concerns (injection, auth issues, data exposure)
-- Performance problems
-- Code style and consistency with the surrounding codebase
-- Missing or insufficient test coverage
-- Dead code or unnecessary changes
-- If a Jira ticket was found: whether the changes satisfy each acceptance criterion, and whether anything is missing or inconsistent with the ticket requirements
+Apply the canonical spec in CLAUDE.md `Discovery Rigor (Issue Identification)`. We are leaving comments on someone else's PR, so dribbling findings across multiple reviews is worse here than in self-review and false positives have a higher cost.
+
+a. **Run project tooling once.** Linters, formatters, type checkers, static analyzers, complexity / duplication meters, dead-code detectors, security scanners. Discover via `lefthook.yml`, CI workflows, `mise.toml` tasks, language config files, and the SessionStart `tool-discovery` summary if present in this session's context. Capture the output; it becomes shared input for every lens agent.
+
+b. **Spawn one `Explore` sub-agent per canonical lens, in parallel.** Default is to spawn for all 9 lenses; only skip a lens when it is genuinely n/a for the diff, and record the reason for the lens-coverage table. Each sub-agent receives:
+   - The full diff (or relevant slice for large diffs)
+   - The tooling output from (a)
+   - A narrow brief: "find issues in this diff for ONE lens only: `<lens>`. Be exhaustive within your lens. Severity-pruning is forbidden. If no findings, return `none` with a one-line reason. Cite linter / type-checker rules when they fire."
+   - The lens's specific concerns, copied verbatim from CLAUDE.md `Discovery Rigor (Issue Identification)`.
+
+c. **Coordinator merges and dedupes.** A finding hitting two lenses gets one row with both lens labels. Apply the **review-mode refactor instinct** filter (CLAUDE.md `Refactor Instinct`): drop refactor flags that are not anchored in tool output and do not represent this-PR-makes-it-worse. Pre-existing mess unrelated to the diff is out of scope, and especially so on someone else's PR.
+
+d. **Jira AC lens** (when a ticket was found in step 3): walk acceptance criteria; flag missing or inconsistent items.
+
+e. **Self-critique pass (mandatory).** Re-scan the diff and the merged list. Assume the list is incomplete. Add what you find under-represented.
 
 ### 6. Validate every finding: three passes minimum (different angle each)
 
@@ -52,16 +60,27 @@ Apply the canonical rigor in CLAUDE.md `Validation Rigor (Issue Identification)`
 
 Drop or downgrade items where the three passes do not converge. We are leaving comments on someone else's PR, so false positives have a higher cost here than in self-review.
 
-### 7. Present the validated list
+### 7. Present results as the canonical lens-coverage table plus two findings tables
 
-For each item, include:
-- File path and line number
-- Severity: **blocker**, **concern**, **suggestion**, or **nit**
-- A clear description of the issue
-- One-line note on which validation passes converged (e.g. "reproduced via failing test in pass 1, confirmed by sibling implementation in pass 2, library docs in pass 3")
-- A proposed inline comment draft
+Lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` first, then the findings split per CLAUDE.md `Finding Categorization`. Both tables always appear; if a bucket is empty, print a single `none` row.
 
-If nothing substantive remains, say so.
+**Auto-applicable** (mechanical, tool-grounded; the PR author could merge these without discussion):
+
+| # | Lens | File:Line | Finding | Rule cited | Validation passes | Recommendation | Draft comment |
+|---|---|---|---|---|---|---|---|
+
+- **Rule cited**: the linter / type-checker / formatter rule that grounds the finding. Mandatory for this table.
+- **Draft comment**: usually a one-liner referencing the rule (e.g. "ruff F401: unused import"). See step 8 tone requirements.
+
+**Needs human attention** (judgment, design, refactor, bugs, naming, anything that needs a real conversation with the author):
+
+| # | Lens | File:Line | Finding | Severity | Confidence | Validation passes | Recommendation | Draft comment |
+|---|---|---|---|---|---|---|---|---|
+
+- **Severity**: blocker / concern / suggestion / nit. Prefix the draft comment with the severity tag when not obvious.
+- **Confidence**: high / medium / low.
+- **Recommendation**: post inline / post as PR-level comment / defer / dismiss / etc.
+- **Draft comment**: literal inline comment text. See step 8 tone requirements (constructive, specific, why not just what, no em-dashes, sounds human).
 
 ### 8. Follow the standard review workflow
 
