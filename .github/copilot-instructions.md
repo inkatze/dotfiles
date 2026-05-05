@@ -12,6 +12,8 @@ Reviews here are expected to be **exhaustive in one pass**. Multiple iterations
 of partial feedback are a failure mode, not the workflow. When you review a
 diff, walk every lens before producing the comment list:
 
+<!-- diverges from CLAUDE.md `Discovery Rigor` by design: idempotency added (Ansible repo); performance and concurrency dropped (no hot paths or concurrent code in this repo). -->
+
 1. Correctness and logic bugs
 2. Security and secret handling (this repo touches 1Password, GitHub PATs, MCP)
 3. Error handling and failure modes (especially in shell and Ansible tasks)

@@ -21,9 +21,17 @@ For each iteration (cap = **10**):
 
 **Cap check (run at the start of every iteration, before step (a)).** Read the iteration counter (initialized to 0 in pre-flight step 3; incremented in step (f)). If the counter has reached **10**, do not enter step (a). Trigger the **Iteration cap** stop condition and hand control back.
 
-### a. Generate findings via parallel lens fan-out
+### a. Generate findings
 
-Apply `/self-review` step 3 in full: parallel `Explore` sub-agents per canonical lens, shared tooling output as input, coordinator merges and dedupes, self-critique pass. Then `/self-review` step 4 (Validation Rigor) on every finding.
+Apply `/self-review` step 3 (lens walk + tooling sweep + self-critique), then `/self-review` step 4 (Validation Rigor) on every finding.
+
+**Fan-out vs inline.** `/self-review` step 3 defaults to spawning one `Explore` sub-agent per canonical lens, and that default holds for any non-trivial diff. You may walk lenses inline only when **all three** of these hold; otherwise fan out:
+
+- **Doc/config dominant.** More than 80% of changed lines are in markdown, YAML, JSON, or TOML.
+- **Narrow code surface.** At most 2 files contain executable code (shell, Ruby, Python, Go, etc.).
+- **Modest total size.** Fewer than ~500 changed lines.
+
+Inline walking does not waive any other invariant: the lens-coverage table, the no-silent-pruning rule, and the mandatory self-critique pass all still apply. CLAUDE.md `Discovery Rigor` prefers fan-out for non-trivial diffs and explicitly grants skills the authority to specify when to walk inline; this section exercises that authority.
 
 ### b. Categorize per CLAUDE.md `Finding Categorization`
 
