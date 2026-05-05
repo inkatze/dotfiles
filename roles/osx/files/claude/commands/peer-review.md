@@ -69,13 +69,31 @@ For each remaining thread, apply the canonical rigor in CLAUDE.md `Validation Ri
 
 Classify each as **valid**, **false positive**, **preference**, or **low-confidence** (passes did not converge; never guess). When the concern is a matter of preference, surface the trade-off rather than asserting correctness.
 
-### 5. Present the validated list
+### 5. Present the validated threads as two tables
 
-For each item, include:
-- The reviewer's concern (summarized)
-- Your assessment (valid, false positive, preference, low-confidence) with a one-line note on which validation passes converged
-- A proposed response draft
-- The proposed code change (if any)
+Split per CLAUDE.md `Finding Categorization`. Both tables always appear; if a bucket is empty, print a single `none` row.
+
+**Auto-applicable** (the reviewer flagged something tool-grounded and mechanical; reply can be a terse "Done in `<sha>`"):
+
+| # | Thread ID | File:Line | Reviewer's concern | Our assessment | Rule cited | Validation passes | Recommendation | Draft response |
+|---|---|---|---|---|---|---|---|---|
+
+- **Rule cited**: the linter / type-checker / formatter rule that confirms the reviewer's concern.
+- **Draft response**: short, polite. "Done in `<sha>`" or "Good catch, fixed in `<sha>`" is usually enough.
+
+**Needs human attention** (preference, design, refactor, ambiguity, low-confidence, anything that needs a real reply):
+
+| # | Thread ID | File:Line | Reviewer's concern | Our assessment | Classification | Confidence | Validation passes | Recommendation | Draft response |
+|---|---|---|---|---|---|---|---|---|---|
+
+- **Classification**: valid / false positive / preference / low-confidence.
+- **Confidence**: high / medium / low.
+- **Recommendation**: implement fix / dismiss / defer to follow-up / acknowledge preference and explain trade-off / etc.
+- **Draft response**: literal reply you would post. See step 6 tone requirements (concise but not curt, acknowledges good points, no corporate speak, no em-dashes, sounds natural and human, written as if the user wrote it themselves).
+
+If a column is not useful for this PR, say so before printing the table and adjust. Optional add-ons worth considering: `Severity`, `Files touched by fix`, `Scope risk` (in-scope / out-of-scope).
+
+No lens-coverage table here: this skill validates pre-existing human threads, it does not generate net-new findings via Discovery Rigor (a full-diff sweep belongs in `/self-review`).
 
 ### 6. Address items
 
