@@ -112,8 +112,16 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
    Addressed in <sha>. <short prose>
    EOF
    )
-   gh api graphql -f query='mutation($threadId: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) { comment { id } } }' \
-     -f threadId='<thread_id>' -f body="$body"
+   gh api graphql -f query='
+     mutation($threadId: ID!, $body: String!) {
+       addPullRequestReviewThreadReply(input: {
+         pullRequestReviewThreadId: $threadId,
+         body: $body
+       }) {
+         comment { id }
+       }
+     }
+   ' -f threadId='<thread_id>' -f body="$body"
    ```
 
    The earlier-recommended pattern (`Write` to `/tmp/copilot-reply-*.md`, then `cat` it in a separate `Bash` call) has been observed to trip permission denials with the rationale "body content is unverifiable" because the harness can flag chained file-write-then-public-post sequences as suspicious. Inline heredoc keeps body construction and posting in a single tool invocation. Fall back to a temp file only when a body is genuinely too large to inline (rare). Reply body varies by classification, since this iteration may have a mix:
