@@ -26,7 +26,7 @@ names=()
 add() { names+=("$1"); }
 
 # Hook managers / multi-tool runners
-if [ -f lefthook.yml ] || [ -f .lefthook.yml ] || [ -f lefthook.yaml ]; then
+if [ -f lefthook.yml ] || [ -f .lefthook.yml ] || [ -f lefthook.yaml ] || [ -f .lefthook.yaml ]; then
     add "lefthook (run pre-commit hooks: \`lefthook run pre-commit\`)"
 fi
 if [ -f .pre-commit-config.yaml ]; then
@@ -70,11 +70,11 @@ fi
 
 # TypeScript / JavaScript
 [ -f tsconfig.json ] && add "tsc (\`tsc --noEmit\`)"
-if [ -f .eslintrc.json ] || [ -f .eslintrc.js ] || [ -f .eslintrc.cjs ] || [ -f .eslintrc.yml ] || [ -f eslint.config.js ] || [ -f eslint.config.mjs ] || [ -f eslint.config.cjs ]; then
+if [ -f .eslintrc.json ] || [ -f .eslintrc.js ] || [ -f .eslintrc.cjs ] || [ -f .eslintrc.yml ] || [ -f .eslintrc.yaml ] || [ -f eslint.config.js ] || [ -f eslint.config.mjs ] || [ -f eslint.config.cjs ]; then
     add "eslint (\`eslint .\`)"
 fi
 [ -f biome.json ] || [ -f biome.jsonc ] && add "biome (\`biome check .\`)"
-if [ -f .prettierrc ] || [ -f .prettierrc.json ] || [ -f .prettierrc.js ] || [ -f .prettierrc.yml ] || [ -f prettier.config.js ] || [ -f prettier.config.cjs ]; then
+if [ -f .prettierrc ] || [ -f .prettierrc.json ] || [ -f .prettierrc.js ] || [ -f .prettierrc.yml ] || [ -f .prettierrc.yaml ] || [ -f prettier.config.js ] || [ -f prettier.config.cjs ]; then
     add "prettier (\`prettier --check .\`)"
 fi
 [ -f knip.json ] || [ -f .knip.json ] || [ -f knip.config.ts ] && add "knip (dead-code: \`knip\`)"
@@ -105,11 +105,11 @@ fi
 [ -f build.gradle ] || [ -f build.gradle.kts ] || [ -f pom.xml ] && add "JVM build (\`./gradlew check\` or \`mvn verify\`)"
 
 # Shell
-[ -f .shellcheckrc ] && add "shellcheck (\`git ls-files '*.sh' | xargs shellcheck\`)"
+[ -f .shellcheckrc ] && add "shellcheck (\`git ls-files -z '*.sh' | xargs -0 shellcheck\`)"
 
 # YAML / Ansible (this dotfiles repo uses these)
 [ -f .yamllint ] || [ -f .yamllint.yml ] || [ -f .yamllint.yaml ] && add "yamllint (\`yamllint .\`)"
-[ -f .ansible-lint ] || [ -f .ansible-lint.yml ] || [ -f ansible-lint.yml ] && add "ansible-lint (\`ansible-lint\`)"
+[ -f .ansible-lint ] || [ -f .ansible-lint.yml ] || [ -f .ansible-lint.yaml ] || [ -f ansible-lint.yml ] || [ -f ansible-lint.yaml ] && add "ansible-lint (\`ansible-lint\`)"
 
 # Security / supply chain
 [ -f .gitleaks.toml ] && add "gitleaks (\`gitleaks detect\`)"
