@@ -61,9 +61,7 @@ Apply `/copilot-review` step 6 (canonical rigor in CLAUDE.md `Validation Rigor (
 2. **Wider check.** Run the broader project test suite, linters, type-checkers. Any regression (even in unrelated areas) triggers the **Test failure** stop condition.
 3. **Edge / integration / manual** (when relevant). Boundary cases, integration or smoke tests, manual exercise of the user-facing flow.
 
-Skip the targeted-test step only for non-behavioral changes (docs, comments, pure renames, formatting). For those, substitute review angles per the canonical doctrine.
-
-**Contract-reword fixes: grep before declaring done.** When the fix reworks a contract phrase across multiple files (a doc rule expressed in several places, a rename that touches prose as well as code identifiers, a behavior summary that recurs in workflow lists), grep the affected files for the surface patterns of the rule before declaring alignment, not only the specific lines the threads point at. Otherwise the next Copilot review will surface the stragglers as new threads, costing an extra iteration. Lesson logged 2026-05-05 on `inkatze/dotfiles#16`: a `/polish` Behavior A → Behavior B reword fixed three flagged lines but missed a fourth ("stops the moment anything needs your judgment") and a fifth ("strict-fail" line break) that surfaced in iters 4 and 5.
+Skip the targeted-test step only for non-behavioral changes (docs, comments, pure renames, formatting). For those, substitute review angles per the canonical doctrine — including the contract-reword grep rule, which is especially load-bearing in this loop because every iteration we leave stragglers in costs a full Copilot review cycle.
 
 For **false positives**, draft the dismissal reply (citing the three passes) but do NOT post yet. We post all replies in step (e) after the build is green.
 
