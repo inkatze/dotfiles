@@ -4,7 +4,7 @@ Same Discovery + Validation rigor as `/self-review`, executed on autopilot, with
 
 ## When to use
 
-You are nearly done with a branch and want to drain the trivial, tool-grounded fixes (linter rule violations, formatter output, type-checker errors, missing imports, unused variables, typos in comments, inferable type annotations) before opening a PR. Polish auto-applies items that meet the strict Auto-applicable definition in CLAUDE.md `Finding Categorization` and stops the moment anything needs your judgment.
+You are nearly done with a branch and want to drain the trivial, tool-grounded fixes (linter rule violations, formatter output, type-checker errors, missing imports, unused variables, typos in comments, inferable type annotations) before opening a PR. Polish auto-applies items that meet the strict Auto-applicable definition in CLAUDE.md `Finding Categorization`; once the Auto-applicable bucket is empty (or any safety condition fires), it surfaces any Needs human attention items in the final iteration table and hands off.
 
 Polish does **not** create a PR. Run `/self-review` after Polish hands off, once you have addressed the Needs human attention items.
 
