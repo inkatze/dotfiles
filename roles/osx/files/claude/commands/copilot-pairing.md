@@ -50,7 +50,7 @@ Be more conservative than in `/copilot-review` because nobody is checking our wo
 - If the three passes do not converge, mark `low-confidence` and trigger the **Cannot reproduce** or **Ambiguity** stop condition (whichever fits).
 - If two valid interpretations exist, trigger **Ambiguity**.
 - If the fix would touch a file outside the PR's existing diff, trigger **Scope creep**.
-- After classifying every thread, if more than half of this iteration's threads are `false positive`, trigger **High false-positive ratio** (the model may be misreading the change; pause for re-alignment rather than spamming dismissals).
+- After classifying every thread, if the iteration has at least 3 threads AND more than half are `false positive`, trigger **High false-positive ratio** (the model may be misreading the change; pause for re-alignment rather than spamming dismissals). Single isolated hallucinations on small-thread iterations should be dismissed-and-resumed in-loop rather than escalated.
 - Apply the same three-pass rigor to every proposed fix. Do not trust Copilot's recommendation; design our own from first principles, then validate it from three angles before accepting.
 
 ### c. Implement valid items: solution validated with two or three test angles
@@ -292,7 +292,7 @@ If any condition fires, **stop**. Print the latest iteration table, name the con
 | **Scope creep** | A fix would touch code outside the PR's existing diff, or contradicts the PR's stated intent / Jira AC. |
 | **Test failure** | Any test, linter, type-check, or formatter fails after our change, including pre-existing failures we surface for the first time. |
 | **Security-sensitive** | The change touches auth, secrets handling, crypto, permissions, IAM, SQL/shell construction, or sandbox boundaries. Always pause. |
-| **High false-positive ratio** | More than half of an iteration's threads are false positives (model may be misreading the change). Pause for re-alignment. |
+| **High false-positive ratio** | At least 3 threads in the iteration AND more than half are false positives (model may be misreading the change). Pause for re-alignment. |
 | **Iteration cap** | 10 iterations completed without convergence. Stop and report. |
 | **Cannot reproduce** | Issue is not reproducible and the proposed fix is non-trivial. |
 | **Migrations / data / destructive ops** | Schema migrations, data backfills, deletes, drops, or anything irreversible. Always human-driven. |
