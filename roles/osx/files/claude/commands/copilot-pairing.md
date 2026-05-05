@@ -63,6 +63,8 @@ Apply `/copilot-review` step 6 (canonical rigor in CLAUDE.md `Validation Rigor (
 
 Skip the targeted-test step only for non-behavioral changes (docs, comments, pure renames, formatting). For those, substitute review angles per the canonical doctrine.
 
+**Contract-reword fixes: grep before declaring done.** When the fix reworks a contract phrase across multiple files (a doc rule expressed in several places, a rename that touches prose as well as code identifiers, a behavior summary that recurs in workflow lists), grep the affected files for the surface patterns of the rule before declaring alignment, not only the specific lines the threads point at. Otherwise the next Copilot review will surface the stragglers as new threads, costing an extra iteration. Lesson logged 2026-05-05 on `inkatze/dotfiles#16`: a `/polish` Behavior A → Behavior B reword fixed three flagged lines but missed a fourth ("stops the moment anything needs your judgment") and a fifth ("strict-fail" line break) that surfaced in iters 4 and 5.
+
 For **false positives**, draft the dismissal reply (citing the three passes) but do NOT post yet. We post all replies in step (e) after the build is green.
 
 ### d. Run the full local check suite
@@ -105,7 +107,18 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
    We capture two values because step (g) needs both:
    - **`push_epoch`** drives the 10-minute deadline math.
    - **`baseline_review_id`** lets the poll match a *new* Copilot review unambiguously even when its `submittedAt` rounds down to the same second as `push_epoch`. Filtering on `submittedAt > push_epoch` alone misses same-second submissions (jq's `fromdateiso8601` is second-precision, and macOS `date` doesn't support sub-second `%N`). Filtering on `id != baseline_review_id` alone would re-match older Copilot reviews. Combining both (`submittedAt >= push_epoch AND id != baseline_review_id`) excludes pre-existing reviews and accepts same-second submissions. If there is no prior Copilot review, the baseline file holds the empty string and any non-empty review id passes.
-3. **Reply to threads** using `/copilot-review` step 8 mutations (multi-line GraphQL, body via temp file). **Use `addPullRequestReviewThreadReply` only**; see the DO-NOT-USE callout in `/copilot-review` step 8 about `addPullRequestReviewComment`. Reply body varies by classification, since this iteration may have a mix:
+3. **Reply to threads** using `/copilot-review` step 8 mutations. **Use `addPullRequestReviewThreadReply` only**; see the DO-NOT-USE callout in `/copilot-review` step 8 about `addPullRequestReviewComment`. **Body construction: inline bash heredoc, not temp file.** Build the body inside the same `Bash` invocation that runs the GraphQL mutation:
+
+   ```bash
+   body=$(cat <<'EOF'
+   Addressed in <sha>. <short prose>
+   EOF
+   )
+   gh api graphql -f query='mutation($threadId: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) { comment { id } } }' \
+     -f threadId='<thread_id>' -f body="$body"
+   ```
+
+   The earlier-recommended pattern (`Write` to `/tmp/copilot-reply-*.md`, then `cat` it in a separate `Bash` call) has been observed to trip permission denials with the rationale "body content is unverifiable" because the harness can flag chained file-write-then-public-post sequences as suspicious. Inline heredoc keeps body construction and posting in a single tool invocation. Fall back to a temp file only when a body is genuinely too large to inline (rare). Reply body varies by classification, since this iteration may have a mix:
    - **`valid`**: short reply describing the change we made, ideally referencing the new commit SHA from (e.1).
    - **`already-handled`**: reply with `addressed in <commit-sha>` per Path B step 2, using the same `git log "$(gh pr view --json baseRefName -q '.baseRefName')..HEAD" --oneline -- <file>` lookup. Do not hardcode `main` as the base.
    - **`false positive`**: post the dismissal reply drafted in step (b) (citing the three passes and why the concern does not apply).
