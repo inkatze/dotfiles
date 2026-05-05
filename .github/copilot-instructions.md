@@ -111,9 +111,9 @@ Findings that fail any of these three should be dropped, not softened.
 - **MCP secret handling.** `scripts/claude-mcp-sync-github.sh` reads the
   GitHub PAT from 1Password, writes via atomic `jq` temp+rename, and scopes
   `GITHUB_PAT` to two `jq` invocations. Argv exposure and same-user env
-  inspection are documented and accepted; do not re-flag them. The strict-
-  fail on a locked vault is **deliberate** (a silent skip would let stale PATs
-  land unnoticed); do not suggest softening it.
+  inspection are documented and accepted; do not re-flag them. The
+  strict-fail on a locked vault is **deliberate** (a silent skip would
+  let stale PATs land unnoticed); do not suggest softening it.
 - **CI guard `when: lookup('ansible.builtin.env', 'CI', default='') == ''`**
   is intentional on the MCP sync tasks. Do not suggest removing it.
 - **`mise run` invocations** route through `mise.toml` task definitions; some
