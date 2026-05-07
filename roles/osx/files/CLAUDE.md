@@ -91,8 +91,9 @@ Plans are written with limited context and the codebase may have changed since. 
 When reviewing code, features, or addressing PR feedback:
 - **Verify issues are real**: Before reporting an issue, confirm it by reading the relevant code and running tests/linters if applicable. Do not report speculative or hypothetical issues, only confirmed ones.
 - **Present all issues first**: After analysis, present the complete list of confirmed issues as a numbered summary with brief descriptions.
-- **Let the user choose the workflow**: Ask whether they want to review items one by one or discuss the list as a whole (e.g., re-prioritize, dismiss items, group them). Do not assume they want all items addressed at once.
-- **Progress tracking**: When going one by one, always show a progress tracker (e.g., `[2/7]`) so the current position and total count are always visible.
+- **Let the user choose the workflow**: Ask whether they want to review items (a) all at once / as a whole list (re-prioritize, group, bulk-dismiss), (b) one by one with discussion per item, or (c) batched decisions (per-finding picklist via `AskUserQuestion`, up to 4 findings per call). Do not assume they want all items addressed at once.
+- **Progress tracking**: In one-by-one or batched-decision mode, always show a progress tracker (e.g., `[2/7]`) so the current position and total count are always visible.
+- **Batched-decision mode**: use `AskUserQuestion` to present up to 4 findings per call, each as its own single-select question. The skill defines the option set for the workflow (e.g., `/self-review`: Address now / Defer to follow-up / Dismiss / Discuss first; `/code-review`: Post inline / Post as PR-level / Defer / Dismiss). The auto-added "Other" handles custom decisions. Acknowledge the decisions before moving on, then act on them per the user's broader workflow choice.
 - For each item in one-by-one mode: present it, discuss it, and wait for the user's decision before moving to the next.
 - This applies to: PR review comments, code review findings, feature review feedback, and any similar review workflow.
 
@@ -158,7 +159,7 @@ Skills cite this section the same way they cite Validation Rigor. The canonical 
 
 ### Finding Categorization
 
-After Discovery Rigor produces findings and Validation Rigor confirms them, every finding is categorized into one of two buckets. Skills present them as separate tables, and `/polish` uses this split as its loop boundary.
+After Discovery Rigor produces findings and Validation Rigor confirms them, skills that **act on findings locally** (apply fixes — `/self-review` and `/polish`) categorize each finding into one of two buckets and present them as separate tables; `/polish` uses this split as its loop boundary. Skills that **only draft output for elsewhere** (e.g. `/code-review`, which drafts comments for the human to submit) skip the categorization and use a presentation tailored to their workflow (typically severity-grouped). They still apply Discovery Rigor and Validation Rigor in full; the categorization just doesn't gate behavior because no fixes are auto-applied.
 
 **Auto-applicable.** All four conditions must hold; if any is uncertain, the finding goes to Needs human attention.
 
@@ -175,7 +176,7 @@ Additional disqualifiers regardless of the four conditions above:
 
 **Needs human attention.** Everything else. Bugs (even "obvious" ones; the user may have context the agent lacks), refactor proposals, naming changes that affect API surface, performance fixes, missing tests, design-level documentation, anything anchored in judgment over tool output.
 
-Skills present these as **two tables in a fixed order**: Auto-applicable first, then Needs human attention. If either bucket is empty, the table still appears with a single row stating `none` so the empty bucket is visible (silent omission is the failure mode the canonical lens-coverage table also guards against).
+Skills using the categorization present these as **two tables in a fixed order**: Auto-applicable first, then Needs human attention. If either bucket is empty, the table still appears with a single row stating `none` so the empty bucket is visible (silent omission is the failure mode the canonical lens-coverage table also guards against).
 
 ### Refactor Instinct
 
