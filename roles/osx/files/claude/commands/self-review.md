@@ -33,26 +33,7 @@ Do a comprehensive code review of the current feature branch.
 
    Drop or downgrade items where the three passes do not converge. Eliminate false positives and speculative concerns. Only report issues you are confident about.
 
-5. Present results as the canonical lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` followed by **two findings tables** split per CLAUDE.md `Finding Categorization`. Both tables always appear; if a bucket is empty, print a single `none` row.
-
-   **Auto-applicable** (would be safe for `/polish` to handle autonomously):
-
-   | # | Lens | File:Line | Finding | Rule cited | Validation passes | Recommendation |
-   |---|---|---|---|---|---|---|
-
-   - **Rule cited**: the linter / type-checker / formatter rule that grounds the finding (e.g. `ruff F401`, `tsc TS2304`, `rubocop Style/UnlessElse`). Mandatory for this table; if no rule cites it, the finding does not belong here.
-   - **Recommendation**: the mechanical action to take (e.g. "remove unused import", "add missing semicolon", "fix typo `recieved` → `received`").
-
-   **Needs human attention** (everything else: bugs, refactors, naming, design, missing tests, anything in security-sensitive code):
-
-   | # | Lens | File:Line | Finding | Severity | Confidence | Validation passes | Recommendation |
-   |---|---|---|---|---|---|---|---|
-
-   - **Severity**: blocker / concern / suggestion / nit.
-   - **Confidence**: high / medium / low.
-   - **Recommendation**: implement fix / dismiss / defer to follow-up / document / etc.
-
-   No `Draft comment` column on either table: this skill implements fixes, it does not post per-finding comments.
+5. Present results: the canonical lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` first, then both findings tables per CLAUDE.md `Finding Categorization`. No `Draft comment` column on either table: this skill implements fixes, it does not post per-finding comments.
 
 6. Follow the standard review workflow (let me choose: all at once, one by one, or batched decisions, with progress tracking). When implementing fixes, apply the **two-or-three-angle solution validation** (canonical spec in CLAUDE.md `Validation Rigor (Solutions)`):
    - Targeted failing test for the bug's exact reason → fix → confirm test passes.
