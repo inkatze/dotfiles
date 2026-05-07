@@ -12,7 +12,7 @@ Do a comprehensive code review of the current feature branch.
 
 3. **Generate findings via parallel lens fan-out** (Discovery Rigor canonical spec in CLAUDE.md `Discovery Rigor (Issue Identification)`). The goal is a complete finding list on the first pass so you do not have to re-run this skill to drain pass-2 findings.
 
-   a. **Run project tooling once.** Linters, formatters, type checkers, static analyzers, complexity / duplication meters, dead-code detectors, security scanners. Discover via `lefthook.yml`, CI workflows, `mise.toml` tasks, language config files, and the SessionStart `tool-discovery` summary if present in this session's context. Capture the output; it becomes shared input for every lens agent.
+   a. **Run project tooling once.** Linters, formatters, type checkers, static analyzers, complexity / duplication meters, dead-code detectors, security scanners. Discover via `lefthook.yml`, CI workflows, `mise.toml` tasks, language config files, and the SessionStart `tool-discovery` summary if present in this session's context. In Phoenix / Elixir projects, prefer the project's own mix aggregator tasks when defined (e.g., `mix lint`, `mix quality`, `mix security`) and otherwise reach for `mix credo --strict`, `mix dialyzer`, and `mix sobelow` directly. Capture the output; it becomes shared input for every lens agent.
 
    b. **Spawn one `Explore` sub-agent per canonical lens, in parallel.** Default is to spawn for all 9 lenses; only skip a lens when it is genuinely n/a for the diff (e.g., concurrency for a doc-only change), and record the reason for the lens-coverage table. Each sub-agent receives:
       - The full diff (or relevant slice for large diffs)
