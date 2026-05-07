@@ -99,7 +99,7 @@ No lens-coverage table here: this skill validates pre-existing human threads, it
 
 ### 6. Address items
 
-Follow the standard review workflow (let me choose: all at once or one by one, with progress tracking).
+Follow the standard review workflow (let me choose: all at once, one by one, or batched decisions, with progress tracking). For batched mode, the `/peer-review` option set is **Address now / Defer to follow-up / Dismiss / Discuss first** (with auto-added "Other" for custom decisions).
 
 **Response tone requirements** (this is critical since we are replying to a person):
 - Concise but not curt

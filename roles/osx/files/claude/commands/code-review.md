@@ -60,31 +60,43 @@ Apply the canonical rigor in CLAUDE.md `Validation Rigor (Issue Identification)`
 
 Drop or downgrade items where the three passes do not converge. We are leaving comments on someone else's PR, so false positives have a higher cost here than in self-review.
 
-### 7. Present results as the canonical lens-coverage table plus two findings tables
+### 7. Present results: lens-coverage table, then severity-grouped findings tables
 
-Lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` first, then the findings split per CLAUDE.md `Finding Categorization`. Both tables always appear; if a bucket is empty, print a single `none` row.
+Lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` first. Then findings grouped into four severity tiers, each as its own table in fixed order: Blockers, Concerns, Suggestions, Nits. Every tier table always appears; if a tier is empty, print a single `none` row so the empty tier is visible (same anti-silent-pruning guard as the lens-coverage table).
 
-**Auto-applicable** (mechanical, tool-grounded; the PR author could merge these without discussion):
+`/code-review` does **not** use the Auto-applicable / Needs human attention split (per CLAUDE.md `Finding Categorization`). That split exists as a loop boundary for `/polish` and a prep step for `/self-review`'s local apply loop. `/code-review` only drafts comments for me to submit, so the relevant question is "how important is this and what comment do I post", not "can a robot apply this".
 
-| # | Lens | File:Line | Finding | Rule cited | Validation passes | Recommendation | Draft comment |
+**Blockers** (must address before merge: correctness bugs, security issues, broken tests, missing critical pieces):
+
+| # | Lens | File:Line | Finding | Confidence | Validation passes | Recommendation | Draft comment |
 |---|---|---|---|---|---|---|---|
 
-- **Rule cited**: the linter / type-checker / formatter rule that grounds the finding. Mandatory for this table.
-- **Draft comment**: usually a one-liner referencing the rule (e.g. "ruff F401: unused import"). See step 8 tone requirements.
+**Concerns** (significant issues worth raising but not strict blockers: risky patterns, design concerns, missing test coverage on important paths):
 
-**Needs human attention** (judgment, design, refactor, bugs, naming, anything that needs a real conversation with the author):
+| # | Lens | File:Line | Finding | Confidence | Validation passes | Recommendation | Draft comment |
+|---|---|---|---|---|---|---|---|
 
-| # | Lens | File:Line | Finding | Severity | Confidence | Validation passes | Recommendation | Draft comment |
-|---|---|---|---|---|---|---|---|---|
+**Suggestions** (improvements the author should consider: naming, structure, refactor opportunities anchored in `Refactor Instinct`'s review-mode bar, doc gaps that aren't required):
 
-- **Severity**: blocker / concern / suggestion / nit. Prefix the draft comment with the severity tag when not obvious.
-- **Confidence**: high / medium / low.
-- **Recommendation**: post inline / post as PR-level comment / defer / dismiss / etc.
-- **Draft comment**: literal inline comment text. See step 8 tone requirements (constructive, specific, why not just what, no em-dashes, sounds human).
+| # | Lens | File:Line | Finding | Confidence | Validation passes | Recommendation | Draft comment |
+|---|---|---|---|---|---|---|---|
+
+**Nits** (small style/cleanup items: typos, tool-grounded linter rules the author can take or leave, formatting):
+
+| # | Lens | File:Line | Finding | Confidence | Validation passes | Recommendation | Draft comment |
+|---|---|---|---|---|---|---|---|
+
+Column definitions (apply to all four tables):
+
+- **Confidence**: high / medium / low (how strongly the three validation passes converged; low-confidence items are usually downgraded or dropped at step 6).
+- **Recommendation**: post inline / post as PR-level / defer to follow-up / dismiss.
+- **Draft comment**: literal text for the comment we will post (inline or PR-level per the Recommendation). Tone requirements in step 8.
+
+When a tool rule grounds a finding (e.g., `ruff F401`, `tsc TS2304`, `rubocop Style/UnlessElse`), include the rule citation in the Finding column. Tool-grounded items typically land in Nits or Suggestions; severity reflects user-visible impact, not how mechanical the fix is.
 
 ### 8. Follow the standard review workflow
 
-Let me choose: all at once or one by one, with progress tracking. Present each comment draft for my approval. I may want to adjust wording.
+Per CLAUDE.md `Code & PR Reviews`, ask whether to (a) take the whole list at once, (b) go one by one, or (c) batched decisions. For batched mode, the `/code-review` option set is **Post inline / Post as PR-level / Defer to follow-up / Dismiss** (with auto-added "Other" for custom decisions). Up to 4 findings per `AskUserQuestion` call, with progress tracking. Present each comment draft for my approval before it lands in the final list; I may want to adjust wording.
 
 **Comment tone requirements:**
 - Constructive and specific

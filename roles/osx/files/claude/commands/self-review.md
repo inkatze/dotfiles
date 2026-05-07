@@ -12,7 +12,7 @@ Do a comprehensive code review of the current feature branch.
 
 3. **Generate findings via parallel lens fan-out** (Discovery Rigor canonical spec in CLAUDE.md `Discovery Rigor (Issue Identification)`). The goal is a complete finding list on the first pass so you do not have to re-run this skill to drain pass-2 findings.
 
-   a. **Run project tooling once.** Linters, formatters, type checkers, static analyzers, complexity / duplication meters, dead-code detectors, security scanners. Discover via `lefthook.yml`, CI workflows, `mise.toml` tasks, language config files, and the SessionStart `tool-discovery` summary if present in this session's context. Capture the output; it becomes shared input for every lens agent.
+   a. **Run project tooling once.** Linters, formatters, type checkers, static analyzers, complexity / duplication meters, dead-code detectors, security scanners. Discover via `lefthook.yml`, CI workflows, `mise.toml` tasks, language config files, and the SessionStart `tool-discovery` summary if present in this session's context. In Phoenix / Elixir projects, prefer the project's own mix aggregator tasks when defined (e.g., `mix lint`, `mix quality`, `mix security`) and otherwise reach for `mix credo --strict`, `mix dialyzer`, and `mix sobelow` directly. Capture the output; it becomes shared input for every lens agent.
 
    b. **Spawn one `Explore` sub-agent per canonical lens, in parallel.** Default is to spawn for all 9 lenses; only skip a lens when it is genuinely n/a for the diff (e.g., concurrency for a doc-only change), and record the reason for the lens-coverage table. Each sub-agent receives:
       - The full diff (or relevant slice for large diffs)
@@ -33,28 +33,9 @@ Do a comprehensive code review of the current feature branch.
 
    Drop or downgrade items where the three passes do not converge. Eliminate false positives and speculative concerns. Only report issues you are confident about.
 
-5. Present results as the canonical lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` followed by **two findings tables** split per CLAUDE.md `Finding Categorization`. Both tables always appear; if a bucket is empty, print a single `none` row.
+5. Present results: the canonical lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` first, then both findings tables per CLAUDE.md `Finding Categorization`. No `Draft comment` column on either table: this skill implements fixes, it does not post per-finding comments.
 
-   **Auto-applicable** (would be safe for `/polish` to handle autonomously):
-
-   | # | Lens | File:Line | Finding | Rule cited | Validation passes | Recommendation |
-   |---|---|---|---|---|---|---|
-
-   - **Rule cited**: the linter / type-checker / formatter rule that grounds the finding (e.g. `ruff F401`, `tsc TS2304`, `rubocop Style/UnlessElse`). Mandatory for this table; if no rule cites it, the finding does not belong here.
-   - **Recommendation**: the mechanical action to take (e.g. "remove unused import", "add missing semicolon", "fix typo `recieved` → `received`").
-
-   **Needs human attention** (everything else: bugs, refactors, naming, design, missing tests, anything in security-sensitive code):
-
-   | # | Lens | File:Line | Finding | Severity | Confidence | Validation passes | Recommendation |
-   |---|---|---|---|---|---|---|---|
-
-   - **Severity**: blocker / concern / suggestion / nit.
-   - **Confidence**: high / medium / low.
-   - **Recommendation**: implement fix / dismiss / defer to follow-up / document / etc.
-
-   No `Draft comment` column on either table: this skill implements fixes, it does not post per-finding comments.
-
-6. Follow the standard review workflow (let me choose: all at once or one by one, with progress tracking). When implementing fixes, apply the **two-or-three-angle solution validation** (canonical spec in CLAUDE.md `Validation Rigor (Solutions)`):
+6. Follow the standard review workflow (let me choose: all at once, one by one, or batched decisions, with progress tracking). When implementing fixes, apply the **two-or-three-angle solution validation** (canonical spec in CLAUDE.md `Validation Rigor (Solutions)`):
    - Targeted failing test for the bug's exact reason → fix → confirm test passes.
    - Run the broader test suite, linters, and type-checkers. Watch for regressions.
    - When relevant: edge cases (null, empty, max, concurrency), integration / smoke tests, or manual exercise of the user-facing flow.

@@ -122,7 +122,7 @@ No `Draft comment` column on either: adjacent findings are surfaced for the user
 
 ### 6. Address items: solution validated with two or three test angles
 
-Follow the standard review workflow (let me choose: all at once or one by one, with progress tracking).
+Follow the standard review workflow (let me choose: all at once, one by one, or batched decisions, with progress tracking). For batched mode, the `/copilot-review` option set is **Address now / Defer to follow-up / Dismiss / Discuss first** (with auto-added "Other" for custom decisions).
 
 For **valid** items that affect runtime behavior, apply the canonical rigor in CLAUDE.md `Validation Rigor (Solutions)`:
 
