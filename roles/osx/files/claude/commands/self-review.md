@@ -54,7 +54,7 @@ Do a comprehensive code review of the current feature branch.
 
    No `Draft comment` column on either table: this skill implements fixes, it does not post per-finding comments.
 
-6. Follow the standard review workflow (let me choose: all at once or one by one, with progress tracking). When implementing fixes, apply the **two-or-three-angle solution validation** (canonical spec in CLAUDE.md `Validation Rigor (Solutions)`):
+6. Follow the standard review workflow (let me choose: all at once, one by one, or batched decisions, with progress tracking). When implementing fixes, apply the **two-or-three-angle solution validation** (canonical spec in CLAUDE.md `Validation Rigor (Solutions)`):
    - Targeted failing test for the bug's exact reason → fix → confirm test passes.
    - Run the broader test suite, linters, and type-checkers. Watch for regressions.
    - When relevant: edge cases (null, empty, max, concurrency), integration / smoke tests, or manual exercise of the user-facing flow.
