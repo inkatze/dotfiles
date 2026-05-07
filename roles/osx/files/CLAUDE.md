@@ -159,7 +159,7 @@ Skills cite this section the same way they cite Validation Rigor. The canonical 
 
 ### Finding Categorization
 
-After Discovery Rigor produces findings and Validation Rigor confirms them, skills that **act on findings locally** (apply fixes: `/self-review` and `/polish`) categorize each finding into one of two buckets and present them as separate tables; `/polish` uses this split as its loop boundary. Skills that **only draft output for elsewhere** (e.g. `/code-review`, which drafts comments for the human to submit) skip the categorization and use a presentation tailored to their workflow (typically severity-grouped). They still apply Discovery Rigor and Validation Rigor in full; the categorization just doesn't gate behavior because no fixes are auto-applied.
+After Discovery Rigor produces findings and Validation Rigor confirms them, skills that **act on findings locally** (such as `/self-review`, `/polish`, and `/peer-review`, plus `/copilot-review`'s adjacent-findings output) categorize each finding into one of two buckets and present them as separate tables; `/polish` uses this split as its loop boundary. Skills that **only draft output for elsewhere** (e.g. `/code-review`, which drafts comments for the human to submit) skip the categorization and use a presentation tailored to their workflow (typically severity-grouped). They still apply Discovery Rigor and Validation Rigor in full; the categorization just doesn't gate behavior because no fixes are auto-applied.
 
 **Auto-applicable.** All four conditions must hold; if any is uncertain, the finding goes to Needs human attention.
 
