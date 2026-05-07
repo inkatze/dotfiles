@@ -6,7 +6,7 @@ Same Discovery + Validation rigor as `/self-review`, executed on autopilot, with
 
 You are nearly done with a branch and want to drain the trivial, tool-grounded fixes (linter rule violations, formatter output, type-checker errors, missing imports, unused variables, typos in comments, inferable type annotations) before opening a PR. Polish auto-applies items that meet the strict Auto-applicable definition in CLAUDE.md `Finding Categorization`; once the Auto-applicable bucket is empty (or any safety condition fires), it surfaces any Needs human attention items in the final iteration table and hands off.
 
-When the toolchain is clean and the diff is uniformly inside a categorization disqualifier (e.g., entirely security-sensitive auth code), polish will hand off on iteration 1 with all findings in Needs human attention. The same iteration-1 handoff happens when the project ships no tool that can ground a finding for the changed file types (e.g., a markdown-only diff in a project without a markdown linter), since condition 1 (tool-grounded) cannot hold. Both are the expected outcome, not a failure.
+When the toolchain is clean and the diff is uniformly inside a categorization disqualifier (e.g., entirely security-sensitive auth code), polish will hand off on the first iteration with all findings in Needs human attention. The same first-iteration handoff happens when the project ships no tool that can ground a finding for the changed file types (e.g., a markdown-only diff in a project without a markdown linter), since condition 1 (tool-grounded) cannot hold. Both are the expected outcome, not a failure.
 
 Polish does **not** create a PR. Run `/self-review` after Polish hands off, once you have addressed the Needs human attention items.
 
