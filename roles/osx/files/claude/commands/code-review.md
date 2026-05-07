@@ -90,7 +90,7 @@ Column definitions (apply to all four tables):
 
 - **Confidence**: high / medium / low (how strongly the three validation passes converged; low-confidence items are usually downgraded or dropped at step 6).
 - **Recommendation**: post inline / post as PR-level comment / defer to follow-up / dismiss.
-- **Draft comment**: literal text for the inline comment. Tone requirements in step 8.
+- **Draft comment**: literal text for the comment we will post (inline or PR-level per the Recommendation). Tone requirements in step 8.
 
 When a tool rule grounds a finding (e.g., `ruff F401`, `tsc TS2304`, `rubocop Style/UnlessElse`), include the rule citation in the Finding column. Tool-grounded items typically land in Nits or Suggestions; severity reflects user-visible impact, not how mechanical the fix is.
 
