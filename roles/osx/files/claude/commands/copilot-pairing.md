@@ -85,7 +85,7 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
    - `git add` only the files we actually changed for this iteration (never `git add -A`).
    - Commit with a message of the form `chore(copilot): iter N, address <short summary>`.
    - Push: `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or any rebase flag.
-2. **Capture poll-window start epoch and baseline Copilot-review id** (substitute the PR number from pre-flight step 1):
+2. **Capture poll-window start epoch and baseline Copilot-review id** (substitute the PR number from pre-flight step 1; substitute the verified bot login from pre-flight step 3 in the `--arg bot ...` flag if it differs from the default, otherwise the baseline file silently lands empty and step (g) loses its disambiguation):
    ```bash
    echo $(( $(date +%s) - 2 )) > /tmp/copilot-pairing-push-epoch.NUMBER
    gh api graphql -f query='
@@ -278,7 +278,7 @@ Branch on the script's exit:
 - **Exit 1 (`TIMEOUT`) on Path A**: trigger the **No response** stop condition (Copilot did not review the new code).
 - **Exit 1 (`TIMEOUT`) on Path B**: fall through to step (f.5) for the resolved-thread sanity check; success if zero unresolved. Path B TIMEOUT is the expected outcome when no observable PR-state change triggered Copilot to re-review an unchanged HEAD; the resolves we already landed mean the loop has converged.
 - **Exit 2 (bad input)**: step (e) failed to capture `push_epoch`. Bug in our flow. Stop and surface the script's stderr.
-- **Any other exit code (e.g. 143 from SIGTERM, 137 from SIGKILL/OOM, or any 128+N signal exit from a harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly, reading `push_epoch` and `baseline_id` from the temp files. The recovery query uses `reviews(last: 20)` for the same reason the poll script and step (e.2)'s baseline capture do: viewer-authored auto-vivified reviews and other state churn since the push can stack up, and a narrower window can miss the new Copilot review.
+- **Any other exit code (e.g. 143 from SIGTERM, 137 from SIGKILL/OOM, or any 128+N signal exit from a harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly, reading `push_epoch` and `baseline_id` from the temp files. The recovery query uses `reviews(last: 20)` for the same reason the poll script and step (e.2)'s baseline capture do: viewer-authored auto-vivified reviews and other state churn since the push can stack up, and a narrower window can miss the new Copilot review. (Substitute the verified bot login from pre-flight step 3 in the `--arg bot ...` flag if it differs from the default; same instruction as the poll script.)
   ```bash
   push_epoch=$(cat /tmp/copilot-pairing-push-epoch.NUMBER)
   baseline_id=$(cat /tmp/copilot-pairing-baseline-review-id.NUMBER)
@@ -300,8 +300,8 @@ Branch on the script's exit:
           ))'
   ```
   - **New Copilot review found**: treat as `NEW_REVIEW` and proceed as above.
-  - **No new review, still inside the 10-minute window** (`[ $(date +%s) -lt $((push_epoch + 600)) ]`): restart the background poll script. Cap restarts at **2** per iteration to prevent thrashing; after that, treat as **No response**.
-  - **No new review, past deadline**: treat as `TIMEOUT` and trigger **No response**.
+  - **No new review, still inside the 10-minute window** (`[ $(date +%s) -lt $((push_epoch + 600)) ]`): restart the background poll script. Cap restarts at **2** per iteration to prevent thrashing; after that, treat as `TIMEOUT` and apply the same Path A / Path B split as the next bullet.
+  - **No new review, past deadline**: treat as `TIMEOUT`. On Path A: trigger **No response**. On Path B: fall through to step (f.5) for the resolved-thread sanity check (TIMEOUT is the expected case on Path B; same semantics as the normal Exit 1 split above).
 
 Never assume "loop succeeded" from a non-zero, non-1 exit code. Always cross-check via GraphQL.
 
