@@ -88,7 +88,7 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
      query($owner: String!, $repo: String!, $number: Int!) {
        repository(owner: $owner, name: $repo) {
          pullRequest(number: $number) {
-           reviews(last: 5) { nodes { id author { login } } }
+           reviews(last: 20) { nodes { id author { login } } }
          }
        }
      }
@@ -105,6 +105,8 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
    We capture two values because step (g) needs both:
    - **`push_epoch`** drives the 10-minute deadline math.
    - **`baseline_review_id`** lets the poll match a *new* Copilot review unambiguously even when its `submittedAt` rounds down to the same second as `push_epoch`. Filtering on `submittedAt > push_epoch` alone misses same-second submissions (jq's `fromdateiso8601` is second-precision, and macOS `date` doesn't support sub-second `%N`). Filtering on `id != baseline_review_id` alone would re-match older Copilot reviews. Combining both (`submittedAt >= push_epoch AND id != baseline_review_id`) excludes pre-existing reviews and accepts same-second submissions. If there is no prior Copilot review, the baseline file holds the empty string and any non-empty review id passes.
+
+   **Why `reviews(last: 20)` here, not `last: 5`.** A narrower window can drop the most recent Copilot review on long-lived PRs: each `addPullRequestReviewThreadReply` in (e.3) can auto-vivify a separate viewer-authored review (see step (e.4) "Two auto-vivify modes"), and several review-state mutations can stack up between Copilot reviews. With `last: 5`, the most recent Copilot review can fall out of the window, the jq pipeline writes the empty string to the baseline file, and step (g)'s poll then cannot distinguish "new Copilot review submitted at the same second as `push_epoch`" from "no new review at all". `last: 20` keeps the actual baseline visible across realistic clutter. (Pre-flight step 3's `last: 5` is a different question: it only needs to find ANY Copilot review to determine bot type, not the latest one, so a narrower window is fine there.)
 3. **Reply to threads** using `/copilot-review` step 8 mutations. **Use `addPullRequestReviewThreadReply` only**; see the DO-NOT-USE callout in `/copilot-review` step 8 about `addPullRequestReviewComment`. **Body construction: inline bash heredoc, not temp file.** Build the body inside the same `Bash` invocation that runs the GraphQL mutation:
 
    ```bash
@@ -129,6 +131,12 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
    - **`already-handled`**: reply with `addressed in <commit-sha>` per Path B step 2, using the same `git log "$(gh pr view --json baseRefName -q '.baseRefName')..HEAD" --oneline -- <file>` lookup. Do not hardcode `main` as the base.
    - **`false positive`**: post the dismissal reply drafted in step (b) (citing the three passes and why the concern does not apply).
 4. **Submit any auto-vivified pending review (mandatory).** `addPullRequestReviewThreadReply` can create a new pending review owned by the viewer when none is in progress; the replies posted in (e.3) then stay invisible (to GitHub UI, to Copilot, to humans) until that review is submitted. See `/copilot-review` step 8's "Submit any auto-vivified pending review" sub-step for the exact GraphQL. Procedure: query the PR's `reviews(states: PENDING)` filtered by `author.login == viewer.login`; for each, call `submitPullRequestReview(id, event: COMMENT)`. Re-query and assert zero pending reviews owned by the viewer remain before proceeding to step (e.5). If a pending review cannot be submitted, stop with the **Pending reply unsubmittable** condition.
+
+   **Two auto-vivify modes.** Across real runs, `addPullRequestReviewThreadReply` has been observed in two distinct shapes, and they need different responses:
+   - **(a) Pending-and-not-submitted (dangerous, silent invisibility).** The mutation creates a viewer-authored review in state `PENDING` and the reply is parented under it; GitHub, Copilot, and humans see nothing until that review is submitted. This is exactly what (e.4) above guards against: the `reviews(states: PENDING)` query catches it and `submitPullRequestReview(event: COMMENT)` rescues the replies. **Mandatory to handle.**
+   - **(b) Auto-vivified-and-auto-submitted (benign timeline clutter).** The mutation creates a separate viewer-authored review that GitHub immediately submits as `state: COMMENTED` (i.e. it never sits in `PENDING`). Replies are visible to everyone, but the PR timeline grows one extra review per reply mutation. The (e.4) query correctly finds zero pending reviews; nothing is broken. **Acceptable, no action needed**: do not add cleanup mutations to delete these (they are real `state: COMMENTED` reviews and removing them is incorrect). Step (h)'s iteration summary may note "N auto-vivified COMMENTED reviews" if useful for auditing, but the loop should not pause for this condition.
+
+   The distinction matters because the same mutation produces both shapes non-deterministically across iterations of the same run; do not treat (b)'s presence as evidence that (a) cannot also happen later.
 5. **Resolve threads** using `/copilot-review` step 8's `resolveReviewThread` mutation.
 6. Proceed to step (f).
 
@@ -267,12 +275,19 @@ Branch on the script's exit:
 - **Exit 0 (`NEW_REVIEW`)**: re-fetch reviewThreads. If any are unresolved, increment iteration counter and loop back to (a). If zero unresolved, success: exit the loop.
 - **Exit 1 (`TIMEOUT`)**: trigger the **No response** stop condition.
 - **Exit 2 (bad input)**: step (e) failed to capture `push_epoch`. Bug in our flow. Stop and surface the script's stderr.
-- **Any other exit code (e.g. 143 from SIGTERM, 137 from SIGKILL/OOM, or any 128+N signal exit from a harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly, reading `push_epoch` and `baseline_id` from the temp files:
+- **Any other exit code (e.g. 143 from SIGTERM, 137 from SIGKILL/OOM, or any 128+N signal exit from a harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly, reading `push_epoch` and `baseline_id` from the temp files. Use `reviews(last: 20)` here, not `last: 5`: by recovery time, viewer-authored auto-vivified reviews and other state churn since the push may have stacked up, and a narrower window can miss the new Copilot review the same way step (e.2)'s baseline capture can miss the previous one.
   ```bash
   push_epoch=$(cat /tmp/copilot-pairing-push-epoch.NUMBER)
   baseline_id=$(cat /tmp/copilot-pairing-baseline-review-id.NUMBER)
-  gh api graphql -f query='...same as the poll script...' \
-    -f owner='OWNER' -f repo='REPO' -F number=NUMBER \
+  gh api graphql -f query='
+    query($owner: String!, $repo: String!, $number: Int!) {
+      repository(owner: $owner, name: $repo) {
+        pullRequest(number: $number) {
+          reviews(last: 20) { nodes { id author { login } state submittedAt } }
+        }
+      }
+    }
+  ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER \
     | jq --arg bot 'copilot-pull-request-reviewer' --arg baseline "$baseline_id" --argjson since "$push_epoch" '
         .data.repository.pullRequest.reviews.nodes
         | map(select(
@@ -308,7 +323,7 @@ If any condition fires, **stop**. Print the latest iteration table, name the con
 | **Ambiguity** | Comment is unclear, has multiple valid interpretations, or requires a product/UX call. |
 | **Loop detection** | Copilot raised a substantively similar concern (same file, same root issue) in two consecutive iterations. |
 | **Persistent resolve failure** | A `resolveReviewThread` mutation has silently failed (or been rolled back) for the same threads across two consecutive iterations, so the resolve-only short-circuit in step f.5 cannot drain the queue. |
-| **Scope creep** | A fix would touch code outside the PR's existing diff, or contradicts the PR's stated intent / Jira AC. |
+| **Scope creep** | A fix would touch code outside the PR's existing diff, or contradicts the PR's stated intent / Jira AC. When SOME threads are in-scope and others are not, see "Partial scope creep" below for the recipe before stopping. |
 | **Test failure** | Any test, linter, type-check, or formatter fails after our change, including pre-existing failures we surface for the first time. |
 | **Security-sensitive** | The change touches auth, secrets handling, crypto, permissions, IAM, SQL/shell construction, or sandbox boundaries. Always pause. |
 | **High false-positive ratio** | At least 3 threads in the iteration AND more than half are false positives (model may be misreading the change). Pause for re-alignment. |
@@ -319,6 +334,19 @@ If any condition fires, **stop**. Print the latest iteration table, name the con
 | **Re-review unavailable** | Step (f) `app` mode found no `request_copilot_review` MCP tool on the active server, so we cannot trigger a Copilot review and step (g)'s poll would never see one. |
 | **Pending reply unsubmittable** | A pending review owned by the viewer cannot be submitted via `submitPullRequestReview` in step (e.4), so replies posted in (e.3) would remain invisible to GitHub, Copilot, and humans. |
 | **Conflicting signals** | Copilot's later review contradicts an earlier one we already addressed. Pause to decide which to honor. |
+
+### Partial scope creep recipe
+
+When an iteration's threads split between in-scope (lines this PR introduced or modified) and out-of-scope (pre-existing code the PR does not touch), the **Scope creep** row above is a partial stop, not a full stop. Use this recipe instead of treating the iteration as a hard handoff:
+
+1. **Address the in-scope threads as normal.** Run steps (b) validate, (c) implement, (d) local check, (e.1) commit + push, (e.3) reply, (e.4) submit any pending review, (e.5) resolve. Treat them exactly as you would an iteration with no out-of-scope threads.
+2. **Reply to the out-of-scope threads as adjacent findings.** For each, post a reply via `addPullRequestReviewThreadReply` whose body names: (a) that the lines pre-date this PR's diff (cite the commit or `git blame` evidence), (b) what the proposed fix would be (so the human or a follow-up PR has the design ready), and (c) where the fix should live (separate PR, follow-up issue, or specific file outside the diff). **Do NOT call `resolveReviewThread` on these.** Leaving them unresolved is what hands them to the human as live findings.
+3. **Stop the loop, do not push a re-review request.** Skip steps (f) and (g) for this iteration: there is no point in waiting for Copilot to re-review when the next move is a human decision. Print the iteration summary table per step (h), with the adjacent-finding count broken out, and ask the user to choose:
+   - **(a) Approve fixing in this PR**: resume the loop on the next iteration with the deferred fixes pulled into scope. Pushing the new commit will land via the normal Path A flow.
+   - **(b) Track in a follow-up issue**: file the issue (or have the user file it), then post a final reply on each adjacent thread with `tracked in <link>` and call `resolveReviewThread` on it. Loop ends.
+   - **(c) "Won't fix in this PR"**: post a one-line rationale reply on each adjacent thread, call `resolveReviewThread`, then resume the loop if there are still in-scope threads to address (rare, since step 1 already drained those) or end the loop otherwise.
+
+**Scope this recipe carefully.** It applies only when the in-scope set is **non-empty**. If every thread in an iteration would touch out-of-PR-diff code, the original full-stop **Scope creep** condition still applies: do not push, do not reply, stop and hand off entirely. The recipe exists to avoid wasting a converged iteration when the in-scope half is real work; it is not a license to address adjacent findings in the absence of any in-scope work.
 
 ## Auto-execution invariants
 
