@@ -10,19 +10,23 @@ You want a hands-off pairing pass with Copilot. The skill loops: address Copilot
 
 1. **Get PR / repo info** (same as `/copilot-review` step 1).
 2. **(Optional) Jira context** (same as `/copilot-review` step 2).
-3. **Confirm the Copilot bot login and detect repo mode.** Default login is `copilot-pull-request-reviewer`. Verify by inspecting an existing review on the PR (`reviews(last: 5)` so we surface the most-recent reviews; `first: 5` would return the oldest and may not include Copilot on a long-lived PR):
+3. **Confirm the Copilot bot login and detect repo mode.** Default login is `copilot-pull-request-reviewer`. Verify by inspecting an existing review on the PR (`reviews(last: 20)` so the window is wide enough to surface a Copilot review even when several non-Copilot reviews stacked after the last Copilot one; `first: N` would return the oldest and may not include Copilot on a long-lived PR):
    ```bash
    gh api graphql -f query='
      query($owner: String!, $repo: String!, $number: Int!) {
        repository(owner: $owner, name: $repo) {
          pullRequest(number: $number) {
-           reviews(last: 5) { nodes { author { __typename login } } }
+           reviews(last: 20) { nodes { author { __typename login } } }
          }
        }
      }
    ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
    ```
-   Use the actual `Bot` login if it differs. Then set `repo_mode` from the same `__typename` field:
+   Use the actual `Bot` login if it differs.
+
+   **Fallback when no Copilot review is found.** If `reviews(last: 20)` returns zero Copilot-authored reviews (a brand-new PR Copilot has not yet reviewed, or a long-lived PR where 20+ non-Copilot reviews stacked after the last Copilot one), bot detection cannot key off a prior review on this PR. Two options, in preference order: (a) inspect another open or recently-merged PR in the same repo via the same `reviews(last: 20)` query and use that PR's Copilot review for `__typename` detection, or (b) default to `repo_mode = "app"` (the common case in 2026 since Copilot installs as a GitHub App by default) and let step (f)'s `request_copilot_review` MCP call plus `reviewRequests.nodes` verification confirm the assumption.
+
+   Then set `repo_mode` from the same `__typename` field:
    - `__typename == "Bot"` → `repo_mode = "app"`. Copilot is installed as a GitHub App, not a collaborator. The REST endpoint `POST /repos/{owner}/{repo}/pulls/{n}/requested_reviewers` returns 422 ("not a collaborator") for App-typed reviewers and must NOT be used in this mode. Step (f) instead calls the `request_copilot_review` MCP tool (which wraps an internal endpoint that accepts Bot reviewers). Do not assume push alone will trigger a Copilot review: auto-review-on-push has been observed to silently no-op (see step (f) for the verified failure mode), so step (g)'s 10-minute poll is the only authoritative confirmation that Copilot has reviewed.
    - Otherwise → `repo_mode = "collaborator"`. Use the explicit re-request POST in step (f).
 4. **Initialize iteration counter** = 0. The loop's per-iteration filter is `isResolved: false` (step (a)), so we don't need to snapshot HEAD or the baseline thread-ID set.
@@ -106,7 +110,7 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
    - **`push_epoch`** drives the 10-minute deadline math.
    - **`baseline_id`** lets the poll match a *new* Copilot review unambiguously even when its `submittedAt` rounds down to the same second as `push_epoch`. Filtering on `submittedAt > push_epoch` alone misses same-second submissions (jq's `fromdateiso8601` is second-precision, and macOS `date` doesn't support sub-second `%N`). Filtering on `id != baseline_id` alone would re-match older Copilot reviews. Combining both (`submittedAt >= push_epoch AND id != baseline_id`) excludes pre-existing reviews and accepts same-second submissions. If there is no prior Copilot review, the baseline file holds the empty string and any non-empty review id passes.
 
-   **Why `reviews(last: 20)` here, not `last: 5`.** A narrower window can drop the most recent Copilot review on long-lived PRs: each `addPullRequestReviewThreadReply` in (e.3) can auto-vivify a separate viewer-authored review (see step (e.4) "Two auto-vivify modes"), and several review-state mutations can stack up between Copilot reviews. With `last: 5`, the most recent Copilot review can fall out of the window, the jq pipeline writes the empty string to the baseline file, and step (g)'s poll then cannot distinguish "new Copilot review submitted at the same second as `push_epoch`" from "no new review at all". `last: 20` keeps the actual baseline visible across realistic clutter. (Pre-flight step 3's `last: 5` is a different question: it only needs to find ANY Copilot review to determine bot type, not the latest one, so a narrower window is fine there.)
+   **Why `reviews(last: 20)` here, not a narrower window.** A narrower window can drop the most recent Copilot review on long-lived PRs: each `addPullRequestReviewThreadReply` in (e.3) can auto-vivify a separate viewer-authored review (see step (e.4) "Two auto-vivify modes"), and several review-state mutations can stack up between Copilot reviews. With `last: 5`, the most recent Copilot review can fall out of the window, the jq pipeline writes the empty string to the baseline file, and step (g)'s poll then cannot distinguish "new Copilot review submitted at the same second as `push_epoch`" from "no new review at all". `last: 20` keeps the actual baseline visible across realistic clutter. (Pre-flight step 3 uses the same `last: 20` window for the same robustness reason; see its no-Copilot-review fallback for the bootstrap case where this PR has no prior Copilot review at all.)
 3. **Reply to threads** using `/copilot-review` step 8 mutations. **Use `addPullRequestReviewThreadReply` only**; see the DO-NOT-USE callout in `/copilot-review` step 8 about `addPullRequestReviewComment`. **Body construction: inline bash heredoc, not temp file.** Build the body inside the same `Bash` invocation that runs the GraphQL mutation:
 
    ```bash
