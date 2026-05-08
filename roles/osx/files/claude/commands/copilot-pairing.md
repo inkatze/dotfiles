@@ -146,13 +146,13 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
 
 **Path B (no code changes; every thread was `already-handled` or `false positive`):**
 
-1. Skip commit/push and skip the push-timestamp capture (no new HEAD; step (g) is skipped on this path).
+1. Skip commit/push (no new HEAD), but still capture the push timestamp and baseline Copilot-review id using the same GraphQL block as Path A step 2. Step (g)'s poll runs on Path B too (see step 5).
 2. Post the reply for each thread, varying by classification (use `addPullRequestReviewThreadReply` either way; same DO-NOT-USE callout applies):
    - **`already-handled`**: reply with a short body referencing the prior commit that actually addressed it. Find the commit via `git log "$(gh pr view --json baseRefName -q '.baseRefName')..HEAD" --oneline -- <file>` (scoped to this branch's commits, top entry is the most recent). Do not hardcode `main`: PRs targeting `develop`, `release/*`, or any other base branch would otherwise return wrong or empty commits.
    - **`false positive`**: post the dismissal reply drafted in step (b) (citing the three passes and why the concern does not apply).
 3. **Submit any auto-vivified pending review (mandatory).** Same procedure as Path A step 4. The auto-vivify failure mode applies here too because we still call `addPullRequestReviewThreadReply`.
 4. Resolve threads via `resolveReviewThread`.
-5. Proceed to step (f.5), not (f): do not re-request review against an unchanged HEAD, since Copilot will not respond and step (g) will time out.
+5. Proceed to step (f) and (g), like Path A. The earlier guidance to skip (f)/(g) "because Copilot will not respond on unchanged HEAD" was based on a wrong premise: real-run evidence (PR #18 on 2026-05-08) shows Copilot does re-review an unchanged HEAD when observable PR state has changed since the last review (PR description / title / label edits, plus the replies and resolves you just posted). Run (f) and (g) to capture any response. The (g) TIMEOUT branch is now safe on Path B: it falls through to step (f.5) instead of triggering **No response** (see step (g) exit handling).
 
 ### f. Re-request Copilot review (mode-aware, verify-loud)
 
@@ -222,14 +222,12 @@ gh api -X POST "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
 
 Do NOT trigger the **No response** stop condition based on this step's HTTP outcome. **No response** is reserved for step (g)'s 10-minute poll timing out, the only authoritative signal that Copilot did not review.
 
-### f.5. Resolve-only iteration short-circuit
+### f.5. Resolved-thread sanity check (Path B fall-through)
 
-Only reached if step (e) produced no commits. Re-fetch reviewThreads (same query as step (a)) and count unresolved Copilot threads:
+Reached on Path B after step (g) returns TIMEOUT (Copilot did not re-review the unchanged HEAD). On Path A, (g)'s NEW_REVIEW branch already re-fetches threads and (g)'s TIMEOUT branch triggers **No response**, so this step is Path B-only. Re-fetch reviewThreads (same query as step (a)) and count unresolved Copilot threads:
 
-- **Zero remaining**: success. Exit the loop. Print the iteration summary noting "resolve-only iteration, no new code, all Copilot threads now resolved".
+- **Zero remaining**: success. Exit the loop. Print the iteration summary noting "resolve-only iteration, (g) timed out as expected, all Copilot threads now resolved".
 - **One or more remaining** (rare: a resolve mutation failed again): increment iteration counter and loop back to step (a). If the same threads remain unresolved across two consecutive iterations, trigger the **Persistent resolve failure** stop condition.
-
-Skip steps (f) and (g) on this path.
 
 ### g. Wait for Copilot's response
 
@@ -277,7 +275,8 @@ echo "TIMEOUT"; exit 1
 Branch on the script's exit:
 
 - **Exit 0 (`NEW_REVIEW`)**: re-fetch reviewThreads. If any are unresolved, increment iteration counter and loop back to (a). If zero unresolved, success: exit the loop.
-- **Exit 1 (`TIMEOUT`)**: trigger the **No response** stop condition.
+- **Exit 1 (`TIMEOUT`) on Path A**: trigger the **No response** stop condition (Copilot did not review the new code).
+- **Exit 1 (`TIMEOUT`) on Path B**: fall through to step (f.5) for the resolved-thread sanity check; success if zero unresolved. Path B TIMEOUT is the expected outcome when no observable PR-state change triggered Copilot to re-review an unchanged HEAD; the resolves we already landed mean the loop has converged.
 - **Exit 2 (bad input)**: step (e) failed to capture `push_epoch`. Bug in our flow. Stop and surface the script's stderr.
 - **Any other exit code (e.g. 143 from SIGTERM, 137 from SIGKILL/OOM, or any 128+N signal exit from a harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly, reading `push_epoch` and `baseline_id` from the temp files. The recovery query uses `reviews(last: 20)` for the same reason the poll script and step (e.2)'s baseline capture do: viewer-authored auto-vivified reviews and other state churn since the push can stack up, and a narrower window can miss the new Copilot review.
   ```bash
@@ -314,7 +313,7 @@ After each iteration, print a short summary:
 - Threads addressed (counts by classification: valid / already-handled / false positive / adjacent finding)
 - Commit SHA pushed (Path A only; `n/a` on Path B)
 - Test command run + result (Path A only; `n/a` on Path B since no code changed)
-- Re-review request status: Path A only. In `app` mode, report the outcome of step (f)'s `request_copilot_review` MCP call plus the `reviewRequests.nodes` verification result; in `collaborator` mode, report the actual HTTP outcome from step (f). On Path B, `n/a` (step (f) is skipped).
+- Re-review request status: both paths. In `app` mode, report the outcome of step (f)'s `request_copilot_review` MCP call plus the `reviewRequests.nodes` verification result; in `collaborator` mode, report the actual HTTP outcome from step (f). On Path B, also note whether step (g) returned NEW_REVIEW (Copilot re-reviewed unchanged HEAD) or TIMEOUT (the expected case that falls through to (f.5)).
 
 This is what I scroll back through to audit the run.
 
@@ -345,7 +344,7 @@ When an iteration's threads split between in-scope (lines this PR introduced or 
 
 1. **Address the in-scope threads as normal.** Run steps (b) validate, (c) implement, (d) local check, (e.1) commit + push, (e.3) reply, (e.4) submit any pending review, (e.5) resolve. Treat them exactly as you would an iteration with no out-of-scope threads.
 2. **Reply to the out-of-scope threads as adjacent findings.** For each, post a reply via `addPullRequestReviewThreadReply` whose body names: (a) that the lines pre-date this PR's diff (cite the commit or `git blame` evidence), (b) what the proposed fix would be (so the human or a follow-up PR has the design ready), and (c) where the fix should live (separate PR, follow-up issue, or specific file outside the diff). **Do NOT call `resolveReviewThread` on these.** Leaving them unresolved is what hands them to the human as live findings. **After all adjacent replies are posted, re-run the (e.4) pending-review submission guard.** Auto-vivify mode (a) can re-occur on these new replies even after step 1's (e.4) cleared the queue, so query `reviews(states: PENDING)` filtered by `author.login == viewer.login` again, submit each via `submitPullRequestReview(id, event: COMMENT)`, and re-assert zero pending reviews owned by the viewer remain before proceeding to step 3. If a pending review cannot be submitted, stop with the **Pending reply unsubmittable** condition.
-3. **Stop the loop, do not push a re-review request.** Skip steps (f) and (g) for this iteration: there is no point in waiting for Copilot to re-review when the next move is a human decision. Print the iteration summary table per step (h), with the adjacent-finding count broken out, and ask the user to choose:
+3. **Stop the loop, do not push a re-review request.** Skip steps (f) and (g) for this iteration: the next move is a human decision (the three-choice prompt below), so the 10-minute poll would only delay the handoff. This is the **only** documented exception to the "never skip step (g) after a Path-A push" auto-execution invariant; if the user picks "approve fixing in this PR", the next iteration fetches a fresh Copilot review anyway, so no signal is permanently lost. Print the iteration summary table per step (h), with the adjacent-finding count broken out, and ask the user to choose:
    - **(a) Approve fixing in this PR**: resume the loop on the next iteration with the deferred fixes pulled into scope. Pushing the new commit will land via the normal Path A flow.
    - **(b) Track in a follow-up issue**: file the issue (or have the user file it), then post a final reply on each adjacent thread with `tracked in <link>` and call `resolveReviewThread` on it. Loop ends.
    - **(c) "Won't fix in this PR"**: post a one-line rationale reply on each adjacent thread, call `resolveReviewThread`, then resume the loop if there are still in-scope threads to address (rare, since step 1 already drained those) or end the loop otherwise.
@@ -362,7 +361,7 @@ These hold at every step:
 - **Never** commit or touch files outside the PR's diff to "fix" something we noticed in passing. Surface it as an adjacent finding for human review instead.
 - **Never** modify CI configuration, `.env`, secrets, or lockfiles unless the Copilot thread is specifically about that file.
 - **Never** post anything to chat platforms or tickets.
-- **Never** skip step (g) after a Path-A push. The 10-minute poll is the only authoritative signal that Copilot has (or has not) reviewed. App-mode auto-review, step (f)'s HTTP outcome, prior iterations' patterns, and elapsed iteration count are not substitutes. Confirmation bias from a long successful run is the failure mode this invariant catches.
+- **Never** skip step (g) after a Path-A push, with one documented exception: the **Partial scope creep recipe** step 3 explicitly skips (f) and (g) because the loop hands off to the user immediately and the next iteration (if the user picks "approve fixing in this PR") fetches a fresh Copilot review anyway. Outside that recipe, the 10-minute poll is the only authoritative signal that Copilot has (or has not) reviewed. App-mode auto-review, step (f)'s HTTP outcome, prior iterations' patterns, and elapsed iteration count are not substitutes. Confirmation bias from a long successful run is the failure mode this invariant catches. **Path B also runs (g)** even though HEAD is unchanged: Copilot can re-review unchanged HEAD on PR-state changes (description/title/label edits, replies, resolves), and the (g) TIMEOUT branch falls through to (f.5) safely on Path B.
 - **Never** leave replies in a pending review. `addPullRequestReviewThreadReply` may auto-vivify a pending review owned by the viewer when none is in progress; step (e.4) submits it before resolving threads. A run that completes with replies still pending is a silent failure: GitHub, Copilot, and humans see no replies, and the next iteration polls Copilot reviewing against a state where it has no record of our responses (confirmation-bias path: looks fine, isn't).
 - **Never** trust an external-effect step's happy-path response without re-querying state. After step (f)'s `request_copilot_review` MCP call, verify the bot is on `reviewRequests.nodes`; after step (e.3)'s reply mutation, verify zero pending reviews owned by the viewer remain. Both bugs that motivated this section's wording (2026-05-02 live run on `SymmetrySoftware/stl-poc#13`) returned success and looked fine.
 
