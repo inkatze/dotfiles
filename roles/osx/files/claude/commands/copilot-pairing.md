@@ -49,7 +49,7 @@ Be more conservative than in `/copilot-review` because nobody is checking our wo
 
 - If the three passes do not converge, mark `low-confidence` and trigger the **Cannot reproduce** or **Ambiguity** stop condition (whichever fits).
 - If two valid interpretations exist, trigger **Ambiguity**.
-- If the fix would touch a file outside the PR's existing diff, trigger **Scope creep**.
+- If a fix would touch a file outside the PR's existing diff, branch on the iteration's mix. **All** threads out-of-scope: trigger **Scope creep**. **Some** in-scope and **some** out-of-scope: do not stop here; follow the **Partial scope creep recipe** below the stop-conditions table, which drains in-scope threads via the normal Path A flow and replies to out-of-scope threads as adjacent findings before handing off.
 - After classifying every thread, if the iteration has at least 3 threads AND more than half are `false positive`, trigger **High false-positive ratio** (the model may be misreading the change; pause for re-alignment rather than spamming dismissals). Single isolated hallucinations on small-thread iterations should be dismissed-and-resumed in-loop rather than escalated.
 - Apply the same three-pass rigor to every proposed fix. Do not trust Copilot's recommendation; design our own from first principles, then validate it from three angles before accepting.
 
@@ -104,7 +104,7 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
 
    We capture two values because step (g) needs both:
    - **`push_epoch`** drives the 10-minute deadline math.
-   - **`baseline_review_id`** lets the poll match a *new* Copilot review unambiguously even when its `submittedAt` rounds down to the same second as `push_epoch`. Filtering on `submittedAt > push_epoch` alone misses same-second submissions (jq's `fromdateiso8601` is second-precision, and macOS `date` doesn't support sub-second `%N`). Filtering on `id != baseline_review_id` alone would re-match older Copilot reviews. Combining both (`submittedAt >= push_epoch AND id != baseline_review_id`) excludes pre-existing reviews and accepts same-second submissions. If there is no prior Copilot review, the baseline file holds the empty string and any non-empty review id passes.
+   - **`baseline_id`** lets the poll match a *new* Copilot review unambiguously even when its `submittedAt` rounds down to the same second as `push_epoch`. Filtering on `submittedAt > push_epoch` alone misses same-second submissions (jq's `fromdateiso8601` is second-precision, and macOS `date` doesn't support sub-second `%N`). Filtering on `id != baseline_id` alone would re-match older Copilot reviews. Combining both (`submittedAt >= push_epoch AND id != baseline_id`) excludes pre-existing reviews and accepts same-second submissions. If there is no prior Copilot review, the baseline file holds the empty string and any non-empty review id passes.
 
    **Why `reviews(last: 20)` here, not `last: 5`.** A narrower window can drop the most recent Copilot review on long-lived PRs: each `addPullRequestReviewThreadReply` in (e.3) can auto-vivify a separate viewer-authored review (see step (e.4) "Two auto-vivify modes"), and several review-state mutations can stack up between Copilot reviews. With `last: 5`, the most recent Copilot review can fall out of the window, the jq pipeline writes the empty string to the baseline file, and step (g)'s poll then cannot distinguish "new Copilot review submitted at the same second as `push_epoch`" from "no new review at all". `last: 20` keeps the actual baseline visible across realistic clutter. (Pre-flight step 3's `last: 5` is a different question: it only needs to find ANY Copilot review to determine bot type, not the latest one, so a narrower window is fine there.)
 3. **Reply to threads** using `/copilot-review` step 8 mutations. **Use `addPullRequestReviewThreadReply` only**; see the DO-NOT-USE callout in `/copilot-review` step 8 about `addPullRequestReviewComment`. **Body construction: inline bash heredoc, not temp file.** Build the body inside the same `Bash` invocation that runs the GraphQL mutation:
@@ -316,7 +316,7 @@ This is what I scroll back through to audit the run.
 
 ## Stop conditions (mandatory human handoff)
 
-If any condition fires, **stop**. Print the latest iteration table, name the condition, and wait for me. Do not push, do not reply, do not re-request review.
+If any condition fires, **stop**. Print the latest iteration table, name the condition, and wait for me. Do not push, do not reply, do not re-request review. (Exception: when the **Scope creep** row's "SOME threads in-scope" branch fires, follow the **Partial scope creep recipe** below the table instead; it deliberately drains in-scope work via the normal Path A flow and posts adjacent-finding replies on out-of-scope threads before stopping without re-requesting review. Every other row follows this preamble strictly.)
 
 | Condition | Trigger |
 |---|---|
