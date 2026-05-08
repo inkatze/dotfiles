@@ -146,7 +146,7 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
 
 **Path B (no code changes; every thread was `already-handled` or `false positive`):**
 
-1. Skip commit/push (no new HEAD), but still capture the poll-window start epoch (`push_epoch`, with the same `date +%s - 2` write; the variable and temp-file name keep the `push_epoch` / `push-epoch` legacy spelling) and baseline Copilot-review id using the same GraphQL block as Path A step 2. Step (g)'s poll runs on Path B too (see step 5).
+1. Skip commit/push (no new HEAD), but still capture the poll-window start epoch (`push_epoch`, using the same `echo $(( $(date +%s) - 2 )) > /tmp/copilot-pairing-push-epoch.NUMBER` capture from Path A step 2; the variable and temp-file name keep the `push_epoch` / `push-epoch` legacy spelling) and baseline Copilot-review id using the same GraphQL block as Path A step 2. Step (g)'s poll runs on Path B too (see step 5).
 2. Post the reply for each thread, varying by classification (use `addPullRequestReviewThreadReply` either way; same DO-NOT-USE callout applies):
    - **`already-handled`**: reply with a short body referencing the prior commit that actually addressed it. Find the commit via `git log "$(gh pr view --json baseRefName -q '.baseRefName')..HEAD" --oneline -- <file>` (scoped to this branch's commits, top entry is the most recent). Do not hardcode `main`: PRs targeting `develop`, `release/*`, or any other base branch would otherwise return wrong or empty commits.
    - **`false positive`**: post the dismissal reply drafted in step (b) (citing the three passes and why the concern does not apply).
