@@ -249,7 +249,7 @@ while [ $(date +%s) -lt $deadline ]; do
     query($owner: String!, $repo: String!, $number: Int!) {
       repository(owner: $owner, name: $repo) {
         pullRequest(number: $number) {
-          reviews(last: 5) { nodes { id author { login } state submittedAt } }
+          reviews(last: 20) { nodes { id author { login } state submittedAt } }
         }
       }
     }
@@ -275,7 +275,7 @@ Branch on the script's exit:
 - **Exit 0 (`NEW_REVIEW`)**: re-fetch reviewThreads. If any are unresolved, increment iteration counter and loop back to (a). If zero unresolved, success: exit the loop.
 - **Exit 1 (`TIMEOUT`)**: trigger the **No response** stop condition.
 - **Exit 2 (bad input)**: step (e) failed to capture `push_epoch`. Bug in our flow. Stop and surface the script's stderr.
-- **Any other exit code (e.g. 143 from SIGTERM, 137 from SIGKILL/OOM, or any 128+N signal exit from a harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly, reading `push_epoch` and `baseline_id` from the temp files. Use `reviews(last: 20)` here, not `last: 5`: by recovery time, viewer-authored auto-vivified reviews and other state churn since the push may have stacked up, and a narrower window can miss the new Copilot review the same way step (e.2)'s baseline capture can miss the previous one.
+- **Any other exit code (e.g. 143 from SIGTERM, 137 from SIGKILL/OOM, or any 128+N signal exit from a harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly, reading `push_epoch` and `baseline_id` from the temp files. The recovery query uses `reviews(last: 20)` for the same reason the poll script and step (e.2)'s baseline capture do: viewer-authored auto-vivified reviews and other state churn since the push can stack up, and a narrower window can miss the new Copilot review.
   ```bash
   push_epoch=$(cat /tmp/copilot-pairing-push-epoch.NUMBER)
   baseline_id=$(cat /tmp/copilot-pairing-baseline-review-id.NUMBER)
