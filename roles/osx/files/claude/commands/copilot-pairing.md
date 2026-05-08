@@ -85,9 +85,9 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
    - `git add` only the files we actually changed for this iteration (never `git add -A`).
    - Commit with a message of the form `chore(copilot): iter N, address <short summary>`.
    - Push: `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or any rebase flag.
-2. **Capture push timestamp and baseline Copilot-review id** (substitute the PR number from pre-flight step 1):
+2. **Capture poll-window start epoch and baseline Copilot-review id** (substitute the PR number from pre-flight step 1):
    ```bash
-   date +%s > /tmp/copilot-pairing-push-epoch.NUMBER
+   echo $(( $(date +%s) - 2 )) > /tmp/copilot-pairing-push-epoch.NUMBER
    gh api graphql -f query='
      query($owner: String!, $repo: String!, $number: Int!) {
        repository(owner: $owner, name: $repo) {
@@ -107,7 +107,7 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
    The Bash tool spawns a fresh shell per invocation, so plain shell variables will not be visible to the step (g) script. Use the temp files, or inline the literal values into the step (g) script when you send it. Filenames are namespaced by PR number so concurrent pairing sessions on different PRs (e.g., separate worktrees) do not clobber each other.
 
    We capture two values because step (g) needs both:
-   - **`push_epoch`** drives the 10-minute deadline math.
+   - **`push_epoch`** (poll-window start, kept under that legacy name in the variable + temp-file path for backward compatibility with existing run-script copies; conceptually it is the lower bound for the (g) poll filter, applicable to both Path A after a push and Path B with no push) drives the 10-minute deadline math. We subtract 2 seconds when writing the file to absorb a sub-second race: jq's `fromdateiso8601` is second-precision, and a fast Copilot review submitted between `git push` returning and our `date +%s` call could land its `submittedAt` one second before `push_epoch` and be falsely filtered out. Two seconds is conservative for plausible clock skew and still keeps the (g) poll's start before any meaningful new-review submission window.
    - **`baseline_id`** lets the poll match a *new* Copilot review unambiguously even when its `submittedAt` rounds down to the same second as `push_epoch`. Filtering on `submittedAt > push_epoch` alone misses same-second submissions (jq's `fromdateiso8601` is second-precision, and macOS `date` doesn't support sub-second `%N`). Filtering on `id != baseline_id` alone would re-match older Copilot reviews. Combining both (`submittedAt >= push_epoch AND id != baseline_id`) excludes pre-existing reviews and accepts same-second submissions. If there is no prior Copilot review, the baseline file holds the empty string and any non-empty review id passes.
 
    **Why `reviews(last: 20)` here, not a narrower window.** A narrower window can drop the most recent Copilot review on long-lived PRs: each `addPullRequestReviewThreadReply` in (e.3) can auto-vivify a separate viewer-authored review (see step (e.4) "Two auto-vivify modes"), and several review-state mutations can stack up between Copilot reviews. With `last: 5`, the most recent Copilot review can fall out of the window, the jq pipeline writes the empty string to the baseline file, and step (g)'s poll then cannot distinguish "new Copilot review submitted at the same second as `push_epoch`" from "no new review at all". `last: 20` keeps the actual baseline visible across realistic clutter. (Pre-flight step 3 uses the same `last: 20` window for the same robustness reason; see its no-Copilot-review fallback for the bootstrap case where this PR has no prior Copilot review at all.)
@@ -146,7 +146,7 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
 
 **Path B (no code changes; every thread was `already-handled` or `false positive`):**
 
-1. Skip commit/push (no new HEAD), but still capture the push timestamp and baseline Copilot-review id using the same GraphQL block as Path A step 2. Step (g)'s poll runs on Path B too (see step 5).
+1. Skip commit/push (no new HEAD), but still capture the poll-window start epoch (`push_epoch`, with the same `date +%s - 2` write; the variable and temp-file name keep the `push_epoch` / `push-epoch` legacy spelling) and baseline Copilot-review id using the same GraphQL block as Path A step 2. Step (g)'s poll runs on Path B too (see step 5).
 2. Post the reply for each thread, varying by classification (use `addPullRequestReviewThreadReply` either way; same DO-NOT-USE callout applies):
    - **`already-handled`**: reply with a short body referencing the prior commit that actually addressed it. Find the commit via `git log "$(gh pr view --json baseRefName -q '.baseRefName')..HEAD" --oneline -- <file>` (scoped to this branch's commits, top entry is the most recent). Do not hardcode `main`: PRs targeting `develop`, `release/*`, or any other base branch would otherwise return wrong or empty commits.
    - **`false positive`**: post the dismissal reply drafted in step (b) (citing the three passes and why the concern does not apply).
