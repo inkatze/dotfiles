@@ -25,7 +25,7 @@ For each iteration (cap = **10**):
 
 ### a. Generate findings
 
-Apply `/self-review` step 3 (lens walk + tooling sweep + self-critique), then `/self-review` step 4 (Validation Rigor) on every finding.
+Apply `/self-review` step 3 (lens walk + tooling sweep + self-critique), then validate findings per `/self-review` step 4 (Validation Rigor). Full three-pass rigor is a **hard gate** only for findings that could be routed to Auto-applicable, since Polish will silently apply those and condition 4 of `Finding Categorization` requires converged validation. For findings that already fail one of conditions 1–3 (not tool-grounded, not mechanical, or user-observable change) and can therefore only land in Needs human attention, a **soft-floor pass** is enough: spot-check to drop clear false positives, then route to Needs human attention. The user finishes validation during their own review of those items, so spending three full passes on them is wasted work.
 
 **Fan-out vs inline.** `/self-review` step 3 defaults to spawning one `Explore` sub-agent per canonical lens, and that default holds for any non-trivial diff. You may walk lenses inline only when **all three** of these hold; otherwise fan out:
 

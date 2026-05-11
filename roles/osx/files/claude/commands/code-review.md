@@ -96,7 +96,7 @@ When a tool rule grounds a finding (e.g., `ruff F401`, `tsc TS2304`, `rubocop St
 
 ### 8. Follow the standard review workflow
 
-Per CLAUDE.md `Code & PR Reviews`, ask whether to (a) take the whole list at once, (b) go one by one, or (c) batched decisions. For batched mode, the `/code-review` option set is **Post inline / Post as PR-level / Defer to follow-up / Dismiss** (with auto-added "Other" for custom decisions). Up to 4 findings per `AskUserQuestion` call, with progress tracking. Present each comment draft for my approval before it lands in the final list; I may want to adjust wording.
+Per CLAUDE.md `Code & PR Reviews`, ask whether to (a) take the whole list at once, (b) go one by one, (c) batched decisions, or (d) clustered decisions. For batched mode, the `/code-review` option set is **Post inline / Post as PR-level / Defer to follow-up / Dismiss** (with auto-added "Other" for custom decisions); up to 4 findings per `AskUserQuestion` call. For clustered mode, the cluster-wide option set is **Post all inline / Post all as PR-level / Defer all to follow-up / Dismiss all / Pick individually** (with "Pick individually" dropping into batched mode for that cluster only). Show progress tracking in either mode. Present each comment draft for my approval before it lands in the final list; I may want to adjust wording.
 
 **Comment tone requirements:**
 - Constructive and specific
