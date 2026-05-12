@@ -37,7 +37,7 @@ Inline walking does not waive any other invariant: the lens-coverage table, the 
 
 **Known false-positive patterns.** Some tool outputs look like cleanup candidates but are intentional. Drop these at discovery rather than routing them anywhere:
 
-- **Dialyzer `:unnecessary_skip` against paths outside the current env's `elixirc_paths`** (commonly `test/support/*` files surfaced when running `mix dialyzer` directly instead of `mix ci`). The skip filter is intentional CI-side coverage for code dialyzer cannot see from the dev compile path; removing it would silently lose CI coverage. If you cannot determine whether the skip target is reachable from the current env's compile path, route to Needs human attention rather than Auto-applicable.
+- **Dialyzer `:unnecessary_skip` against paths outside the current env's `elixirc_paths`** (commonly `test/support/*` files surfaced when running `mix dialyzer` directly instead of `mix ci`). The skip filter is intentional CI-side coverage for code Dialyzer cannot see from the dev compile path; removing it would silently lose CI coverage. If you cannot determine whether the skip target is reachable from the current env's compile path, route to Needs human attention rather than Auto-applicable.
 
 ### b. Categorize per CLAUDE.md `Finding Categorization`
 
