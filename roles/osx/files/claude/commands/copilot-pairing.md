@@ -84,7 +84,7 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
 1. **Commit and push.**
    - `git add` only the files we actually changed for this iteration (never `git add -A`).
    - Commit with a message of the form `chore(copilot): iter N, address <short summary>`.
-   - Push: `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or any rebase flag.
+   - Push: `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or any rebase flag. If the push fails on a hook (pre-push test, security check, lefthook stage, etc.), trigger the **Push hook failure** stop condition; do not silently retry, do not bypass with `--no-verify`, and do not "fix" unrelated test flakes inside this branch.
 2. **Capture poll-window start epoch and baseline Copilot-review id** (substitute the PR number from pre-flight step 1; substitute the verified bot login from pre-flight step 3 in the `--arg bot ...` flag if it differs from the default, otherwise the baseline file silently lands empty and step (g) loses its disambiguation):
    ```bash
    echo $(( $(date +%s) - 2 )) > /tmp/copilot-pairing-push-epoch.NUMBER
@@ -328,6 +328,7 @@ If any condition fires, **stop**. Print the latest iteration table, name the con
 | **Persistent resolve failure** | A `resolveReviewThread` mutation has silently failed (or been rolled back) for the same threads across two consecutive iterations, so the resolve-only short-circuit in step f.5 cannot drain the queue. |
 | **Scope creep** | A fix would touch code outside the PR's existing diff, or contradicts the PR's stated intent / Jira AC. When SOME threads are in-scope and others are not, see "Partial scope creep" below for the recipe before stopping. |
 | **Test failure** | Any test, linter, type-check, or formatter fails after our change, including pre-existing failures we surface for the first time. |
+| **Push hook failure** | `git push origin <branch>` (step (e.1)) fails on a hook (pre-push test, security check, lefthook stage, etc.). Diagnose whether the failure traces to this iteration's diff or to pre-existing / unrelated state, surface the diagnosis, and hand off. Do not silently retry, do not bypass with `--no-verify`, and do not "fix" unrelated test flakes inside this branch. |
 | **Security-sensitive** | The change touches auth, secrets handling, crypto, permissions, IAM, SQL/shell construction, or sandbox boundaries. Always pause. |
 | **High false-positive ratio** | At least 3 threads in the iteration AND more than half are false positives (model may be misreading the change). Pause for re-alignment. |
 | **Iteration cap** | 10 iterations completed without convergence. Stop and report. |
@@ -355,6 +356,7 @@ When an iteration's threads split between in-scope (lines this PR introduced or 
 
 These hold at every step:
 - **Never** `git push --force` or `--force-with-lease`.
+- **Never** silently retry a failed `git push` or bypass with `--no-verify`. Trigger the **Push hook failure** stop condition with a brief diagnosis instead.
 - **Never** amend, squash, or rebase commits already pushed.
 - **Never** resolve a thread without an explanatory reply.
 - **Never** skip the failing-test-first step on a behavior-changing fix.
