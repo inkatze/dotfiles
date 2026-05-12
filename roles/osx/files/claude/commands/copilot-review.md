@@ -139,6 +139,8 @@ For **low-confidence**: pause and ask me before taking action.
 
 After all items are addressed, commit the changes and push.
 
+**If the push fails on a hook (pre-push test, security check, lefthook stage, etc.):** diagnose whether the failure is caused by this branch's diff or by something pre-existing / unrelated (a flaky test, a broken main, a security check tripping on untouched code). Surface the diagnosis to me and ask whether to (a) investigate and fix in-scope, or (b) hold off pushing. Do not silently retry, **never** bypass with `--no-verify` (the repo policy in `.github/copilot-instructions.md:122-123` forbids it), and do not "fix" unrelated test flakes inside this branch without checking first.
+
 ### 8. Reply to and resolve each thread
 
 **Use `addPullRequestReviewThreadReply` only.** Do **NOT** use `addPullRequestReviewComment` (with or without `inReplyTo`) for this workflow.

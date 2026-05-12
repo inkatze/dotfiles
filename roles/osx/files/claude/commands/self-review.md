@@ -19,6 +19,7 @@ Do a comprehensive code review of the current feature branch.
       - The tooling output from (a)
       - A narrow brief: "find issues in this diff for ONE lens only: `<lens>`. Be exhaustive within your lens. Severity-pruning is forbidden. If no findings, return `none` with a one-line reason. Cite linter / type-checker rules when they fire."
       - The lens's specific concerns, copied verbatim from CLAUDE.md `Discovery Rigor (Issue Identification)` so the sub-agent does not have to re-read it.
+      - **Documentation and Cross-file consistency lenses, extra instruction:** when a spec, README, RFC, ADR, or other doc contains a code snippet, config block, or quoted contract that mirrors an implementation file, diff the snippet **line-by-line** against the file it mirrors. Do not stop at "do they roughly agree?" or pattern-match on the most-visible change (e.g., a renamed identifier) and miss multi-line drift (TTLs, output names, source fields, missing preconditions, signature changes). Report every divergence; the snippet is a contract, not a sketch.
 
    c. **Coordinator merges and dedupes.** A finding hitting two lenses gets one row with both lens labels. Apply the **review-mode refactor instinct** filter (CLAUDE.md `Refactor Instinct`): drop refactor flags that are not anchored in tool output and do not represent this-PR-makes-it-worse. Pre-existing mess unrelated to the diff is out of scope.
 
@@ -55,6 +56,8 @@ Do a comprehensive code review of the current feature branch.
 8. After all items are addressed, commit the changes.
 
 9. If the review found nothing substantive (or after addressing everything), offer to push the branch. Then handle the PR, gracefully reusing an existing one if present:
+
+   **If the push fails on a hook (pre-push test, security check, lefthook stage, etc.):** diagnose whether the failure is caused by this branch's diff or by something pre-existing / unrelated (a flaky test, a broken main, a security check tripping on untouched code). Surface the diagnosis to me and ask whether to (a) investigate and fix in-scope, or (b) hold off pushing. Do not silently retry, **never** bypass with `--no-verify` (the repo policy in `.github/copilot-instructions.md:122-123` forbids it), and do not "fix" unrelated test flakes inside this branch without checking first.
 
    **Check if a PR already exists for this branch:**
    ```
