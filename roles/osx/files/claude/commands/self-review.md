@@ -57,7 +57,7 @@ Do a comprehensive code review of the current feature branch.
 
 9. If the review found nothing substantive (or after addressing everything), offer to push the branch. Then handle the PR, gracefully reusing an existing one if present:
 
-   **If the push fails on a hook (pre-push test, security check, lefthook stage, etc.):** diagnose whether the failure is caused by this branch's diff or by something pre-existing / unrelated (a flaky test, a broken main, a security check tripping on untouched code). Surface the diagnosis to me and ask whether to (a) investigate and fix in-scope, or (b) hold off pushing. Do not silently retry, **never** bypass with `--no-verify` (the repo policy in `.github/copilot-instructions.md` and the global CLAUDE.md "Executing actions with care" rule both forbid it), and do not "fix" unrelated test flakes inside this branch without checking first.
+   **If the push fails on a hook (pre-push test, security check, lefthook stage, etc.):** diagnose whether the failure is caused by this branch's diff or by something pre-existing / unrelated (a flaky test, a broken main, a security check tripping on untouched code). Surface the diagnosis to me and ask whether to (a) investigate and fix in-scope, or (b) hold off pushing. Do not silently retry, **never** bypass with `--no-verify` (the repo policy in `.github/copilot-instructions.md:122-123` forbids it), and do not "fix" unrelated test flakes inside this branch without checking first.
 
    **Check if a PR already exists for this branch:**
    ```
