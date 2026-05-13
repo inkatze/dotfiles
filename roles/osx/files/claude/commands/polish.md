@@ -31,9 +31,13 @@ Apply `/self-review` step 3 (lens walk + tooling sweep + self-critique), then va
 
 - **Doc/config dominant.** More than 80% of changed lines are in markdown, YAML, JSON, or TOML.
 - **Narrow code surface.** At most 2 files contain executable code (shell, Ruby, Python, Go, etc.).
-- **Modest total size.** Fewer than ~500 changed lines.
+- **Modest total size.** Fewer than ~300 changed lines.
 
-Inline walking does not waive any other invariant: the lens-coverage table, the no-silent-pruning rule, and the mandatory self-critique pass all still apply. CLAUDE.md `Discovery Rigor` prefers fan-out for non-trivial diffs and explicitly grants skills the authority to specify when to walk inline; this section exercises that authority.
+Inline walking does not waive any other invariant: the lens-coverage table, the no-silent-pruning rule, and the mandatory self-critique pass all still apply. CLAUDE.md `Discovery Rigor` prefers fan-out for non-trivial diffs and explicitly grants skills the authority to specify when to walk inline; this section exercises that authority. The bar is intentionally low because a single coordinator agent self-prunes once a diff is even mid-size, and fan-out is cheap insurance.
+
+**Known false-positive patterns.** Some tool outputs look like cleanup candidates but are intentional. Drop these at discovery rather than routing them anywhere:
+
+- **Dialyzer `:unnecessary_skip` against paths outside the current env's `elixirc_paths`** (commonly `test/support/*` files surfaced when running `mix dialyzer` directly instead of `mix ci`). The skip filter is intentional CI-side coverage for code Dialyzer cannot see from the dev compile path; removing it would silently lose CI coverage. If you cannot determine whether the skip target is reachable from the current env's compile path, route to Needs human attention rather than Auto-applicable.
 
 ### b. Categorize per CLAUDE.md `Finding Categorization`
 
