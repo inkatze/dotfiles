@@ -73,37 +73,6 @@
     state: link
   tags: [osx]
 
-- name: Check Ollama service state
-  ansible.builtin.shell:
-    cmd: |
-      set -o pipefail
-      brew services list | awk '/^ollama / {print $2}'
-  register: osx_ollama_service_state
-  changed_when: false
-  tags: [osx, ollama]
-
-- name: Start Ollama service
-  ansible.builtin.command:
-    cmd: brew services start ollama
-  when: osx_ollama_service_state.stdout != 'started'
-  tags: [osx, ollama]
-
-- name: List installed Ollama models
-  ansible.builtin.command:
-    cmd: ollama list
-  register: osx_ollama_models
-  changed_when: false
-  tags: [osx, ollama-models]
-
-- name: Pull Ollama panel-backend models
-  ansible.builtin.command:
-    cmd: "ollama pull {{ item }}"
-  loop:
-    - qwen2.5-coder:32b
-    - deepseek-r1:32b
-  when: item not in osx_ollama_models.stdout
-  tags: [osx, ollama-models]
-
 - name: Showing Library folder
   ansible.builtin.command:
     cmd: chflags nohidden ~/Library
