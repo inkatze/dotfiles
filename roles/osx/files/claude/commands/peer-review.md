@@ -69,9 +69,9 @@ For each remaining thread, apply the canonical rigor in CLAUDE.md `Validation Ri
 
 Classify each as **valid**, **false positive**, **preference**, or **low-confidence** (passes did not converge; never guess). When the concern is a matter of preference, surface the trade-off rather than asserting correctness.
 
-### 5. Present the validated threads as two tables
+### 5. Present the validated threads as three tables
 
-Split per CLAUDE.md `Finding Categorization`. Both tables always appear; if a bucket is empty, print a single `none` row.
+Split per CLAUDE.md `Finding Categorization`. All three tables always appear; if a bucket is empty, print a single `none` row.
 
 **Auto-applicable** (the reviewer flagged something tool-grounded and mechanical; reply can be a terse "Done in `<sha>`"):
 
@@ -82,16 +82,22 @@ Split per CLAUDE.md `Finding Categorization`. Both tables always appear; if a bu
 - **Rule cited**: the linter / type-checker / formatter rule that confirms the reviewer's concern.
 - **Draft response**: short, polite. "Done in `<sha>`" or "Good catch, fixed in `<sha>`" is usually enough.
 
-**Needs human attention** (preference, design, refactor, ambiguity, low-confidence, anything that needs a real reply):
+**Needs sign-off** (LLM has a clear recommended response, but the change touches a public API / external interface / sensitive area, or the response is non-trivial and benefits from approval before posting):
 
-| # | Thread ID | File:Line | Reviewer's concern | What we found | Classification | Confidence | Validation passes | Recommendation | Draft response |
-|---|---|---|---|---|---|---|---|---|---|
+| # | Thread ID | File:Line | Reviewer's concern | What we found | Classification | Validation passes | Proposed action | Draft response |
+|---|---|---|---|---|---|---|---|---|
 
-- **What we found**: a one-line, plain-prose verdict from our investigation (the rationale that supports the `Classification` bucket).
-- **Classification**: valid / false positive / preference / low-confidence.
-- **Confidence**: high / medium / low.
-- **Recommendation**: implement fix / dismiss / defer to follow-up / acknowledge preference and explain trade-off / etc.
-- **Draft response**: literal reply you would post. See step 6 tone requirements (concise but not curt, acknowledges good points, no corporate speak, no em-dashes, sounds natural and human, written as if the user wrote it themselves).
+- **Classification**: valid / false positive / preference (with clear stance).
+- **Proposed action**: implement fix / dismiss / acknowledge preference with explanation. Single recommended action per finding.
+- **Draft response**: literal reply (subject to step 6 tone requirements). Default decision is `Apply`; `Skip` covers "don't post this reply" and `Modify` lets you adjust wording.
+
+**Needs human judgment** (genuinely ambiguous, low-confidence, multiple valid responses, or requires product / UX / domain context):
+
+| # | Thread ID | File:Line | Reviewer's concern | What we found | Why ambiguous | Confidence | Validation passes | Options |
+|---|---|---|---|---|---|---|---|---|
+
+- **Why ambiguous**: the specific reason the LLM cannot pick a response from first principles (multiple valid resolutions, missing context, tradeoff, low confidence from three-pass).
+- **Options**: the concrete branches the user is choosing between (per `Finding Categorization`'s per-finding option authoring rule). Bespoke per finding; generic timing options are forbidden.
 
 If a column is not useful for this PR, say so before printing the table and adjust. Optional add-ons worth considering: `Severity`, `Files touched by fix`, `Scope risk` (in-scope / out-of-scope).
 
@@ -99,7 +105,11 @@ No lens-coverage table here: this skill validates pre-existing human threads, it
 
 ### 6. Address items
 
-Follow the standard review workflow (let me choose: all at once, one by one, batched decisions, or clustered decisions, with progress tracking). For batched mode, the `/peer-review` option set is **Address now / Defer to follow-up / Dismiss / Discuss first** (with auto-added "Other" for custom decisions). For clustered mode, the cluster-wide option set is **Address all / Defer all to follow-up / Dismiss all / Pick individually** (with "Pick individually" dropping into batched mode for that cluster only).
+Follow the standard review workflow (let me choose: all at once, one by one, batched decisions, or clustered decisions, with progress tracking). Option sets are derived from each thread's bucket per CLAUDE.md `Finding Categorization`:
+
+- **Auto-applicable**: apply the mechanical fix and post the terse "Done in `<sha>`" reply after sign-off on the reply text (the underlying fix is mechanical, the human still owns the reply since it goes to another person).
+- **Needs sign-off**: `Apply / Skip / Modify` in batched mode (Apply lands the proposed action + drafted reply; Skip drops the thread without posting; Modify lets you tweak the wording before it lands); `Apply all / Skip all / Pick individually` in clustered mode.
+- **Needs human judgment**: bespoke options per thread (the actual response branches; generic timing options are forbidden); cluster-wide options reflect the shared axis when clustering applies.
 
 **Response tone requirements** (this is critical since we are replying to a person):
 - Concise but not curt

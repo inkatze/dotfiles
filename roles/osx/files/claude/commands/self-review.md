@@ -34,9 +34,14 @@ Do a comprehensive code review of the current feature branch.
 
    Drop or downgrade items where the three passes do not converge. Eliminate false positives and speculative concerns. Only report issues you are confident about.
 
-5. Present results: the canonical lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` first, then both findings tables per CLAUDE.md `Finding Categorization`. No `Draft comment` column on either table: this skill implements fixes, it does not post per-finding comments.
+5. Present results: the canonical lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` first, then the three findings tables per CLAUDE.md `Finding Categorization` (Auto-applicable, Needs sign-off, Needs human judgment, in fixed order; empty buckets get a single `none` row). No `Draft comment` column on the tables: this skill implements fixes, it does not post per-finding comments.
 
-6. Follow the standard review workflow (let me choose: all at once, one by one, batched decisions, or clustered decisions, with progress tracking). For batched mode, the `/self-review` option set is **Address now / Defer to follow-up / Dismiss / Discuss first** (with auto-added "Other" for custom decisions). For clustered mode, the cluster-wide option set is **Address all / Defer all to follow-up / Dismiss all / Pick individually** (with "Pick individually" dropping into batched mode for that cluster only). When implementing fixes, apply the **two-or-three-angle solution validation** (canonical spec in CLAUDE.md `Validation Rigor (Solutions)`):
+6. Follow the standard review workflow (let me choose: all at once, one by one, batched decisions, or clustered decisions, with progress tracking). Option sets are derived from each finding's bucket per CLAUDE.md `Finding Categorization`:
+   - **Auto-applicable**: no question, apply with solution validation (no user prompt).
+   - **Needs sign-off**: standard `Apply / Skip / Modify` option set in batched mode; `Apply all / Skip all / Pick individually` in clustered mode (auto-added "Other" in both).
+   - **Needs human judgment**: bespoke options per finding in batched mode (the skill authors the actual decision branches; generic timing options are forbidden, see `Finding Categorization` forcing function); cluster-wide options that reflect the shared axis in clustered mode.
+
+   When implementing fixes, apply the **two-or-three-angle solution validation** (canonical spec in CLAUDE.md `Validation Rigor (Solutions)`):
    - Targeted failing test for the bug's exact reason → fix → confirm test passes.
    - Run the broader test suite, linters, and type-checkers. Watch for regressions.
    - When relevant: edge cases (null, empty, max, concurrency), integration / smoke tests, or manual exercise of the user-facing flow.

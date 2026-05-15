@@ -65,6 +65,10 @@ brew "mariadb@10.6"
 brew "mysql@8.0"
 brew "postgresql@18"
 
+# AI tools (panel review / pairing backends)
+brew "ollama"
+cask "codex"
+
 # MAS CLI
 brew "mas"
 

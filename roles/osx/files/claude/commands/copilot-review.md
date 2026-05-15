@@ -106,23 +106,34 @@ If a column is not useful for the current PR (or you want a different cut), say 
 **Adjacent-findings output (from step 4's Discovery Rigor pass).** Always emit:
 
 1. The canonical lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)`, scoped to the files / hunks Copilot reviewed (not the full diff).
-2. **Two adjacent-findings tables**, split per CLAUDE.md `Finding Categorization`. Both always appear; print a single `none` row when a bucket is empty.
+2. **Three adjacent-findings tables**, split per CLAUDE.md `Finding Categorization`. All three always appear; print a single `none` row when a bucket is empty.
 
 **Auto-applicable adjacent findings** (`/polish` could handle these autonomously on the same branch):
 
 | # | Lens | File:Line | Finding | Rule cited | Validation passes | Recommendation |
 |---|---|---|---|---|---|---|
 
-**Needs human attention adjacent findings**:
+**Needs sign-off adjacent findings** (LLM has a single recommended fix, but the change warrants approval before landing):
 
-| # | Lens | File:Line | Finding | Severity | Confidence | Validation passes | Recommendation |
+| # | Lens | File:Line | Finding | Proposed fix | Why sign-off | Validation passes | Recommendation |
 |---|---|---|---|---|---|---|---|
 
-No `Draft comment` column on either: adjacent findings are surfaced for the user to decide on, not posted as standalone PR comments. If the user chooses to address one, fold the change into this iteration's commit. In `/copilot-pairing`, the auto-execution invariant prevents auto-fixing adjacent findings; they are only surfaced for human review.
+**Needs human judgment adjacent findings** (multiple valid resolutions, missing context, or low confidence):
+
+| # | Lens | File:Line | Finding | Why ambiguous | Confidence | Validation passes | Options |
+|---|---|---|---|---|---|---|---|
+
+No `Draft comment` column on any of the three: adjacent findings are surfaced for the user to decide on, not posted as standalone PR comments. If the user chooses to address one, fold the change into this iteration's commit. In `/copilot-pairing`, the auto-execution invariant prevents auto-fixing adjacent findings; they are only surfaced for human review.
 
 ### 6. Address items: solution validated with two or three test angles
 
-Follow the standard review workflow (let me choose: all at once, one by one, batched decisions, or clustered decisions, with progress tracking). For batched mode, the `/copilot-review` option set is **Address now / Defer to follow-up / Dismiss / Discuss first** (with auto-added "Other" for custom decisions). For clustered mode, the cluster-wide option set is **Address all / Defer all to follow-up / Dismiss all / Pick individually** (with "Pick individually" dropping into batched mode for that cluster only).
+Follow the standard review workflow (let me choose: all at once, one by one, batched decisions, or clustered decisions, with progress tracking). Option sets are derived from each thread's bucket per CLAUDE.md `Finding Categorization` (applies to both the main Copilot-thread table and the adjacent findings):
+
+- **Auto-applicable**: apply the mechanical fix; the reply is the terse "Done in `<sha>`" template.
+- **Needs sign-off**: `Apply / Skip / Modify` in batched mode (Apply lands the fix + posts the drafted reply; Skip drops the thread; Modify adjusts before landing); `Apply all / Skip all / Pick individually` in clustered mode.
+- **Needs human judgment**: bespoke options per thread (the actual response branches; generic timing options are forbidden); cluster-wide options reflect the shared axis when clustering applies.
+
+The classification column from the main table (`valid` / `false positive` / `low-confidence` / `adjacent finding`) drives where a thread lands: `valid` items with a clear fix go to Needs sign-off (or Auto-applicable when the fix is mechanical and tool-grounded), `false positive` to Needs sign-off (dismissal reply requires approval), `low-confidence` to Needs human judgment.
 
 For **valid** items that affect runtime behavior, apply the canonical rigor in CLAUDE.md `Validation Rigor (Solutions)`:
 

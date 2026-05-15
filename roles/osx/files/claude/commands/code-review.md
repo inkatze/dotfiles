@@ -64,7 +64,7 @@ Drop or downgrade items where the three passes do not converge. We are leaving c
 
 Lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` first. Then findings grouped into four severity tiers, each as its own table in fixed order: Blockers, Concerns, Suggestions, Nits. Every tier table always appears; if a tier is empty, print a single `none` row so the empty tier is visible (same anti-silent-pruning guard as the lens-coverage table).
 
-`/code-review` does **not** use the Auto-applicable / Needs human attention split (per CLAUDE.md `Finding Categorization`). That split exists as a loop boundary for `/polish` and a prep step for `/self-review`'s local apply loop. `/code-review` only drafts comments for me to submit, so the relevant question is "how important is this and what comment do I post", not "can a robot apply this".
+`/code-review` does **not** use the three-bucket categorization (Auto-applicable / Needs sign-off / Needs human judgment) per CLAUDE.md `Finding Categorization`. That split exists as a loop boundary for `/polish` and `/panel-pairing`, and as a prep step for `/self-review`, `/panel-review`, `/peer-review`, and `/copilot-review`'s local apply loops. `/code-review` only drafts comments for me to submit, so the relevant question is "how important is this and what comment do I post", not "can a robot apply this".
 
 **Blockers** (must address before merge: correctness bugs, security issues, broken tests, missing critical pieces):
 
