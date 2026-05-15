@@ -66,7 +66,7 @@ Lenses:
 8. Tests / verification (coverage of new behavior, missing failing-case tests)
 9. Cross-file consistency (broken invariants, sibling-pattern drift)
 
-Output format: a Markdown table with columns Lens, File:Line, Finding, Rule cited (if any), Severity. One row per finding.
+Output format: ONLY a Markdown table with columns Lens, File:Line, Finding, Rule cited (if any), Severity. No preamble (including `<think>` blocks, "Thinking..." traces, or any reasoning model intermediate output). No commentary, observations, or summaries after the table. The table is the entire response. One row per finding; if a lens has zero findings, emit a row like `| Documentation | n/a | none (one-line reason) | | n/a |` so the empty lens stays visible.
 
 Project tooling output (shared with all backends):
 <tooling output from step 1>
@@ -78,8 +78,15 @@ Diff:
 **Per-backend invocation patterns** (verify exact flags on first use; this is illustrative):
 
 - **codex**: `codex exec "<prompt>"` (or the equivalent flag set; the CLI may require `--model` or similar). Codex returns text on stdout; capture and parse the table.
-- **qwen-coder**: `ollama run qwen2.5-coder:32b "<prompt>"` (or POST to `http://localhost:11434/api/generate` for streaming control). Expect 2-4 minutes wall-clock per invocation on an M1 Max.
-- **deepseek-r1**: `ollama run deepseek-r1:32b "<prompt>"`. Slower than Qwen-Coder because of the reasoning chain; expect 4-8 minutes.
+- **qwen-coder** and **deepseek-r1** (Ollama): **prefer the HTTP API** for programmatic invocation:
+  ```bash
+  curl -s http://localhost:11434/api/generate \
+    -d "$(jq -nR --arg model 'qwen2.5-coder:32b' --rawfile prompt /tmp/panel-review-prompt.txt \
+      '{model: $model, prompt: $prompt, stream: false}')" \
+    | jq -r '.response'
+  ```
+  The API returns clean JSON with the response under `.response`. `ollama run <model> "<prompt>"` works as a fallback but emits ANSI escape codes (cursor moves, line clears) intended for an interactive TTY; even when piped, those leak into the output and require post-processing (`sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\r'`). The HTTP API path avoids that entirely.
+- **Wall-clock estimates on M1 Max 32GB** (one model loaded at a time; Ollama swaps when the second one is invoked): `qwen-coder` ~5 min, `deepseek-r1` ~10 min (slower because of the reasoning chain). Two 32B models cannot stay resident together on 32GB RAM, so running both backends serializes in practice even if the orchestrator fires them in parallel.
 - **copilot**: route through `gh copilot` or the chosen Copilot CLI; specifics depend on which CLI variant is current.
 
 If a backend invocation fails (timeout, parse error, model error), do **not** silently drop it: stop the run and surface the failure. The user invoked this skill specifically for the variance that backend provides; partial runs hide the fact that one source of variance went missing.
