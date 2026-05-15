@@ -212,7 +212,7 @@ The auto-added "Other" option exists for edge cases the LLM did not enumerate. T
 
 **Forcing function.** When drafting options for a finding, if you find yourself writing "now / later / dismiss", stop. Re-route the finding. If the LLM has a single recommended fix, it belongs in Needs sign-off and the options collapse to `Apply / Skip / Modify`. If the LLM does not have a single recommended fix, the bucket-3 options must be the *actual* alternatives the human is choosing between, not timing labels. A bucket-3 finding with generic timing options is a misclassified bucket-2 finding.
 
-**Presentation.** Skills using the categorization present these as **three tables in fixed order**: Auto-applicable, Needs sign-off, Needs human judgment. If any bucket is empty, the table still appears with a single `none` row (anti-silent-omission guard, same purpose as the canonical lens-coverage table).
+**Presentation.** Skills using the categorization present these as **three tables in fixed order**: Auto-applicable, Needs sign-off, Needs human judgment. If any bucket is empty, the table still appears with a single `none` row (anti-silent-pruning guard, same purpose as the canonical lens-coverage table).
 
 ### Refactor Instinct
 
