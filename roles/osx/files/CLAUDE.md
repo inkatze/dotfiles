@@ -93,8 +93,8 @@ When reviewing code, features, or addressing PR feedback:
 - **Present all issues first**: After analysis, present the complete list of confirmed issues as a numbered summary with brief descriptions.
 - **Let the user choose the workflow**: Ask whether they want to review items (a) all at once / as a whole list (re-prioritize, group, bulk-dismiss), (b) one by one with discussion per item, (c) batched decisions (per-finding picklist via `AskUserQuestion`, up to 4 findings per call), or (d) clustered decisions (findings grouped by shared decision axis; one question per cluster; the answer applies to every finding in that cluster). Do not assume they want all items addressed at once. When the finding count is high (~10+), proactively suggest (c) or (d) rather than (b).
 - **Progress tracking**: In one-by-one or batched-decision mode, always show a progress tracker (e.g., `[2/7]`) so the current position and total count are always visible. In clustered-decision mode, show cluster index plus the count it covers (e.g., `cluster [2/4]: 5 findings`).
-- **Batched-decision mode**: use `AskUserQuestion` to present up to 4 findings per call, each as its own single-select question. The skill defines the option set for the workflow (e.g., `/self-review`: Address now / Defer to follow-up / Dismiss / Discuss first; `/code-review`: Post inline / Post as PR-level / Defer to follow-up / Dismiss). The auto-added "Other" handles custom decisions. Acknowledge the decisions before moving on, then act on them per the user's broader workflow choice.
-- **Clustered-decisions mode**: when many findings share a decision axis, collapse them into clusters and ask one question per cluster instead of one per finding. Strong axes: same fix template ("add missing docstrings"), same lens (docs nits, naming nits), same destination (all destined for follow-up), same scope (all in one module). One `AskUserQuestion` per cluster, single-select with cluster-wide actions derived from the skill's option set (the skill specifies its own option set, e.g. "Address all / Defer all to follow-up / Dismiss all / Pick individually" for `/self-review` and peers; "Post all inline / Post all as PR-level / Defer all to follow-up / Dismiss all / Pick individually" for `/code-review`). If "Pick individually", drop into batched-decision mode for that cluster only. Findings that fit no cluster fall back to (b) or (c). List each cluster's members briefly before the question (file:line + one-line summary) so the user can spot mis-grouped items before answering. Best when the finding list is large and several findings share an axis; weak when every finding is bespoke.
+- **Batched-decision mode**: use `AskUserQuestion` to present up to 4 findings per call, each as its own single-select question. The option set is determined by the finding's bucket per `Finding Categorization`. Needs sign-off findings use the standard `Apply / Skip / Modify` option set across every skill that surfaces them. Needs human judgment findings use **bespoke options the skill authors per finding** (the actual decision branches; generic timing options like "now / later / dismiss" are forbidden in this bucket (see `Finding Categorization` for the forcing function)). Skills that don't use the categorization (e.g., `/code-review`) define their own option set tied to the action they're taking (e.g., `/code-review`: Post inline / Post as PR-level / Defer to follow-up / Dismiss, since the workflow is drafting comments to post). The auto-added "Other" handles custom decisions. Acknowledge the decisions before moving on, then act on them per the user's broader workflow choice.
+- **Clustered-decisions mode**: when many findings share a decision axis, collapse them into clusters and ask one question per cluster instead of one per finding. Strong axes: same fix template ("apply this pattern to all"), same lens (docs nits, naming nits), same scope (all in one module), same destination. One `AskUserQuestion` per cluster, single-select with cluster-wide actions matching the cluster's bucket per `Finding Categorization`: Needs sign-off clusters get `Apply all / Skip all / Pick individually`; Needs human judgment clusters get cluster-wide options that reflect the shared axis (e.g., "Choose strict for all" / "Choose lenient for all" / "Pick individually". The same forbidden-timing rule applies, the cluster axis is what determines the options). Skills not using the categorization define their own cluster-wide options (e.g., `/code-review`: Post all inline / Post all as PR-level / Defer all to follow-up / Dismiss all / Pick individually). "Pick individually" drops into batched-decision mode for that cluster only. Findings that fit no cluster fall back to (b) or (c). List each cluster's members briefly before the question (file:line + one-line summary) so the user can spot mis-grouped items before answering. Best when the finding list is large and several findings share an axis; weak when every finding is bespoke (Needs human judgment findings often resist clustering).
 - For each item in one-by-one mode: present it, discuss it, and wait for the user's decision before moving to the next.
 - This applies to: PR review comments, code review findings, feature review feedback, and any similar review workflow.
 
@@ -162,24 +162,57 @@ Skills cite this section the same way they cite Validation Rigor. The canonical 
 
 ### Finding Categorization
 
-After Discovery Rigor produces findings and Validation Rigor confirms them, skills that **act on findings locally** (such as `/self-review`, `/polish`, and `/peer-review`, plus `/copilot-review`'s adjacent-findings output) categorize each finding into one of two buckets and present them as separate tables; `/polish` uses this split as its loop boundary. Skills that **only draft output for elsewhere** (e.g. `/code-review`, which drafts comments for the human to submit) skip the categorization and use a presentation tailored to their workflow (typically severity-grouped). They still apply Discovery Rigor and Validation Rigor in full; the categorization just doesn't gate behavior because no fixes are auto-applied.
+After Discovery Rigor produces findings and Validation Rigor confirms them, skills that **act on findings locally** (such as `/self-review`, `/polish`, `/peer-review`, `/panel-review`, `/panel-pairing`, plus `/copilot-review`'s adjacent-findings output) categorize each finding into one of three buckets and present them as separate tables. `/polish` uses the Auto-applicable bucket as its loop boundary. Skills that **only draft output for elsewhere** (e.g. `/code-review`, which drafts comments for the human to submit) skip the categorization and use a presentation tailored to their workflow (typically severity-grouped). They still apply Discovery Rigor and Validation Rigor in full; the categorization just doesn't gate behavior because no fixes are auto-applied.
 
-**Auto-applicable.** All four conditions must hold; if any is uncertain, the finding goes to Needs human attention.
+The bucket is determined by the **honest decision shape**: what the human actually needs to decide. If the only call is "apply or not", the LLM has the call; if real alternatives exist, the human does. The bucket the finding lands in must match the kind of question the human would otherwise have to answer.
+
+**Auto-applicable.** LLM applies without asking. All four conditions must hold; if any is uncertain, the finding routes to Needs sign-off (or Needs human judgment, if uncertainty is about which path to take rather than whether to apply a known fix).
 
 1. **Tool-grounded.** A specific rule was cited by a linter, formatter, type-checker, static analyzer, or dead-code detector run against the project. "I think this is a bug" does not qualify; "ruff F401: imported but unused" does. The rule citation must appear in the finding row.
 2. **Mechanical fix.** The fix is a rename, reformat, drop-unused, missing-import, missing-newline, typo, inferable-type-annotation, or similar single-step transform. No design decision, no choice between alternatives.
 3. **No user-observable behavior change.** Internal-only edits qualify. Anything that changes a public API, error message a caller could depend on, log output a downstream consumer might parse, or any external contract does not.
 4. **Validation passes converged with high confidence.** All three Validation Rigor passes agreed on the finding and the fix. Low-confidence or split-pass items are never Auto-applicable, even if they look mechanical.
 
-Additional disqualifiers regardless of the four conditions above:
+Plus the unconditional disqualifiers below. Anything disqualified routes to Needs sign-off or Needs human judgment regardless of how mechanical the fix looks; the disqualifier prevents autonomous application but does not prevent the LLM from recommending the fix.
 
-- **Security-sensitive code** (auth, secrets, crypto, permissions, IAM, SQL/shell construction, sandbox boundaries). Always Needs human attention.
-- **Migration / data / destructive ops** (schema changes, backfills, deletes, drops, anything irreversible). Always Needs human attention.
-- **CI configuration, lockfiles, `.env`, secrets files.** Always Needs human attention even if a tool flagged something.
+- **Security-sensitive code** (auth, secrets, crypto, permissions, IAM, SQL/shell construction, sandbox boundaries).
+- **Migration / data / destructive ops** (schema changes, backfills, deletes, drops, anything irreversible).
+- **CI configuration, lockfiles, `.env`, secrets files.**
 
-**Needs human attention.** Everything else. Bugs (even "obvious" ones; the user may have context the agent lacks), refactor proposals, naming changes that affect API surface, performance fixes, missing tests, design-level documentation, anything anchored in judgment over tool output.
+**Needs sign-off.** LLM has a single specific recommended fix and validation converged with high confidence, but the change warrants human approval before landing. The decision the human is making is "apply this exact fix, yes or no", not "what to do" (that's Needs human judgment) and not "when" (which routes here as "yes, apply now" by default).
 
-Skills using the categorization present these as **two tables in a fixed order**: Auto-applicable first, then Needs human attention. If either bucket is empty, the table still appears with a single row stating `none` so the empty bucket is visible (silent omission is the failure mode the canonical lens-coverage table also guards against).
+Route to this bucket when any of these hold:
+
+- The fix touches a public API, error contract, log format, or any external interface.
+- The fix causes a user-observable behavior change but the resolution is clearly correct.
+- The change is in security-sensitive code, a migration / destructive op, CI config, a lockfile, `.env`, or a secrets file (the disqualifiers above), and the LLM has an unambiguous recommended fix.
+- The fix is multi-step or non-mechanical (Auto-applicable condition 2 fails) but the path is unambiguous; the LLM has one best fix, not a choice among alternatives.
+
+**Decision shape: `Apply / Skip / Modify`** (auto-added "Other"). The standard option set across every skill that surfaces this bucket. Default is Apply. `Skip` covers both "no, leave it" and "defer to a follow-up". The LLM does not present timing as a separate option because the question being asked is binary apply-or-not, with deferral expressed as Skip.
+
+**Needs human judgment.** Genuinely requires human input. The decision the human is making is "which approach", not "yes or no".
+
+Route to this bucket when any of these hold:
+
+- Multiple valid resolutions exist and the LLM cannot pick between them from first principles.
+- Missing product / UX / domain context the LLM cannot derive.
+- A real tradeoff that depends on user priorities, not facts.
+- Validation passes did not converge (low confidence in the finding itself).
+- The fix changes a contract in a way that requires a policy call.
+
+**Decision shape: bespoke options per finding.** The skill must enumerate concrete branches: the actual design alternatives, or a specific question with concrete answers. Examples of well-shaped options:
+
+- "Validation could be strict (reject) or lenient (coerce). Which fits the contract?" → `Strict reject` / `Lenient coerce` / `Strict but log coerce path`
+- "Retry policy on partial success is undefined. Which behavior do you want?" → `Retry full operation` / `Retry only the failed sub-step` / `Fail fast`
+- "Endpoint visibility: public or internal?" → `Public` / `Internal` / `Mixed (specify in Other)`
+
+Generic timing options (`Address now` / `Defer to follow-up` / `Dismiss` / `Discuss first`) are **forbidden** in this bucket. If the only honest decision shape is timing, the finding does not belong here; it belongs in Auto-applicable (just do it) or Needs sign-off (Apply with the LLM's recommendation as the default; Skip covers the "later / dismiss" cases).
+
+The auto-added "Other" option exists for edge cases the LLM did not enumerate. The LLM's job is to enumerate the obvious branches; "Other" is the escape hatch, not the default.
+
+**Forcing function.** When drafting options for a finding, if you find yourself writing "now / later / dismiss", stop. Re-route the finding. If the LLM has a single recommended fix, it belongs in Needs sign-off and the options collapse to `Apply / Skip / Modify`. If the LLM does not have a single recommended fix, the bucket-3 options must be the *actual* alternatives the human is choosing between, not timing labels. A bucket-3 finding with generic timing options is a misclassified bucket-2 finding.
+
+**Presentation.** Skills using the categorization present these as **three tables in fixed order**: Auto-applicable, Needs sign-off, Needs human judgment. If any bucket is empty, the table still appears with a single `none` row (anti-silent-pruning guard, same purpose as the canonical lens-coverage table).
 
 ### Refactor Instinct
 
@@ -203,13 +236,15 @@ Guiding principle: **small, continuous refactors prevent large, breaking ones.**
 - Do not invent abstractions for hypothetical future requirements. Three similar lines is fine; demanding a helper for them is noise.
 
 ### Review Workflows
-There are five distinct review workflows, each with a corresponding slash command:
+There are seven review workflows, each with a corresponding slash command:
 
 1. **Self-review** (`/self-review`): Comprehensive code review of the feature branch against main. Review, validate for false positives, iterate until clean, then push and create a draft PR.
-2. **Polish** (`/polish`): Autonomous loop of `/self-review`'s discovery + validation, applying only Auto-applicable items (tool-grounded, mechanical, no behavior change, validation passes converged). Each iteration drains the Auto-applicable bucket and lets Needs human attention items accumulate; the loop only hands off when no Auto-applicable items remain (surfacing the Needs human attention items at that point) or any safety condition fires. Local-only: no push, no PR. Use as a finishing pass before `/self-review` opens the PR.
-3. **Copilot review** (`/copilot-review`): Address unresolved GitHub Copilot review threads on the current PR. Fetch threads via GraphQL, reproduce each issue when relevant, design our own fix (do not trust Copilot's recommendation), validate via the three-pass rigor, present findings as a table, then implement test-first when applicable, comment, and resolve threads via GraphQL.
-4. **Copilot pairing** (`/copilot-pairing`): Same rigor as `/copilot-review`, but loops autonomously: address Copilot's threads, push, re-request review, wait for Copilot's response, repeat until Copilot has no new comments. Hard stop conditions (ambiguity, scope creep, test failure, security-sensitive code, loop detection, iteration cap of 10) hand control back to the human.
-5. **Peer review** (`/peer-review`): Address unresolved peer review threads on the current PR. Same validation process as Copilot review, but responses must sound natural, human, and match the user's communication style.
+2. **Polish** (`/polish`): Autonomous loop of `/self-review`'s discovery + validation, applying only Auto-applicable items (tool-grounded, mechanical, no behavior change, validation passes converged). Each iteration drains the Auto-applicable bucket and lets the other two buckets accumulate; the loop only hands off when no Auto-applicable items remain (surfacing the Needs sign-off and Needs human judgment items at that point) or any safety condition fires. Local-only: no push, no PR. Use as a finishing pass before `/self-review` opens the PR.
+3. **Panel review** (`/panel-review`): Same shape as `/self-review` but routes Discovery Rigor and Validation Rigor through configurable external backends (OpenAI Codex CLI for ChatGPT Enterprise users, local Ollama models like Qwen2.5-Coder and DeepSeek-R1) so the variance does not come exclusively from the active Claude session. Pluggable `--backends` flag with profile-aware defaults (work repos default to Codex; personal repos default to local models). Intended to replace `/copilot-review` for cases where GitHub Copilot quota is the bottleneck.
+4. **Panel pairing** (`/panel-pairing`): Autonomous loop of `/panel-review`, same shape as `/copilot-pairing` minus all GitHub-Copilot-specific machinery (no bot detection, no GraphQL re-request, no 10-minute poll). Iterates until convergence (two consecutive iterations with zero new valid findings) or a safety condition fires; iteration cap 15. Intended to replace `/copilot-pairing`.
+5. **Peer review** (`/peer-review`): Address unresolved peer review threads on the current PR. Same validation process as `/copilot-review`, but responses must sound natural, human, and match the user's communication style.
+6. **Copilot review** (`/copilot-review`): Address unresolved GitHub Copilot review threads on the current PR. Fetch threads via GraphQL, reproduce each issue when relevant, design our own fix (do not trust Copilot's recommendation), validate via the three-pass rigor, present findings as a table, then implement test-first when applicable, comment, and resolve threads via GraphQL. **Transitional**, kept active during the `/panel-*` proving period and retired in a follow-up PR.
+7. **Copilot pairing** (`/copilot-pairing`): Same rigor as `/copilot-review`, but loops autonomously: address Copilot's threads, push, re-request review, wait for Copilot's response, repeat until Copilot has no new comments. Hard stop conditions (ambiguity, scope creep, test failure, security-sensitive code, loop detection, iteration cap of 10) hand control back to the human. **Transitional**, kept active during the `/panel-pairing` proving period and retired in a follow-up PR.
 
 For reviewing **someone else's** PR (not your own), use `/code-review` instead. It checks out the PR, applies the same three-pass validation rigor, and drafts comments for the user to submit manually.
 
