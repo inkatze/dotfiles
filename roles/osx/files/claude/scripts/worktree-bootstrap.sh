@@ -133,6 +133,8 @@ has_pnpm=0
 # so a root-only `npm ci` would always fail with ENOENT. Same hazard applies
 # to any repo that commits a lockfile without its project file at the same
 # level. mix.exs and go.mod are themselves the project file, so no pairing.
+# uv accepts either pyproject.toml OR uv.toml as the project file (uv.toml
+# is uv's standalone alternative when there's no Python packaging metadata).
 [ -f "$cwd/package.json" ] && [ -f "$cwd/package-lock.json" ] && { has_npm=1; add_installer "npm" "npm ci"; }
 [ -f "$cwd/package.json" ] && [ -f "$cwd/pnpm-lock.yaml" ] && [ $has_npm -eq 0 ] && { has_pnpm=1; add_installer "pnpm" "pnpm install --frozen-lockfile"; }
 [ -f "$cwd/package.json" ] && [ -f "$cwd/yarn.lock" ] && [ $has_npm -eq 0 ] && [ $has_pnpm -eq 0 ] && add_installer "yarn" "yarn install --frozen-lockfile"
@@ -140,7 +142,7 @@ has_pnpm=0
 [ -f "$cwd/mix.exs" ] && add_installer "mix" "mix deps.get"
 [ -f "$cwd/go.mod" ] && add_installer "go" "go mod download"
 [ -f "$cwd/Cargo.toml" ] && [ -f "$cwd/Cargo.lock" ] && add_installer "cargo" "cargo fetch"
-[ -f "$cwd/pyproject.toml" ] && [ -f "$cwd/uv.lock" ] && add_installer "uv" "uv sync"
+{ [ -f "$cwd/pyproject.toml" ] || [ -f "$cwd/uv.toml" ]; } && [ -f "$cwd/uv.lock" ] && add_installer "uv" "uv sync"
 [ -f "$cwd/pyproject.toml" ] && [ -f "$cwd/poetry.lock" ] && add_installer "poetry" "poetry install --no-root"
 
 has_repo_hook=0
