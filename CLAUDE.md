@@ -136,10 +136,10 @@ The `/panel-*` skills hit Ollama over HTTP. Only the `work` inventory host
 runs the daemon and pulls the 32B models; `personal` and `alt` are clients
 that route to it over the LAN.
 
-| Host | Ollama daemon | OLLAMA_BASE_URL |
+| Host | Ollama daemon | Client env (set in `roles/fish/files/ollama.fish`) |
 |---|---|---|
-| `work` | Served, bound to `0.0.0.0:11434` via `OLLAMA_HOST` in `~/Library/LaunchAgents/homebrew.mxcl.ollama.plist` | unset (clients fall back to `http://localhost:11434`) |
-| `personal`, `alt` | Not managed by Ansible | `http://192.168.1.20:11434` (set in `roles/fish/files/ollama.fish`) |
+| `work` | Served, bound to `0.0.0.0:11434` via `OLLAMA_HOST` in `~/Library/LaunchAgents/homebrew.mxcl.ollama.plist` | unset (the `ollama` CLI and HTTP consumers fall back to `localhost:11434`) |
+| `personal`, `alt` | Not managed by Ansible | `OLLAMA_HOST=192.168.1.20:11434` (for the `ollama` CLI) and `OLLAMA_BASE_URL=http://192.168.1.20:11434` (for HTTP consumers like `/panel-*` skills) |
 
 The work host's IP is a DHCP reservation at `192.168.1.20`. Updates:
 
