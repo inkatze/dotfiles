@@ -84,9 +84,19 @@
   when: inventory_hostname == 'work'
   tags: [osx, ollama]
 
-- name: Restart Ollama service to pick up OLLAMA_HOST change
-  ansible.builtin.command:
-    cmd: brew services restart ollama
+# Reload via launchctl, NOT `brew services restart`. The latter regenerates
+# the plist from the formula's `service` block on every invocation, which
+# wipes the OLLAMA_HOST key we just added (the formula bakes in
+# OLLAMA_FLASH_ATTENTION and OLLAMA_KV_CACHE_TYPE, so those survive; nothing
+# we add does). bootout+bootstrap reloads the existing plist as-is.
+- name: Reload Ollama LaunchAgent to pick up OLLAMA_HOST change
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      plist="{{ ansible_env.HOME }}/Library/LaunchAgents/homebrew.mxcl.ollama.plist"
+      uid="$(id -u)"
+      launchctl bootout "gui/$uid/homebrew.mxcl.ollama" 2>/dev/null || true
+      launchctl bootstrap "gui/$uid" "$plist"
   when:
     - inventory_hostname == 'work'
     - osx_ollama_host_plist_set is changed

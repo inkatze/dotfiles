@@ -152,9 +152,15 @@ The work host's IP is a DHCP reservation at `192.168.1.20`. Updates:
 generated LaunchAgent plist with `PlistBuddy` (additive: existing tuning
 keys like `OLLAMA_FLASH_ATTENTION` are preserved). Ansible also runs
 `launchctl setenv` to apply the change to the current launchd session
-without waiting for a reboot, then `brew services restart ollama` when the
-plist changed. After `brew upgrade ollama` Homebrew may regenerate the
-plist; re-running `mise run osx` re-adds the key.
+without waiting for a reboot, then reloads the LaunchAgent via
+`launchctl bootout` + `launchctl bootstrap` when the plist changed.
+**Do not use `brew services restart ollama` for this**: that command
+regenerates the plist from the formula's `service` block on every
+invocation, wiping any keys not baked into the formula
+(`OLLAMA_FLASH_ATTENTION` and `OLLAMA_KV_CACHE_TYPE` survive because the
+formula defines them; `OLLAMA_HOST` does not). Same hazard applies to
+`brew upgrade ollama`. Either way, re-run `mise run osx` to re-add the
+key.
 
 **Trust caveat:** Ollama has no auth. Binding to `0.0.0.0` exposes the
 daemon to everything on the LAN. Fine on a trusted home network; on
