@@ -36,6 +36,18 @@
   when: inventory_hostname == 'work'
   tags: [osx, ollama]
 
+# Start the service first so brew generates the LaunchAgent plist from the
+# formula's service block. Editing the plist before this point would have
+# PlistBuddy silently create a stub plist that suppresses brew's
+# regeneration and breaks the daemon on a fresh work-host setup.
+- name: Start Ollama service
+  ansible.builtin.command:
+    cmd: brew services start ollama
+  when:
+    - inventory_hostname == 'work'
+    - osx_ollama_service_state.stdout != 'started'
+  tags: [osx, ollama]
+
 - name: Read current OLLAMA_HOST from Ollama LaunchAgent plist
   ansible.builtin.command:
     cmd: >-
@@ -69,14 +81,6 @@
     cmd: launchctl setenv OLLAMA_HOST 0.0.0.0:11434
   changed_when: false
   when: inventory_hostname == 'work'
-  tags: [osx, ollama]
-
-- name: Start Ollama service
-  ansible.builtin.command:
-    cmd: brew services start ollama
-  when:
-    - inventory_hostname == 'work'
-    - osx_ollama_service_state.stdout != 'started'
   tags: [osx, ollama]
 
 - name: Restart Ollama service to pick up OLLAMA_HOST change
