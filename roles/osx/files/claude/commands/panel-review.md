@@ -37,7 +37,7 @@ For autonomous looping (review, apply, push, re-review until convergence), use `
 5. **Verify each backend.** Stop with a specific install / auth message if any fails; do not silently drop a backend (the user expects the variance the backend provides).
 
    - `codex`: `command -v codex` must succeed; `codex auth status` (or equivalent: query the codex CLI's own readiness probe) must report an authenticated session. If not authed, stop with `Codex CLI needs auth; run 'codex login'`. If not installed, stop with `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'`.
-   - `qwen-coder` / `deepseek-r1`: `curl -sf http://localhost:11434/api/tags` must return a body containing the model name (`qwen2.5-coder:32b` or `deepseek-r1:32b`). If the API does not respond, stop with `Ollama service not running; brew services start ollama`. If the model is missing, stop with `Model not pulled; ollama pull <name>` (the dotfiles Ansible task pulls both by default; missing means an opt-out happened).
+   - `qwen-coder` / `deepseek-r1`: `curl -sf "${OLLAMA_BASE_URL:-http://localhost:11434}/api/tags"` must return a body containing the model name (`qwen2.5-coder:32b` or `deepseek-r1:32b`). If the API does not respond, stop with `Ollama service not running; brew services start ollama` (on the work host; on personal/alt the dotfiles fish conf.d/ollama.fish points OLLAMA_BASE_URL at the work host's LAN IP, see dotfiles `CLAUDE.md` "Cross-host Ollama topology"). If the model is missing, stop with `Model not pulled; ollama pull <name>` (the dotfiles Ansible task pulls both on the work host by default; missing means an opt-out or the cross-host route is not configured).
    - `copilot`: `gh copilot --help` must succeed and the account must have quota. Stop if `gh` is not authenticated or `gh copilot` returns a quota-exhausted error.
 
 ## Steps
@@ -78,9 +78,9 @@ Diff:
 **Per-backend invocation patterns** (verify exact flags on first use; this is illustrative):
 
 - **codex**: `codex exec "<prompt>"` (or the equivalent flag set; the CLI may require `--model` or similar). Codex returns text on stdout; capture and parse the table.
-- **qwen-coder** and **deepseek-r1** (Ollama): **prefer the HTTP API** for programmatic invocation:
+- **qwen-coder** and **deepseek-r1** (Ollama): **prefer the HTTP API** for programmatic invocation. The base URL is read from `OLLAMA_BASE_URL` (set in fish conf.d/ollama.fish on personal/alt hosts to the work host's LAN IP) and falls back to `http://localhost:11434` on the work host itself:
   ```bash
-  curl -s http://localhost:11434/api/generate \
+  curl -s "${OLLAMA_BASE_URL:-http://localhost:11434}/api/generate" \
     -d "$(jq -nR --arg model 'qwen2.5-coder:32b' --rawfile prompt /tmp/panel-review-prompt.txt \
       '{model: $model, prompt: $prompt, stream: false}')" \
     | jq -r '.response'

@@ -21,6 +21,24 @@
     state: link
   tags: [fish]
 
+# conf.d/ is in .gitignore (fisher writes plugin shims there), so tracked
+# snippets live alongside fish/ and get symlinked into conf.d at runtime.
+# Ensure the dir exists first: on a fresh checkout (or in CI) nothing has
+# populated conf.d yet, so the symlink dest's parent does not exist.
+- name: Create fish conf.d directory
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.config/fish/conf.d"
+    state: directory
+    mode: "0755"
+  tags: [fish]
+
+- name: Symlink ollama.fish into fish conf.d
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/fish/files/ollama.fish"
+    dest: "{{ ansible_env.HOME }}/.config/fish/conf.d/ollama.fish"
+    state: link
+  tags: [fish]
+
 - name: Install fisherman
   ansible.builtin.shell:
     cmd: >
