@@ -24,7 +24,8 @@
 
 # Ollama daemon + model management lives on the work host only.
 # Personal/alt hosts run the panel commands as clients and reach the
-# work host's Ollama via OLLAMA_BASE_URL (set in fish conf.d/ollama.fish).
+# work host's Ollama via OLLAMA_HOST + OLLAMA_BASE_URL (set in fish
+# conf.d/ollama.fish).
 
 - name: Check Ollama service state
   ansible.builtin.shell:

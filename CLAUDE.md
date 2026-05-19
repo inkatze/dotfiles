@@ -160,8 +160,9 @@ plist; re-running `mise run osx` re-adds the key.
 daemon to everything on the LAN. Fine on a trusted home network; on
 untrusted networks, stop the service (`brew services stop ollama`) or
 revert the LaunchAgent edit, and SSH-tunnel from clients instead
-(`ssh -L 11434:localhost:11434 <work-host>` plus `OLLAMA_BASE_URL=
-http://localhost:11434` on the client).
+(`ssh -L 11434:localhost:11434 <work-host>` plus
+`OLLAMA_HOST=localhost:11434` and
+`OLLAMA_BASE_URL=http://localhost:11434` on the client).
 
 ## Ansible role layout
 
