@@ -130,6 +130,39 @@ unnoticed. To add another secret-bearing MCP server, mirror this
 layout: new script under `scripts/`, new task in both files, same CI
 guard.
 
+## Cross-host Ollama topology
+
+The `/panel-*` skills hit Ollama over HTTP. Only the `work` inventory host
+runs the daemon and pulls the 32B models; `personal` and `alt` are clients
+that route to it over the LAN.
+
+| Host | Ollama daemon | OLLAMA_BASE_URL |
+|---|---|---|
+| `work` | Served, bound to `0.0.0.0:11434` via `OLLAMA_HOST` in `~/Library/LaunchAgents/homebrew.mxcl.ollama.plist` | unset (clients fall back to `http://localhost:11434`) |
+| `personal`, `alt` | Not managed by Ansible | `http://192.168.1.20:11434` (set in `roles/fish/files/fish/conf.d/ollama.fish`) |
+
+The work host's IP is a DHCP reservation at `192.168.1.20`. Updates:
+
+- Change the IP: edit `roles/fish/files/fish/conf.d/ollama.fish`.
+- Move daemon to a different host: flip the `inventory_hostname == 'work'`
+  guards in `roles/osx/tasks/homebrew.yml` and adjust the fish snippet's
+  hostname patterns (which mirror `scripts/playbook.sh`).
+
+`OLLAMA_HOST=0.0.0.0:11434` is persisted by injecting it into the brew-
+generated LaunchAgent plist with `PlistBuddy` (additive: existing tuning
+keys like `OLLAMA_FLASH_ATTENTION` are preserved). Ansible also runs
+`launchctl setenv` to apply the change to the current launchd session
+without waiting for a reboot, then `brew services restart ollama` when the
+plist changed. After `brew upgrade ollama` Homebrew may regenerate the
+plist; re-running `mise run osx` re-adds the key.
+
+**Trust caveat:** Ollama has no auth. Binding to `0.0.0.0` exposes the
+daemon to everything on the LAN. Fine on a trusted home network; on
+untrusted networks, stop the service (`brew services stop ollama`) or
+revert the LaunchAgent edit, and SSH-tunnel from clients instead
+(`ssh -L 11434:localhost:11434 <work-host>` plus `OLLAMA_BASE_URL=
+http://localhost:11434` on the client).
+
 ## Ansible role layout
 
 `roles/osx/` is the Mac role. Claude-related files live under
