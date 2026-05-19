@@ -16,6 +16,13 @@
     state: link
   tags: [tmux]
 
+- name: Symlink tmux scripts directory
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/tmux/files/scripts"
+    dest: "{{ ansible_env.HOME }}/.tmux/scripts"
+    state: link
+  tags: [tmux]
+
 - name: Ensuring color profile is installed
   ansible.builtin.command:
     cmd: infocmp -x tmux-256color
