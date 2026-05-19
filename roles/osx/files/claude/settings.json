@@ -57,5 +57,11 @@
     "gopls-lsp@claude-plugins-official": true,
     "rust-analyzer-lsp@claude-plugins-official": true
   },
-  "alwaysThinkingEnabled": true
+  "alwaysThinkingEnabled": true,
+  "permissions": {
+    "allow": [
+      "Bash(curl * 192.168.1.20:11434*)",
+      "Bash(curl *http://192.168.1.20:11434*)"
+    ]
+  }
 }
