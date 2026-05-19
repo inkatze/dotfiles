@@ -139,11 +139,11 @@ that route to it over the LAN.
 | Host | Ollama daemon | OLLAMA_BASE_URL |
 |---|---|---|
 | `work` | Served, bound to `0.0.0.0:11434` via `OLLAMA_HOST` in `~/Library/LaunchAgents/homebrew.mxcl.ollama.plist` | unset (clients fall back to `http://localhost:11434`) |
-| `personal`, `alt` | Not managed by Ansible | `http://192.168.1.20:11434` (set in `roles/fish/files/fish/conf.d/ollama.fish`) |
+| `personal`, `alt` | Not managed by Ansible | `http://192.168.1.20:11434` (set in `roles/fish/files/ollama.fish`) |
 
 The work host's IP is a DHCP reservation at `192.168.1.20`. Updates:
 
-- Change the IP: edit `roles/fish/files/fish/conf.d/ollama.fish`.
+- Change the IP: edit `roles/fish/files/ollama.fish`.
 - Move daemon to a different host: flip the `inventory_hostname == 'work'`
   guards in `roles/osx/tasks/homebrew.yml` and adjust the fish snippet's
   hostname patterns (which mirror `scripts/playbook.sh`).
