@@ -73,6 +73,9 @@ if status --is-login
     # Terraform stuff
     set -xg MISE_HASHICORP_SKIP_VERIFY 1
 
+    # Ollama stuff
+    set -gx OLLAMA_HOST 192.168.1.20:11434
+
     fish_add_path $PYENV_ROOT/bin
     fish_add_path $SQLITE_PATH/bin
     fish_add_path -m $MYSQL_BIN_PATH
