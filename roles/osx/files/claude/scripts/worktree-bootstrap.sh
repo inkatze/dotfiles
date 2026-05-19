@@ -9,8 +9,11 @@
 #   2. Synchronously: `mise trust` the worktree so .mise.toml / .tool-versions
 #      are accepted. This is fast and fixes the first-use friction.
 #   3. In the background: run a best-effort dependency install based on
-#      detected lockfiles (npm/pnpm/yarn, bundler, mix, cargo, go mod, uv,
-#      poetry). Logs go to ~/.claude/cache/worktree-bootstrap.log.
+#      detected lockfile+project-file pairs (npm/pnpm/yarn, bundler, mix,
+#      cargo, go mod, uv, poetry). Both files must sit at $cwd; a stray
+#      root-level lockfile in a monorepo (e.g. frontend/-only project)
+#      will NOT trigger an install. Logs go to
+#      ~/.claude/cache/worktree-bootstrap.log.
 #      A desktop notification fires when the install finishes.
 #   4. If the repo ships an executable .claude/worktree-bootstrap script,
 #      invoke it after the language installers so projects can layer on
@@ -124,15 +127,23 @@ add_installer() {
 
 has_npm=0
 has_pnpm=0
-[ -f "$cwd/package-lock.json" ] && { has_npm=1; add_installer "npm" "npm ci"; }
-[ -f "$cwd/pnpm-lock.yaml" ] && [ $has_npm -eq 0 ] && { has_pnpm=1; add_installer "pnpm" "pnpm install --frozen-lockfile"; }
-[ -f "$cwd/yarn.lock" ] && [ $has_npm -eq 0 ] && [ $has_pnpm -eq 0 ] && add_installer "yarn" "yarn install --frozen-lockfile"
-[ -f "$cwd/Gemfile.lock" ] && add_installer "bundler" "bundle install"
+# Each installer requires BOTH the lockfile and the matching project file at $cwd.
+# Lockfile alone is insufficient: e.g. paycalc-services commits a stub
+# package-lock.json at the root while package.json only lives under frontend/,
+# so a root-only `npm ci` would always fail with ENOENT. Same hazard applies
+# to any repo that commits a lockfile without its project file at the same
+# level. mix.exs and go.mod are themselves the project file, so no pairing.
+# uv accepts either pyproject.toml OR uv.toml as the project file (uv.toml
+# is uv's standalone alternative when there's no Python packaging metadata).
+[ -f "$cwd/package.json" ] && [ -f "$cwd/package-lock.json" ] && { has_npm=1; add_installer "npm" "npm ci"; }
+[ -f "$cwd/package.json" ] && [ -f "$cwd/pnpm-lock.yaml" ] && [ $has_npm -eq 0 ] && { has_pnpm=1; add_installer "pnpm" "pnpm install --frozen-lockfile"; }
+[ -f "$cwd/package.json" ] && [ -f "$cwd/yarn.lock" ] && [ $has_npm -eq 0 ] && [ $has_pnpm -eq 0 ] && add_installer "yarn" "yarn install --frozen-lockfile"
+[ -f "$cwd/Gemfile" ] && [ -f "$cwd/Gemfile.lock" ] && add_installer "bundler" "bundle install"
 [ -f "$cwd/mix.exs" ] && add_installer "mix" "mix deps.get"
 [ -f "$cwd/go.mod" ] && add_installer "go" "go mod download"
-[ -f "$cwd/Cargo.lock" ] && add_installer "cargo" "cargo fetch"
-[ -f "$cwd/uv.lock" ] && add_installer "uv" "uv sync"
-[ -f "$cwd/poetry.lock" ] && add_installer "poetry" "poetry install --no-root"
+[ -f "$cwd/Cargo.toml" ] && [ -f "$cwd/Cargo.lock" ] && add_installer "cargo" "cargo fetch"
+{ [ -f "$cwd/pyproject.toml" ] || [ -f "$cwd/uv.toml" ]; } && [ -f "$cwd/uv.lock" ] && add_installer "uv" "uv sync"
+[ -f "$cwd/pyproject.toml" ] && [ -f "$cwd/poetry.lock" ] && add_installer "poetry" "poetry install --no-root"
 
 has_repo_hook=0
 [ -x "$cwd/.claude/worktree-bootstrap" ] && has_repo_hook=1

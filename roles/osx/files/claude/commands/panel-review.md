@@ -7,7 +7,7 @@ Same Discovery + Validation rigor as `/self-review`. The backends provide the di
 You want a `/self-review` shape but with one or more external models contributing findings. Common cases:
 
 - ChatGPT Enterprise users on a work repo (Codex CLI as a fast frontier-OpenAI backend).
-- Personal repos (local Ollama models from different lineages: Alibaba's Qwen2.5-Coder, DeepSeek-R1's reasoning lens).
+- Personal repos (local Ollama models from different lineages: Alibaba's Qwen2.5-Coder, OpenAI's gpt-oss).
 - Any time you want a non-Anthropic angle without paying GitHub Copilot's per-request quota.
 
 For autonomous looping (review, apply, push, re-review until convergence), use `/panel-pairing` instead. For the standard Claude-only review, use `/self-review`.
@@ -29,15 +29,15 @@ For autonomous looping (review, apply, push, re-review until convergence), use `
 
    | Profile | Default backends |
    |---|---|
-   | work | `codex` |
-   | personal | `qwen-coder` |
+   | work | `codex,qwen-coder` |
+   | personal | `qwen-coder,gpt-oss` |
 
-   Supported backends: `codex`, `qwen-coder`, `deepseek-r1`, `copilot`. `copilot` is **opt-in only** via `--backends`; do not auto-include it (the GitHub quota is the original constraint and including it implicitly defeats the point).
+   Supported backends: `codex`, `qwen-coder`, `gpt-oss`, `copilot`. `copilot` is **opt-in only** via `--backends`; do not auto-include it (the GitHub quota is the original constraint and including it implicitly defeats the point). `deepseek-r1` was retired: it is a reasoning model that emits `<think>` chain-of-thought blocks the panel prompt cannot reliably suppress, and ~2x wall-clock vs `qwen-coder`. `gpt-oss:20b` replaces it as a different-lineage second slot (OpenAI training, instruction-tuned, no reasoning trace).
 
 5. **Verify each backend.** Stop with a specific install / auth message if any fails; do not silently drop a backend (the user expects the variance the backend provides).
 
    - `codex`: `command -v codex` must succeed; `codex auth status` (or equivalent: query the codex CLI's own readiness probe) must report an authenticated session. If not authed, stop with `Codex CLI needs auth; run 'codex login'`. If not installed, stop with `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'`.
-   - `qwen-coder` / `deepseek-r1`: `curl -sf "${OLLAMA_BASE_URL:-http://localhost:11434}/api/tags"` must return a body containing the model name (`qwen2.5-coder:32b` or `deepseek-r1:32b`). If the API does not respond, stop with `Ollama service not running; brew services start ollama` (on the work host; on personal/alt the dotfiles fish conf.d/ollama.fish points OLLAMA_BASE_URL at the work host's LAN IP, see dotfiles `CLAUDE.md` "Cross-host Ollama topology"). If the model is missing, stop with `Model not pulled; ollama pull <name>` (the dotfiles Ansible task pulls both on the work host by default; missing means an opt-out or the cross-host route is not configured).
+   - `qwen-coder` / `gpt-oss`: `curl -sf "${OLLAMA_BASE_URL:-http://localhost:11434}/api/tags"` must return a body containing the model name (`qwen2.5-coder:32b` or `gpt-oss:20b`). If the API does not respond, stop with `Ollama service not running; brew services start ollama` (on the work host; on personal/alt the dotfiles fish conf.d/ollama.fish points OLLAMA_BASE_URL at the work host's LAN IP, see dotfiles `CLAUDE.md` "Cross-host Ollama topology"). If the model is missing, stop with `Model not pulled; ollama pull <name>` (the dotfiles Ansible task pulls both on the work host by default; missing means an opt-out or the cross-host route is not configured).
    - `copilot`: `gh copilot --help` must succeed and the account must have quota. Stop if `gh` is not authenticated or `gh copilot` returns a quota-exhausted error.
 
 ## Steps
@@ -78,7 +78,7 @@ Diff:
 **Per-backend invocation patterns** (verify exact flags on first use; this is illustrative):
 
 - **codex**: `codex exec "<prompt>"` (or the equivalent flag set; the CLI may require `--model` or similar). Codex returns text on stdout; capture and parse the table.
-- **qwen-coder** and **deepseek-r1** (Ollama): **prefer the HTTP API** for programmatic invocation. The base URL is read from `OLLAMA_BASE_URL` (set in fish conf.d/ollama.fish on personal/alt hosts to the work host's LAN IP) and falls back to `http://localhost:11434` on the work host itself:
+- **qwen-coder** and **gpt-oss** (Ollama): **prefer the HTTP API** for programmatic invocation. The base URL is read from `OLLAMA_BASE_URL` (set in fish conf.d/ollama.fish on personal/alt hosts to the work host's LAN IP) and falls back to `http://localhost:11434` on the work host itself:
   ```bash
   curl -s "${OLLAMA_BASE_URL:-http://localhost:11434}/api/generate" \
     -d "$(jq -nR --arg model 'qwen2.5-coder:32b' --rawfile prompt /tmp/panel-review-prompt.txt \
@@ -86,7 +86,7 @@ Diff:
     | jq -r '.response'
   ```
   The API returns clean JSON with the response under `.response`. `ollama run <model> "<prompt>"` works as a fallback but emits ANSI escape codes (cursor moves, line clears) intended for an interactive TTY; even when piped, those leak into the output and require post-processing (`sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\r'`). The HTTP API path avoids that entirely.
-- **Wall-clock estimates on M1 Max 32GB** (one model loaded at a time; Ollama swaps when the second one is invoked): `qwen-coder` ~5 min, `deepseek-r1` ~10 min (slower because of the reasoning chain). Two 32B models cannot stay resident together on 32GB RAM, so running both backends serializes in practice even if the orchestrator fires them in parallel.
+- **Wall-clock estimates on M1 Max 32GB** (one model loaded at a time; Ollama swaps when the second is invoked): `qwen-coder:32b` ~5 min, `gpt-oss:20b` ~3 min (smaller, instruction-tuned, no reasoning chain). qwen-coder at ~19 GB and gpt-oss at ~13 GB can't co-reside in unified memory comfortably, so the panel still serializes in practice; gpt-oss swaps in faster than the retired deepseek-r1:32b did.
 - **copilot**: route through `gh copilot` or the chosen Copilot CLI; specifics depend on which CLI variant is current.
 
 If a backend invocation fails (timeout, parse error, model error), do **not** silently drop it: stop the run and surface the failure. The user invoked this skill specifically for the variance that backend provides; partial runs hide the fact that one source of variance went missing.

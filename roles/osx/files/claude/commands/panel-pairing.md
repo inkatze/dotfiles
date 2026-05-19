@@ -22,7 +22,7 @@ You want the `/copilot-pairing` shape (review, address, push, re-review, repeat)
    | Profile | Default backends |
    |---|---|
    | work | `codex`, `qwen-coder` |
-   | personal | `qwen-coder`, `deepseek-r1` |
+   | personal | `qwen-coder`, `gpt-oss` |
 
    `--backends` overrides. `copilot` is opt-in only.
 
