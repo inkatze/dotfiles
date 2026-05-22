@@ -4,6 +4,17 @@
     "pr": ""
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/path-guard.sh"
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "hooks": [

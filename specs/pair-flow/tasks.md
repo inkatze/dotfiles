@@ -9,15 +9,6 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 ## Forward plan
 
-### Task 2 — File-path PreToolUse hook
-
-- **Deliverables:** `roles/osx/files/claude/scripts/path-guard.sh` (PreToolUse hook) plus wiring in `roles/osx/files/claude/settings.json`. Hook validates file paths before `Read`, `Edit`, and `Write` tool calls (D-26) and surfaces a clean error message when the path does not exist or is outside the repo root. `Bash` and `NotebookEdit` are not validated.
-- **Done when:** Hook is installed via Ansible, manually verified by attempting a known-bad path on each of the three tools and observing the clean error. File-path-mistake count in the next 30-day usage analysis drops materially from the 82/month baseline.
-- **Measurement plan:** Compare 30-day file-path-mistake count against the May 2026 baseline (82/month). Source: JSONL transcript analysis. Recorded in `specs/metrics-baseline/deltas/`.
-- **Dependencies:** none
-- **Citations:** REQ-G2.1, D-26, friction & time analysis 2026-05-22
-- **Estimated effort:** 2 hrs
-
 ### Task 3 — Cross-session inbox substrate + tmux dashboard
 
 - **Deliverables:**
@@ -127,6 +118,7 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 - **Task 1 — Investigate `/panel-*` underuse.** Diagnosis at `specs/pair-flow/research/panel-underuse.md`. Primary cause: `/panel-*` is newly available (shipped 2026-05-15, mid-window), not underused. Recommendation: keep panel as default; confirm D-6 (codex-only default, no longer provisional) and D-12 (`/panel-pairing` demoted to escalation, `/polish` as default convergence). LAN-Ollama auto-mode classifier denial recorded as follow-up.
 - **Task 3.6 — Spec validator port and extension.** Validator at `roles/osx/files/claude/scripts/spec-validate.sh`. Materializes to `~/.claude/scripts/spec-validate.sh` via the existing directory symlink in `roles/osx/tasks/osx.yml` (lines 55-60); no per-file symlink needed. Runs cleanly on `tecpan/specs/settings` (0 errors, 0 warnings), emits 27 warnings on `tecpan/specs/org` (prose REQs + every task missing Done when/Dependencies/Citations), emits 0 errors and 0 warnings on this `specs/pair-flow` bundle. Status-aware Gherkin from REQ-G7.1 verified via synthetic fixture: same gap warns on Draft (exit 0), errors on Active (exit 1).
 - **Task 3.5 — Pair-flow configuration helper.** Defaults at `roles/osx/files/claude/pair-flow.yml` (`panel-backends: [codex]`, `stale-lock-threshold: 1h`, `inbox-heartbeat-interval: 30s`). New symlink task in `roles/osx/tasks/osx.yml` materializes the file to `~/.claude/pair-flow.yml`. Helper at `roles/osx/files/claude/scripts/pair-flow-config.sh` with subcommands `repo`, `defaults`, `repo-class`, `confirm-repo-class <value>`, `show`. PR-history-based inference filters bots (`*[bot]`, `copilot-*`, `dependabot*`, `renovate*`, `github-actions*`) and PR-author self-reviews. Verified end-to-end on this repo: first `repo-class` call outputs `needs-confirmation:solo` (exit 2); `confirm-repo-class solo` writes `~/.claude/pair-flow.local.yml`; subsequent `repo-class` outputs `solo` (exit 0); deleting the file re-prompts.
+- **Task 2 — File-path PreToolUse hook.** Hook at `roles/osx/files/claude/scripts/path-guard.sh`. Wired from `roles/osx/files/claude/settings.json` under `hooks.PreToolUse` with matcher `Read|Edit|Write`. Blocks Read/Edit when the path does not exist or is a directory (suggests an alternative); blocks Write when the parent directory does not exist; allows everything else. Smoke-tested via direct stdin invocation: seven cases (existing file → allow, nonexistent → deny, directory → deny, edit-nonexistent → deny, write-existing-parent → allow, write-missing-parent → deny, unrelated tool → allow) all pass. Real end-to-end verification needs a fresh Claude Code session because hooks load at session start; settings.json merged into the materialized `~/.claude/settings.json` for the next session. Measurement against the 82/month baseline tracked in the open `Measurement plan` for the next 30-day window per Task 2's plan.
 
 ## In progress
 
