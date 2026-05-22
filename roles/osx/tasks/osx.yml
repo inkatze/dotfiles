@@ -66,6 +66,20 @@
     state: link
   tags: [osx]
 
+# Pair-flow cross-session inbox substrate (REQ-F1.1 in specs/pair-flow/).
+# Each Claude session writes a JSON file named {host}-{session-uuid}.json
+# under this directory; tmux dashboard + status segment read from it.
+# Mode 0700 because entries embed working-tree paths and branch names that
+# are not sensitive but also not meant for other users on the machine.
+# Sync mechanism (iCloud Drive vs Syncthing) is left to the user; either
+# works because each file is a single-writer, atomic-rename, sub-1KB JSON.
+- name: Ensure Claude inbox directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.claude/inbox"
+    state: directory
+    mode: '0700'
+  tags: [osx]
+
 - name: Create Cursor rules directory
   ansible.builtin.file:
     path: "{{ ansible_env.HOME }}/.cursor/rules"

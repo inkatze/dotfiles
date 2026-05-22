@@ -25,6 +25,10 @@
           {
             "type": "command",
             "command": "$HOME/.claude/scripts/tool-discovery.sh"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/inbox-session-start.sh"
           }
         ]
       }
@@ -35,6 +39,10 @@
           {
             "type": "command",
             "command": "$HOME/.claude/scripts/notify-event.sh done"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/inbox-write.sh hook-event idle"
           }
         ]
       }
@@ -46,6 +54,10 @@
           {
             "type": "command",
             "command": "$HOME/.claude/scripts/notify-event.sh permission"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/inbox-write.sh hook-event awaiting-input"
           }
         ]
       },
@@ -55,6 +67,10 @@
           {
             "type": "command",
             "command": "$HOME/.claude/scripts/notify-event.sh idle"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/inbox-write.sh hook-event awaiting-input"
           }
         ]
       }
