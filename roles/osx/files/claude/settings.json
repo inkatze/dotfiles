@@ -15,6 +15,17 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/tasks-pr-sync.sh"
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "hooks": [
