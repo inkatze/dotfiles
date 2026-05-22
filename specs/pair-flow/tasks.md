@@ -9,14 +9,6 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 ## Forward plan
 
-### Task 1 — Investigate `/panel-*` underuse
-
-- **Deliverables:** Written diagnosis under `specs/pair-flow/research/panel-underuse.md` identifying why `/copilot-*` is invoked 29x while `/panel-*` is invoked 14x in the 30-day window ending 2026-05-21.
-- **Done when:** Diagnosis names a primary cause (reflex, latency, low yield, quota, other), cites transcript evidence, and recommends one of: keep panel as default, demote to escalation-only, retire entirely.
-- **Dependencies:** none
-- **Citations:** REQ-G1.1, friction & time analysis 2026-05-22
-- **Estimated effort:** 30 min
-
 ### Task 2 — File-path PreToolUse hook
 
 - **Deliverables:** `roles/osx/files/claude/scripts/path-guard.sh` (PreToolUse hook) plus wiring in `roles/osx/files/claude/settings.json`. Hook validates file paths before `Read`, `Edit`, and `Write` tool calls (D-26) and surfaces a clean error message when the path does not exist or is outside the repo root. `Bash` and `NotebookEdit` are not validated.
@@ -156,7 +148,7 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 ## Completed
 
-(none yet)
+- **Task 1 — Investigate `/panel-*` underuse.** Diagnosis at `specs/pair-flow/research/panel-underuse.md`. Primary cause: `/panel-*` is newly available (shipped 2026-05-15, mid-window), not underused. Recommendation: keep panel as default; confirm D-6 (codex-only default, no longer provisional) and D-12 (`/panel-pairing` demoted to escalation, `/polish` as default convergence). LAN-Ollama auto-mode classifier denial recorded as follow-up.
 
 ## In progress
 
