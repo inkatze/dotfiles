@@ -35,7 +35,7 @@ The system is built on Claude Code primitives (skills, hooks, slash commands, sc
 - **REQ-A2.3** `/spec-kickoff` shall pose Socratic checks at each section (slicing sanity, edge cases, decision rationale) and record human responses in the brief.
 - **REQ-A2.4** `/spec-kickoff` shall reconstruct the task dependency graph from `tasks.md`, identify parallelizable tasks, and flag unstated dependencies.
 - **REQ-A2.5** `/spec-kickoff` shall produce a risk register listing what is underspecified, externally dependent, or could plausibly fail.
-- **REQ-A2.6** The kickoff brief shall reference the spec commit hash. If any of the four spec files change after sign-off, the affected sections of the brief shall be invalidated and re-signoff shall be required.
+- **REQ-A2.6** The kickoff brief shall reference the spec commit hash. When any spec file changes after sign-off, only the brief sections tied to the changed content shall be invalidated and require re-signoff (section-scoped invalidation per D-27). Whole-brief invalidation applies only to wholesale spec rewrites.
 - **REQ-A2.7** `/spec-kickoff` shall be invokable on existing specs (retrofit kickoff). When the spec lacks structure required for orchestration (per REQ-D5), `/spec-kickoff` shall offer to add the missing structure as part of the kickoff.
 
 ## REQ-B — Task execution
@@ -47,7 +47,8 @@ The system is built on Claude Code primitives (skills, hooks, slash commands, sc
 - **REQ-B1.5** When research is required, `/execute-task` shall consult project docs, source code, and reputable external sources (deepwiki MCP, official docs, similar repositories) and record findings in the kickoff brief's risk register.
 - **REQ-B1.6** `/execute-task` shall run the project's full CI-equivalent (`mix ci` for Elixir, equivalent for other languages) until green before declaring implementation done.
 - **REQ-B1.7** `/execute-task` shall invoke `/polish` as its final convergence step.
-- **REQ-B1.8** `/execute-task` shall open a draft PR with a body that references the kickoff brief path, task IDs, REQs satisfied, and a summary of the test additions.
+- **REQ-B1.8** `/execute-task` shall open a draft PR with a body that references the kickoff brief path, task IDs, REQs satisfied, and a summary of the test additions. All pair-flow-created PRs shall be drafts (D-21).
+- **REQ-B1.9** When the project CI run fails, `/execute-task` shall classify the failure as transient (retry up to 2x with exponential backoff) or logic (escalate immediately to `Awaiting input`) per D-25. Unknown patterns default to logic.
 
 ## REQ-C — Autonomous resolution
 
@@ -64,8 +65,9 @@ The system is built on Claude Code primitives (skills, hooks, slash commands, sc
 - **REQ-D2.1** `/orchestrate` shall be stateless across invocations: each call reads `tasks.md`, computes the next legal move, performs it, updates `tasks.md`, and exits.
 - **REQ-D3.1** `/orchestrate` shall identify ready tasks as those whose `Dependencies:` are listed in `Completed` and that are not currently in `In progress` or `Awaiting input`.
 - **REQ-D4.1** `/orchestrate` shall bundle consecutive ready tasks into a single PR when the bundling rule (D-11) holds.
-- **REQ-D5.1** For a spec to be orchestratable, each task shall have a stable ID, a `Done when:` condition unambiguous enough for an agent to evaluate, explicit `Dependencies:`, and `Citations:`. Specs missing this structure are not orchestratable and shall be flagged by `/orchestrate` with an offer to invoke `/spec-kickoff` in retrofit mode.
-- **REQ-D6.1** `/orchestrate` v1 shall halt after opening a draft PR; it shall not auto-respond to review feedback, auto-update tasks based on review, or auto-merge.
+- **REQ-D5.1** For a spec to be orchestratable, each task shall have a stable ID, a `Done when:` condition unambiguous enough for an agent to evaluate, explicit `Dependencies:`, and `Citations:`. Repo-level configuration (`repo-class`, etc.) is supplied by `~/.claude/pair-flow.yml` and `~/.claude/pair-flow.local.yml` per D-19, not by the spec bundle. Specs missing the required task structure are not orchestratable and shall be flagged by `/orchestrate` with an offer to invoke `/spec-kickoff` in retrofit mode.
+- **REQ-D6.1** `/orchestrate` shall halt after opening a draft PR. Pair-flow shall never include auto-merge functionality at any tier (D-21); all created PRs are drafts.
+- **REQ-D9.1** Pair-flow skills shall discover repo configuration on first encounter by inferring `repo-class` from PR review history. The inferred value shall always be surfaced to the user for confirmation before being written. Discovery shall never silently write to `~/.claude/pair-flow.local.yml`.
 - **REQ-D7.1** `/orchestrate` shall halt and post an `Awaiting input` inbox entry when it encounters: ambiguity in a task definition, an unexpected dependency, a test failure it cannot resolve, a hard-disqualifier finding, or contract drift from the kickoff brief.
 - **REQ-D8.1** Multi-host or concurrent invocations against the same spec shall be coordinated via an advisory lockfile to prevent two runners from working on the same task. Lock contention shall be a clean no-op (exit with reason), not an error.
 
@@ -81,16 +83,17 @@ The system is built on Claude Code primitives (skills, hooks, slash commands, sc
 ## REQ-F — Cross-session awareness
 
 - **REQ-F1.1** The system shall maintain an inbox substrate at `~/.claude/inbox/` synced across hosts via iCloud Drive or Syncthing.
-- **REQ-F1.2** Each active session shall write a JSON file `{host}-{session}-{repo}-{branch}.json` describing its current state. States: `working`, `awaiting-input`, `draft-pr-ready`, `error`, `idle`, `blocked`.
-- **REQ-F2.1** The system shall provide a tmux popup (bound to `prefix + i` or equivalent) that renders the inbox as a sortable list, with `awaiting-input` entries surfaced first.
+- **REQ-F1.2** Each active session shall write a JSON file `{host}-{session}-{repo}-{branch}.json` describing its current state and shall refresh a `last-heartbeat` ISO timestamp every 30 seconds while alive (D-23). States: `working`, `awaiting-input`, `draft-pr-ready`, `error`, `idle`, `blocked`. Readers shall treat entries with heartbeat older than 2 minutes as stale and remove them; entries without a heartbeat field shall age out at 24 hours.
+- **REQ-F2.1** The system shall provide a tmux popup (bound to `prefix + i` or equivalent) that renders the inbox as a sorted list per the D-22 visual language, with `awaiting-input` entries surfaced first.
 - **REQ-F2.2** The system shall provide a tmux status bar segment that displays a count of inbox entries in `awaiting-input` state.
+- **REQ-F2.3** Long-running session entries (working >30 min) shall be rendered with visual distinction in the tmux popup to surface tasks that may warrant a glance even before they transition to `awaiting-input`. Per D-22 color and sort definitions.
 - **REQ-F3.1** The system shall emit macOS notifications when a session transitions into `awaiting-input` or `draft-pr-ready`.
 - **REQ-F4.1** Phone push (Pushover, ntfy, etc.) is out of scope for v1. The inbox substrate shall be designed such that phone push can be layered on later without rework.
 
 ## REQ-G — Operational integration
 
 - **REQ-G1.1** Before any panel-related changes ship, the system shall investigate why `/panel-*` skills are underused (29 copilot vs 14 panel invocations in the 30-day window ending 2026-05-21). Investigation deliverable: a written diagnosis (slowness, quota, reflex, low-yield, other) sufficient to decide whether `/panel-pairing` is retained, demoted to escalation-only, or retired.
-- **REQ-G2.1** The system shall provide a PreToolUse hook that validates file paths before `Read`, `Edit`, or `Write` to address the remaining ~82/month file-path-mistake friction.
+- **REQ-G2.1** The system shall provide a PreToolUse hook that validates file paths before `Read`, `Edit`, and `Write` tool calls to address the ~82/month file-path-mistake friction. `Bash` and `NotebookEdit` are out of scope for v1 (D-26).
 - **REQ-G3.1** Codex shall be the default backend on all profiles (work, personal, alt) for `/panel-review` and `/panel-pairing`, contingent on the REQ-G1.1 investigation not surfacing a blocker.
 - **REQ-G4.1** New skills shall be tracked under `roles/osx/files/claude/commands/` and propagated via the existing Ansible symlink mechanism.
 - **REQ-G5.1** New hooks shall be wired from `roles/osx/files/claude/settings.json` per the conventions in the project CLAUDE.md.

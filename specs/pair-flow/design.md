@@ -183,13 +183,15 @@ Each layer is independently shippable. L5 and L1 ship first because they unlock 
 
 ### D-15: Spec format requirements for orchestration
 
-**Decision:** For a spec to be orchestratable, each task in `tasks.md` shall have: a stable ID, a `Done when:` condition unambiguous enough for an agent to evaluate, explicit `Dependencies:`, and `Citations:`. The spec bundle shall also declare a `repo-class:` field (solo or multi-reviewer) somewhere — either in `requirements.md` frontmatter or a top-level `specs/spec-config.yml`.
+**Decision:** For a spec to be orchestratable, each task in `tasks.md` shall have: a stable ID, a `Done when:` condition unambiguous enough for an agent to evaluate, explicit `Dependencies:`, and `Citations:`. Repo-level metadata (e.g., `repo-class`) is handled separately per D-19, not embedded in the spec bundle.
 
 **Alternatives considered:**
 - Looser format with agent inference. Rejected; the org/ retrospective shows agent inference fails on prose-only specs.
-- Per-repo config only (no per-spec marker). Acceptable for repo-class; a top-level config is simpler than embedding in every spec.
+- Embedding repo-level metadata per spec. Initially considered (`Repo-class:` line in `tasks.md` or a top-level `specs/spec-config.yml`). Reversed by D-19: the metadata is per-repo, not per-spec, and putting it in shared repos leaks personal workflow choices.
 
 **Chosen because:** The existing tecpan format is 95% of the way there. The gap is enforcement.
+
+**Reversed (partial) by:** D-19 — the repo-level metadata portion of this decision moved to a user-home config.
 
 ### D-16: Headless invocation (`claude -p`) is v2
 
@@ -223,6 +225,186 @@ Each layer is independently shippable. L5 and L1 ship first because they unlock 
 
 **Chosen because:** Minimizes maintenance surface. Survives Claude Code upgrades. Easy to debug because everything is files and well-known skills.
 
+### D-19: Configuration model — two-file split with agent-maintained local file
+
+**Decision:** Pair-flow configuration lives in two files at the user's home:
+
+- `~/.claude/pair-flow.yml` (tracked in dotfiles, materialized as symlink): schema and defaults. Fields: `panel-backends`, `stale-lock-threshold`, `inbox-heartbeat-interval`, etc.
+- `~/.claude/pair-flow.local.yml` (gitignored, agent-maintained, host-local): the `repos:` block keyed by `owner/repo` with per-repo overrides (`repo-class`, `last-confirmed`).
+
+Repo-objective values (`ci-command`, `default-branch`, language) are derived by project inspection (`mix.exs` aliases, `package.json` scripts, `mise.toml` tasks, lefthook hooks, `gh repo view`), not declared in either config file. The SessionStart tool-discovery hook already performs most of this derivation.
+
+Per-spec overrides remain available via a `Config overrides:` frontmatter section in a spec's `requirements.md` for the rare experimental case.
+
+**Alternatives considered:**
+- Single config file `specs/spec-config.yml` inside each shared repo. Rejected: leaks personal workflow into shared repos; `repo-class: solo` is meaningless from a collaborator's perspective.
+- Per-spec line in `tasks.md`. Rejected: doesn't match the data model (none of the values vary per spec) and creates drift risk across specs in the same repo.
+- Single file under `~/.claude/`, tracked in dotfiles, including the `repos:` block. Rejected: dotfiles is published; the `repos:` block would expose which repos the user treats as solo vs multi-reviewer.
+
+**Chosen because:** Clean separation between universal facts (derived from repo) and personal workflow (in user's home). Matches the existing three-layer permissions model in dotfiles. Discovery flow per D-20 makes the local file effectively zero-config.
+
+### D-20: Configuration discovery flow
+
+**Decision:** When a pair-flow skill encounters a repo with no entry in `~/.claude/pair-flow.local.yml`:
+
+1. Identify the repo via `gh repo view --json nameWithOwner`, falling back to parsing `git remote get-url origin`.
+2. Infer a default `repo-class` from PR review history (any non-author human reviewer in the last 30 PRs → `multi-reviewer`; otherwise → `solo`).
+3. **Always surface the inferred value for confirmation.** Discovery never silently writes — the cost of guessing `solo` on a `multi-reviewer` repo is auto-applying changes that should have gone through review.
+4. On user confirmation, append the entry (with `last-confirmed: <today>`) to `~/.claude/pair-flow.local.yml`. Create the file if it does not exist.
+5. On subsequent invocations, the entry is present and no prompt fires.
+
+If the file is deleted or corrupted, discovery re-runs from scratch on the next invocation. One prompt per repo encountered; no permanent loss.
+
+**Alternatives considered:**
+- Silent inference. Rejected: any miscalibration auto-applies changes in a multi-reviewer repo.
+- Require manual setup before any pair-flow skill runs. Rejected: creates a bootstrap step the user must remember on every new machine.
+
+**Chosen because:** Zero-config bootstrap, safe-by-default. Graceful degradation on file loss.
+
+### D-21: PRs are always drafts; no auto-merge, ever
+
+**Decision:** Every PR created by any pair-flow skill (`/polish`, `/execute-task`, `/orchestrate`) shall be a draft PR. The system shall not include auto-merge functionality at any tier (v1, v2, future). Merge is one of the few human actions reserved by the user.
+
+**Alternatives considered:**
+- Defer auto-merge as a future feature. Rejected: the user has explicitly stated this is a permanent constraint, not a future capability. Listing it as deferred implies eventual inclusion, which is incorrect.
+
+**Chosen because:** Hard guarantee preserves human control at the merge boundary.
+
+### D-22: Dashboard visual language
+
+**Decision:** The tmux dashboard popup renders inbox entries with the following visual language and sort order:
+
+| State | Color | Meaning |
+|---|---|---|
+| awaiting-input | red | needs human now |
+| stale lock | red, strikethrough | suspected crash, needs cleanup |
+| working, very long (>2 hr) | orange | check whether stuck |
+| draft-pr-ready | blue | clean handoff for review |
+| working, long (>30 min) | yellow | still going, worth a glance |
+| working, fresh | green | active, recent activity |
+| idle / exited | grey | nothing happening |
+
+Sort order: red → orange → blue → yellow → green → grey. Duration is computed from the entry's `last-heartbeat` and first-seen timestamp.
+
+**Alternatives considered:**
+- Flat list with no color. Rejected: the user explicitly asked for long-running task hints.
+- Notification-only (no dashboard color). Rejected: notifications miss the long-running case, which is gradual rather than transitional.
+
+**Chosen because:** Glanceable at-a-glance signal. The user can see "one red, two yellows" in a second.
+
+### D-23: Inbox heartbeat mechanism
+
+**Decision:** Each active session writes its inbox entry with a `last-heartbeat` ISO timestamp, refreshed every 30 seconds via a background helper. Entries are considered:
+
+- **Live:** heartbeat within last 60 seconds.
+- **Stale:** heartbeat older than 2 minutes — auto-removed by readers (dashboard, status segment) before display.
+- **Legacy (no heartbeat field):** aged out at 24 hours as a fallback for entries written by older skill versions.
+
+On clean session exit, the session removes its own entry.
+
+**Alternatives considered:**
+- File mtime as the heartbeat. Rejected: mtimes are unreliable across sync mechanisms (iCloud, Syncthing); explicit timestamps in JSON are durable.
+- Longer heartbeat interval (5 minutes). Rejected: a crashed session would appear live for too long.
+- A daemon managing all heartbeats. Rejected: introduces a long-running process where none is needed.
+
+**Chosen because:** Catches crashes within ~2 minutes (matching the user's instinct that "inactive sessions" should clear quickly), at low cost (30s tick, write a small JSON file).
+
+### D-24: Bundle sizing via Citations + git history (provisional)
+
+**Decision:** `/orchestrate` estimates a candidate bundle's combined diff size by: (1) counting files in each candidate task's `Citations:`; (2) looking up similar past PRs in the same repo via `gh pr list --search` keyed on cited files and module; (3) summing the median PR size of matched past PRs. Bundle is approved if the estimate is ≤ 700 lines and the other D-11 conditions (same module, shared deps) hold.
+
+Estimate-vs-actual is logged for telemetry per D-30 so the heuristic can be tuned.
+
+**Alternatives considered:**
+- Conservative (one task per PR; manual bundling only). Rejected: tecpan PR history shows bundling happens organically when tasks are related; the orchestrator should support it natively.
+- Author-hint S/M/L during `/spec-draft`. Reserved as a fallback if the citations heuristic proves inaccurate during Task 13's validation.
+
+**Chosen because:** Citations + git history gives a grounded estimate without asking the user to think about line counts during drafting.
+
+**Provisional:** Heuristic accuracy will be measured during Task 13. If consistently off by more than 2x, switch to author-hint mode.
+
+### D-25: `/execute-task` CI retry policy is adaptive
+
+**Decision:** When the project CI run fails, `/execute-task` classifies the failure and acts accordingly:
+
+- **Transient** (network errors, timeouts, known-flaky test patterns, infrastructure errors): retry up to 2 times with exponential backoff.
+- **Logic** (assertion failures, type errors, compilation errors, anything reproducible): escalate immediately to `Awaiting input` without retry.
+
+Classification is based on the CI output. Unknown patterns default to "logic" — safer to escalate than to burn retries on a real problem.
+
+**Alternatives considered:**
+- Fixed N retries regardless of cause. Rejected: burns time on logic errors that will never pass.
+- One try, then escalate immediately. Rejected: too aggressive on transient failures, especially when CI infrastructure is flaky.
+
+**Chosen because:** Matches how a human developer triages CI failures.
+
+### D-26: File-path PreToolUse hook scope
+
+**Decision:** The PreToolUse hook validates file paths for `Read`, `Edit`, and `Write` tool calls. `Bash` invocations with file arguments are out of scope (paths are too hard to parse statically from arbitrary shell). `NotebookEdit` is out of scope for v1 (low usage in transcripts).
+
+**Alternatives considered:**
+- All file-touching tools including Bash. Rejected: high false-positive risk on shell path parsing.
+- Read + Edit only. Rejected: Write also surfaces path mistakes (typos in new file paths).
+
+**Chosen because:** Targets the three highest-yield tools per the April–May friction data without false positives from Bash heuristics.
+
+### D-27: Kickoff brief invalidation is section-scoped
+
+**Decision:** When a spec file changes after the brief is signed off, only the brief sections tied to the changed content require re-signoff:
+
+- Change to `requirements.md` REQ-X → brief sections referencing REQ-X invalidate.
+- Change to `design.md` D-Y → brief sections referencing D-Y invalidate.
+- Change to `tasks.md` (reorder, retitle, add, remove) → only the Task graph section invalidates.
+- Change to `test-spec.md` → only the Verification section invalidates.
+
+Whole-brief invalidation occurs only on a wholesale spec rewrite (multiple files changed simultaneously beyond a threshold).
+
+**Alternatives considered:**
+- Whole-brief invalidation on any change. Rejected: forces re-walkthrough every time `tasks.md` is reorganized, which happens often during execution.
+- No invalidation tracking. Rejected: defeats the purpose of the brief as a contract.
+
+**Chosen because:** Less disruptive while preserving contract integrity.
+
+### D-28: Validator reuse via port + symlink
+
+**Decision:** The spec validator that lives near `tecpan/specs/validator-runs.md` is ported into this dotfiles repo at `roles/osx/files/claude/scripts/spec-validate.sh`. Both repos symlink to the canonical location. Future extensions land here; tecpan inherits via symlink.
+
+**Alternatives considered:**
+- Write a new validator for pair-flow specs. Rejected: duplicate logic.
+- Keep tecpan's validator in tecpan and copy-paste here. Rejected: drift risk.
+
+**Chosen because:** Single source of truth, propagated by the existing Ansible symlink mechanism.
+
+### D-29: PR-merge detection via scheduled runner (no webhook)
+
+**Decision:** Detection of "this PR was merged, mark the task Completed" happens via the scheduled remote agent runner (Task 12) polling GitHub PR state on its cadence (hourly default). No GitHub webhook is configured.
+
+**Alternatives considered:**
+- GitHub webhook firing a local hook. Rejected: requires GitHub config, an internet-reachable endpoint (or a polling service), and a secret.
+- Manual `/sync-tasks` invocation. Rejected: relies on the user remembering after every merge.
+
+**Chosen because:** The scheduled runner exists anyway for other bookkeeping; PR-merge reconciliation is a near-free additional move. Hourly latency is acceptable for state propagation.
+
+### D-30: Telemetry hybrid layout
+
+**Decision:** Telemetry lives under `specs/metrics-baseline/` in three subdirectories:
+
+- `snapshots/baseline-{YYYY-MM}.md.age` — periodic markdown summaries (monthly cadence). Continues existing pattern.
+- `deltas/pair-flow-v1-{milestone}.md.age` — initiative-specific markdown deltas tied to milestones (pre-rollout, post-Task 13, 30-day-post).
+- `data/{YYYY-MM}.jsonl.age` — raw structured measurements supporting both summaries.
+
+All three are age-encrypted with the existing key (consistent with the current `baseline-2026-04.md.age` precedent).
+
+Each pair-flow task that introduces measurable behavior shall include a "Measurement plan" line in its `Done when:` enumerating the metric, source, and baseline comparison.
+
+**Alternatives considered:**
+- Markdown only (snapshots + deltas, no structured data). Rejected: future analyses cannot re-derive from a one-way summary.
+- Snapshots only (no deltas). Rejected: loses initiative attribution.
+- New top-level `metrics/` directory. Rejected: yet another top-level concept with no clear win over extending `metrics-baseline/`.
+- `~/.claude/telemetry/`. Rejected: not version controlled, lost on machine reset.
+
+**Chosen because:** Builds on existing pattern. Initiative-specific attribution plus raw data enables reproducibility.
+
 ## Cross-cutting concerns
 
 ### Permissions and security
@@ -249,7 +431,6 @@ Each layer is independently shippable. L5 and L1 ship first because they unlock 
 - **Phone push notifications** (REQ-F4.1). Deferred. Inbox substrate is designed not to preclude it.
 - **Headless `claude -p` for implementation resumption** (D-16). v2.
 - **Auto-respond to peer review feedback** (`/orchestrate` v2). After v1 trusted.
-- **Auto-merge** (`/orchestrate` v3). Far future.
 - **Multi-spec concurrent orchestration**. After single-spec works.
 - **Handover-brief auto-write conditions** (D-2). Deferred unless v1 surfaces specific gaps.
 - **Migration of work projects** (paycalc). Out of scope for v1; design accommodates multi-reviewer but tecpan/dotfiles are the proving ground.

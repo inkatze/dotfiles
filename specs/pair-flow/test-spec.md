@@ -64,17 +64,25 @@ Verified by: invocation on a spec where the user knows of an unstated dependency
 
 Verified by: kickoff brief contains a `## Risks` section with at least one entry that names a plausible failure mode the user agrees is real.
 
-### REQ-A2.6 — Brief invalidation on spec change [manual]
+### REQ-A2.6 — Brief invalidation is section-scoped [manual]
 
 ```gherkin
 [Gherkin]
 Given a signed-off kickoff brief referencing spec commit hash <h>
-When any of the four spec files change (new commit <h'>)
-Then the brief's affected section(s) are marked invalidated
-And /spec-kickoff prompts for re-signoff on those sections before downstream skills proceed
+When tasks.md is reorganized (new commit <h'>) without touching other spec files
+Then only the brief's Task graph section is marked invalidated
+And other sections (REQ restatements, design walkthrough, risk register) remain signed off
+And /spec-kickoff prompts for re-signoff on the Task graph section only
+
+When requirements.md REQ-X is edited
+Then only brief sections referencing REQ-X are invalidated
+And /spec-kickoff prompts for re-signoff on those sections only
+
+When multiple spec files change in a single commit beyond a threshold
+Then the entire brief is invalidated (wholesale rewrite path)
 ```
 
-Verified by: modifying `tasks.md` in a kickoff-briefed spec and observing the next `/orchestrate` invocation flags the invalidation.
+Verified by: three induced changes (tasks.md reorder, single-REQ edit, wholesale rewrite). Each produces the expected invalidation scope.
 
 ### REQ-A2.7 — Retrofit mode on existing specs [manual]
 
@@ -110,7 +118,25 @@ Verified by: invocation on a task that requires consulting external docs. Kickof
 
 ### REQ-B1.6 — Project CI is green before declaring done [manual]
 
-Verified by: session transcript shows `mix ci` (or equivalent) was run and exited zero before PR open.
+Verified by: session transcript shows `mix ci` (or equivalent, derived per D-19) was run and exited zero before PR open.
+
+### REQ-B1.9 — CI retry policy is adaptive [manual]
+
+```gherkin
+[Gherkin]
+Given /execute-task is running and the project CI fails with a network timeout
+When the failure is classified as transient
+Then /execute-task retries with exponential backoff up to 2 additional attempts
+And if any retry succeeds, execution proceeds
+
+Given /execute-task is running and the project CI fails with an assertion error
+When the failure is classified as logic
+Then /execute-task halts immediately without retry
+And writes an Awaiting input inbox entry summarizing the failure
+And tasks.md is updated to mark the task as Awaiting input
+```
+
+Verified by: induced transient failure (mock network error) and induced logic failure (broken assertion). Observe the classification and the differing responses.
 
 ### REQ-B1.7 — `/polish` invoked as final convergence [manual]
 
@@ -189,6 +215,24 @@ Verified by: spec with task B depending on task A. `/orchestrate` does not pick 
 
 Verified by: spec with two consecutive ready tasks meeting the bundling rule. Both end up in one PR.
 
+### REQ-D9.1 — Configuration discovery flow [manual]
+
+```gherkin
+[Gherkin]
+Given the current repo has no entry in ~/.claude/pair-flow.local.yml
+When a pair-flow skill is invoked
+Then the agent identifies owner/repo via gh repo view (or git remote)
+And the agent infers a repo-class default from PR review history
+And the inferred value is surfaced to the user with reasoning
+And the agent does NOT write to pair-flow.local.yml until the user confirms or overrides
+When the user confirms
+Then the entry is appended with last-confirmed: <today>
+When the user declines or cancels
+Then nothing is written and the skill exits cleanly
+```
+
+Verified by: invocation in a fresh state (no pair-flow.local.yml). Observe the prompt, decline, verify no file is written. Re-invoke, confirm this time, verify the entry appears with today's date.
+
 ### REQ-D5.1 — Format gate with retrofit offer [manual]
 
 ```gherkin
@@ -247,9 +291,23 @@ Verified by: `/resume` skill's prompt explicitly states the handover is optional
 
 ## REQ-F — Cross-session awareness
 
-### REQ-F1.1, F1.2 — Inbox substrate exists and writes JSON [manual]
+### REQ-F1.1, F1.2 — Inbox substrate exists, writes JSON with heartbeat [manual]
 
-Verified by: `~/.claude/inbox/` exists; sample inbox entry contains the documented fields (`host`, `session`, `repo`, `branch`, `state`, `timestamp`, optional `summary`).
+Verified by: `~/.claude/inbox/` exists; sample inbox entry contains the documented fields (`host`, `session`, `repo`, `branch`, `state`, `first-seen`, `last-heartbeat`, optional `summary`). Heartbeat refreshes every ~30 seconds while the session is alive.
+
+```gherkin
+[Gherkin]
+Given an active session writing inbox entries with last-heartbeat refreshed every 30s
+When the session is killed forcibly (kill -9, no chance to clean up)
+Then the entry remains in the file but readers (dashboard, status segment) skip it within 2 minutes
+And the dashboard popup no longer shows the entry
+
+Given a legacy inbox entry written by an older skill version with no last-heartbeat field
+When 24 hours pass with no activity
+Then readers skip the entry and the next sweep removes it
+```
+
+Verified by: induced kill-9 on a session and timed inspection of the dashboard.
 
 ### REQ-F2.1 — tmux popup renders inbox [manual]
 
@@ -268,6 +326,21 @@ Verified by: actual two-session test (success criterion for Task 3).
 
 Verified by: same test; status bar segment shows the correct integer.
 
+### REQ-F2.3 — Long-running task visual distinction [manual]
+
+```gherkin
+[Gherkin]
+Given a session writing inbox entries continuously, with first-seen timestamp at T
+When 30 minutes pass (current time = T + 30 min) and state is still "working"
+Then the entry is rendered in yellow in the tmux popup
+And it sorts above green (fresh) entries but below red and orange
+When 2 hours pass (current time = T + 2 hr) and state is still "working"
+Then the entry is rendered in orange
+And it sorts above blue, yellow, green
+```
+
+Verified by: a deliberately long-running test session held open for >2 hours. Observe yellow at 30 min, orange at 2 hr.
+
 ### REQ-F3.1 — macOS notification on state transition [manual]
 
 Verified by: triggered transition observed as a macOS Notification Center entry.
@@ -282,9 +355,11 @@ Verified by: v1 ships without phone push integration; design accommodates layeri
 
 Verified by: `specs/pair-flow/research/panel-underuse.md` exists, names a primary cause, cites transcript evidence, and recommends one of the three options (Task 1's `Done when`).
 
-### REQ-G2.1 — File-path PreToolUse hook installed [manual]
+### REQ-G2.1 — File-path PreToolUse hook installed and scoped [manual]
 
-Verified by: hook is wired in `settings.json`, manually exercised on a known-bad path, clean error observed. Telemetry baseline (82 mistakes/month) re-measured 30 days post-install and compared.
+Verified by: hook is wired in `settings.json`. Manually exercised on a known-bad path for each of `Read`, `Edit`, `Write` — clean error observed all three times. `Bash` calls and `NotebookEdit` calls with non-existent paths pass through (out of v1 scope per D-26).
+
+Telemetry baseline (82 mistakes/month) re-measured 30 days post-install and compared per the task's Measurement plan.
 
 ### REQ-G3.1 — Codex default on all profiles [manual]
 

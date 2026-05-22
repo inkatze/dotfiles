@@ -1,8 +1,9 @@
 # Pair-Flow — Tasks
 
 **Status:** Draft
-**Repo-class:** solo
 **Last reviewed:** 2026-05-22
+
+`repo-class` and other repo-level config are supplied by `~/.claude/pair-flow.yml` + `~/.claude/pair-flow.local.yml` per D-19, not in this file.
 
 Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 when both fall within the bundling rule.
 
@@ -18,22 +19,37 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 ### Task 2 — File-path PreToolUse hook
 
-- **Deliverables:** `roles/osx/files/claude/scripts/path-guard.sh` (PreToolUse hook) plus wiring in `roles/osx/files/claude/settings.json`. Hook validates file paths before `Read`, `Edit`, `Write` and surfaces a clean error message when the path does not exist or is outside the repo root.
-- **Done when:** Hook is installed via Ansible, manually verified by attempting a known-bad path and observing the clean error. File-path-mistake count in the next 30-day usage analysis drops materially from the 82/month baseline.
+- **Deliverables:** `roles/osx/files/claude/scripts/path-guard.sh` (PreToolUse hook) plus wiring in `roles/osx/files/claude/settings.json`. Hook validates file paths before `Read`, `Edit`, and `Write` tool calls (D-26) and surfaces a clean error message when the path does not exist or is outside the repo root. `Bash` and `NotebookEdit` are not validated.
+- **Done when:** Hook is installed via Ansible, manually verified by attempting a known-bad path on each of the three tools and observing the clean error. File-path-mistake count in the next 30-day usage analysis drops materially from the 82/month baseline.
+- **Measurement plan:** Compare 30-day file-path-mistake count against the May 2026 baseline (82/month). Source: JSONL transcript analysis. Recorded in `specs/metrics-baseline/deltas/`.
 - **Dependencies:** none
-- **Citations:** REQ-G2.1, friction & time analysis 2026-05-22 (top remaining mechanical friction)
+- **Citations:** REQ-G2.1, D-26, friction & time analysis 2026-05-22
 - **Estimated effort:** 2 hrs
 
 ### Task 3 — Cross-session inbox substrate + tmux dashboard
 
 - **Deliverables:**
   - `~/.claude/inbox/` directory (Ansible-managed) with sync-readiness documentation.
-  - `roles/osx/files/claude/scripts/inbox-write.sh` helper for writing inbox JSON entries.
-  - tmux popup binding (in tmux config) for dashboard.
+  - `roles/osx/files/claude/scripts/inbox-write.sh` helper for writing inbox JSON entries (including `last-heartbeat` field per D-23).
+  - Background heartbeat refresh helper (30s tick) invoked by skills that hold sessions open.
+  - tmux popup binding (in tmux config) for dashboard, rendering D-22 visual language and sort order.
   - tmux status bar segment rendering `awaiting-input` count.
-- **Done when:** Two concurrent Claude sessions on different worktrees write inbox entries; the tmux popup shows both; the status segment shows the correct count; macOS notification fires when one transitions to `awaiting-input`.
+  - Reader-side stale-entry sweep (entries with heartbeat older than 2 minutes auto-removed).
+- **Done when:** Two concurrent Claude sessions on different worktrees write inbox entries with heartbeats; the tmux popup shows both with correct colors and sort order; the status segment shows the correct count; macOS notification fires when one transitions to `awaiting-input`; a kill -9'd session is removed from the popup within 2 minutes.
 - **Dependencies:** none
-- **Citations:** REQ-F1.1, REQ-F1.2, REQ-F2.1, REQ-F2.2, REQ-F3.1
+- **Citations:** REQ-F1.1, REQ-F1.2, REQ-F2.1, REQ-F2.2, REQ-F2.3, REQ-F3.1, D-22, D-23
+- **Estimated effort:** 1 day
+
+### Task 3.5 — Pair-flow configuration helper
+
+- **Deliverables:**
+  - `roles/osx/files/claude/pair-flow.yml` (tracked source) seeded with defaults: `panel-backends: [codex]`, `stale-lock-threshold: 1h`, `inbox-heartbeat-interval: 30s`.
+  - Symlink task in `roles/osx/tasks/osx.yml` materializing the file to `~/.claude/pair-flow.yml`.
+  - `roles/osx/files/claude/scripts/pair-flow-config.sh` (or equivalent) that reads effective config (defaults + local), identifies the current repo (`gh repo view`, fallback to `git remote`), and triggers discovery (per D-20) when the current repo has no entry.
+  - Discovery flow surfaces inferred `repo-class` to user, writes to `~/.claude/pair-flow.local.yml` on confirmation only.
+- **Done when:** Helper invoked in a repo with no entry in `~/.claude/pair-flow.local.yml` prompts for `repo-class` (with PR-history-inferred default), writes the entry on confirmation, and is silent on subsequent calls. Deleting `~/.claude/pair-flow.local.yml` causes one prompt per affected repo on next use.
+- **Dependencies:** none
+- **Citations:** REQ-D9.1, D-19, D-20
 - **Estimated effort:** 1 day
 
 ### Task 4 — `tasks.md` state conventions and auto-update hooks
@@ -56,10 +72,10 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 ### Task 6 — `/spec-kickoff` skill
 
-- **Deliverables:** `roles/osx/files/claude/commands/spec-kickoff.md`. Reads a spec at `<spec-path>`, walks section by section, restates in the agent's own words, surfaces domain term definitions, poses Socratic checks, reconstructs task graph, builds risk register, produces `specs/{feature}/kickoff-brief.md`. Supports retrofit mode that adds missing structure (per D-15) on existing specs.
+- **Deliverables:** `roles/osx/files/claude/commands/spec-kickoff.md`. Reads a spec at `<spec-path>`, walks section by section, restates in the agent's own words, surfaces domain term definitions, poses Socratic checks, reconstructs task graph, builds risk register, produces `specs/{feature}/kickoff-brief.md`. Supports retrofit mode that adds missing structure (per D-15) on existing specs. Reads effective config via Task 3.5's helper; triggers discovery if the current repo has no entry.
 - **Done when:** Invoked on `tecpan/specs/settings`, produces a kickoff brief that the user signs off without major correction. Invoked on `tecpan/specs/org` in retrofit mode, surfaces at least three implicit decisions or assumptions the user agrees were under-specified.
-- **Dependencies:** none (Task 4 helpful but not blocking)
-- **Citations:** REQ-A2.1 through REQ-A2.7, D-7
+- **Dependencies:** Task 3.5 (config helper). Task 4 helpful but not blocking.
+- **Citations:** REQ-A2.1 through REQ-A2.7, REQ-D9.1, D-7, D-19, D-20, D-27
 - **Estimated effort:** 2 days
 
 ### Task 7 — `/spec-draft` skill
@@ -72,9 +88,9 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 ### Task 8 — `Agent-resolvable` bucket in `/polish` and `/panel-pairing`
 
-- **Deliverables:** Updates to `roles/osx/files/claude/commands/polish.md` and `panel-pairing.md` (and the user-global CLAUDE.md's Finding Categorization section) introducing the `Agent-resolvable` bucket per REQ-C1.2. Updates the presentation contract (three tables → four tables).
+- **Deliverables:** Updates to `roles/osx/files/claude/commands/polish.md` and `panel-pairing.md` (and the user-global CLAUDE.md's Finding Categorization section) introducing the `Agent-resolvable` bucket per REQ-C1.2. Updates the presentation contract (three tables → four tables). Skills read `repo-class` via Task 3.5's helper to choose auto-apply vs surface-with-evidence behavior.
 - **Done when:** A test run of `/polish` on a real change demonstrates that a finding meeting the predicate is auto-applied in a solo repo, with the failing-then-passing test and CI evidence recorded in the bucket entry.
-- **Dependencies:** Task 1 (conclusions affect panel changes), Task 6 (kickoff-aligned predicate requires kickoff briefs to exist for the test)
+- **Dependencies:** Task 1 (conclusions affect panel changes), Task 3.5 (config helper supplies `repo-class`), Task 6 (kickoff-aligned predicate requires kickoff briefs to exist for the test)
 - **Citations:** REQ-C1.1 through REQ-C1.6, D-3, D-4
 - **Estimated effort:** 1 day
 
@@ -88,26 +104,26 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 ### Task 10 — `/execute-task` skill
 
-- **Deliverables:** `roles/osx/files/claude/commands/execute-task.md`. Implements REQ-B1.1 through REQ-B1.8: reads kickoff brief slice, writes verifying or regression test first, implements until green, runs project CI, runs `/polish` internally, opens draft PR.
-- **Done when:** Invoked on a real tecpan task with a signed-off kickoff brief, produces a draft PR that passes CI and aligns with the kickoff brief contract. Demonstrated end-to-end on at least one task.
-- **Dependencies:** Task 6 (needs kickoff briefs), Task 8 (uses Agent-resolvable bucket), Task 9 (uses internal polish)
-- **Citations:** REQ-B1.1 through REQ-B1.8
+- **Deliverables:** `roles/osx/files/claude/commands/execute-task.md`. Implements REQ-B1.1 through REQ-B1.9: reads kickoff brief slice, writes verifying or regression test first, implements until green, runs project CI (derived command via inspection per D-19), classifies CI failures (transient vs logic per D-25), runs `/polish` internally, opens draft PR (always draft per D-21).
+- **Done when:** Invoked on a real tecpan task with a signed-off kickoff brief, produces a draft PR that passes CI and aligns with the kickoff brief contract. Demonstrated end-to-end on at least one task. Adaptive retry exercised on an induced transient failure.
+- **Dependencies:** Task 3.5 (config helper), Task 6 (needs kickoff briefs), Task 8 (uses Agent-resolvable bucket), Task 9 (uses internal polish)
+- **Citations:** REQ-B1.1 through REQ-B1.9, D-19, D-21, D-25
 - **Estimated effort:** 2 days
 
 ### Task 11 — `/orchestrate` v1
 
-- **Deliverables:** `roles/osx/files/claude/commands/orchestrate.md`. Implements REQ-D1.1 through REQ-D8.1 except REQ-D6.1 v2 extensions: stateless step machine, reads `tasks.md`, picks ready task(s), bundles per D-11, dispatches via `/execute-task`, halts after PR open or `Awaiting input`. Uses advisory lockfile per D-17.
-- **Done when:** Invoked twice on a spec with two ready independent tasks, the second invocation correctly identifies that the first task is in flight and either picks the second task or no-ops cleanly (depending on lock state). Both result in draft PRs.
-- **Dependencies:** Task 10
-- **Citations:** REQ-D1.1 through REQ-D8.1, D-5, D-11, D-15, D-17
+- **Deliverables:** `roles/osx/files/claude/commands/orchestrate.md`. Implements REQ-D1.1 through REQ-D9.1 (orchestration scope only; bookkeeping moves are Task 12): stateless step machine, reads `tasks.md`, picks ready task(s), bundles per D-11 with sizing per D-24, dispatches via `/execute-task`, halts after draft PR open or `Awaiting input`. Uses advisory lockfile per D-17. All PRs are drafts (D-21).
+- **Done when:** Invoked twice on a spec with two ready independent tasks, the second invocation correctly identifies that the first task is in flight and either picks the second task or no-ops cleanly (depending on lock state). Both result in draft PRs. Bundle sizing logged for telemetry tuning.
+- **Dependencies:** Task 3.5 (config helper), Task 10
+- **Citations:** REQ-D1.1 through REQ-D9.1, D-5, D-11, D-15, D-17, D-19, D-21, D-24
 - **Estimated effort:** 2 days
 
 ### Task 12 — Scheduled remote agent runner
 
-- **Deliverables:** A routine configured via the `/schedule` skill that runs `/orchestrate` in bookkeeping mode (no implementation): reconcile PR statuses with `tasks.md`, advance pickups, post inbox entries. Documented in this repo.
+- **Deliverables:** A routine configured via the `/schedule` skill that runs `/orchestrate` in bookkeeping mode (no implementation): poll GitHub PR state on its cadence (hourly default per D-29), reconcile merges into `tasks.md` Completed, advance pickups, post inbox entries. Documented in this repo.
 - **Done when:** Routine runs on its schedule for at least one cycle, reconciles a real PR merge into `tasks.md` without human intervention.
 - **Dependencies:** Task 11
-- **Citations:** REQ-D2.1, D-14
+- **Citations:** REQ-D2.1, D-14, D-29
 - **Estimated effort:** 1 day
 
 ### Task 13 — End-to-end validation on a real tecpan spec
@@ -136,21 +152,23 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 ## Awaiting input
 
-- **Repo-class assignment for paycalc and other work projects.** v1 explicitly defers; revisit before any rollout beyond tecpan and dotfiles.
 - **Sync mechanism choice for inbox** (iCloud Drive vs Syncthing). User to decide based on existing tooling. Task 3 currently assumes "either works"; concrete pick affects only the documentation.
+- **Codex availability on personal and alt profiles** (D-6, Open question #9). Gated on Task 1's investigation.
 
 ## Deferred
 
 - **Handover brief auto-write conditions** (D-2). Build only if v1 surfaces specific gaps. **Gate:** end-to-end validation in Task 13 identifies at least one resumption case where `tasks.md` + git + PR alone is insufficient.
 - **Headless `claude -p` resumption** (D-16). **Gate:** v1 stable for 30 days with positive telemetry; investigate reliability of headless mode on user's hosts.
-- **`/orchestrate` v2 (auto-respond to peer review)**. **Gate:** v1 trusted; user explicitly opts in.
-- **`/orchestrate` v3 (auto-merge)**. **Gate:** v2 trusted; multi-reviewer repo policy clarified.
+- **`/orchestrate` v2 (auto-respond to peer review)**. **Gate:** v1 trusted; user explicitly opts in. (Note: auto-merge remains out of scope at every tier per D-21.)
 - **Multi-spec concurrent orchestration.** **Gate:** single-spec orchestration validated and stable.
 - **Phone push notifications.** **Gate:** user demonstrates a workflow where macOS + tmux dashboard is insufficient.
 - **Migration of tecpan existing specs to kickoff briefs.** **Gate:** Task 6 lands and `/spec-kickoff` retrofit mode is verified.
+- **Bundle-sizing fallback to author-hint S/M/L mode** (D-24). **Gate:** Task 13 retrospective shows the Citations-plus-git-history heuristic is consistently off by >2x.
 
 ## Out of scope
 
+- **Auto-merge at any tier** (D-21). Pair-flow never merges PRs. Merge is a reserved human action. This is permanent, not deferred.
+- **Ansible managing `~/.claude/pair-flow.local.yml`.** File is per-host and agent-maintained; Ansible touching it would risk losing local overrides on playbook runs.
 - Replacement or absorption of `/copilot-pairing` and `/copilot-review`. User-global CLAUDE.md already marks these transitional; that retirement is a separate spec.
 - Migration of work-project (paycalc, paycalc-infra, qa-suites) workflows. Multi-reviewer support is designed for, but proving ground is tecpan/dotfiles.
 - Replacement of the `/code-review` skill (someone-else's PR review).
@@ -161,13 +179,17 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 Captured here so the next reviewer can see what is undecided. Each should be resolved before the affected task is implemented or explicitly accepted as remaining open.
 
-1. **Spec-config location** (D-15): repo-class declared per spec in `requirements.md` frontmatter, or in a single `specs/spec-config.yml`? Current default in this bundle: `Repo-class:` line at the top of `tasks.md`. Subject to change.
-2. **Hook trigger for PR merge** (Task 4): a webhook from GitHub, a poll by the scheduled runner (Task 12), or a manual `/sync-tasks` invocation? Lowest-friction is the scheduled runner; gating on Task 12.
-3. **Validator reuse** (REQ-A1.6): use tecpan's existing spec validator, port it into dotfiles, or write a lighter one for the autonomy spec's own needs? Recommend port + extend.
-4. **Bundle sizing in `/orchestrate`** (D-11): how does the agent estimate "likely under 700 lines" before any code is written? Heuristic: spec citations + similar past PRs from git log. May need calibration.
-5. **Stale-lock detection** (D-17): what threshold? Initial guess: 1 hour. Will be calibrated in Task 13.
-6. **`/spec-kickoff` re-signoff scope** (REQ-A2.6): if `tasks.md` changes (which happens often during execution), does that invalidate the whole brief or just the tasks section? Proposal: section-scoped invalidation. Confirm in Task 6.
-7. **Inbox cleanup**: when does an inbox entry get deleted? On session exit clean? On a TTL? Proposal: on session exit clean, plus a sweep for entries older than 24h with no active session.
-8. **Telemetry capture**: where does the 30-day post-implementation analysis live? In `specs/autonomy/research/` or in the existing `specs/metrics-baseline/`? Recommend the latter for consistency.
-9. **Codex availability on personal/alt** (D-6): is codex actually working on those profiles, or will Task 1's investigation reveal that codex-only is a non-starter on non-work hosts?
-10. **`/execute-task` behavior on tasks that fail CI repeatedly** (REQ-B1.6): retry budget? Backoff? Hand off to human after N failures? Needs a policy before Task 10.
+1. **Codex availability on personal/alt** (D-6, Open question #9): does codex work on those profiles? Resolution depends on Task 1's investigation. If codex is not reliably available on a profile, the panel-backend default needs a per-profile fallback.
+
+Resolved questions (recorded for traceability; full reasoning in `design.md`):
+
+- *Spec-config location.* Resolved by D-19: two-file split (`~/.claude/pair-flow.yml` defaults + `~/.claude/pair-flow.local.yml` agent-maintained).
+- *PR-merge detection trigger.* Resolved by D-29: scheduled runner polls, no webhook.
+- *Validator reuse.* Resolved by D-28: port tecpan's validator into dotfiles, both repos symlink.
+- *Bundle sizing heuristic.* Resolved by D-24: Citations + git history; provisional, falls back to author-hint S/M/L if Task 13 shows >2x error.
+- *Stale-lock threshold.* Resolved by D-17: 1 hour default; configurable in `~/.claude/pair-flow.yml`.
+- *Brief invalidation scope.* Resolved by D-27: section-scoped, not whole-brief.
+- *Inbox cleanup.* Resolved by D-23: 30s heartbeat, 2-minute stale sweep, 24h legacy fallback.
+- *Telemetry layout.* Resolved by D-30: `snapshots/` + `deltas/` + `data/` under existing `specs/metrics-baseline/`, age-encrypted.
+- *CI retry policy.* Resolved by D-25: adaptive (transient retry up to 2x, logic escalate immediately).
+- *File-path hook scope.* Resolved by D-26: Read/Edit/Write only.
