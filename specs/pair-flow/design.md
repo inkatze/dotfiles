@@ -585,6 +585,39 @@ The dashboard popup renders one row per worktree, aggregating contributing sessi
 
 **Chosen because:** Reuse what's already authoritative.
 
+### D-49: Kickoff briefs are committed to git
+
+**Decision:** Kickoff briefs (`specs/{feature}/kickoff-brief.md`) are committed alongside the rest of the spec bundle. Not gitignored. Sized small (typically a few KB) and treated as a historical artifact for the spec.
+
+**Alternatives considered:**
+- Gitignore briefs (treat as user-local working state). Rejected: solo-repo briefs are documentation of decisions and assumptions, equivalent in value to design.md; storing them outside git would risk loss and break PR references.
+- Commit per-author briefs (`kickoff-brief.{user}.md`). Reserved for the multi-reviewer extension; for v1 (solo only) it's redundant.
+
+**Chosen because:** Briefs are decisions, not secrets. Git is the right home.
+
+### D-50: Validator field checks for v1 are structural only
+
+**Decision:** The extended validator (D-45) checks structural fields per task: stable ID, `Done when:`, `Dependencies:`, `Citations:`. Optional fields like `Measurement plan:` (D-38) and `Last reviewed:` (D-40) are recommended but not validator-enforced for v1.
+
+**Alternatives considered:**
+- Validate optional fields and emit warnings. Rejected for v1: spec inventory in `tecpan/specs/` and `dotfiles/specs/` is small enough that human review catches drift; tooling overhead not justified yet.
+
+**Chosen because:** Minimize tooling churn; extend the validator if drift emerges in practice.
+
+### D-51: Wholesale-rewrite threshold for whole-brief invalidation
+
+**Decision:** Per D-27, section-scoped invalidation is the default; whole-brief invalidation fires only on a wholesale rewrite. Two pragmatic triggers:
+1. Both `requirements.md` AND `design.md` change in the same commit.
+2. More than 50% of REQ-IDs (or D-IDs) change in a single commit (additions or modifications count; pure removals do not).
+
+Either trigger fires the whole-brief path; otherwise stay section-scoped.
+
+**Alternatives considered:**
+- Fixed file-count threshold. Rejected: easier to game and less meaningful than ID-level churn.
+- No threshold (always section-scoped). Rejected: a true rewrite makes section-by-section invalidation tedious and incoherent.
+
+**Chosen because:** Pragmatic thresholds that match what a "rewrite" actually looks like in practice.
+
 ## Cross-cutting concerns
 
 ### Permissions and security

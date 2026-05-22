@@ -40,6 +40,8 @@ The system is built on Claude Code primitives (skills, hooks, slash commands, sc
 - **REQ-A2.8** When `/spec-kickoff` surfaces a genuine inconsistency between spec sections (REQs contradict, design conflicts with requirement, etc.), it shall halt without producing a brief and offer two paths: (a) edit the spec and re-run, or (b) record an explicit override in the brief explaining why the apparent inconsistency is intentional (D-42).
 - **REQ-A2.9** Spec-touching skills (`/spec-draft`, `/spec-kickoff`) shall update each modified spec file's `Last reviewed:` line to the current date as a side effect of any change they make (D-40).
 - **REQ-A2.10** `/spec-kickoff` shall write the brief section-by-section as each section is signed off (incremental write). A killed session leaves a partial brief that the next invocation resumes from (D-41).
+- **REQ-A2.11** Kickoff briefs shall be committed to git as part of the spec bundle, not gitignored (D-49).
+- **REQ-A2.12** Brief invalidation shall use the wholesale-rewrite triggers of D-51 to choose between section-scoped (default) and whole-brief invalidation paths.
 
 ## REQ-A3 — Spec status lifecycle
 
