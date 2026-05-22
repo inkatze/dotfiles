@@ -10,7 +10,7 @@ You want the `/copilot-pairing` shape (review, address, push, re-review, repeat)
 - You want backend variance (different training distributions) without GitHub's per-request billing model.
 - You are starting from a branch with no PR yet and want pairing-style cleanup before opening one.
 
-`/panel-pairing` is the autonomous counterpart to `/panel-review`. It only auto-applies items in the Auto-applicable bucket (CLAUDE.md `Finding Categorization`); Needs sign-off and Needs human judgment items are surfaced for human review when the loop exits, same boundary `/polish` uses for self-review. For interactive review of all buckets, use `/panel-review` directly.
+`/panel-pairing` is the autonomous counterpart to `/panel-review`. It auto-applies items in the Auto-applicable bucket (CLAUDE.md `Finding Categorization`) plus, in solo repos with an active kickoff brief, items in the Agent-resolvable bucket (failing-then-passing regression test + full project CI green + kickoff alignment + no hard disqualifier). In multi-reviewer repos, Agent-resolvable items surface for human review with evidence attached instead of auto-applying. Needs sign-off and Needs human judgment items are surfaced for human review when the loop exits, same boundary `/polish` uses for self-review. For interactive review of all buckets, use `/panel-review` directly.
 
 ## Pre-flight (once per run)
 
@@ -30,6 +30,13 @@ You want the `/copilot-pairing` shape (review, address, push, re-review, repeat)
 6. **Initialize iteration counter** = 0.
 7. **Confirm the working tree is clean.** `git status --porcelain` must be empty before the loop starts. Uncommitted changes interfere with per-iteration commit boundaries and make rollback ambiguous. If the tree is dirty, stop and ask the user to commit or stash first.
 8. **Confirm the branch has an upstream**, or that the first push will create one. `git rev-parse --abbrev-ref --symbolic-full-name @{u}` succeeds when an upstream exists; if it fails, the first push in step (e) uses `git push -u origin <branch>` instead of `git push origin <branch>`. Do not pre-push at pre-flight; the first iteration's push handles it.
+9. **Resolve `repo-class` and detect the active kickoff brief.** Run `~/.claude/scripts/pair-flow-config.sh repo-class`:
+   - Exit 0 with `solo`: enable the Agent-resolvable bucket; items in it auto-apply.
+   - Exit 0 with `multi-reviewer`: enable the Agent-resolvable bucket; items in it surface for human review with evidence (treated as Needs sign-off for loop-fate purposes), they do not auto-apply.
+   - Exit 2 with `needs-confirmation:<inferred>`: surface the inferred value and the helper's reasoning to the human and wait for confirmation. **Never** call `confirm-repo-class` without explicit human input (REQ-D9.1, D-20 in the pair-flow spec). On confirmation, run `~/.claude/scripts/pair-flow-config.sh confirm-repo-class <value>` and proceed.
+   - Non-zero with any other status: log it, disable the Agent-resolvable bucket for this run, and proceed with the three-bucket flow.
+
+   Then derive the active kickoff brief. If the branch matches the pair-flow pattern `pair-flow/<spec>/task-...` per D-32, the brief lives at `specs/<spec>/kickoff-brief.md`. Otherwise, look for a single `specs/*/kickoff-brief.md` whose `specs/*/requirements.md` is `Status: Active`. If no active brief is found, disable the Agent-resolvable bucket for this run and proceed with the three-bucket flow; log this as informational, not a stop condition. Record the resolved `repo-class` and the brief path (or "no active brief") in iteration summaries.
 
 ## Iteration loop
 
@@ -39,21 +46,21 @@ For each iteration (cap = **15**):
 
 ### a. Generate + validate findings
 
-Run `/panel-review` steps 1-5 in full: project tooling sweep, parallel backend discovery pass, merge + dedupe, self-critique pass, three-pass Validation Rigor on every finding.
+Run `/panel-review` steps 1-5 in full: project tooling sweep, parallel backend discovery pass, merge + dedupe, self-critique pass, three-pass Validation Rigor on every finding. Validation Rigor is a hard gate for findings that could be routed to Auto-applicable or (in solo repos with an active kickoff brief) Agent-resolvable, since the loop applies those silently; the test-driven shape of Agent-resolvable in step (d-AR) below is itself the converged-validation evidence.
 
-Be more conservative than in `/panel-review` because nobody is checking the categorization in real time. **When in doubt, route to Needs sign-off or Needs human judgment, never Auto-applicable.** False negatives (a real Auto-applicable item routed to human) are cheap, costing one extra iteration. False positives (a judgment item auto-applied) silently corrupt the branch.
+Be more conservative than in `/panel-review` because nobody is checking the categorization in real time. **When in doubt, route to Needs sign-off or Needs human judgment, never Auto-applicable or Agent-resolvable.** False negatives (a real action-bucket item routed to human) are cheap, costing one extra iteration. False positives (a judgment item auto-applied) silently corrupt the branch.
 
 ### b. Categorize per `Finding Categorization`
 
-Each finding lands in exactly one bucket: Auto-applicable, Needs sign-off, or Needs human judgment. The four Auto-applicable conditions and disqualifiers are in CLAUDE.md `Finding Categorization`.
+Each finding lands in exactly one bucket out of four: Auto-applicable, Agent-resolvable (only enabled when pre-flight step 9 resolved `repo-class` and found an active kickoff brief; otherwise the bucket is unavailable and findings route to Needs sign-off or Needs human judgment instead), Needs sign-off, or Needs human judgment. The four Auto-applicable conditions, the five Agent-resolvable conditions, and the disqualifiers are in CLAUDE.md `Finding Categorization`.
 
 ### c. Decide loop fate
 
-Branch on the bucket counts:
+Branch on the bucket counts. The Agent-resolvable bucket is treated as an "action" bucket only when pre-flight step 9 resolved `repo-class: solo` AND an active kickoff brief was found; in multi-reviewer repos Agent-resolvable items are counted toward Needs sign-off for loop-fate purposes (they require human review with evidence before landing; the bucket presentation keeps them separate for audit clarity).
 
-- **All three buckets empty.** Success. Exit the loop. Print the final summary noting "panel converged, no findings remain". Do not commit (nothing changed this iteration).
-- **Auto-applicable empty, Needs sign-off or Needs human judgment non-empty.** Stop. Trigger **Human attention required** stop condition. Print the latest tables (Auto-applicable empty, both other buckets populated) and hand control back. Do not push, do not commit, do not auto-apply anything from the populated buckets.
-- **Auto-applicable non-empty, regardless of the other buckets.** Proceed to step (d). Items in the other buckets are re-evaluated next iteration; the user addresses them after `/panel-pairing` hands off.
+- **All four buckets empty.** Success. Exit the loop. Print the final summary noting "panel converged, no findings remain". Do not commit (nothing changed this iteration).
+- **Auto-applicable AND Agent-resolvable (when an action bucket) both empty, Needs sign-off or Needs human judgment non-empty.** Stop. Trigger **Human attention required** stop condition. Print the latest tables and hand control back. Do not push, do not commit, do not auto-apply anything from the populated buckets.
+- **Auto-applicable OR Agent-resolvable (when an action bucket) non-empty, regardless of the other buckets.** Proceed to step (d). Items in the other buckets are re-evaluated next iteration; the user addresses them after `/panel-pairing` hands off.
 
 ### d. Apply Auto-applicable items (solution validation rigor)
 
@@ -65,6 +72,20 @@ For each Auto-applicable item, apply CLAUDE.md `Validation Rigor (Solutions)` ev
 4. **Wider check.** Run the broader project test suite, linters, and type-checkers. Any failure (even a pre-existing one we surface for the first time) triggers the **Test failure** stop condition.
 
 For non-testable fixes (formatting, typos in comments, doc adjustments), substitute review angles per the canonical doctrine in CLAUDE.md.
+
+### d-AR. Apply Agent-resolvable items (solo repos only)
+
+Only runs in solo repos with an active kickoff brief; in multi-reviewer repos these items already routed to surface-with-evidence in step (b) and are not applied here. For each Agent-resolvable item:
+
+1. **Write the failing regression test first.** Author a test that fails on current code for the finding's exact reason. Place it in the project's existing test layout. The test must target the specific behavior described in the finding, not a tangentially related one.
+2. **Confirm the test fails for the right reason.** Run the targeted test. The failure mode must match the finding (assertion failure on the specific value, expected exception path, etc.), not a setup error or import failure. If the failure does not match, drop the item and route it to Needs sign-off; do not proceed.
+3. **Apply the fix.**
+4. **Confirm the test now passes.** Re-run the targeted test. Pass is required; if still failing, the fix is wrong and the item routes to Needs sign-off (do not retry-loop).
+5. **Wider check (full project CI equivalent).** Run the broader project test suite, linters, and type-checkers, same as step (d.4) for Auto-applicable. Any failure (even a pre-existing one surfaced for the first time) triggers the **Test failure** stop condition.
+6. **Verify kickoff alignment.** Re-read the relevant kickoff brief section(s) and confirm the fix does not introduce contract drift (new behavior the brief did not anticipate, error contract changes the brief did not approve, scope creep beyond the brief's goals). If the fix drifts, drop the item and route it to Needs sign-off; do not proceed.
+7. **Record evidence in the iteration row.** Capture: test file path + test name, condensed before/after test output (one line each), wider-check command + result, and a one-line citation of the kickoff brief section the fix aligns with. This is the audit trail for the auto-apply.
+
+The hard-disqualifier zones (security primitives, migrations, public API contracts, secrets handling, CI configuration) MUST already have rerouted this item to Needs sign-off at step (b). If you reach this step and discover the item touches one of those zones, stop, route to Needs sign-off, and trigger **Security-sensitive** or **Migrations / data / destructive ops** as applicable.
 
 ### e. Commit and push
 
@@ -80,8 +101,10 @@ Order matters: land the code, then move on.
 Print a short summary:
 
 - Iteration N / cap.
+- `repo-class` in effect and active kickoff brief path (or "no active brief; Agent-resolvable bucket unavailable").
 - Backends invoked + wall-clock per backend (so you can see which were slow / fast).
-- Counts: Auto-applicable applied, Needs sign-off surfaced, Needs human judgment surfaced, dropped at step (d.1) (rule no longer fires).
+- Counts: Auto-applicable applied, Agent-resolvable applied (solo only; in multi-reviewer this is always 0 since they surface for human review), Needs sign-off surfaced, Needs human judgment surfaced, dropped at step (d.1) (Auto-applicable rule no longer fires), dropped at step (d-AR.2 or d-AR.4) (Agent-resolvable test did not fail or pass as required).
+- For each Agent-resolvable applied: test file + test name, wider-check command + result, kickoff-brief section cited.
 - Files touched.
 - Commit SHA.
 - Test command run + result.
@@ -112,13 +135,16 @@ These hold at every step:
 
 - **Never** address a Needs sign-off or Needs human judgment item, even if it looks easy. Those are reserved for the post-loop human pass via `/panel-review` or manual fixes.
 - **Never** route a finding to Auto-applicable without a specific rule citation. "I am sure this is a typo" does not qualify; "ruff F401: imported but unused" does. The rule citation must come from the project tooling run in step (a), not from a backend's free-form recommendation.
+- **Never** route a finding to Agent-resolvable without all five conditions (failing test exists and was confirmed to fail before the fix, test passes after, wider CI passes, kickoff alignment cited, not in a hard-disqualifier zone). A backend asserting "this fix is safe" is not evidence; the actual test + CI result is.
+- **Never** route a finding to Agent-resolvable when pre-flight step 9 disabled the bucket (no `repo-class` resolved, no active kickoff brief, or `repo-class: multi-reviewer` keeps it on the surface-with-evidence path).
 - **Never** silently drop a backend that failed in step (a). The user picked the backend set; partial runs hide which variance source went missing.
 - **Never** modify CI configuration, `.env`, secrets, or lockfiles, even on a tool's recommendation.
 - **Never** push `--force`, `--force-with-lease`, or amend / squash / rebase commits already pushed.
 - **Never** silently retry a failed `git push` or bypass with `--no-verify`. Trigger the **Push hook failure** stop condition with a brief diagnosis instead.
 - **Never** create a PR. `/panel-pairing` is a fix-drain loop; PR creation is `/self-review` or `/panel-review`'s job after the loop hands off.
 - **Never** post anything to chat platforms, tickets, or any remote system.
-- **Never** skip step (d.4) (wider test / lint / type-check run). A "simple" fix that breaks an unrelated test is the failure mode this guards against.
+- **Never** skip step (d.4) or step (d-AR.5) (wider test / lint / type-check run). A "simple" fix that breaks an unrelated test is the failure mode these guard against.
+- **Never** skip step (d-AR.6) (kickoff alignment check). The whole point of the bucket is that downstream skills can trust the fix did not drift from the brief.
 - **Never** trust the iteration counter alone for cap enforcement; verify at the top of the iteration via the explicit cap check.
 
 ## After the loop
