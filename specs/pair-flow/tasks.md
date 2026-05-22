@@ -1,7 +1,7 @@
 # Pair-Flow — Tasks
 
 **Status:** Draft
-**Last reviewed:** 2026-05-22
+**Last reviewed:** 2026-05-23
 
 `repo-class` and other repo-level config are supplied by `~/.claude/pair-flow.yml` + `~/.claude/pair-flow.local.yml` per D-19, not in this file.
 
@@ -40,14 +40,6 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 - **Dependencies:** Task 4
 - **Citations:** REQ-E2.1, REQ-E2.2
 - **Estimated effort:** half day
-
-### Task 6 — `/spec-kickoff` skill
-
-- **Deliverables:** `roles/osx/files/claude/commands/spec-kickoff.md`. Reads a spec at `<spec-path>`, walks section by section, restates in the agent's own words, surfaces domain term definitions, poses Socratic checks, reconstructs task graph, builds risk register, produces `specs/{feature}/kickoff-brief.md` incrementally per section (D-41). Supports retrofit mode that adds missing structure (per D-15) on existing specs. Reads effective config via Task 3.5's helper; triggers discovery if the current repo has no entry. Flips spec status `Draft` → `Active` on sign-off (D-31). Handles partial-invalidation re-walkthrough per D-35 and spec-looks-wrong escalation per D-42.
-- **Done when:** Invoked on `tecpan/specs/settings`, produces a kickoff brief that the user signs off without major correction; spec status flips to `Active`. Invoked on `tecpan/specs/org` in retrofit mode, surfaces at least three implicit decisions or assumptions the user agrees were under-specified. Partial invalidation walks only invalidated sections.
-- **Dependencies:** Task 3.5 (config helper), Task 3.6 (validator). Task 4 helpful but not blocking.
-- **Citations:** REQ-A2.1 through REQ-A2.10, REQ-A3.1, REQ-A3.2, REQ-D9.1, D-7, D-19, D-20, D-27, D-31, D-35, D-41, D-42
-- **Estimated effort:** 2 days
 
 ### Task 7 — `/spec-draft` skill
 
@@ -115,6 +107,7 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 ## Completed
 
+- **Task 6 — `/spec-kickoff` skill.** Skill at `roles/osx/files/claude/commands/spec-kickoff.md`. Walks the seven sections (Goal+glossary, Requirements, Design, Verification, Task graph, Risk register, Sign-off) using a per-section pattern (read → restate → surface implicit terms → Socratic checks → D-42 inconsistency gate → wait for sign-off → incremental append to `kickoff-brief.md`). Calls `~/.claude/scripts/spec-validate.sh` before walking and again after the status flip (D-45); calls `~/.claude/scripts/pair-flow-config.sh repo-class` with `needs-confirmation` semantics that never silently write (REQ-D9.1, D-20). Retrofit mode produces patches to `tasks.md` at the Task-graph step (each patch waits for user red-line). Partial-invalidation walk applies D-27 section scope plus D-51 wholesale-rewrite triggers; signed-off sections are preserved. Sign-off flips all four spec files `Status: Draft` → `Active` via `Edit` and bumps `Last reviewed:` (REQ-A2.9, D-40); validator failure post-flip reverts the four edits and halts. Stages files for the human to commit but does not commit or push (REQ-A2.11, D-49). The interactive bootstrap-test on `specs/pair-flow/` itself per REQ-A2.7 is the user's next move and the D-7 quality gate (the agent cannot honestly self-walk a Socratic walkthrough). Pre-flight stages traced cleanly: validator returns 0 errors/0 warnings, repo-class returns `solo`, no prior brief exists.
 - **Task 1 — Investigate `/panel-*` underuse.** Diagnosis at `specs/pair-flow/research/panel-underuse.md`. Primary cause: `/panel-*` is newly available (shipped 2026-05-15, mid-window), not underused. Recommendation: keep panel as default; confirm D-6 (codex-only default, no longer provisional) and D-12 (`/panel-pairing` demoted to escalation, `/polish` as default convergence). LAN-Ollama auto-mode classifier denial recorded as follow-up.
 - **Task 3.6 — Spec validator port and extension.** Validator at `roles/osx/files/claude/scripts/spec-validate.sh`. Materializes to `~/.claude/scripts/spec-validate.sh` via the existing directory symlink in `roles/osx/tasks/osx.yml` (lines 55-60); no per-file symlink needed. Runs cleanly on `tecpan/specs/settings` (0 errors, 0 warnings), emits 27 warnings on `tecpan/specs/org` (prose REQs + every task missing Done when/Dependencies/Citations), emits 0 errors and 0 warnings on this `specs/pair-flow` bundle. Status-aware Gherkin from REQ-G7.1 verified via synthetic fixture: same gap warns on Draft (exit 0), errors on Active (exit 1).
 - **Task 3.5 — Pair-flow configuration helper.** Defaults at `roles/osx/files/claude/pair-flow.yml` (`panel-backends: [codex]`, `stale-lock-threshold: 1h`, `inbox-heartbeat-interval: 30s`). New symlink task in `roles/osx/tasks/osx.yml` materializes the file to `~/.claude/pair-flow.yml`. Helper at `roles/osx/files/claude/scripts/pair-flow-config.sh` with subcommands `repo`, `defaults`, `repo-class`, `confirm-repo-class <value>`, `show`. PR-history-based inference filters bots (`*[bot]`, `copilot-*`, `dependabot*`, `renovate*`, `github-actions*`) and PR-author self-reviews. Verified end-to-end on this repo: first `repo-class` call outputs `needs-confirmation:solo` (exit 2); `confirm-repo-class solo` writes `~/.claude/pair-flow.local.yml`; subsequent `repo-class` outputs `solo` (exit 0); deleting the file re-prompts.
