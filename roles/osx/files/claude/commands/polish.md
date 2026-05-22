@@ -8,7 +8,16 @@ You are nearly done with a branch and want to drain the trivial, tool-grounded f
 
 When the toolchain is clean and the diff is uniformly inside a categorization disqualifier (e.g., entirely security-sensitive auth code), Polish will hand off on the first iteration with all findings in Needs sign-off or Needs human judgment. The same first-iteration handoff happens when the project ships no tool that can ground a finding for the changed file types (e.g., a markdown-only diff in a project without a markdown linter) and no Agent-resolvable finding meets condition (a) (a failing regression test must exist for the finding's exact reason). Both are the expected outcome, not a failure.
 
-Polish does **not** create a PR. Run `/self-review` after Polish hands off, once you have addressed the Needs sign-off or Needs human judgment items.
+In **standalone mode** (default), Polish pushes the branch and opens (or updates) a draft PR after the loop exits via success or human-attention-required handoff. In **nested mode** (Polish invoked from another skill that owns PR creation, e.g., `/execute-task` per the pair-flow design), Polish remains local-only and the parent skill handles PR creation. The two modes are detected at pre-flight per the rules below.
+
+## Invocation mode
+
+Read the literal flag `--nested` from `$ARGUMENTS` at the very start of the run:
+
+- `$ARGUMENTS` contains `--nested`: Polish is nested inside another skill (typically `/execute-task`). Suppress the "Standalone-mode PR creation" step after the loop. Auto-execution invariants below treat push and PR creation as forbidden in this mode.
+- `$ARGUMENTS` does not contain `--nested`: Polish is standalone. The "Standalone-mode PR creation" step runs after a normal exit (success or human-attention-required). Safety stops still suppress it because the branch is in a known-broken state.
+
+Record the resolved mode in iteration summaries so the user can see it.
 
 ## Pre-flight (once per run)
 
@@ -116,6 +125,7 @@ Commit the changes from this iteration:
 Print a short summary:
 
 - Iteration N / cap
+- Invocation mode (standalone or nested per "Invocation mode" section)
 - `repo-class` in effect and active kickoff brief path (or "no active brief; Agent-resolvable bucket unavailable")
 - Counts: Auto-applicable applied, Agent-resolvable applied (solo only; in multi-reviewer this is always 0 since they surface for human review), Needs sign-off surfaced, Needs human judgment surfaced, dropped at step (d.1) (Auto-applicable rule no longer fires), dropped at step (d-AR.2 or d-AR.4) (Agent-resolvable test did not fail or pass as required)
 - For each Agent-resolvable applied: test file + test name, wider-check command + result, kickoff-brief section cited
@@ -150,9 +160,10 @@ These hold at every step:
 - **Never** route a finding to Agent-resolvable without all five conditions (failing test exists and was confirmed to fail before the fix, test passes after, wider CI passes, kickoff alignment cited, not in a hard-disqualifier zone). "The fix is obvious and I am sure CI will pass" does not qualify; the actual test + CI evidence does.
 - **Never** route a finding to Agent-resolvable when pre-flight step 5 disabled the bucket (no `repo-class` resolved, no active kickoff brief, or `repo-class: multi-reviewer` keeps it on the surface-with-evidence path).
 - **Never** modify CI configuration, `.env`, secrets, or lockfiles, even on a tool's recommendation.
-- **Never** push, force-push, amend, squash, or rebase. Polish is local-only; remote interaction is `/self-review`'s job.
-- **Never** create a PR. The user runs `/self-review` after Polish hands off.
-- **Never** post anything to chat platforms, tickets, or any remote system.
+- **Never** push, force-push, amend, squash, or rebase **inside the iteration loop** (steps (a) through (f)). In standalone mode, push happens only in the post-loop "Standalone-mode PR creation" step. In nested mode, push never happens; the parent skill owns remote interaction.
+- **Never** force-push, amend, squash, or rebase **at any time**, including the post-loop PR-creation step. The push there is a plain `git push origin <branch>` (with `-u` on first push); rewriting history is out of scope for Polish.
+- **Never** create a PR in **nested mode**. The parent skill (e.g., `/execute-task`) owns PR creation. In standalone mode, the post-loop step creates (or updates) a draft PR per the rules in that section.
+- **Never** post anything to chat platforms, tickets, or any remote system other than the GitHub PR draft body the post-loop step writes.
 - **Never** skip step (d.4) or step (d-AR.5). A "simple" fix that breaks an unrelated test is the failure mode these guard against.
 - **Never** skip step (d-AR.6) (kickoff alignment check). The whole point of the bucket is that downstream skills can trust the fix did not drift from the brief.
 - **Never** trust the iteration counter alone for cap enforcement; verify at the top of the iteration via the explicit cap check. Confirmation bias from a long successful run is the failure mode this catches.
@@ -160,11 +171,32 @@ These hold at every step:
 
 ## After the loop
 
-When Polish exits (success, human handoff, or any other stop condition), the next move is the user's:
+When the loop exits, branch on the exit reason and the invocation mode (set in the "Invocation mode" section above):
 
-- On success ("no findings remain"): consider running `/self-review` to make a final pass and open a PR.
-- On Human attention required: address the surfaced items. After they are resolved, re-run `/polish` to drain anything else, then `/self-review` to wrap up.
-- On Test failure or other safety stops: investigate the named condition. Polish does not auto-resume; the user explicitly re-invokes after the underlying issue is understood.
+- **Normal exit (success or Human attention required) in standalone mode.** Run the "Standalone-mode PR creation" step below. After it lands a draft PR (or updates an existing one), summarize: exit reason, PR URL + state, and any items still in Needs sign-off / Needs human judgment that the human needs to address before marking the PR ready for review.
+- **Normal exit in nested mode.** Hand control back to the parent skill (e.g., `/execute-task`) with the final tables. The parent owns push and PR creation. Do not push, do not run `gh pr create`, do not open a browser.
+- **Safety stop (Test failure, Loop detection, Iteration cap, Ambiguity, Security-sensitive, Migrations / data / destructive ops, Dirty working tree, High false-positive ratio).** Regardless of mode: print the latest tables, name the condition, and hand off. Do not push, do not create a PR; the branch is in a known-broken state.
+
+The user's next move depends on the exit reason:
+
+- On success in standalone mode: the draft PR is open; consider running `/self-review` to make a final pass and mark the PR ready for review.
+- On Human attention required in standalone mode: address the surfaced Needs sign-off / Needs human judgment items (on the branch, which now matches the open draft PR), then re-run `/polish` to drain anything new, then `/self-review` to wrap up.
+- On safety stops: investigate the named condition. Polish does not auto-resume; the user explicitly re-invokes after the underlying issue is understood.
+
+## Standalone-mode PR creation
+
+Runs only on normal exit in standalone mode. Skipped entirely in nested mode and on safety stops.
+
+1. **Push the branch.** `git push origin <branch>` (or `git push -u origin <branch>` if the branch has no upstream yet). If the push fails on a hook (pre-push test, security check, lefthook stage, etc.), diagnose whether the failure traces to this branch's diff or to pre-existing / unrelated state, surface the diagnosis, and hand off. Do not silently retry, **never** bypass with `--no-verify`, and do not "fix" unrelated test flakes inside this branch.
+2. **Check if a PR already exists for this branch.**
+   ```
+   gh pr view --json number,url,state,isDraft,title 2>/dev/null
+   ```
+   - If a PR exists: do not create a new one. Report the existing PR's URL and state (draft/ready, open/merged). If the existing PR is merged or closed, hand back to the user; do not assume reopening or creating fresh.
+   - If no PR exists: proceed to step 3.
+3. **Check for templates (only when creating a new PR).** Look for `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, or templates in `.github/PULL_REQUEST_TEMPLATE/`. If a template exists, use it as the structure for the PR body, filling in sections based on the branch changes.
+4. **Check for conventions (only when creating a new PR).** If no template exists, look at recent merged PRs for patterns (`gh pr list --state merged --limit 5 --json title,body`). Follow a clear pattern if one emerges.
+5. **Create the draft PR.** `gh pr create --draft` with a `--title` (under 70 characters) and a `--body` written via heredoc. The body shall include: a one-paragraph summary of what the branch does, a short "Polish notes" section listing Auto-applicable and Agent-resolvable items applied across iterations (test paths and kickoff-brief citations for the Agent-resolvable rows), and any unresolved Needs sign-off / Needs human judgment items the human needs to address before marking the PR ready for review. If no template or convention was found, fall back to `gh pr create --draft --fill` and then `gh pr edit --body` to append the Polish notes.
 
 ## Maintenance
 
