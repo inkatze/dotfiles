@@ -44,18 +44,6 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 - **Citations:** REQ-D9.1, D-19, D-20
 - **Estimated effort:** 1 day
 
-### Task 3.6 — Spec validator port and extension
-
-- **Deliverables:**
-  - Port tecpan's existing spec validator to `roles/osx/files/claude/scripts/spec-validate.sh` (the canonical location per D-28).
-  - Symlink task in `roles/osx/tasks/osx.yml` materializing the script to `~/.claude/scripts/spec-validate.sh`.
-  - Extension that checks each task in `tasks.md` has a stable ID, a `Done when:` condition, explicit `Dependencies:`, and explicit `Citations:` (D-15, D-45).
-  - Status-aware enforcement: warnings on `Draft` specs, errors on `Active` specs.
-- **Done when:** Validator runs cleanly on `tecpan/specs/settings` (no errors, no warnings). Runs on `tecpan/specs/org` and emits structural warnings (prose REQs, missing Done-when on most tasks). Run on this `specs/pair-flow` bundle emits zero errors.
-- **Dependencies:** none
-- **Citations:** REQ-A1.6, REQ-G7.1, D-28, D-45
-- **Estimated effort:** half day
-
 ### Task 4 — `tasks.md` state conventions and auto-update hooks
 
 - **Deliverables:**
@@ -149,6 +137,7 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 ## Completed
 
 - **Task 1 — Investigate `/panel-*` underuse.** Diagnosis at `specs/pair-flow/research/panel-underuse.md`. Primary cause: `/panel-*` is newly available (shipped 2026-05-15, mid-window), not underused. Recommendation: keep panel as default; confirm D-6 (codex-only default, no longer provisional) and D-12 (`/panel-pairing` demoted to escalation, `/polish` as default convergence). LAN-Ollama auto-mode classifier denial recorded as follow-up.
+- **Task 3.6 — Spec validator port and extension.** Validator at `roles/osx/files/claude/scripts/spec-validate.sh`. Materializes to `~/.claude/scripts/spec-validate.sh` via the existing directory symlink in `roles/osx/tasks/osx.yml` (lines 55-60); no per-file symlink needed. Runs cleanly on `tecpan/specs/settings` (0 errors, 0 warnings), emits 27 warnings on `tecpan/specs/org` (prose REQs + every task missing Done when/Dependencies/Citations), emits 0 errors and 0 warnings on this `specs/pair-flow` bundle. Status-aware Gherkin from REQ-G7.1 verified via synthetic fixture: same gap warns on Draft (exit 0), errors on Active (exit 1).
 
 ## In progress
 
