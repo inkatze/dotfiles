@@ -244,6 +244,23 @@ Verified by: diffing user-global CLAUDE.md against the prior version shows no ed
 
 Verified by: invocation on a spec with at least one ready task produces a draft PR.
 
+### REQ-D2.2 — One task per invocation; intra-spec parallelism via multiple invocations [manual]
+
+```gherkin
+[Gherkin]
+Given a spec with two ready independent tasks A and B
+When /orchestrate is invoked once
+Then exactly one of A or B is picked, dispatched, and the invocation exits
+And the other ready task remains in "ready" status
+
+When /orchestrate is invoked again from a separate session while task A is still in flight
+Then task B is picked and dispatched in a separate worktree
+And both tasks appear in tasks.md as "In progress"
+And both produce independent draft PRs
+```
+
+Verified by: two-invocation scenario on a real spec with two independent tasks. Inspect tasks.md, worktrees, and resulting PRs.
+
 ### REQ-D2.1 — Statelessness across invocations [manual]
 
 ```gherkin

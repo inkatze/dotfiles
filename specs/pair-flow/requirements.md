@@ -55,7 +55,7 @@ The system is built on Claude Code primitives (skills, hooks, slash commands, sc
 - **REQ-B1.2** `/execute-task` shall accept multiple task IDs as input and bundle them per the rule in D-11.
 - **REQ-B1.3** For new behavior, `/execute-task` shall write the verifying test first per `test-spec.md`, confirm it fails for the intended reason, then implement until the test passes.
 - **REQ-B1.4** For bug fixes or regressions, `/execute-task` shall reproduce the failure with a regression test first, confirm the test fails for the right reason, then fix.
-- **REQ-B1.5** When research is required, `/execute-task` shall consult project docs, source code, and reputable external sources (deepwiki MCP, official docs, similar repositories) and record findings in the kickoff brief's risk register.
+- **REQ-B1.5** When research is required, `/execute-task` shall consult project docs, source code, and reputable external sources (deepwiki MCP, official docs, similar repositories, industry standards, popular projects dealing with similar issues). The agent shall weigh performance, security, and system-wide implications during this research, recording findings and tradeoffs in the kickoff brief's risk register (D-53).
 - **REQ-B1.6** `/execute-task` shall run the project's full CI-equivalent (`mix ci` for Elixir, equivalent for other languages) until green before declaring implementation done.
 - **REQ-B1.7** `/execute-task` shall invoke `/polish` as its final convergence step.
 - **REQ-B1.8** `/execute-task` shall open a draft PR with a body that references the kickoff brief path, task IDs, REQs satisfied, and a summary of the test additions. All pair-flow-created PRs shall be drafts (D-21).
@@ -76,6 +76,7 @@ The system is built on Claude Code primitives (skills, hooks, slash commands, sc
 
 - **REQ-D1.1** The system shall provide a `/orchestrate <spec-path>` skill that advances work on a spec by selecting the next ready task(s) and dispatching execution.
 - **REQ-D2.1** `/orchestrate` shall be stateless across invocations: each call reads `tasks.md`, computes the next legal move, performs it, updates `tasks.md`, and exits.
+- **REQ-D2.2** Each `/orchestrate` invocation shall pick and dispatch at most one task (or one bundle per D-11). Intra-spec parallelism is achieved by multiple invocations across separate sessions or via the scheduled runner (D-52). The per-spec lock is released before `/execute-task` runs so concurrent task execution within the same spec is allowed.
 - **REQ-D3.1** `/orchestrate` shall identify ready tasks as those whose `Dependencies:` are listed in `Completed` and that are not currently in `In progress` or `Awaiting input`.
 - **REQ-D4.1** `/orchestrate` shall bundle consecutive ready tasks into a single PR when the bundling rule (D-11) holds.
 - **REQ-D5.1** For a spec to be orchestratable, each task shall have a stable ID, a `Done when:` condition unambiguous enough for an agent to evaluate, explicit `Dependencies:`, and `Citations:`. Repo-level configuration (`repo-class`, etc.) is supplied by `~/.claude/pair-flow.yml` and `~/.claude/pair-flow.local.yml` per D-19, not by the spec bundle. Specs missing the required task structure are not orchestratable and shall be flagged by `/orchestrate` with an offer to invoke `/spec-kickoff` in retrofit mode.

@@ -205,15 +205,16 @@ Each layer is independently shippable. L5 and L1 ship first because they unlock 
 
 ### D-17: Orchestrator concurrency via advisory lockfile
 
-**Decision:** `/orchestrate` acquires an advisory lockfile (`{repo}/.claude/orchestrate.lock` or similar) before performing state-changing moves. Lock acquisition failure is a clean no-op (exit with reason logged to inbox), not an error.
+**Decision:** `/orchestrate` acquires an advisory lockfile (per-spec, at `specs/{feature}/.orchestrate.lock` per D-37) before performing state-changing moves: task selection, worktree creation, `tasks.md` updates. The lock is released before `/execute-task` runs, allowing intra-spec parallelism per D-52. Lock acquisition failure is a clean no-op (exit with reason logged to inbox), not an error.
 
 **Alternatives considered:**
-- No locking. Rejected; multi-host runners could collide.
+- No locking. Rejected; multi-host runners could collide on state-changing moves.
 - Heavyweight locking (e.g., Redis). Rejected; we don't have shared infrastructure beyond a synced filesystem.
+- Hold the lock for the duration of `/execute-task`. Rejected; would block intra-spec parallelism, which the user's existing workflow depends on.
 
-**Chosen because:** Cheap, robust to crashes (stale locks can be detected and broken), no new infrastructure.
+**Chosen because:** Cheap, robust to crashes (stale locks can be detected and broken), no new infrastructure. Short lock window unblocks parallel execution.
 
-**Open:** Stale lock detection threshold (e.g., locks older than 1 hour are considered stale) needs calibration after first use.
+**Stale-lock threshold:** locks older than 1 hour (per `pair-flow.yml` `stale-lock-threshold`) are treated as stale and may be broken by the next runner.
 
 ### D-18: Build only on Claude Code primitives
 
@@ -469,12 +470,13 @@ The dashboard popup renders one row per worktree, aggregating contributing sessi
 
 ### D-37: Cross-spec concurrent `/orchestrate` is allowed
 
-**Decision:** Two `/orchestrate` invocations on different specs in the same repo proceed independently. Locking (D-17) is per-spec via `specs/{feature}/.orchestrate.lock`. Same-spec concurrency is the only blocked case.
+**Decision:** Two `/orchestrate` invocations on different specs in the same repo proceed independently. Locking (D-17) is per-spec via `specs/{feature}/.orchestrate.lock` and held only during state-changing moves (task selection, `tasks.md` updates), not for the duration of `/execute-task`. Concurrent state mutations on the same spec are serialized via the lock; concurrent task execution on the same spec is allowed and is the basis for intra-spec parallelism per D-52.
 
 **Alternatives considered:**
 - Repo-wide lock. Rejected: serializes unrelated work.
+- Per-spec lock held until execution completes. Rejected: blocks intra-spec parallel tasks.
 
-**Chosen because:** Specs are the orchestration unit; nothing requires repo-wide serialization.
+**Chosen because:** Specs are the orchestration unit; nothing requires repo-wide serialization or full-duration locking.
 
 ### D-38: Measurement plan convention
 
@@ -617,6 +619,30 @@ Either trigger fires the whole-brief path; otherwise stay section-scoped.
 - No threshold (always section-scoped). Rejected: a true rewrite makes section-by-section invalidation tedious and incoherent.
 
 **Chosen because:** Pragmatic thresholds that match what a "rewrite" actually looks like in practice.
+
+### D-52: One task per `/orchestrate` invocation; intra-spec parallelism via multiple invocations
+
+**Decision:** Each `/orchestrate` invocation picks and dispatches at most one ready task (or one bundle per D-11), then exits. The per-spec advisory lock (D-17, D-37) is held only during state-changing moves — task selection and the resulting `tasks.md` update — not for the duration of `/execute-task`. As a result, multiple ready tasks within the same spec can be in flight simultaneously across different worktrees, each kicked off by a separate `/orchestrate` invocation.
+
+Parallelism is driven by:
+- **Manual:** the user runs `/orchestrate` in multiple tmux panes (or sessions) to kick off N parallel tasks. Matches the user's existing "different workstreams in parallel" workflow.
+- **Scheduled:** Task 12's bookkeeping runner picks up the next ready task on each cycle; intra-spec parallelism accumulates naturally over time.
+
+**Alternatives considered:**
+- Fan-out within one invocation. Rejected: parallel `/execute-task` work would require spawning sub-sessions, conflicting with D-39 (in-session skill composition).
+- Long-running `/orchestrate` process holding multiple in-flight tasks. Rejected per D-5 (stateless step machine).
+
+**Chosen because:** Matches the user's existing workflow (parallel tmux panes / sessions for independent workstreams) while preserving the stateless step-machine model.
+
+### D-53: Performance, security, and system-wide considerations during execution
+
+**Decision:** `/execute-task` shall weigh performance, security, and system-wide implications when proposing a fix, alongside its consultation of docs, source code, and reputable external sources (REQ-B1.5). These considerations and any tradeoffs are recorded in the kickoff brief's risk register. CI is the hard gate for correctness; performance regressions that pass CI but materially degrade behavior remain user-observable and therefore are not eligible for Agent-resolvable auto-apply (D-3 already excludes user-observable behavior change).
+
+**Alternatives considered:**
+- Add a "performance regression" disqualifier to D-3's hard list. Rejected for v1: automated benchmarking is not in place; codifying a check the system cannot enforce creates a false guarantee.
+- Leave the consideration entirely implicit. Rejected: the user explicitly asked for performance and security to be weighed during execution.
+
+**Chosen because:** Explicit reminder of the consideration without overpromising on automated enforcement. When benchmark CI is added in a future task, this can be tightened.
 
 ## Cross-cutting concerns
 
