@@ -52,6 +52,18 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 - **Citations:** REQ-D9.1, D-19, D-20
 - **Estimated effort:** 1 day
 
+### Task 3.6 — Spec validator port and extension
+
+- **Deliverables:**
+  - Port tecpan's existing spec validator to `roles/osx/files/claude/scripts/spec-validate.sh` (the canonical location per D-28).
+  - Symlink task in `roles/osx/tasks/osx.yml` materializing the script to `~/.claude/scripts/spec-validate.sh`.
+  - Extension that checks each task in `tasks.md` has a stable ID, a `Done when:` condition, explicit `Dependencies:`, and explicit `Citations:` (D-15, D-45).
+  - Status-aware enforcement: warnings on `Draft` specs, errors on `Active` specs.
+- **Done when:** Validator runs cleanly on `tecpan/specs/settings` (no errors, no warnings). Runs on `tecpan/specs/org` and emits structural warnings (prose REQs, missing Done-when on most tasks). Run on this `specs/pair-flow` bundle emits zero errors.
+- **Dependencies:** none
+- **Citations:** REQ-A1.6, REQ-G7.1, D-28, D-45
+- **Estimated effort:** half day
+
 ### Task 4 — `tasks.md` state conventions and auto-update hooks
 
 - **Deliverables:**
@@ -72,18 +84,18 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 ### Task 6 — `/spec-kickoff` skill
 
-- **Deliverables:** `roles/osx/files/claude/commands/spec-kickoff.md`. Reads a spec at `<spec-path>`, walks section by section, restates in the agent's own words, surfaces domain term definitions, poses Socratic checks, reconstructs task graph, builds risk register, produces `specs/{feature}/kickoff-brief.md`. Supports retrofit mode that adds missing structure (per D-15) on existing specs. Reads effective config via Task 3.5's helper; triggers discovery if the current repo has no entry.
-- **Done when:** Invoked on `tecpan/specs/settings`, produces a kickoff brief that the user signs off without major correction. Invoked on `tecpan/specs/org` in retrofit mode, surfaces at least three implicit decisions or assumptions the user agrees were under-specified.
-- **Dependencies:** Task 3.5 (config helper). Task 4 helpful but not blocking.
-- **Citations:** REQ-A2.1 through REQ-A2.7, REQ-D9.1, D-7, D-19, D-20, D-27
+- **Deliverables:** `roles/osx/files/claude/commands/spec-kickoff.md`. Reads a spec at `<spec-path>`, walks section by section, restates in the agent's own words, surfaces domain term definitions, poses Socratic checks, reconstructs task graph, builds risk register, produces `specs/{feature}/kickoff-brief.md` incrementally per section (D-41). Supports retrofit mode that adds missing structure (per D-15) on existing specs. Reads effective config via Task 3.5's helper; triggers discovery if the current repo has no entry. Flips spec status `Draft` → `Active` on sign-off (D-31). Handles partial-invalidation re-walkthrough per D-35 and spec-looks-wrong escalation per D-42.
+- **Done when:** Invoked on `tecpan/specs/settings`, produces a kickoff brief that the user signs off without major correction; spec status flips to `Active`. Invoked on `tecpan/specs/org` in retrofit mode, surfaces at least three implicit decisions or assumptions the user agrees were under-specified. Partial invalidation walks only invalidated sections.
+- **Dependencies:** Task 3.5 (config helper), Task 3.6 (validator). Task 4 helpful but not blocking.
+- **Citations:** REQ-A2.1 through REQ-A2.10, REQ-A3.1, REQ-A3.2, REQ-D9.1, D-7, D-19, D-20, D-27, D-31, D-35, D-41, D-42
 - **Estimated effort:** 2 days
 
 ### Task 7 — `/spec-draft` skill
 
-- **Deliverables:** `roles/osx/files/claude/commands/spec-draft.md`. Elicits a spec interactively per REQ-A1.1 through REQ-A1.7. Produces the four files in `specs/{feature-name}/`.
-- **Done when:** Draft a real upcoming spec (candidate: a small spec for one of the deferred items in this bundle, e.g., handover-brief auto-write). The output meets the validator's structural bar without manual cleanup.
-- **Dependencies:** Task 6 (the kickoff brief format is the contract; draft must produce compatible structure)
-- **Citations:** REQ-A1.1 through REQ-A1.7
+- **Deliverables:** `roles/osx/files/claude/commands/spec-draft.md`. Elicits a spec interactively per REQ-A1.1 through REQ-A1.7. Produces the four files in `specs/{feature-name}/` with status `Draft` (REQ-A3.1). Runs validator (Task 3.6) before declaring stakeholder-ready.
+- **Done when:** Draft a real upcoming spec (candidate: a small spec for one of the deferred items in this bundle, e.g., handover-brief auto-write). The output meets the validator's structural bar without manual cleanup; status `Draft`.
+- **Dependencies:** Task 3.6 (validator), Task 6 (the kickoff brief format is the contract; draft must produce compatible structure)
+- **Citations:** REQ-A1.1 through REQ-A1.7, REQ-A3.1, REQ-A3.2
 - **Estimated effort:** 2 days
 
 ### Task 8 — `Agent-resolvable` bucket in `/polish` and `/panel-pairing`
@@ -112,10 +124,10 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 ### Task 11 — `/orchestrate` v1
 
-- **Deliverables:** `roles/osx/files/claude/commands/orchestrate.md`. Implements REQ-D1.1 through REQ-D9.1 (orchestration scope only; bookkeeping moves are Task 12): stateless step machine, reads `tasks.md`, picks ready task(s), bundles per D-11 with sizing per D-24, dispatches via `/execute-task`, halts after draft PR open or `Awaiting input`. Uses advisory lockfile per D-17. All PRs are drafts (D-21).
-- **Done when:** Invoked twice on a spec with two ready independent tasks, the second invocation correctly identifies that the first task is in flight and either picks the second task or no-ops cleanly (depending on lock state). Both result in draft PRs. Bundle sizing logged for telemetry tuning.
-- **Dependencies:** Task 3.5 (config helper), Task 10
-- **Citations:** REQ-D1.1 through REQ-D9.1, D-5, D-11, D-15, D-17, D-19, D-21, D-24
+- **Deliverables:** `roles/osx/files/claude/commands/orchestrate.md`. Implements REQ-D1.1 through REQ-D12.1 (orchestration scope only; bookkeeping moves are Task 12): stateless step machine, reads `tasks.md`, picks ready task(s), creates worktrees per D-44, bundles per D-11 with sizing per D-24 and branch naming per D-32, dispatches via `/execute-task`, halts after draft PR open or `Awaiting input`. Uses advisory lockfile per D-17 (per-spec, allowing cross-spec concurrency per D-37). Halts cleanly when spec is not `Active` (D-33) or has no kickoff brief (D-36). Flips spec status to `Done` when last task moves to Completed (D-31). All PRs are drafts (D-21).
+- **Done when:** Invoked twice on a spec with two ready independent tasks, the second invocation correctly identifies that the first task is in flight and either picks the second task or no-ops cleanly (depending on lock state). Both result in draft PRs. Bundle sizing logged for telemetry tuning. Invoked on a `Draft`-status spec, halts with the kickoff prompt.
+- **Dependencies:** Task 3.5 (config helper), Task 3.6 (validator), Task 10
+- **Citations:** REQ-D1.1 through REQ-D12.1, REQ-A3.3, D-5, D-11, D-15, D-17, D-19, D-21, D-24, D-31, D-32, D-33, D-36, D-37, D-44
 - **Estimated effort:** 2 days
 
 ### Task 12 — Scheduled remote agent runner
@@ -153,7 +165,6 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 ## Awaiting input
 
 - **Sync mechanism choice for inbox** (iCloud Drive vs Syncthing). User to decide based on existing tooling. Task 3 currently assumes "either works"; concrete pick affects only the documentation.
-- **Codex availability on personal and alt profiles** (D-6, Open question #9). Gated on Task 1's investigation.
 
 ## Deferred
 
@@ -177,11 +188,7 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 ## Open questions
 
-Captured here so the next reviewer can see what is undecided. Each should be resolved before the affected task is implemented or explicitly accepted as remaining open.
-
-1. **Codex availability on personal/alt** (D-6, Open question #9): does codex work on those profiles? Resolution depends on Task 1's investigation. If codex is not reliably available on a profile, the panel-backend default needs a per-profile fallback.
-
-Resolved questions (recorded for traceability; full reasoning in `design.md`):
+All original open questions resolved as of 2026-05-22. Recorded here for traceability; full reasoning in `design.md`:
 
 - *Spec-config location.* Resolved by D-19: two-file split (`~/.claude/pair-flow.yml` defaults + `~/.claude/pair-flow.local.yml` agent-maintained).
 - *PR-merge detection trigger.* Resolved by D-29: scheduled runner polls, no webhook.
@@ -193,3 +200,4 @@ Resolved questions (recorded for traceability; full reasoning in `design.md`):
 - *Telemetry layout.* Resolved by D-30: `snapshots/` + `deltas/` + `data/` under existing `specs/metrics-baseline/`, age-encrypted.
 - *CI retry policy.* Resolved by D-25: adaptive (transient retry up to 2x, logic escalate immediately).
 - *File-path hook scope.* Resolved by D-26: Read/Edit/Write only.
+- *Codex availability on personal/alt.* Resolved 2026-05-22: codex is available on both work (business account) and personal (personal account) profiles. D-6 (codex-only default) stands.

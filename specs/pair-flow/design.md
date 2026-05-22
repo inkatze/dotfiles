@@ -93,9 +93,9 @@ Each layer is independently shippable. L5 and L1 ship first because they unlock 
 - Codex + one Ollama model for variance. Rejected per user direction; simplification preferred for v1.
 - Keep current `codex,qwen-coder` (work) / `qwen-coder,gpt-oss` (personal) split. Rejected per user direction.
 
-**Chosen because:** User instruction. Variance comes back as an opt-in via the existing `--backends` flag if needed.
+**Chosen because:** User instruction. Variance comes back as an opt-in via the existing `--backends` flag if needed. Codex availability is confirmed across work (business account) and personal (personal account) profiles (2026-05-22).
 
-**Provisional:** May be reversed if the Task 1 investigation reveals codex is unreliable or low-yield.
+**Provisional:** May be reversed if Task 1 reveals that panel-pairing with codex catches nothing copilot doesn't (low yield → consider retiring `/panel-pairing` entirely or scoping to escalation only).
 
 ### D-7: `/spec-kickoff` is a didactic walkthrough, not a checklist
 
@@ -404,6 +404,186 @@ Each pair-flow task that introduces measurable behavior shall include a "Measure
 - `~/.claude/telemetry/`. Rejected: not version controlled, lost on machine reset.
 
 **Chosen because:** Builds on existing pattern. Initiative-specific attribution plus raw data enables reproducibility.
+
+### D-31: Spec status lifecycle (Draft → Active → Done)
+
+**Decision:** A spec moves through three states declared in `requirements.md` as `**Status:** Draft|Active|Done`. `Draft` is being authored; `Active` is signed off and under execution; `Done` is all tasks Completed. `/spec-draft` writes Draft; `/spec-kickoff` flips to Active on sign-off; `/orchestrate` (or Task 12's bookkeeping runner) flips to Done when the last task moves to Completed.
+
+**Alternatives considered:**
+- `Draft → Active` only. Rejected: can't tell at a glance which specs are still in flight.
+- `Draft → Approved → Active → Done` with stakeholder Approved state. Rejected for v1: solo proving ground doesn't need it; can be added for multi-reviewer projects later.
+
+**Chosen because:** Three-state machine is enough granularity for "what's done" without overhead.
+
+### D-32: Branch naming for orchestrator-created branches
+
+**Decision:** `pair-flow/{spec}/task-{id-or-ids}`. Examples: `pair-flow/auth/task-3`, `pair-flow/auth/task-3-4` for a bundle. User overrides allowed when running `/execute-task` standalone.
+
+**Alternatives considered:**
+- `{spec}/task-{id}` without namespace. Rejected: doesn't signal pair-flow ownership.
+- Flat `{spec}-task-{id}`. Rejected: loses hierarchical grouping in tools.
+
+**Chosen because:** Namespaced, machine-parseable, signals ownership.
+
+### D-33: No bypass mode for `/spec-kickoff`
+
+**Decision:** `/execute-task` and `/orchestrate` refuse to act on a spec that has not been signed off via `/spec-kickoff`. No `--no-kickoff` flag, no emergency bypass, no post-hoc kickoff.
+
+**Alternatives considered:**
+- Explicit `--no-kickoff` emergency flag. Rejected: creates a backdoor that erodes over time.
+- Post-hoc kickoff. Rejected: more complex state, defeats the contract.
+
+**Chosen because:** The kickoff IS the contract; skipping it defeats pair-flow's purpose. Manual work outside pair-flow remains available for emergencies.
+
+### D-34: Inbox keyed per-session, presented per-worktree
+
+**Decision:** Inbox JSON files are keyed by Claude Code session UUID: `{host}-{session-uuid}.json`. Contents include the worktree path and branch so the dashboard groups by worktree.
+
+The dashboard popup renders one row per worktree, aggregating contributing session entries. Sort and color (D-22) apply to the aggregated row using the most urgent contributor's state. Sequential sessions in the same worktree appear as one row across time (prior session's file self-removes on exit; new session writes fresh). Concurrent sessions in the same worktree (rare) appear as one row with a "(N sessions)" annotation.
+
+**Alternatives considered:**
+- Key by worktree path. Rejected: collisions when sessions overlap.
+- Key by tmux pane. Rejected: noise when one task spans multiple panes.
+
+**Chosen because:** Per-session keying keeps the data model clean; per-worktree presentation matches the user's mental model ("what work is happening in this worktree").
+
+### D-35: `/spec-kickoff` re-walkthrough on partial invalidation
+
+**Decision:** When the brief is partially invalidated (D-27), `/spec-kickoff` walks only the invalidated sections. A one-line summary of unchanged sections is shown at the start to anchor context.
+
+**Alternatives considered:**
+- Full re-walkthrough every time. Rejected: defeats D-27's scoping.
+- Silent update without re-signoff. Rejected: the brief is a contract.
+
+**Chosen because:** Surgical; respects user time.
+
+### D-36: `/orchestrate` on unkickoffed specs
+
+**Decision:** When `/orchestrate` encounters a spec without a kickoff brief (or whose brief is fully invalidated by a wholesale spec rewrite), it halts cleanly and prompts the user to invoke `/spec-kickoff`. It does not auto-chain into kickoff.
+
+**Alternatives considered:**
+- Auto-invoke kickoff. Rejected: kickoff is an interactive walkthrough that wants undivided attention.
+- Proceed without brief. Rejected per D-33.
+
+**Chosen because:** Hard separation between authoring/signoff and execution.
+
+### D-37: Cross-spec concurrent `/orchestrate` is allowed
+
+**Decision:** Two `/orchestrate` invocations on different specs in the same repo proceed independently. Locking (D-17) is per-spec via `specs/{feature}/.orchestrate.lock`. Same-spec concurrency is the only blocked case.
+
+**Alternatives considered:**
+- Repo-wide lock. Rejected: serializes unrelated work.
+
+**Chosen because:** Specs are the orchestration unit; nothing requires repo-wide serialization.
+
+### D-38: Measurement plan convention
+
+**Decision:** Tasks that introduce measurable behavior include a `**Measurement plan:**` line listing metric, source, and baseline comparison. Same shape and discipline as `Citations:`. Documented in `specs/README.md`.
+
+**Alternatives considered:**
+- Separate metrics file per spec. Rejected: fragments the plan from the change.
+
+**Chosen because:** Lightweight, mirrors an existing convention.
+
+### D-39: Skill-to-skill invocation is in-session
+
+**Decision:** When `/execute-task` invokes `/polish` internally, it is a sub-step within the same Claude Code session, not a separately-launched skill. Hooks fire once per actual tool call. Inbox state remains owned by the outer skill.
+
+**Alternatives considered:**
+- Spawn sub-sessions for inner skills. Rejected: doubles hook firings; complicates state ownership.
+
+**Chosen because:** Skills compose as functions, not as separate processes.
+
+### D-40: `Last reviewed:` auto-update
+
+**Decision:** `/spec-draft` and `/spec-kickoff` update each modified spec file's `Last reviewed:` line to today's date as a side effect of any change they make. Humans set it manually on direct edits.
+
+**Alternatives considered:**
+- No auto-update. Rejected: drifts immediately.
+- Auto-update via git hook. Rejected: would touch files the human didn't intend to update.
+
+**Chosen because:** Lightweight mechanical hygiene by the right actors.
+
+### D-41: Kickoff brief written incrementally
+
+**Decision:** `/spec-kickoff` writes the brief section-by-section as each section is signed off, not atomically at the end. A killed session leaves a partial brief; the next `/spec-kickoff` invocation detects it and resumes from the next unsigned section.
+
+**Alternatives considered:**
+- Atomic write at end. Rejected: discarding 20 minutes of walkthrough on Ctrl+C is hostile.
+
+**Chosen because:** Robust against interruption.
+
+### D-42: `/spec-kickoff` "spec looks wrong" escalation
+
+**Decision:** When walkthrough surfaces a genuine inconsistency in the spec (REQs contradict, design conflicts with requirement, etc.), `/spec-kickoff` halts without producing a brief. User chooses: (a) edit the spec (back to `/spec-draft` or manual) and re-run, or (b) record an explicit override in the brief explaining why the apparent inconsistency is intentional.
+
+**Alternatives considered:**
+- Force resolution in the spec. Rejected: sometimes the apparent inconsistency is intentional.
+- Continue silently. Rejected: defeats the brief's purpose.
+
+**Chosen because:** Honors user authority while keeping the disagreement on record.
+
+### D-43: `gh` authentication failure handling
+
+**Decision:** Pair-flow skills degrade gracefully when `gh` is unauthenticated:
+- PR-related operations (open PR, query PR state, reconcile merges) halt with a clear "run `gh auth login`" message.
+- Local-only operations (`/polish` without PR opening, `/spec-kickoff`, `/spec-draft`) proceed.
+- `/orchestrate` halts and writes an `Awaiting input` inbox entry mid-cycle if it cannot reach the PR API.
+
+**Alternatives considered:**
+- Hard failure on any gh dependency. Rejected: blocks work that doesn't need gh.
+
+**Chosen because:** Maximizes useful work in the degraded state without faking success.
+
+### D-44: Worktree ownership split
+
+**Decision:** `/orchestrate` creates worktrees as it picks new tasks. `/execute-task` assumes the worktree exists (created by the orchestrator, or manually by the user when running standalone). Worktree paths follow the existing dotfiles convention: `<repo>--claude-worktrees-<branch-suffix>` resolved by the worktree-bootstrap hook.
+
+**Alternatives considered:**
+- `/execute-task` creates its own worktree. Rejected: would double-create when run inside `/orchestrate`; manual-create overhead in standalone use is small.
+
+**Chosen because:** Clear ownership boundary; `/execute-task` stays usable both standalone and nested.
+
+### D-45: Validator extended for D-15 task structure, status-aware enforcement
+
+**Decision:** The ported validator (D-28) is extended to check each task in `tasks.md` has a stable ID, a `Done when:` condition, explicit `Dependencies:`, and explicit `Citations:`. Enforcement is status-aware:
+- `Draft` status: validator failures are warnings (informative, non-blocking).
+- `Active` status: validator failures are errors (block `/execute-task`, `/orchestrate`).
+
+**Alternatives considered:**
+- Block at Draft. Rejected: too rigid during authoring.
+- No extension. Rejected: format compliance drifts without enforcement.
+
+**Chosen because:** Status-aware enforcement matches the spec lifecycle (D-31).
+
+### D-46: Kickoff brief retention
+
+**Decision:** Kickoff briefs are retained indefinitely in the spec bundle directory once a spec is Done. They become a historical artifact. No automatic pruning.
+
+**Alternatives considered:**
+- Delete on completion. Rejected: loses decision and assumption traceability.
+- Move to archive directory. Rejected: extra discipline for no clear gain.
+
+**Chosen because:** Disk cost is negligible; historical value is real.
+
+### D-47: Uncommitted changes on `/resume`
+
+**Decision:** When `/resume` opens in a worktree with uncommitted changes, it surfaces `git status` to the user and asks before proceeding. No auto-clean, no auto-commit, no auto-stash.
+
+**Alternatives considered:**
+- Auto-stash. Rejected: too easy to lose work if resume goes sideways.
+- Refuse to resume until clean. Rejected: too rigid; uncommitted changes may be intentional WIP.
+
+**Chosen because:** Surfaces information, defers the decision to the human.
+
+### D-48: No separate audit log
+
+**Decision:** Pair-flow does not maintain a separate audit log. The audit trail is: git history + PR descriptions + `tasks.md` section transitions + inbox state file timestamps + age-encrypted telemetry per D-30.
+
+**Alternatives considered:**
+- Append-only audit log per repo at `~/.claude/pair-flow.audit.jsonl`. Rejected: marginal value when git already records what changed and when.
+
+**Chosen because:** Reuse what's already authoritative.
 
 ## Cross-cutting concerns
 

@@ -37,6 +37,15 @@ The system is built on Claude Code primitives (skills, hooks, slash commands, sc
 - **REQ-A2.5** `/spec-kickoff` shall produce a risk register listing what is underspecified, externally dependent, or could plausibly fail.
 - **REQ-A2.6** The kickoff brief shall reference the spec commit hash. When any spec file changes after sign-off, only the brief sections tied to the changed content shall be invalidated and require re-signoff (section-scoped invalidation per D-27). Whole-brief invalidation applies only to wholesale spec rewrites.
 - **REQ-A2.7** `/spec-kickoff` shall be invokable on existing specs (retrofit kickoff). When the spec lacks structure required for orchestration (per REQ-D5), `/spec-kickoff` shall offer to add the missing structure as part of the kickoff.
+- **REQ-A2.8** When `/spec-kickoff` surfaces a genuine inconsistency between spec sections (REQs contradict, design conflicts with requirement, etc.), it shall halt without producing a brief and offer two paths: (a) edit the spec and re-run, or (b) record an explicit override in the brief explaining why the apparent inconsistency is intentional (D-42).
+- **REQ-A2.9** Spec-touching skills (`/spec-draft`, `/spec-kickoff`) shall update each modified spec file's `Last reviewed:` line to the current date as a side effect of any change they make (D-40).
+- **REQ-A2.10** `/spec-kickoff` shall write the brief section-by-section as each section is signed off (incremental write). A killed session leaves a partial brief that the next invocation resumes from (D-41).
+
+## REQ-A3 — Spec status lifecycle
+
+- **REQ-A3.1** Each spec shall declare a status in `requirements.md` header: `Draft`, `Active`, or `Done`.
+- **REQ-A3.2** `/spec-draft` shall write specs with status `Draft`. `/spec-kickoff` shall flip status to `Active` on sign-off. `/orchestrate` (and the scheduled bookkeeping runner per Task 12) shall flip status to `Done` when the last task moves to `Completed` (D-31).
+- **REQ-A3.3** `/execute-task` and `/orchestrate` shall refuse to act on a spec whose status is not `Active`. There is no bypass flag (D-33). Manual work outside pair-flow remains available.
 
 ## REQ-B — Task execution
 
@@ -49,6 +58,8 @@ The system is built on Claude Code primitives (skills, hooks, slash commands, sc
 - **REQ-B1.7** `/execute-task` shall invoke `/polish` as its final convergence step.
 - **REQ-B1.8** `/execute-task` shall open a draft PR with a body that references the kickoff brief path, task IDs, REQs satisfied, and a summary of the test additions. All pair-flow-created PRs shall be drafts (D-21).
 - **REQ-B1.9** When the project CI run fails, `/execute-task` shall classify the failure as transient (retry up to 2x with exponential backoff) or logic (escalate immediately to `Awaiting input`) per D-25. Unknown patterns default to logic.
+- **REQ-B1.10** `/execute-task` shall assume its worktree already exists. Worktree creation is `/orchestrate`'s responsibility when invoked through the orchestrator; manual creation by the user is expected when `/execute-task` is invoked standalone (D-44).
+- **REQ-B1.11** When `/execute-task` invokes `/polish` internally, it does so as a sub-step within the same Claude Code session (D-39). Hooks fire once per actual tool call. Inbox state is owned by the outer skill.
 
 ## REQ-C — Autonomous resolution
 
@@ -68,6 +79,9 @@ The system is built on Claude Code primitives (skills, hooks, slash commands, sc
 - **REQ-D5.1** For a spec to be orchestratable, each task shall have a stable ID, a `Done when:` condition unambiguous enough for an agent to evaluate, explicit `Dependencies:`, and `Citations:`. Repo-level configuration (`repo-class`, etc.) is supplied by `~/.claude/pair-flow.yml` and `~/.claude/pair-flow.local.yml` per D-19, not by the spec bundle. Specs missing the required task structure are not orchestratable and shall be flagged by `/orchestrate` with an offer to invoke `/spec-kickoff` in retrofit mode.
 - **REQ-D6.1** `/orchestrate` shall halt after opening a draft PR. Pair-flow shall never include auto-merge functionality at any tier (D-21); all created PRs are drafts.
 - **REQ-D9.1** Pair-flow skills shall discover repo configuration on first encounter by inferring `repo-class` from PR review history. The inferred value shall always be surfaced to the user for confirmation before being written. Discovery shall never silently write to `~/.claude/pair-flow.local.yml`.
+- **REQ-D10.1** Cross-spec concurrent `/orchestrate` invocations in the same repo shall proceed independently. Locking is per-spec via `specs/{feature}/.orchestrate.lock` (D-37).
+- **REQ-D11.1** When `/orchestrate` encounters a spec without a kickoff brief (or whose brief is fully invalidated), it shall halt cleanly and prompt the user to invoke `/spec-kickoff`. It shall not auto-chain into kickoff (D-36).
+- **REQ-D12.1** Pair-flow skills shall degrade gracefully when `gh` is not authenticated: PR-related operations halt with a clear message; local-only operations proceed. `/orchestrate` mid-cycle gh failures result in an `Awaiting input` inbox entry (D-43).
 - **REQ-D7.1** `/orchestrate` shall halt and post an `Awaiting input` inbox entry when it encounters: ambiguity in a task definition, an unexpected dependency, a test failure it cannot resolve, a hard-disqualifier finding, or contract drift from the kickoff brief.
 - **REQ-D8.1** Multi-host or concurrent invocations against the same spec shall be coordinated via an advisory lockfile to prevent two runners from working on the same task. Lock contention shall be a clean no-op (exit with reason), not an error.
 
@@ -79,6 +93,7 @@ The system is built on Claude Code primitives (skills, hooks, slash commands, sc
 - **REQ-E2.2** `/resume` shall not require a handover brief to function. If one exists, `/resume` shall layer it on for non-obvious context.
 - **REQ-E3.1** Skills that change task state (`/execute-task`, `/orchestrate`, hooks fired on PR open or merge) shall update `tasks.md` as a side effect.
 - **REQ-E4.1** A handover brief (`{worktree}/.claude/handover.md`) may optionally be written when a session exits with in-flight work whose non-obvious context cannot be inferred from `tasks.md` + git + PR. This is an optimization, not a requirement; the system shall function correctly without it.
+- **REQ-E5.1** When `/resume` opens in a worktree with uncommitted changes, it shall surface `git status` to the user and ask before proceeding. No automatic clean, commit, or stash (D-47).
 
 ## REQ-F — Cross-session awareness
 
@@ -98,6 +113,7 @@ The system is built on Claude Code primitives (skills, hooks, slash commands, sc
 - **REQ-G4.1** New skills shall be tracked under `roles/osx/files/claude/commands/` and propagated via the existing Ansible symlink mechanism.
 - **REQ-G5.1** New hooks shall be wired from `roles/osx/files/claude/settings.json` per the conventions in the project CLAUDE.md.
 - **REQ-G6.1** The system shall ship documentation updates to the project CLAUDE.md describing the new pipeline at the same level of detail as the existing `/panel-*` and `/copilot-*` sections.
+- **REQ-G7.1** The spec validator (ported per D-28) shall be extended to check the D-15 task-level structural requirements (stable ID, `Done when:`, `Dependencies:`, `Citations:`). Enforcement shall be status-aware: warnings on `Draft`, errors that block `/execute-task` and `/orchestrate` on `Active` (D-45).
 
 ## Sources
 

@@ -88,6 +88,56 @@ Verified by: three induced changes (tasks.md reorder, single-REQ edit, wholesale
 
 Verified by: invocation on `tecpan/specs/org` (the spec identified as rough in the 2026-05-22 analysis) surfaces at least three implicit decisions or assumptions the user agrees were under-specified (success criterion for Task 6).
 
+### REQ-A2.8 — Spec-looks-wrong escalation [manual]
+
+```gherkin
+[Gherkin]
+Given a spec with a genuine inconsistency (e.g., REQ-X1 mandates X and REQ-X2 mandates not-X)
+When /spec-kickoff walks the spec
+Then the agent surfaces the inconsistency to the user
+And halts without producing a brief
+And offers two paths: (a) edit spec and re-run, or (b) record an explicit override in the brief with reasoning
+```
+
+Verified by: induced inconsistency in a test spec; observe halt, the choice prompt, and that no brief is written if the user chooses (a) and exits.
+
+### REQ-A2.10 — Brief written incrementally [manual]
+
+```gherkin
+[Gherkin]
+Given /spec-kickoff is in mid-walkthrough at section 3 of 5, with sections 1-2 already signed off
+When the session is killed forcibly
+Then the partial brief at specs/{feature}/kickoff-brief.md contains sections 1-2 only
+And re-invocation of /spec-kickoff detects the partial brief
+And resumes at section 3, not from the beginning
+```
+
+Verified by: induced kill during walkthrough; inspect partial brief; re-run and observe resume point.
+
+### REQ-A3.1, A3.2, A3.3 — Spec status lifecycle [manual]
+
+```gherkin
+[Gherkin]
+Given /spec-draft is invoked
+When the draft completes
+Then the new requirements.md declares Status: Draft
+
+Given a Draft-status spec
+When /spec-kickoff sign-off completes
+Then requirements.md declares Status: Active
+
+Given an Active-status spec with N tasks
+When the Nth task moves to Completed
+Then /orchestrate (or Task 12's bookkeeping runner) flips requirements.md to Status: Done
+
+Given a Draft- or Done-status spec
+When /execute-task or /orchestrate is invoked
+Then the skill refuses to act, surfacing why (status not Active)
+And exits cleanly
+```
+
+Verified by: end-to-end on a real spec across all three transitions, plus invocation attempts at each non-Active state.
+
 ## REQ-B — Task execution
 
 ### REQ-B1.1, B1.2 — `/execute-task` accepts one or many task IDs [manual]
@@ -215,6 +265,14 @@ Verified by: spec with task B depending on task A. `/orchestrate` does not pick 
 
 Verified by: spec with two consecutive ready tasks meeting the bundling rule. Both end up in one PR.
 
+### REQ-D10.1, D11.1, D12.1 — Orchestrator edge cases [manual]
+
+Cross-spec concurrent (D10.1): two `/orchestrate` invocations on two different specs in the same repo both proceed; each touches its own per-spec lockfile. Verified by: launch both, observe two draft PRs.
+
+Unkickoffed spec (D11.1): invoking `/orchestrate` on a spec with no kickoff brief halts cleanly and prompts the user to invoke `/spec-kickoff`; the orchestrator does not auto-chain into kickoff. Verified by: invoke on a fresh `Draft` spec, observe the halt + prompt + clean exit.
+
+`gh` not authenticated (D12.1): with `gh auth status` showing logged out, invoke `/orchestrate` mid-cycle and `/polish` standalone. Orchestrate halts with `Awaiting input` inbox entry referencing the auth issue; polish's local convergence still completes (PR opening step degrades with the message).
+
 ### REQ-D9.1 — Configuration discovery flow [manual]
 
 ```gherkin
@@ -267,6 +325,19 @@ Verified by: any spec produced by `/spec-draft` or retrofitted by `/spec-kickoff
 ### REQ-E1.2 — `In progress` annotation format [manual]
 
 Verified by: a task in flight is annotated with phase and timestamp.
+
+### REQ-E5.1 — Uncommitted changes on `/resume` [manual]
+
+```gherkin
+[Gherkin]
+Given a worktree with uncommitted changes (modified files, untracked files, or staged files)
+When /resume is invoked
+Then the agent surfaces git status to the user
+And asks before proceeding
+And does not auto-stash, auto-commit, or auto-clean
+```
+
+Verified by: deliberately leaving uncommitted changes in a test worktree; invoke `/resume`; observe the prompt; verify nothing changed on the file system if the user declines.
 
 ### REQ-E2.1, E2.2 — `/resume` loads context without requiring handover [manual]
 
@@ -376,6 +447,24 @@ Verified by: each new hook is referenced in the tracked `roles/osx/files/claude/
 ### REQ-G6.1 — Project CLAUDE.md updated [manual]
 
 Verified by: a cold-read of the project CLAUDE.md by the user surfaces no missing information about the pipeline (Task 14's `Done when`).
+
+### REQ-G7.1 — Validator extended, status-aware enforcement [manual]
+
+```gherkin
+[Gherkin]
+Given a Draft-status spec with tasks missing Done-when or Citations
+When the validator runs
+Then the output contains warnings naming each missing field
+And exit code is zero (non-blocking)
+
+Given an Active-status spec with the same gaps
+When the validator runs (e.g., as a precondition for /execute-task)
+Then the output contains errors naming each missing field
+And exit code is non-zero
+And /execute-task refuses to act on this spec until the gaps are fixed
+```
+
+Verified by: same test spec flipped between Draft and Active status; run validator both ways; verify exit codes and skill behavior.
 
 ## What's not tested here
 
