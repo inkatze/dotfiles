@@ -59,6 +59,13 @@
     state: link
   tags: [osx]
 
+- name: Symlink pair-flow defaults
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/osx/files/claude/pair-flow.yml"
+    dest: "{{ ansible_env.HOME }}/.claude/pair-flow.yml"
+    state: link
+  tags: [osx]
+
 - name: Create Cursor rules directory
   ansible.builtin.file:
     path: "{{ ansible_env.HOME }}/.cursor/rules"

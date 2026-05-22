@@ -1,0 +1,16 @@
+# Pair-flow defaults. Tracked in dotfiles, materialized at ~/.claude/pair-flow.yml.
+# Per-repo overrides live in ~/.claude/pair-flow.local.yml (agent-maintained,
+# host-local, NOT tracked here). See D-19 in specs/pair-flow/design.md.
+
+# Backends used by /panel-review and /panel-pairing when --backends is not set.
+# Per D-6 (no longer provisional after Task 1's panel-underuse diagnosis),
+# codex is the single default on every profile.
+panel-backends: [codex]
+
+# Orchestrator advisory lockfile timeout. Locks older than this are treated
+# as stale and may be broken by the next runner. Per D-17.
+stale-lock-threshold: 1h
+
+# Refresh cadence for the inbox heartbeat field. Readers treat entries with
+# heartbeat older than 2x this interval (plus a small jitter) as stale. Per D-23.
+inbox-heartbeat-interval: 30s

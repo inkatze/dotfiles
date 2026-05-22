@@ -32,18 +32,6 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 - **Citations:** REQ-F1.1, REQ-F1.2, REQ-F2.1, REQ-F2.2, REQ-F2.3, REQ-F3.1, D-22, D-23
 - **Estimated effort:** 1 day
 
-### Task 3.5 — Pair-flow configuration helper
-
-- **Deliverables:**
-  - `roles/osx/files/claude/pair-flow.yml` (tracked source) seeded with defaults: `panel-backends: [codex]`, `stale-lock-threshold: 1h`, `inbox-heartbeat-interval: 30s`.
-  - Symlink task in `roles/osx/tasks/osx.yml` materializing the file to `~/.claude/pair-flow.yml`.
-  - `roles/osx/files/claude/scripts/pair-flow-config.sh` (or equivalent) that reads effective config (defaults + local), identifies the current repo (`gh repo view`, fallback to `git remote`), and triggers discovery (per D-20) when the current repo has no entry.
-  - Discovery flow surfaces inferred `repo-class` to user, writes to `~/.claude/pair-flow.local.yml` on confirmation only.
-- **Done when:** Helper invoked in a repo with no entry in `~/.claude/pair-flow.local.yml` prompts for `repo-class` (with PR-history-inferred default), writes the entry on confirmation, and is silent on subsequent calls. Deleting `~/.claude/pair-flow.local.yml` causes one prompt per affected repo on next use.
-- **Dependencies:** none
-- **Citations:** REQ-D9.1, D-19, D-20
-- **Estimated effort:** 1 day
-
 ### Task 4 — `tasks.md` state conventions and auto-update hooks
 
 - **Deliverables:**
@@ -138,6 +126,7 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 - **Task 1 — Investigate `/panel-*` underuse.** Diagnosis at `specs/pair-flow/research/panel-underuse.md`. Primary cause: `/panel-*` is newly available (shipped 2026-05-15, mid-window), not underused. Recommendation: keep panel as default; confirm D-6 (codex-only default, no longer provisional) and D-12 (`/panel-pairing` demoted to escalation, `/polish` as default convergence). LAN-Ollama auto-mode classifier denial recorded as follow-up.
 - **Task 3.6 — Spec validator port and extension.** Validator at `roles/osx/files/claude/scripts/spec-validate.sh`. Materializes to `~/.claude/scripts/spec-validate.sh` via the existing directory symlink in `roles/osx/tasks/osx.yml` (lines 55-60); no per-file symlink needed. Runs cleanly on `tecpan/specs/settings` (0 errors, 0 warnings), emits 27 warnings on `tecpan/specs/org` (prose REQs + every task missing Done when/Dependencies/Citations), emits 0 errors and 0 warnings on this `specs/pair-flow` bundle. Status-aware Gherkin from REQ-G7.1 verified via synthetic fixture: same gap warns on Draft (exit 0), errors on Active (exit 1).
+- **Task 3.5 — Pair-flow configuration helper.** Defaults at `roles/osx/files/claude/pair-flow.yml` (`panel-backends: [codex]`, `stale-lock-threshold: 1h`, `inbox-heartbeat-interval: 30s`). New symlink task in `roles/osx/tasks/osx.yml` materializes the file to `~/.claude/pair-flow.yml`. Helper at `roles/osx/files/claude/scripts/pair-flow-config.sh` with subcommands `repo`, `defaults`, `repo-class`, `confirm-repo-class <value>`, `show`. PR-history-based inference filters bots (`*[bot]`, `copilot-*`, `dependabot*`, `renovate*`, `github-actions*`) and PR-author self-reviews. Verified end-to-end on this repo: first `repo-class` call outputs `needs-confirmation:solo` (exit 2); `confirm-repo-class solo` writes `~/.claude/pair-flow.local.yml`; subsequent `repo-class` outputs `solo` (exit 0); deleting the file re-prompts.
 
 ## In progress
 
