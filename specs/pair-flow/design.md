@@ -85,17 +85,18 @@ Each layer is independently shippable. L5 and L1 ship first because they unlock 
 
 **Chosen because:** Survives session boundaries by construction. No state to corrupt. Compatible with scheduled remote agent runners.
 
-### D-6: Codex-only default for `/panel-*` (provisional)
+### D-6: Profile-aware panel backend defaults
 
-**Decision:** Codex is the default backend on all profiles for `/panel-review` and `/panel-pairing`, contingent on the panel-* underuse investigation (Task 1).
+**Decision:** Codex is the default backend on the work profile. Personal and alt profiles default to Gemini 2.5 Pro (user does not want to fund OpenAI for personal use). The `--backends` flag remains available for explicit overrides on any profile. `pair-flow.yml` keeps `panel-backends: [codex]` as the universal tracked default; personal/alt hosts override via `pair-flow.local.yml` with `panel-backends: [gemini]`. No host-conditional logic in the tracked file; the existing two-file merge handles it.
 
 **Alternatives considered:**
 - Codex + one Ollama model for variance. Rejected per user direction; simplification preferred for v1.
 - Keep current `codex,qwen-coder` (work) / `qwen-coder,gpt-oss` (personal) split. Rejected per user direction.
+- Codex on all profiles. Rejected after user indicated personal/alt should not incur OpenAI costs.
 
-**Chosen because:** User instruction. Variance comes back as an opt-in via the existing `--backends` flag if needed. Codex availability is confirmed across work (business account) and personal (personal account) profiles (2026-05-22).
+**Chosen because:** User instruction. Task 1 confirmed panel is newly available, not underused, making the "provisional" qualifier unnecessary. Variance comes back as an opt-in via the existing `--backends` flag if needed.
 
-**Provisional:** May be reversed if Task 1 reveals that panel-pairing with codex catches nothing copilot doesn't (low yield → consider retiring `/panel-pairing` entirely or scoping to escalation only).
+**Amendment (Task 13, from kickoff brief walkthrough):** Original decision was "codex-only on all profiles (provisional)." Amended to profile-aware split. "Provisional" qualifier dropped.
 
 ### D-7: `/spec-kickoff` is a didactic walkthrough, not a checklist
 
@@ -214,7 +215,9 @@ Each layer is independently shippable. L5 and L1 ship first because they unlock 
 
 **Chosen because:** Cheap, robust to crashes (stale locks can be detected and broken), no new infrastructure. Short lock window unblocks parallel execution.
 
-**Stale-lock threshold:** locks older than 1 hour (per `pair-flow.yml` `stale-lock-threshold`) are treated as stale and may be broken by the next runner.
+**Stale-lock threshold:** locks older than 15 minutes (per `pair-flow.yml` `stale-lock-threshold`) are treated as stale and may be broken by the next runner. Post-D-52, the lock is held only during task selection (seconds). A lock older than a few seconds is anomalous. The 15-minute threshold accounts for iCloud sync lag (worst case ~5 min) without false positives, while recovering from crashes within one scheduled-runner cycle.
+
+**Amendment (Task 13, from kickoff brief walkthrough):** Original threshold was 1 hour, sized for "lock held during execution." D-52 moved lock release before execution, making the 1-hour window unnecessarily wide. Reduced to 15 minutes.
 
 ### D-18: Build only on Claude Code primitives
 
@@ -316,6 +319,8 @@ On clean session exit, the session removes its own entry.
 
 Estimate-vs-actual is logged for telemetry per D-30 so the heuristic can be tuned.
 
+**Low-data fallback:** When `gh pr list --search` returns fewer than 5 relevant PRs, fall back to the `Estimated effort` field: half day = ≤300 lines, 1 day = ≤500 lines, 2 days = ≤700 lines. Bundle only if the sum stays ≤700. Grounded in data already in the spec (Estimated effort is required per task). Telemetry (D-30) calibrates the multipliers over time.
+
 **Alternatives considered:**
 - Conservative (one task per PR; manual bundling only). Rejected: tecpan PR history shows bundling happens organically when tasks are related; the orchestrator should support it natively.
 - Author-hint S/M/L during `/spec-draft`. Reserved as a fallback if the citations heuristic proves inaccurate during Task 13's validation.
@@ -323,6 +328,8 @@ Estimate-vs-actual is logged for telemetry per D-30 so the heuristic can be tune
 **Chosen because:** Citations + git history gives a grounded estimate without asking the user to think about line counts during drafting.
 
 **Provisional:** Heuristic accuracy will be measured during Task 13. If consistently off by more than 2x, switch to author-hint mode.
+
+**Amendment (Task 13, from kickoff brief walkthrough):** Added effort-based fallback for low-data repos (< 5 matching PRs).
 
 ### D-25: `/execute-task` CI retry policy is adaptive
 

@@ -198,6 +198,10 @@ Runs only on normal exit in standalone mode. Skipped entirely in nested mode and
 4. **Check for conventions (only when creating a new PR).** If no template exists, look at recent merged PRs for patterns (`gh pr list --state merged --limit 5 --json title,body`). Follow a clear pattern if one emerges.
 5. **Create the draft PR.** `gh pr create --draft` with a `--title` (under 70 characters) and a `--body` written via heredoc. The body shall include: a one-paragraph summary of what the branch does, a short "Polish notes" section listing Auto-applicable and Agent-resolvable items applied across iterations (test paths and kickoff-brief citations for the Agent-resolvable rows), and any unresolved Needs sign-off / Needs human judgment items the human needs to address before marking the PR ready for review. If no template or convention was found, fall back to `gh pr create --draft --fill` and then `gh pr edit --body` to append the Polish notes.
 
+## Observations
+
+During iteration, when you notice complexity growth, outdated patterns, newly available dependency features, or opportunities for improvement that are outside the current branch's scope, append a one-liner to `specs/_observations/opportunities.md` (create the file if it does not exist). Format: `- <YYYY-MM-DD> [<repo>] <observation>`. These accumulate as seed material for future `/spec-draft` invocations. Do not act on observations during this run; they are a passive record.
+
 ## Maintenance
 
 After completing the workflow (or stopping), check if any part of these instructions seems outdated, incorrect, or misaligned with current tooling: changes to the canonical lens list, changes to `Finding Categorization` thresholds, new auto-fix tools that should be tool-grounded by default, or drift from `/self-review`'s discovery shape (which Polish follows). If something looks off, flag it and offer a ready-to-use prompt I can paste into a new dotfiles session to update this command.

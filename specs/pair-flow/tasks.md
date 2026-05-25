@@ -9,14 +9,6 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 ## Forward plan
 
-### Task 13 — End-to-end validation on a real tecpan spec
-
-- **Deliverables:** A short retrospective at `specs/pair-flow/research/v1-retrospective.md` documenting an end-to-end run from `/spec-draft` (or `/spec-kickoff` retrofit on existing) through `/orchestrate` shipping at least one task as a draft PR. Catalog issues, surprises, calibration needed.
-- **Done when:** At least one tecpan task is shipped via the full pipeline. The retrospective identifies concrete tunings for `Agent-resolvable` predicate, bundling rule, kickoff elicitation questions, or inbox transitions.
-- **Dependencies:** Tasks 1–12
-- **Citations:** D-3 open calibration, D-7 quality gate
-- **Estimated effort:** 2 days
-
 ### Task 14 — Documentation update for project CLAUDE.md
 
 - **Deliverables:** Update `roles/osx/files/CLAUDE.md` (project CLAUDE.md for dotfiles) with a section describing the autonomy pipeline at the same level of detail as the existing `/panel-*` and `/copilot-*` sections. Concise, decision-oriented per the existing repo's CLAUDE.md style.
@@ -44,7 +36,16 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 ## In progress
 
-(none yet)
+### Task 13 — End-to-end validation on a real tecpan spec
+
+- **Status:** implementing (in-repo deliverables done; tecpan end-to-end run deferred to separate session)
+- **Last activity:** 2026-05-25
+- **Deliverables:** A short retrospective at `specs/pair-flow/research/v1-retrospective.md` documenting an end-to-end run from `/spec-draft` (or `/spec-kickoff` retrofit on existing) through `/orchestrate` shipping at least one task as a draft PR. Catalog issues, surprises, calibration needed.
+- **Done when:** At least one tecpan task is shipped via the full pipeline. The retrospective identifies concrete tunings for `Agent-resolvable` predicate, bundling rule, kickoff elicitation questions, or inbox transitions.
+- **Dependencies:** Tasks 1–12
+- **Citations:** D-3 open calibration, D-7 quality gate
+- **Estimated effort:** 2 days
+- **Progress:** Spec amendments (D-6, D-17, D-24) applied; contract-consistency checker shipped; observation convention added to /execute-task and /polish. Remaining: tecpan kickoff + orchestrate + retrospective.
 
 ## Awaiting input
 

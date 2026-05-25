@@ -236,6 +236,10 @@ These hold at every step:
 - **Never** force-push, amend, squash, or rebase. Create new commits.
 - **Never** write to `~/.claude/pair-flow.local.yml` without user confirmation (REQ-D9.1).
 
+## Observations
+
+During implementation and polish, when you notice complexity growth, outdated patterns, newly available dependency features, or opportunities for improvement that are outside the current task's scope, append a one-liner to `specs/_observations/opportunities.md` (create the file if it does not exist). Format: `- <YYYY-MM-DD> [<repo>] <observation>`. These accumulate as seed material for future `/spec-draft` invocations. Do not act on observations during this task; they are a passive record.
+
 ## Maintenance
 
 After completing a task execution (or halting), check if any part of these instructions seems outdated or misaligned with the current pair-flow spec: changes to REQ-B1.x, D-19, D-21, D-25, D-33, D-39, D-44, D-53; new CI command patterns; changes to the `/polish` interface (especially `--nested` semantics). If something looks off, flag it and offer a ready-to-use prompt to update this command.

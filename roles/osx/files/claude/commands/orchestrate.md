@@ -50,7 +50,7 @@ The lockfile is at `specs/<spec>/.orchestrate.lock`. It serializes state-changin
 
 **Acquire:**
 - If the file does not exist, create it with: `{ "host": "<hostname>", "session": "<session-id>", "acquired": "<ISO timestamp>" }`.
-- If the file exists and its `acquired` timestamp is older than the stale-lock threshold (default 1 hour per `~/.claude/pair-flow.yml`), treat it as stale: log a warning, remove it, and re-acquire.
+- If the file exists and its `acquired` timestamp is older than the stale-lock threshold (default 15 minutes per `~/.claude/pair-flow.yml`), treat it as stale: log a warning, remove it, and re-acquire.
 - If the file exists and is fresh (another runner holds it), exit cleanly with reason: "lock held by <host>/<session> since <time>; another orchestration is in progress." This is a no-op, not an error.
 
 **Release:** delete the file after `tasks.md` is updated and before `/execute-task` is dispatched.

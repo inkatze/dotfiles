@@ -10,6 +10,9 @@ pre-commit:
     syntax-check:
       glob: "*.{yml,yaml}"
       run: ansible-playbook main.yml --syntax-check
+    skill-contracts:
+      glob: "roles/osx/files/claude/commands/*.md"
+      run: roles/osx/files/claude/scripts/skill-contracts.sh
     baseline-plaintext-guard:
       glob: "specs/metrics-baseline/snapshots/baseline-*"
       run: |
