@@ -1,7 +1,7 @@
 # Pair-Flow — Test Spec
 
-**Status:** Draft
-**Last reviewed:** 2026-05-22
+**Status:** Active
+**Last reviewed:** 2026-05-25
 
 This file pins each REQ to a verification path. Most REQs are verified by manual exercise (the system is workflow infrastructure operated by the user, not a service with unit-testable boundaries). Markers used: `[manual]`, `[design-level only]`, `[Gherkin]` (where the scenario form helps articulate the check). Gherkin is used selectively per D-8, not throughout.
 

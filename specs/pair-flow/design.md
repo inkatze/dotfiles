@@ -1,7 +1,7 @@
 # Pair-Flow — Design
 
-**Status:** Draft
-**Last reviewed:** 2026-05-22
+**Status:** Active
+**Last reviewed:** 2026-05-25
 
 ## Architecture: five layers
 

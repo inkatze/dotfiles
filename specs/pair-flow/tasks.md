@@ -1,7 +1,7 @@
 # Pair-Flow — Tasks
 
-**Status:** Draft
-**Last reviewed:** 2026-05-25 (Tasks 5, 7, 10, 11, 12 implemented and moved to Completed)
+**Status:** Active
+**Last reviewed:** 2026-05-25 (Tasks 5, 7, 10, 11, 12 implemented and moved to Completed; status flipped Draft → Active)
 
 `repo-class` and other repo-level config are supplied by `~/.claude/pair-flow.yml` + `~/.claude/pair-flow.local.yml` per D-19, not in this file.
 

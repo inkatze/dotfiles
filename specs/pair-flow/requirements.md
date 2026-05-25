@@ -2,9 +2,9 @@
 
 *A spec-driven pipeline that pairs human and agent from comprehension through execution and orchestration.*
 
-**Status:** Draft
+**Status:** Active
 **Cold-start next step:** Read this file end-to-end, then `design.md`, then `tasks.md`. Implementation begins at Task 1 (panel-* underuse investigation) and Task 2 (file-path PreToolUse hook).
-**Last reviewed:** 2026-05-22
+**Last reviewed:** 2026-05-25
 
 ## Goal
 
