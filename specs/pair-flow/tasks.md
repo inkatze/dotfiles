@@ -38,7 +38,7 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 ### Task 13 — End-to-end validation on a real tecpan spec
 
-- **Status:** implementing (in-repo deliverables done; tecpan end-to-end run deferred to separate session)
+- **Status:** PR #28 draft (in-repo deliverables done; tecpan end-to-end run deferred to separate session)
 - **Last activity:** 2026-05-25
 - **Deliverables:** A short retrospective at `specs/pair-flow/research/v1-retrospective.md` documenting an end-to-end run from `/spec-draft` (or `/spec-kickoff` retrofit on existing) through `/orchestrate` shipping at least one task as a draft PR. Catalog issues, surprises, calibration needed.
 - **Done when:** At least one tecpan task is shipped via the full pipeline. The retrospective identifies concrete tunings for `Agent-resolvable` predicate, bundling rule, kickoff elicitation questions, or inbox transitions.
