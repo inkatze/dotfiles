@@ -28,7 +28,7 @@ for f in polish.md execute-task.md; do
 done
 
 # pair-flow-config.sh repo-class in skills that use it
-for f in polish.md panel-pairing.md spec-kickoff.md; do
+for f in execute-task.md polish.md panel-pairing.md peer-review.md spec-kickoff.md; do
   [ -f "$CMDS/$f" ] && ! grep -q 'pair-flow-config\.sh' "$CMDS/$f" \
     && err "$f missing pair-flow-config.sh reference"
 done
