@@ -149,10 +149,24 @@ These hold at every step:
 
 ## After the loop
 
-When `/panel-pairing` exits (success, human handoff, or any other stop condition), the next move is the user's:
+When `/panel-pairing` exits (success, human handoff, or any other stop condition), present any remaining Needs sign-off / Needs human judgment items per the "Handoff presentation" rules below, then hand control back.
+
+### Handoff presentation
+
+When handing off Needs sign-off and/or Needs human judgment items, follow the CLAUDE.md `Code & PR Reviews` workflow rules. Do not default to one-by-one; choose the mode that minimizes human effort:
+
+**Clustered decisions first.** Look for items that share a decision axis: same fix template (e.g., "add missing test coverage"), same lens (all doc nits, all naming nits), same scope (all in one module). When a cluster of 3+ items exists, use clustered-decision mode per CLAUDE.md: one `AskUserQuestion` per cluster with cluster-wide actions. For Needs sign-off clusters: `Apply all / Skip all / Pick individually`. For Needs human judgment clusters: bespoke options reflecting the shared axis. List each cluster's members before the question so the user can spot mis-grouped items.
+
+**Batched decisions for the rest.** Items that don't fit a cluster use batched-decision mode: up to 4 findings per `AskUserQuestion` call, each as its own single-select question. Needs sign-off items get `Apply / Skip / Modify`. Needs human judgment items get bespoke options per finding.
+
+**Progress tracking.** Always show a progress indicator (e.g., `[2/5]` or `cluster [1/2]: 4 findings`) so the user knows their position and what's left.
+
+**Skip the workflow choice prompt.** Unlike `/self-review` and `/panel-review`, the pairing loop has already done the autonomous work and is handing off a small residual set. Don't ask "how do you want to review these?" when the answer is obvious from the item count and clustering shape. Just present them in the best mode.
+
+The user's next move depends on the exit reason:
 
 - On success ("panel converged, no findings remain"): consider running `/self-review` or `/panel-review` to do a final pass and open a PR.
-- On Human attention required: address the surfaced Needs sign-off and Needs human judgment items by running `/panel-review` interactively (or `/self-review` if you want Claude-only review of the remainder). After they are resolved, re-run `/panel-pairing` to drain anything new and open a PR.
+- On Human attention required: address the surfaced items (already presented above), then re-run `/panel-pairing` to drain anything new, then open a PR.
 - On Test failure, Push hook failure, or other safety stops: investigate the named condition. `/panel-pairing` does not auto-resume; the user explicitly re-invokes after the underlying issue is understood.
 
 ## Maintenance
