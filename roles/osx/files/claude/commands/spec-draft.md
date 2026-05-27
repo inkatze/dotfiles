@@ -33,80 +33,137 @@ If seed material exists, read it and use it as the starting point for the requir
 
 If no seed material exists, start from the user's verbal description.
 
+## Interaction style
+
+The drafting process is heavy by nature. These rules keep cognitive load manageable without sacrificing rigor.
+
+**Progress indicator.** Show a persistent progress line at the start of every message during the drafting process:
+
+```
+── spec-draft ── Phase 2 of 5: Requirements ── [██████░░░░] 3/7 REQs confirmed ──
+```
+
+The bar shows: current phase, phase name, and a granular count within the phase (REQs confirmed, decisions confirmed, tasks confirmed, etc.). Update it every message.
+
+**Progressive disclosure.** Lead with the summary or the artifact, not the reasoning. Show a table, a draft, or a one-liner first. Expand reasoning only when the user asks "why?" or when a non-obvious tradeoff needs flagging. The default is: show the thing, ask the question.
+
+**Visual aids.** Use tables for structured comparisons (alternatives, REQ lists, task summaries). Use ASCII dependency graphs for task ordering. Use markdown formatting (bold for decisions, bullets for options) to create scannable structure. Avoid multi-paragraph prose when a table communicates the same information.
+
+**Selectors over open-ended questions.** When asking the user to choose or confirm, use `AskUserQuestion` with concrete options. Include your recommendation as the first option with "(Recommended)" appended. Reserve open-ended questions for Phase 1 (goal elicitation) and genuinely open-ended moments where you cannot enumerate options.
+
+**Smart defaults.** When you have a strong recommendation, present it as the default: "I'd go with X because Y. OK?" The user confirms or redirects. Don't make the user read three alternatives when one is clearly better.
+
+**Draft-then-refine.** Show the output artifact early (even partial). It is easier to react to "change this line" than to answer "what should the requirement say?" When proposing REQs, show the actual `requirements.md` text, not a description of what it would say.
+
+**Running summary.** At each phase transition, show a compact status table of what has been decided so far:
+
+```
+| Phase | Status | Items |
+|---|---|---|
+| Goal & scope | ✓ confirmed | 1 goal, 3 out-of-scope |
+| Requirements | ✓ confirmed | 7 REQs across 3 groups |
+| Design | ◆ in progress | 2/5 decisions confirmed |
+| Tasks | ○ pending | — |
+| Verification | ○ pending | — |
+```
+
+**Small bites.** Present 2-4 items at a time for confirmation, not the full list. A batch of 3 REQs with selectors is faster than 7 REQs with open-ended discussion.
+
 ## The drafting process
 
 The drafting process has **five phases**, each producing content for one or more of the four output files. Each phase is interactive: propose, discuss, revise, confirm.
 
 ### Phase 1: Goal and scope (feeds `requirements.md` header)
 
-**a. Ask the user to describe the feature.** Open-ended: "What problem does this solve? Who benefits? What does success look like?"
+**a. Ask the user to describe the feature.** Open-ended: "What problem does this solve? Who benefits? What does success look like?" This is the one phase where open-ended questions are the right tool.
 
-**b. Propose a one-paragraph goal statement.** This becomes the opening of `requirements.md`. It should be specific enough that someone could tell whether the system achieves it.
+**b. Propose a one-paragraph goal statement.** Show it as the actual `requirements.md` header text (draft-then-refine). It should be specific enough that someone could tell whether the system achieves it.
 
-**c. Surface scope boundaries.** Explicitly ask: "What is out of scope?" Record these early; they prevent scope creep during later phases.
+**c. Surface scope boundaries.** Use `AskUserQuestion` to propose candidate out-of-scope items as a multi-select checklist. Add your reasoning as the description for each option. The user confirms, adds, or removes.
 
 **d. Confirm.** User red-lines the goal and scope. Revise until confirmed.
 
 ### Phase 2: Requirements elicitation (feeds `requirements.md`)
 
-**a. Extract requirement candidates.** From the goal, scope, and seed material, propose 3-7 REQ candidates. Each gets:
+**a. Extract requirement candidates.** From the goal, scope, and seed material, propose REQ candidates in batches of 3-4. Show each batch as the actual `requirements.md` text:
 
-- A stable ID in the form `REQ-<Group><N>.<M>` (e.g., `REQ-A1.1`). Group by functional area.
-- SHALL or MUST language (SHALL for mandatory behavior, MUST for constraints).
-- A citation to the framing source (user statement, seed material, or inferred from context).
+```markdown
+## REQ-A — Lifecycle
 
-**b. Socratic questioning per REQ.** For each proposed REQ, ask:
+- **REQ-A1.1** The system SHALL ...
+- **REQ-A1.2** The system SHALL ...
+```
 
-- Is this actually necessary, or is it a nice-to-have?
-- What happens if we don't do this?
-- Are there edge cases that make this REQ ambiguous?
-- Does this conflict with any other REQ?
+Each REQ gets a stable ID (`REQ-<Group><N>.<M>`), SHALL/MUST language, and a citation.
 
-**c. Iterate.** User adds, removes, or rewords REQs. Assign stable IDs to additions. Continue until the user confirms the set is complete.
+**b. Socratic checks via selectors.** For each batch, surface edge cases and ambiguities as `AskUserQuestion` selectors, not open-ended prose. Example: instead of "Are there edge cases?", ask "REQ-A1.1 says SHALL refresh every 30s. What happens on kill -9?" with options like `[Silent drop (Recommended)]`, `[Stale entry persists until sweep]`, `[Add explicit cleanup requirement]`.
 
-**d. Organize into groups.** Group REQs by functional area (e.g., REQ-A for lifecycle, REQ-B for execution). Each group gets a short name.
+**c. Iterate.** After each batch is confirmed, show the running REQ count in the progress indicator. Continue until the user confirms the set is complete. Use `AskUserQuestion` to ask "These N REQs cover the scope. Add more, or move to design?" with options.
+
+**d. Organize into groups.** Show the proposed grouping as a table. Confirm with a selector if the grouping is non-obvious.
 
 ### Phase 3: Design decisions (feeds `design.md`)
 
-**a. Identify decision points.** From the requirements, identify places where alternatives exist. Each becomes a D-ID.
+**a. Identify decision points.** From the requirements, identify places where alternatives exist. Present the full list as a numbered table first (one line per decision), then walk through each.
 
-**b. For each decision point, propose:**
+**b. For each decision point, show a comparison table:**
 
-- **Decision:** what was chosen.
-- **Alternatives considered:** at least one alternative, with a brief description.
-- **Chosen because:** the rationale (not just "it's simpler", but why simplicity matters here).
+```
+| Option | Pros | Cons |
+|---|---|---|
+| **A: <name> (Recommended)** | <pro> | <con> |
+| B: <name> | <pro> | <con> |
+| C: <name> | <pro> | <con> |
+```
 
-**c. Surface cross-cutting concerns.** Identify themes that span multiple decisions: security, performance, compatibility, operational concerns. Record these as a section in `design.md`.
+Use `AskUserQuestion` with the options and your recommendation. The description for each option carries the rationale so the user gets the context without reading a paragraph.
 
-**d. Confirm.** User red-lines each decision. If the user disagrees with a choice, update the decision and rationale.
+**c. Surface cross-cutting concerns.** Present as a bulleted list, not prose. Confirm with a single selector.
+
+**d. Confirm.** After all decisions, show the running summary table and confirm the full design section.
 
 ### Phase 4: Task decomposition (feeds `tasks.md`)
 
-**a. Propose tasks.** Break the work into tasks with:
+**a. Propose tasks.** Show the task list as a summary table first:
 
-- **Stable ID:** `Task N` or `Task N.M` for sub-tasks.
-- **Title:** short, descriptive.
-- **Deliverables:** concrete artifacts (files, scripts, configs).
-- **Done when:** conditions unambiguous enough for an agent to evaluate (REQ-A1.4). These should be observable, not aspirational.
-- **Dependencies:** explicit list of other task IDs.
-- **Citations:** REQs and D-IDs the task implements.
-- **Estimated effort:** half day, 1 day, 2 days, etc.
+```
+| ID | Title | Deps | Effort | Citations |
+|---|---|---|---|---|
+| 1 | <title> | none | half day | REQ-A1.1, D-1 |
+| 2 | <title> | 1 | 1 day | REQ-B1.1 |
+```
 
-**b. Order by dependency.** Tasks with no dependencies come first. Tasks with the most dependents (critical path) should be prioritized.
+Then show the dependency graph as ASCII:
 
-**c. Identify parallelism.** Note which tasks can be worked on concurrently (different dependency chains).
+```
+Task 1 ──→ Task 3 ──→ Task 5
+Task 2 ──→ Task 4 ──┘
+```
 
-**d. Confirm.** User red-lines task structure, adds/removes tasks, adjusts dependencies.
+Each task must have: stable ID, title, deliverables, Done-when, Dependencies, Citations, Estimated effort. The full task blocks (as they will appear in `tasks.md`) are shown after the summary table is confirmed, for final red-line.
+
+**b. Order by dependency.** Tasks with no dependencies come first. Critical-path tasks highlighted in the graph.
+
+**c. Identify parallelism.** Annotate the ASCII graph with parallel lanes where tasks can run concurrently.
+
+**d. Confirm.** Use `AskUserQuestion` per batch of 2-3 tasks for fine-grained confirmation. Show the full `tasks.md` text at the end for final red-line.
 
 **e. Add state sections.** Write the `tasks.md` with the standard sections per `specs/README.md`: `Forward plan` (all tasks initially), `Completed`, `In progress`, `Awaiting input`, `Deferred`, `Out of scope`.
 
 ### Phase 5: Verification paths (feeds `test-spec.md`)
 
-**a. Pin each REQ to a verification path** (REQ-A1.5). For each REQ, propose one of:
+**a. Pin each REQ to a verification path** (REQ-A1.5). Show the coverage as a matrix table:
 
-- A specific test name or Gherkin scenario (for behavior that can be tested).
-- `[manual]` with a description of what to check manually.
-- `[design-level only]` for REQs verified by design inspection rather than runtime behavior.
+```
+| REQ | Verification | Type |
+|---|---|---|
+| REQ-A1.1 | `test_heartbeat_refresh/1` | test |
+| REQ-A1.2 | Gherkin: inbox sweep on stale | Gherkin |
+| REQ-A2.1 | Cold-read of brief by user | manual |
+| REQ-C1.6 | Existing buckets unchanged by design | design-level |
+```
+
+Use `AskUserQuestion` per batch of 3-4 rows to confirm or adjust. For REQs where the verification path is non-obvious, propose options.
 
 **b. Use Gherkin selectively** (per D-8). Use `Given / When / Then` format when the behavior benefits from explicit state/trigger/outcome separation. Not required for every entry.
 

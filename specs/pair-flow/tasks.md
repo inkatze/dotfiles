@@ -17,6 +17,14 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 - **Citations:** REQ-G6.1
 - **Estimated effort:** half day
 
+### Task 15 — End-to-end validation on a work project (multi-reviewer)
+
+- **Deliverables:** Run the full pair-flow pipeline on a non-trivial work project task requiring significant planning and multi-turn coordination. Append findings to the retrospective at `specs/pair-flow/research/v1-retrospective.md` covering: multi-reviewer repo-class behavior (Agent-resolvable surfaces for review, not auto-applied), kickoff brief effectiveness at catching spec holes, cross-session coordination on longer-lived work, and stack-agnostic validation (non-Elixir).
+- **Done when:** At least one work-project task is executed via the pipeline. Retrospective covers multi-reviewer-specific findings and identifies gaps not visible in solo-repo runs.
+- **Dependencies:** Task 13
+- **Citations:** D-4 (solo vs multi-reviewer split), D-7 (kickoff as didactic walkthrough), REQ-C1.4 (multi-reviewer Agent-resolvable behavior)
+- **Estimated effort:** 2 days
+
 ## Completed
 
 - **Task 7 — `/spec-draft` skill.** Skill at `roles/osx/files/claude/commands/spec-draft.md`. Interactive five-phase drafting tool: (1) Goal and scope elicitation with explicit out-of-scope boundaries; (2) Requirements extraction via Socratic questioning, producing REQ candidates with stable IDs, SHALL/MUST language, and citations per REQ-A1.1/A1.2; (3) Design decisions with D-IDs, Alternatives considered, and Chosen because per REQ-A1.3, plus cross-cutting concerns; (4) Task decomposition with stable IDs, Done when, Dependencies, Citations, and Estimated effort per REQ-A1.4, ordered by dependency with parallelism annotated; (5) Verification paths pinning each REQ to a test name, Gherkin scenario, `[manual]`, or `[design-level only]` per REQ-A1.5. Uses seed sources when available (REQ-A1.7: `specs/_pending/notes.md`, user-provided docs). Runs spec validator after writing all four files (REQ-A1.6); does not declare stakeholder-ready until 0 errors. Writes all four files to `specs/<feature-name>/` with Status: Draft (REQ-A3.1). Interactive throughout: each phase pauses for user red-line. Never commits, pushes, or flips to Active. Validator passes (0 errors, 0 warnings) on `specs/pair-flow/` after the change. **Verification deferred to user:** the Done-when requires drafting a real upcoming spec (candidate: handover-brief auto-write or similar deferred item) whose output meets the validator's structural bar without manual cleanup.
@@ -60,6 +68,7 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 - **Phone push notifications.** **Gate:** user demonstrates a workflow where macOS + tmux dashboard is insufficient.
 - **Migration of tecpan existing specs to kickoff briefs.** **Gate:** Task 6 lands and `/spec-kickoff` retrofit mode is verified.
 - **Bundle-sizing fallback to author-hint S/M/L mode** (D-24). **Gate:** Task 13 retrospective shows the Citations-plus-git-history heuristic is consistently off by >2x.
+- **Standalone project extraction.** Extract pair-flow into its own repo as an opinionated, framework-style tool other developers can adopt. Encodes senior/staff-level engineering judgment (test-first, spec-before-code, finding categorization as autonomy dispatch, composability by default, discovery rigor) as conventions where the proven path is the path of least resistance. Customizable but biased by design. **Gate:** e2e validation on tecpan (solo), a work project (multi-reviewer), and dotfiles produces positive results; retrospective separates personal-preference decisions from generalizable ones; landscape survey (2026-05-26) confirmed no existing tool covers the full loop.
 
 ## Out of scope
 

@@ -89,47 +89,83 @@ The walkthrough has **seven sections** (the same sections become the brief's sec
 6. **Risk register** — synthesize across the prior sections. What is underspecified? What depends on external systems? What could plausibly fail and how would we notice?
 7. **Sign-off** — final confirmation. Status flip happens here.
 
+### Interaction style
+
+The walkthrough is cognitively heavy. These rules keep it focused and scannable.
+
+**Progress indicator.** Show a persistent progress line at the start of every message:
+
+```
+── spec-kickoff ── Section 3 of 7: Design ── [████████░░░░░░] 12/23 D-IDs walked ──
+```
+
+The bar shows: current section, section name, and a granular count within the section (REQs walked, D-IDs walked, tasks reconstructed, etc.). Update it every message.
+
+**Progressive disclosure.** Lead with the restatement summary (bullets or a short table), not multi-paragraph prose. Expand into full prose only for sections where nuance matters or when the user asks. The restatement should be substantive enough to spot a misread, but that does not require paragraphs; a structured list of "claims, rules out, assumes" often works better.
+
+**Visual aids.** Use tables for REQ walkthroughs (one row per REQ: ID, summary, edge case, assumption). Use ASCII graphs for task dependency reconstruction. Use comparison tables for design decisions being re-evaluated. Avoid walls of prose when structured formats communicate the same content.
+
+**Selectors over open-ended questions.** When posing Socratic checks, use `AskUserQuestion` with concrete options whenever the question has enumerable answers. Include your assessment as the first option with "(Recommended)" appended. Reserve open-ended questions for genuinely open-ended moments (risk register synthesis, ambiguity the agent cannot enumerate). Example: instead of "Does the Chosen-because still hold?", ask via selector: `[Yes, rationale holds (Recommended)]`, `[No, rationale changed — here's why]`, `[Partially — needs amendment]`.
+
+**Smart defaults.** When the restatement is straightforward and no edge cases are apparent, say so: "This section is clear; no implicit terms or edge cases found. Confirm and move on?" Don't manufacture Socratic questions for sections that don't need them.
+
+**Running summary.** At each section transition, show a compact status table:
+
+```
+| Section | Status | Key items |
+|---|---|---|
+| 1. Goal & glossary | ✓ signed off | 3 implicit terms surfaced |
+| 2. Requirements | ✓ signed off | 12 REQs, 2 edge cases raised |
+| 3. Design | ◆ in progress | 8/23 D-IDs walked |
+| 4. Verification | ○ pending | — |
+| 5. Task graph | ○ pending | — |
+| 6. Risk register | ○ pending | — |
+| 7. Sign-off | ○ pending | — |
+```
+
+**Small bites.** Walk REQs and D-IDs in batches of 3-5, not the entire section at once. Each batch gets its own restatement + Socratic checks + confirmation. This keeps each interaction short and focused.
+
 ### Per-section pattern
 
 For each section:
 
 **a. Read.** Read the relevant portion of the spec file(s) directly. Do not paraphrase from memory.
 
-**b. Restate.** Restate the section in the agent's own words to the user. The restatement should be substantive enough that the user can spot a misread. One paragraph for a small section, several for a large one. Do not just summarize: name the thing the section is claiming, name the thing it is ruling out, and name the assumption it carries.
+**b. Restate.** Restate the section in the agent's own words. Format as structured output (bullets, tables, or a short list of "claims / rules out / assumes"), not paragraphs. Name the thing the section is claiming, the thing it is ruling out, and the assumption it carries. Keep it scannable.
 
-**c. Surface implicit terms and assumptions.** Identify any domain term used without definition, any assumption that depends on the reader's prior context, or any term used inconsistently across the spec. Surface these as "Definition you may want to add:" or "Assumption I am making: ..."
+**c. Surface implicit terms and assumptions.** Show as a compact bulleted list: "Implicit term: X means Y" / "Assumption: Z". If none found, say so explicitly rather than manufacturing items.
 
-**d. Pose Socratic checks.** At each section, raise the relevant flavor of Socratic check:
+**d. Pose Socratic checks.** Raise the relevant flavor per section type:
 
-- **Goal section:** slicing sanity — is this scoped tight enough to ship, or too tight to be useful? Are we conflating multiple goals?
-- **Requirements section:** edge cases — what input or state would make this REQ ambiguous? Is the SHALL language doing real work or padding?
-- **Design section:** decision rationale — does the "Chosen because" still hold? Were the alternatives really rejected for the reasons stated, or is there a load-bearing assumption hidden in "Rejected because"?
-- **Verification section:** verifiability — is the verification path actually executable, or does it require judgment we have not specified?
-- **Task graph section:** unstated dependencies — does Task N actually depend on M even though it does not list M? Is the order stable across reorderings?
-- **Risk register:** failure modes — what would have to be true for the system to silently fail? Who notices?
+- **Goal section:** slicing sanity — scoped tight enough to ship? Conflating multiple goals?
+- **Requirements section:** edge cases — what input or state makes this REQ ambiguous?
+- **Design section:** decision rationale — does "Chosen because" still hold?
+- **Verification section:** verifiability — is the path actually executable?
+- **Task graph section:** unstated dependencies — does Task N depend on M without listing it?
+- **Risk register:** failure modes — what causes silent failure? Who notices?
 
-The questions should be specific. "Are there edge cases?" is too soft; "REQ-X1.1 says SHALL refresh every 30 seconds — what happens if the heartbeat is mid-write when the session is killed?" is what the walkthrough is for.
+Use `AskUserQuestion` with concrete options when the check has enumerable answers. Open-ended only when genuinely open-ended. Questions must be specific: "REQ-X1.1 says SHALL refresh every 30s — what happens on kill -9?" not "Are there edge cases?"
 
-**e. Surface inconsistencies (D-42 escalation gate).** If during the restatement or Socratic checks a genuine inconsistency emerges — a REQ contradicts another, a design choice conflicts with a requirement, a glossary term means different things in different sections — **halt the walkthrough**. Do not write the section to the brief. Surface the inconsistency to the user and offer two paths per D-42:
+**e. Surface inconsistencies (D-42 escalation gate).** If a genuine inconsistency emerges, **halt the walkthrough**. Do not write the section to the brief. Use `AskUserQuestion` to offer the two D-42 paths:
 
-   - **(a) Edit the spec.** User edits `requirements.md`, `design.md`, etc. (or invokes `/spec-draft` to redo affected portions), then re-runs `/spec-kickoff`. The partial brief is preserved.
-   - **(b) Record an explicit override.** User confirms the apparent inconsistency is intentional. Record the override in the brief's preamble with a one-line explanation, then continue.
+   - **(a) Edit the spec.** User edits the spec files, then re-runs `/spec-kickoff`. Partial brief preserved.
+   - **(b) Record an explicit override.** The apparent inconsistency is intentional. Record the override in the brief with a one-line explanation.
 
-   Do not silently proceed. The whole point of the contract is that disagreements are on record.
+   Do not silently proceed.
 
-**f. Wait for sign-off on the section.** The user red-lines the restatement, answers the Socratic checks, and confirms the section is signed off. Take the time the user needs; the walkthrough is interactive.
+**f. Wait for sign-off on the section.** Confirm via `AskUserQuestion`: `[Sign off this section (Recommended)]`, `[Red-line — I have changes]`, `[Halt — need to think]`. Take the time the user needs.
 
-**g. Write the signed-off section to the brief.** Append the section to `kickoff-brief.md` immediately (D-41). Include:
+**g. Write the signed-off section to the brief.** Append to `kickoff-brief.md` immediately (D-41). Include:
 
-   - The agent's restatement (as a paragraph or two of prose)
-   - The surfaced implicit terms (as a bulleted list)
-   - The Socratic checks raised and the user's answers
-   - Any explicit assumptions the user red-lined into the section
-   - A `Signed off: <YYYY-MM-DD>` line at the end of the section
+   - The structured restatement
+   - Surfaced implicit terms (bulleted list)
+   - Socratic checks raised and the user's answers
+   - Explicit assumptions the user red-lined in
+   - `Signed off: <YYYY-MM-DD>` at the end
 
    Do not commit yet. The brief lives in the worktree; a commit lands after the final sign-off.
 
-   Update `Last reviewed:` on the spec files only when the kickoff edits them (retrofit mode, D-42 path-b override notes). The brief is the kickoff's own output; it does not need a `Last reviewed:` of the spec it walks.
+   Update `Last reviewed:` on the spec files only when the kickoff edits them (retrofit mode, D-42 path-b override notes).
 
 ### Retrofit mode specifics
 

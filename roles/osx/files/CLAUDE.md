@@ -86,6 +86,10 @@ Plans are written with limited context and the codebase may have changed since. 
 - **Verify before acting**: Always read the actual code before making changes. Don't assume the plan's description of file contents, function signatures, or structure is accurate
 - **Adapt to reality**: If the code doesn't match what the plan expected, adjust your approach to fit the actual state of the codebase rather than forcing the plan's assumptions
 
+## Design Principles
+
+**Composability by default.** At the domain/logic layer, prefer small units that take data in and return data out. Compose them via the language's natural mechanism (pipes, chaining, function composition, middleware stacks) rather than coordinating through shared mutable state or deep inheritance. At the framework boundary (routing, config, ORM, DI), follow the framework's established conventions; a Phoenix context, a Rails controller, a Next.js route, a Go handler should look like what someone familiar with that stack expects. The test: "could I use this unit in a different context without importing its neighbors?" Don't reach for service abstractions, DDD aggregates, or architectural patterns unless the problem genuinely requires coordination beyond what function composition provides.
+
 ## Code & PR Reviews
 
 When reviewing code, features, or addressing PR feedback:
