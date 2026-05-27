@@ -173,9 +173,21 @@ These hold at every step:
 
 When the loop exits, branch on the exit reason and the invocation mode (set in the "Invocation mode" section above):
 
-- **Normal exit (success or Human attention required) in standalone mode.** Run the "Standalone-mode PR creation" step below. After it lands a draft PR (or updates an existing one), summarize: exit reason, PR URL + state, and any items still in Needs sign-off / Needs human judgment that the human needs to address before marking the PR ready for review.
-- **Normal exit in nested mode.** Hand control back to the parent skill (e.g., `/execute-task`) with the final tables. The parent owns push and PR creation. Do not push, do not run `gh pr create`, do not open a browser.
-- **Safety stop (Test failure, Loop detection, Iteration cap, Ambiguity, Security-sensitive, Migrations / data / destructive ops, Dirty working tree, High false-positive ratio).** Regardless of mode: print the latest tables, name the condition, and hand off. Do not push, do not create a PR; the branch is in a known-broken state.
+- **Normal exit (success or Human attention required) in standalone mode.** Present any remaining Needs sign-off / Needs human judgment items per the "Handoff presentation" rules below. Then run the "Standalone-mode PR creation" step. After it lands a draft PR (or updates an existing one), summarize: exit reason, PR URL + state, and any items still unresolved.
+- **Normal exit in nested mode.** Present remaining items per "Handoff presentation", then hand control back to the parent skill with the final tables. The parent owns push and PR creation.
+- **Safety stop (Test failure, Loop detection, Iteration cap, Ambiguity, Security-sensitive, Migrations / data / destructive ops, Dirty working tree, High false-positive ratio).** Regardless of mode: print the latest tables, name the condition, and hand off. Do not push, do not create a PR; the branch is in a known-broken state. Still apply "Handoff presentation" for any accumulated items.
+
+### Handoff presentation
+
+When handing off Needs sign-off and/or Needs human judgment items, follow the CLAUDE.md `Code & PR Reviews` workflow rules. Do not default to one-by-one; choose the mode that minimizes human effort:
+
+**Clustered decisions first.** Look for items that share a decision axis: same fix template (e.g., "add missing test coverage"), same lens (all doc nits, all naming nits), same scope (all in one module). When a cluster of 3+ items exists, use clustered-decision mode per CLAUDE.md: one `AskUserQuestion` per cluster with cluster-wide actions. For Needs sign-off clusters: `Apply all / Skip all / Pick individually`. For Needs human judgment clusters: bespoke options reflecting the shared axis. List each cluster's members before the question so the user can spot mis-grouped items.
+
+**Batched decisions for the rest.** Items that don't fit a cluster use batched-decision mode: up to 4 findings per `AskUserQuestion` call, each as its own single-select question. Needs sign-off items get `Apply / Skip / Modify`. Needs human judgment items get bespoke options per finding.
+
+**Progress tracking.** Always show a progress indicator (e.g., `[2/5]` or `cluster [1/2]: 4 findings`) so the user knows their position and what's left.
+
+**Skip the workflow choice prompt.** Unlike `/self-review` and `/code-review`, Polish has already done the autonomous work and is handing off a small residual set. Don't ask "how do you want to review these?" when the answer is obvious from the item count and clustering shape. Just present them in the best mode.
 
 The user's next move depends on the exit reason:
 
