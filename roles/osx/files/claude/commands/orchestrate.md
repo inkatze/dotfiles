@@ -135,7 +135,9 @@ Delete `specs/<spec>/.orchestrate.lock`. From this point, another `/orchestrate`
 
 ### 4. Dispatch `/execute-task`
 
-Navigate to the new worktree and invoke `/execute-task <task-ids>` with the spec path. This runs in-session (D-39): same context, hooks fire normally, inbox state belongs to this session.
+Switch into the new worktree using `EnterWorktree` (load the tool schema via `ToolSearch` first if needed), then invoke `/execute-task <task-ids>` with the spec path. This runs in-session (D-39): same context, hooks fire normally, inbox state belongs to this session. The worktree switch is required so that `/execute-task`'s file reads, edits, git operations, and CI runs all target the task branch, not the original checkout.
+
+After `/execute-task` returns, use `ExitWorktree` to return to the original checkout. This ensures `tasks.md` updates (which live in the spec directory of the main checkout) are written to the right place.
 
 ### 5. Exit after `/execute-task` returns
 
@@ -145,6 +147,8 @@ Navigate to the new worktree and invoke `/execute-task <task-ids>` with the spec
 - **Awaiting input**: something blocked execution. `tasks.md` already updated by `/execute-task`.
 
 In either case, `/orchestrate` exits. The next invocation (manual or scheduled) will read the updated `tasks.md` and compute the next move.
+
+**Looping across tasks.** Each `/orchestrate` invocation handles one task (D-52). To advance through the full task graph autonomously, wrap with `/loop /orchestrate <spec-path>`. The loop self-paces: each iteration picks the next ready task, and the loop terminates when orchestrate exits with "no ready tasks" or "all complete."
 
 ## Bookkeeping mode (for Task 12's scheduled runner)
 
