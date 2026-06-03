@@ -117,7 +117,7 @@ Drop or downgrade items where the three passes do not converge. Backends produce
 
 ### 6. Present results
 
-Lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` first (one row per lens, counts merged across backends, with `none` / `n/a` rows where applicable). Then the **three findings tables in fixed order** per `Finding Categorization`: Auto-applicable, Needs sign-off, Needs human judgment. Each table always appears; empty buckets get a single `none` row.
+Lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` first (one row per lens, counts merged across backends, with `none` / `n/a` rows where applicable). Then the **four findings tables in fixed order** per `Finding Categorization`: Auto-applicable, Agent-resolvable, Needs sign-off, Needs human judgment. Each table always appears; empty buckets get a single `none` row.
 
 Findings tables include a `Backend(s)` column so you can see which model surfaced what. Suggested columns: `# | Lens | File:Line | Finding | Rule cited | Backend(s) | Validation passes | Confidence | Recommendation`. Drop columns that are uniformly empty.
 

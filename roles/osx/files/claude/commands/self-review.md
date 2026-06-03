@@ -37,7 +37,7 @@ Do a comprehensive code review of the current feature branch.
 
    Drop or downgrade items where the three passes do not converge. Eliminate false positives and speculative concerns. Only report issues you are confident about.
 
-5. Present results: the canonical lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` first, then the three findings tables per CLAUDE.md `Finding Categorization` (Auto-applicable, Needs sign-off, Needs human judgment, in fixed order; empty buckets get a single `none` row). No `Draft comment` column on the tables: this skill implements fixes, it does not post per-finding comments.
+5. Present results: the canonical lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` first, then the four findings tables per CLAUDE.md `Finding Categorization` (Auto-applicable, Agent-resolvable, Needs sign-off, Needs human judgment, in fixed order; empty buckets get a single `none` row). No `Draft comment` column on the tables: this skill implements fixes, it does not post per-finding comments.
 
 6. Follow the standard review workflow (let me choose: all at once, one by one, batched decisions, or clustered decisions, with progress tracking). Option sets are derived from each finding's bucket per CLAUDE.md `Finding Categorization`:
    - **Auto-applicable**: no question, apply with solution validation (no user prompt).
