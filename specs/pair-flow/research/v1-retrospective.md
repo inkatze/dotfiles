@@ -1,7 +1,7 @@
 # Pair-Flow v1 — Retrospective
 
 **Status:** Active
-**Last reviewed:** 2026-06-03
+**Last reviewed:** 2026-06-04 (tecpan `/orchestrate` PR #161 merged; extraction gate now has the orchestration validation evidence it needed)
 **Spec:** `specs/pair-flow/`
 **Task:** 13 (end-to-end validation)
 
@@ -11,7 +11,7 @@ Real e2e use of pair-flow across three repos between 2026-05-22 and 2026-06-03:
 
 1. **dotfiles** (this repo) — the spec authoring + skill development environment. 13 tasks completed through PR #28.
 2. **paycalc-services** (work project, multi-reviewer) — STEAI-748 STL API explain pipeline. 42 tasks completed via `/spec-draft` + `/spec-kickoff` + `/execute-task` direct invocation. Big-umbrella work; `/orchestrate` not used.
-3. **tecpan** (personal project, solo) — 4 specs kicked off (`lfpdppp-consents`, `settings`, `subscriptions`, `timbrado`), all signed off and ready for `/orchestrate`. Execution not yet started.
+3. **tecpan** (personal project, solo) — 4 specs kicked off (`lfpdppp-consents`, `settings`, `subscriptions`, `timbrado`), all signed off via `/spec-kickoff`. First `/orchestrate` execution shipped Tasks 3, 4, 5 of the settings spec as a bundled PR (tecpan PR #161, merged 2026-06-04). This is the missing piece that closes Task 13's "at least one tecpan task shipped via the full pipeline" Done-when.
 
 Section 1 captures what worked. Section 2 captures what needed iteration during the run. Section 3 lists concrete tunings per Task 13's Done-when. Section 4 separates personal-preference from generalizable for the standalone-extraction gate. Section 5 names what v1 did not validate.
 
@@ -150,7 +150,6 @@ The standalone-project-extraction gate requires separating opinions that are per
 
 ## 5. What v1 did not validate
 
-- **`/orchestrate` end-to-end.** The skill is fully implemented and the worktree-switch fix landed, but no `/orchestrate` invocation has produced a real draft PR yet. Tecpan's settings spec (or one of the other 3) is the validation target. Until that run completes, the orchestrator's task selection, worktree dispatch, `tasks.md` state updates, and lock release path are unproven end-to-end.
 - **Multi-reviewer Agent-resolvable surface-for-review.** STEAI-748 bypassed `/orchestrate` (big-umbrella work, not orchestrator-shaped). The paycalc `/polish` run had no active brief, disabling Agent-resolvable entirely. Net: the multi-reviewer surface-with-evidence path (regression test + before/after + CI output + kickoff alignment shown to the human) was not exercised. A smaller-scope task run through `/orchestrate` on paycalc would close this gap.
 - **Intra-spec parallelism (D-52) via multiple `/orchestrate` invocations.** Designed for but not exercised.
 - **Cross-spec concurrent `/orchestrate` (D-37).** Same.
@@ -164,9 +163,9 @@ The standalone-project-extraction gate requires separating opinions that are per
 
 Per the gate in `tasks.md`'s Deferred section: "e2e validation on tecpan (solo), a work project (multi-reviewer), and dotfiles produces positive results; retrospective separates personal-preference decisions from generalizable ones."
 
-**Status:** the dotfiles run is complete. The work project run is partial-positive (spec authoring + execution + observations validated; orchestrator and multi-reviewer Agent-resolvable not exercised). The tecpan run is staged but not started.
+**Status:** dotfiles complete. Work project (STEAI-748): partial-positive — spec authoring, execution, observations all validated; orchestrator and multi-reviewer Agent-resolvable not exercised (the big-umbrella work didn't fit orchestrator dispatch). Tecpan: tecpan PR #161 (settings tasks 3-5 via `/orchestrate`) closes the orchestration validation gap.
 
-**Recommendation:** do not fire the extraction gate yet. Execute at least one `/orchestrate` → draft PR cycle on a tecpan spec to close the unproven-orchestration gap. After that, the gate has enough evidence to fire and a standalone extraction can be scoped.
+**Recommendation: the extraction gate has enough evidence to fire.** The orchestrator's task selection, bundling (D-11), worktree dispatch with the `EnterWorktree` fix, `tasks.md` state updates, and lock release path all worked end-to-end on tecpan. The one remaining gap (multi-reviewer Agent-resolvable surface-with-evidence) is a calibration concern, not a structural one — it can be exercised post-extraction without invalidating the framework's design.
 
 **Predicted extraction shape (informational, not a commitment):** the personal-preference items in Section 4 would not ship. The generalizable items would. The format spec (deferred item) becomes the first deliverable. The skill set ships as either a Claude Code plugin or a `~/.claude/` writer script. The categorization rules and the discovery/validation/refactor rigor sections move from `CLAUDE.md` into the framework's own documentation.
 
