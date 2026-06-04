@@ -101,6 +101,10 @@ And offers two paths: (a) edit spec and re-run, or (b) record an explicit overri
 
 Verified by: induced inconsistency in a test spec; observe halt, the choice prompt, and that no brief is written if the user chooses (a) and exits.
 
+### REQ-A2.9 — Spec-touching skills bump `Last reviewed:` [manual]
+
+Verified by: invoke `/spec-draft` or `/spec-kickoff` on a spec, make any change, and confirm each modified spec file's `Last reviewed:` line is set to the current date (D-40).
+
 ### REQ-A2.10 — Brief written incrementally [manual]
 
 ```gherkin
@@ -113,6 +117,14 @@ And resumes at section 3, not from the beginning
 ```
 
 Verified by: induced kill during walkthrough; inspect partial brief; re-run and observe resume point.
+
+### REQ-A2.11 — Kickoff briefs committed to git, not gitignored [design-level only]
+
+Design-level only: briefs live at `specs/<feature>/kickoff-brief.md` as part of the committed bundle (D-49). The standing check is the absence of a `.gitignore` rule covering `kickoff-brief.md`; no runtime test.
+
+### REQ-A2.12 — Brief invalidation uses D-51 wholesale-rewrite triggers [design-level only]
+
+Design-level only: the choice between section-scoped (default) and whole-brief invalidation is governed by D-51's trigger list and implemented in `/spec-kickoff`'s invalidation logic; verified by design review against D-51.
 
 ### REQ-A3.1, A3.2, A3.3 — Spec status lifecycle [manual]
 
@@ -195,6 +207,14 @@ Verified by: session transcript shows `/polish` was invoked as the last step bef
 ### REQ-B1.8 — Draft PR body references kickoff brief, task IDs, REQs [manual]
 
 Verified by: produced PR body contains a path to the kickoff brief, task ID(s), and the REQs the change satisfies.
+
+### REQ-B1.10 — `/execute-task` assumes its worktree exists [manual]
+
+Verified by: invoke `/execute-task` standalone in a pre-created worktree and confirm it does not attempt worktree creation; confirm `/orchestrate` is what creates the worktree when it dispatches the task (D-44).
+
+### REQ-B1.11 — `/execute-task` invokes `/polish` in the same session [manual]
+
+Verified by: session transcript shows `/polish` ran as a sub-step of `/execute-task` within one Claude Code session (no nested session spawned); inbox state remains owned by the outer skill and hooks fire once per actual tool call (D-39).
 
 ## REQ-C — Autonomous resolution
 
