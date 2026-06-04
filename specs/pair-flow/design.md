@@ -546,12 +546,29 @@ The dashboard popup renders one row per worktree, aggregating contributing sessi
 
 ### D-44: Worktree ownership split
 
-**Decision:** `/orchestrate` creates worktrees as it picks new tasks. `/execute-task` assumes the worktree exists (created by the orchestrator, or manually by the user when running standalone). Worktree paths follow the existing dotfiles convention: `<repo>--claude-worktrees-<branch-suffix>` resolved by the worktree-bootstrap hook.
+**Decision:** `/orchestrate` creates worktrees as it picks new tasks, *unless it can reuse the current one* per D-54. `/execute-task` assumes the worktree exists (created or reused by the orchestrator, or manually by the user when running standalone). Worktree path placement follows D-54 (under `<repo>/.claude/worktrees/<branch-suffix>` so Claude Code's native `--worktree` / `EnterWorktree` tooling discovers it), resolved by the worktree-bootstrap hook either way.
 
 **Alternatives considered:**
 - `/execute-task` creates its own worktree. Rejected: would double-create when run inside `/orchestrate`; manual-create overhead in standalone use is small.
 
 **Chosen because:** Clear ownership boundary; `/execute-task` stays usable both standalone and nested.
+
+### D-54: Worktree reuse and `claude --worktree` interop
+
+**Decision:** `/orchestrate`'s dispatch step does not unconditionally `git worktree add`. It first resolves where the task should run, then creates or reuses:
+
+1. **Detect.** Determine whether the session is already inside a linked worktree via the worktree predicate (`git rev-parse --git-dir` ≠ `git rev-parse --git-common-dir`; equal means the primary checkout). This is the same predicate the worktree-bootstrap hook uses.
+2. **Reuse a clean worktree (confirm only).** If already inside a worktree and it is clean (no uncommitted changes), `/orchestrate` reuses it instead of creating a new one. It surfaces the worktree path and branch and asks the user for a one-line confirmation before proceeding (no full prompt).
+3. **Ask in the primary checkout.** If in the primary checkout (or in a worktree the user does not want to reuse), `/orchestrate` asks the user where to do the work: (a) the current checkout/branch, or (b) a fresh worktree. The user may also have pre-directed this (e.g. "implement in the current branch"), in which case the answer is taken as given and no question is posed.
+4. **Create under the Claude-native path.** When a fresh worktree is created, it is placed at `<repo>/.claude/worktrees/<branch-suffix>` (the directory `claude --worktree` and the `EnterWorktree` tool discover), not the legacy sibling `<repo>--claude-worktrees-<branch-suffix>`. Branch naming stays D-32 (`pair-flow/<spec>/task-<ids>`).
+5. **Tell the user how to re-open it.** After creating or reusing a worktree, `/orchestrate` prints the exact command to re-open that worktree in a fresh Claude Code session: `cd <repo>/.claude/worktrees/<branch-suffix> && claude`. (`claude --worktree <name>` always *creates* a new worktree rather than attaching, so the `cd` + `claude` form is the correct re-open path.)
+
+**Alternatives considered:**
+- Adopt `claude --worktree`'s `worktree-<name>` branch naming for full transparency. Rejected: it breaks D-32, which `tasks-pr-sync.sh`, `skill-contracts.sh`, and `/resume` all parse to map a branch back to its task. Only the worktree *directory* placement needs to match for `EnterWorktree` discovery; the branch name can stay D-32.
+- Keep the legacy sibling `<repo>--claude-worktrees-<branch-suffix>` path. Rejected: invisible to `claude --worktree` / `EnterWorktree`, so a user cannot re-open or switch to it with native tooling.
+- Always `git worktree add` (status quo). Rejected: redundant and confusing when the user is already sitting in a suitable clean worktree, or has explicitly asked to work in the current branch.
+
+**Chosen because:** Places worktrees where Claude Code's native worktree tooling looks while preserving the D-32 branch contract the rest of the pipeline depends on. Detect-and-reuse (with a lightweight confirm) avoids redundant worktrees and respects an explicit "work here" instruction; the re-open hint closes the loop so a backgrounded task is trivially resumable in a fresh session.
 
 ### D-45: Validator extended for D-15 task structure, status-aware enforcement
 

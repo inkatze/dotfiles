@@ -269,6 +269,26 @@ There are seven review workflows, each with a corresponding slash command:
 
 For reviewing **someone else's** PR (not your own), use `/code-review` instead. It checks out the PR, applies the same three-pass validation rigor, and drafts comments for the user to submit manually.
 
+## Spec-Driven Autonomy Pipeline
+
+The review workflows above are the convergence layer of a larger spec-driven pipeline (the "pair-flow" system; full spec at `specs/pair-flow/` in the dotfiles repo). It pairs human and agent from comprehension through execution and orchestration using Claude Code primitives only (skills, hooks, slash commands, scheduled remote agents, file-based state); no second agent framework is introduced.
+
+**The four-file spec.** Each feature lives in `specs/<feature>/` as `requirements.md` (REQ-IDs), `design.md` (D-IDs with `Alternatives considered:` / `Chosen because:`), `tasks.md` (stable task IDs with `Done when:` / `Dependencies:` / `Citations:`), and `test-spec.md` (each REQ pinned to a verification path). `requirements.md` carries a status: `Draft` → `Active` → `Done`. `tasks.md` doubles as the canonical orchestration state record (sections: Completed, In progress, Awaiting input, Deferred, Out of scope). The validator (`~/.claude/scripts/spec-validate.sh`) enforces task structure: warnings on Draft, errors that block execution on Active.
+
+**The skills, in pipeline order:**
+
+1. **`/spec-draft <feature>`** — interactively elicit the four-file bundle via Socratic questioning. Writes Status: Draft. Never commits or flips to Active.
+2. **`/spec-kickoff <spec-path>`** — walk the spec section by section with the human until mutually didactic understanding, producing a signed-off `kickoff-brief.md` (the durable contract every downstream skill works against). Flips Draft → Active on sign-off. Halts on genuine spec inconsistencies rather than papering over them.
+3. **`/orchestrate <spec-path>`** — stateless step machine: read `tasks.md`, pick the next ready task (or bundle per the D-11 bundling rule), create or reuse a worktree, dispatch `/execute-task`, exit. One task per invocation; intra-spec parallelism comes from running it in multiple sessions. Per-spec advisory lock; never auto-merges. A `--bookkeeping` mode reconciles merged PRs back into `tasks.md` on a schedule.
+4. **`/execute-task <task-ids>`** — the execution workhorse. Test-first discipline (write the failing test, confirm it fails for the right reason, implement until green), research recorded in the kickoff brief's risk register, full project CI with adaptive retry, `/polish` as the convergence step, then a draft PR referencing the brief, task IDs, REQs satisfied, and test additions.
+5. **`/resume`** — read-only context loader for a fresh session in a worktree with in-flight work: kickoff brief + `tasks.md` + git log + open PR state, plus an optional handover brief at `{worktree}/.claude/handover.md`.
+
+**Autonomy gate.** The four-bucket `Finding Categorization` above is how the pipeline decides what to apply autonomously vs. surface to the human. `repo-class` (solo vs multi-reviewer, via `~/.claude/scripts/pair-flow-config.sh repo-class`) determines whether Agent-resolvable findings auto-apply (solo) or surface with test + CI + kickoff-alignment evidence for review (multi-reviewer).
+
+**Cross-session awareness.** Active sessions write heartbeat state to `~/.claude/inbox/`; a tmux popup (`prefix + i`) and a status-bar segment surface which sessions need attention, and macOS notifications fire on transitions into `awaiting-input` / `draft-pr-ready`.
+
+**Hard invariants.** Never auto-merge (merge is a reserved human action, permanent, not deferred). Never act on a non-Active spec (no bypass flag). Never auto-chain `/orchestrate` into `/spec-kickoff`. Never force-push, amend, squash, or rebase; create new commits only.
+
 ## Writing Style
 - Avoid em-dashes in prose unless strictly necessary. Use commas, parentheses, colons, or separate sentences instead.
 

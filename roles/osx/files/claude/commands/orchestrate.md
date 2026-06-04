@@ -1,14 +1,14 @@
-Advance work on a pair-flow spec by selecting the next ready task (or bundle), creating a worktree, and dispatching `/execute-task`. Each invocation is a **stateless step machine** (D-5): read `tasks.md`, compute the next legal move, perform it, update state, exit. Multiple invocations across sessions or hosts accumulate naturally.
+Advance work on a pair-flow spec by selecting the next ready task (or bundle), creating or reusing a worktree (D-54), and dispatching `/execute-task`. Each invocation is a **stateless step machine** (D-5): read `tasks.md`, compute the next legal move, perform it, update state, exit. Multiple invocations across sessions or hosts accumulate naturally.
 
 `/orchestrate` picks at most one task (or one bundle per D-11) per invocation (D-52). Intra-spec parallelism is achieved by running `/orchestrate` in multiple sessions; each picks the next independent task.
 
-Sources: REQ-D1.1 through REQ-D12.1, REQ-A3.3, D-5, D-11, D-15, D-17, D-19, D-21, D-24, D-31, D-32, D-33, D-36, D-37, D-44, D-52 in `specs/pair-flow/`.
+Sources: REQ-D1.1 through REQ-D12.1, REQ-A3.3, D-5, D-11, D-15, D-17, D-19, D-21, D-24, D-31, D-32, D-33, D-36, D-37, D-44, D-52, D-54 in `specs/pair-flow/`.
 
 ## When to use
 
 You have a spec at `Active` status with a signed-off kickoff brief and want the system to pick and execute the next ready task autonomously. Two common entry paths:
 
-- **Manual**: you invoke `/orchestrate specs/<name>` in a tmux pane. It picks a task, creates a worktree, executes, opens a draft PR, then exits.
+- **Manual**: you invoke `/orchestrate specs/<name>` in a tmux pane. It picks a task, creates or reuses a worktree (D-54), executes, opens a draft PR, then exits.
 - **Scheduled**: Task 12's bookkeeping runner invokes `/orchestrate` on its cadence. Bookkeeping moves (PR-merge reconciliation, pickup advancement) happen without spawning a full execution.
 
 ## Pre-flight (once per run)
@@ -103,22 +103,44 @@ Note the selected task ID(s) for the dispatch phase.
 
 ## Dispatch
 
-### 1. Create the worktree (D-44)
+### 1. Resolve the worktree — reuse or create (D-44, D-54)
 
-Create a new branch following D-32 naming: `pair-flow/<spec>/task-<ids>`.
+Do **not** unconditionally `git worktree add`. First decide where the work should run, then reuse or create.
+
+**a. Detect whether you are already in a worktree.** Use the worktree predicate (same one the worktree-bootstrap hook uses):
+
+```
+[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ] && echo worktree || echo primary
+```
+
+`worktree` means the session is in a linked worktree; `primary` means the main checkout.
+
+**b. Reuse a clean worktree (confirm only).** If you are already in a worktree and it is clean (`git status --porcelain` is empty), reuse it. Surface its path and branch and ask the user for a one-line confirmation, e.g. *"Already in worktree `<path>` on branch `<branch>` — run task `<ids>` here? (y/n)"*. On yes, skip creation and go to step 2 with this worktree. Do not pose the full where-to-work prompt.
+
+**c. Ask where to work (primary checkout, or a worktree the user declines to reuse).** Ask the user: (a) work in the **current checkout/branch**, or (b) create a **fresh worktree**. If the invocation already pre-directed this (e.g. the user passed "implement in the current branch" / "use this worktree"), take that as the answer and pose no question. If the answer is the current checkout/branch, skip creation and go to step 2.
+
+**d. Create a fresh worktree.** Create a branch following D-32 naming: `pair-flow/<spec>/task-<ids>`.
 
 Examples:
 - Single task: `pair-flow/auth/task-3`
 - Bundle: `pair-flow/auth/task-3-4`
 - Dotted ID: `pair-flow/pair-flow/task-3.5`
 
-Create the worktree:
+Place the worktree under the Claude-native path so `claude --worktree` and the `EnterWorktree` tool can discover it (D-54). `<branch-suffix>` is the part after the last `/` in the branch name (e.g. `task-3`):
 
 ```
-git worktree add <path> -b <branch-name>
+git worktree add <repo-root>/.claude/worktrees/<branch-suffix> -b <branch-name>
 ```
 
-The worktree path follows the convention: `<repo-root>--claude-worktrees-<branch-suffix>` where `<branch-suffix>` is the part after the last `/` in the branch name (e.g., `task-3`).
+Do **not** use the legacy sibling `<repo-root>--claude-worktrees-<branch-suffix>` path; it is invisible to Claude Code's native worktree tooling.
+
+**e. Tell the user how to re-open it.** After creating or reusing a worktree, print the exact re-open command so a backgrounded task is resumable in a fresh session:
+
+```
+cd <repo-root>/.claude/worktrees/<branch-suffix> && claude
+```
+
+(`claude --worktree <name>` always *creates* a new worktree rather than attaching, so the `cd` + `claude` form is the correct re-open path.)
 
 ### 2. Update tasks.md (REQ-E3.1)
 
@@ -135,9 +157,11 @@ Delete `specs/<spec>/.orchestrate.lock`. From this point, another `/orchestrate`
 
 ### 4. Dispatch `/execute-task`
 
-Switch into the new worktree using `EnterWorktree` (load the tool schema via `ToolSearch` first if needed), then invoke `/execute-task <task-ids>` with the spec path. This runs in-session (D-39): same context, hooks fire normally, inbox state belongs to this session. The worktree switch is required so that `/execute-task`'s file reads, edits, git operations, and CI runs all target the task branch, not the original checkout.
+If step 1 **created a fresh worktree you are not already in**, switch into it using `EnterWorktree` (load the tool schema via `ToolSearch` first if needed) so that `/execute-task`'s file reads, edits, git operations, and CI runs all target the task branch, not the original checkout. If step 1 **reused the current worktree or chose the current checkout/branch**, you are already in the right place — skip `EnterWorktree`.
 
-After `/execute-task` returns, use `ExitWorktree` to return to the original checkout. This ensures `tasks.md` updates (which live in the spec directory of the main checkout) are written to the right place.
+Then invoke `/execute-task <task-ids>` with the spec path. This runs in-session (D-39): same context, hooks fire normally, inbox state belongs to this session.
+
+After `/execute-task` returns, if you called `EnterWorktree`, use `ExitWorktree` to return to the original checkout. This ensures `tasks.md` updates (which live in the spec directory of the main checkout) are written to the right place. If you never switched (reuse / current-checkout path), there is nothing to exit.
 
 ### 5. Exit after `/execute-task` returns
 
@@ -191,6 +215,6 @@ These hold at every step:
 
 ## Maintenance
 
-After completing an orchestration run (or halting), check if any part of these instructions seems outdated or misaligned with: changes to REQ-D1-D12, D-5, D-11, D-17, D-21, D-24, D-31, D-32, D-33, D-36, D-37, D-44, D-52; changes to `/execute-task`'s interface; changes to the lockfile or `tasks.md` format; changes to `pair-flow-config.sh` subcommands. If something looks off, flag it and offer a ready-to-use prompt to update this command.
+After completing an orchestration run (or halting), check if any part of these instructions seems outdated or misaligned with: changes to REQ-D1-D12, D-5, D-11, D-17, D-21, D-24, D-31, D-32, D-33, D-36, D-37, D-44, D-52, D-54; changes to `/execute-task`'s interface; changes to the lockfile or `tasks.md` format; changes to `pair-flow-config.sh` subcommands. If something looks off, flag it and offer a ready-to-use prompt to update this command.
 
 $ARGUMENTS
