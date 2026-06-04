@@ -69,7 +69,7 @@ if [ -z "$pr_num" ]; then
 fi
 # Fallback 2: parse explicit number arg from the command (e.g., `gh pr merge 42`).
 if [ -z "$pr_num" ]; then
-    pr_num=$(printf '%s' "$cmd" | grep -oE 'gh pr (create|merge)[^|;&]*[[:space:]][0-9]+' | grep -oE '[0-9]+$' || printf '')
+    pr_num=$(printf '%s' "$cmd" | grep -oE 'gh pr (create|merge)[[:space:]]+[0-9]+([[:space:]]|$)' | grep -oE '[0-9]+' | head -1 || printf '')
 fi
 # Fallback 3: ask gh for the current branch's PR.
 if [ -z "$pr_num" ] && command -v gh >/dev/null 2>&1; then
