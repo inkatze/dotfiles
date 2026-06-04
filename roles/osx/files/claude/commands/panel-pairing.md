@@ -36,7 +36,15 @@ You want the `/copilot-pairing` shape (review, address, push, re-review, repeat)
    - Exit 2 with `needs-confirmation:<inferred>`: surface the inferred value and the helper's reasoning to the human and wait for confirmation. **Never** call `confirm-repo-class` without explicit human input (REQ-D9.1, D-20 in the pair-flow spec). On confirmation, run `~/.claude/scripts/pair-flow-config.sh confirm-repo-class <value>` and proceed.
    - Non-zero with any other status: log it, disable the Agent-resolvable bucket for this run, and proceed with the three-bucket flow.
 
-   Then derive the active kickoff brief. If the branch matches the pair-flow pattern `pair-flow/<spec>/task-...` per D-32, the brief lives at `specs/<spec>/kickoff-brief.md`. Otherwise, look for a single `specs/*/kickoff-brief.md` whose `specs/*/requirements.md` is `Status: Active`. If no active brief is found, disable the Agent-resolvable bucket for this run and proceed with the three-bucket flow; log this as informational, not a stop condition. Record the resolved `repo-class` and the brief path (or "no active brief") in iteration summaries.
+   Then derive the active kickoff brief by walking the heuristics in order, stopping at the first unambiguous match:
+
+   1. **D-32 branch pattern.** If the branch matches `pair-flow/<spec>/task-...`, the brief is `specs/<spec>/kickoff-brief.md`.
+   2. **Single Active spec.** If exactly one `specs/*/requirements.md` is `Status: Active` and a sibling `kickoff-brief.md` exists, use it.
+   3. **Branch-name match.** If multiple specs are Active, look for one whose directory name appears in the current branch name as a token (e.g., `worktree-settings` → `specs/settings/`). Unambiguous match wins.
+   4. **Diff-scope match.** If still ambiguous, compute the diff against the base and check whether ≥80% of changed lines live under a single `specs/<spec>/` or the application code that spec governs (use the spec's `Citations:` files when present). Unambiguous match wins.
+   5. **Ask.** If 2-4 are all ambiguous and multiple specs remain candidates, prompt the user via `AskUserQuestion` to pick the active brief from the candidate set. Do not guess. Do not silently disable the Agent-resolvable bucket when human input could resolve it.
+
+   If no Active spec exists at all (none of the heuristics produce a candidate), disable the Agent-resolvable bucket for this run and proceed with the three-bucket flow; log this as informational, not a stop condition. Record the resolved `repo-class` and the brief path (or "no active brief") in iteration summaries.
 
 ## Iteration loop
 
