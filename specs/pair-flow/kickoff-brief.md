@@ -116,7 +116,9 @@ Signed off: 2026-05-25
 
 ## 5. Task Graph Reconstruction
 
-15 tasks total (1, 2, 3, 3.5, 3.6, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14). 13 now in Completed. Two remain in Forward plan.
+*Snapshot of the task set as of sign-off (2026-05-25). `tasks.md` is the canonical, current state; Tasks 15-16 were added after sign-off and are not reflected below.*
+
+16 tasks were defined at sign-off (1, 2, 3, 3.5, 3.6, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14). The dependency chains and remaining graph below describe the task set as it stood then.
 
 **Reconstructed dependency chains:**
 - Chain A (spec lifecycle): 3.6 → 6 → 7

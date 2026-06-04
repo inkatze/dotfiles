@@ -112,7 +112,7 @@ The system is built on Claude Code primitives (skills, hooks, slash commands, sc
 
 - **REQ-G1.1** Before any panel-related changes ship, the system shall investigate why `/panel-*` skills are underused (29 copilot vs 14 panel invocations in the 30-day window ending 2026-05-21). Investigation deliverable: a written diagnosis (slowness, quota, reflex, low-yield, other) sufficient to decide whether `/panel-pairing` is retained, demoted to escalation-only, or retired.
 - **REQ-G2.1** The system shall provide a PreToolUse hook that validates file paths before `Read`, `Edit`, and `Write` tool calls to address the ~82/month file-path-mistake friction. `Bash` and `NotebookEdit` are out of scope for v1 (D-26).
-- **REQ-G3.1** Codex shall be the default backend on all profiles (work, personal, alt) for `/panel-review` and `/panel-pairing`, contingent on the REQ-G1.1 investigation not surfacing a blocker.
+- **REQ-G3.1** The default backend shall be profile-aware per D-6 (work: `codex`; personal/alt: `gemini`) for `/panel-review` and `/panel-pairing`, contingent on the REQ-G1.1 investigation not surfacing a blocker.
 - **REQ-G4.1** New skills shall be tracked under `roles/osx/files/claude/commands/` and propagated via the existing Ansible symlink mechanism.
 - **REQ-G5.1** New hooks shall be wired from `roles/osx/files/claude/settings.json` per the conventions in the project CLAUDE.md.
 - **REQ-G6.1** The system shall ship documentation updates to the project CLAUDE.md describing the new pipeline at the same level of detail as the existing `/panel-*` and `/copilot-*` sections.

@@ -28,8 +28,9 @@ fail() {
   exit 1
 }
 
-# Replace this with the actual 1Password item UUID once it exists.
-# The script intentionally fails loudly on the placeholder so an
+# Defaults to the Gemini API-key 1Password item; override with
+# GEMINI_OP_ITEM_UUID if the item lives under a different id on a given host.
+# If the item cannot be read, the script fails loudly (see below) so an
 # uninitialized deployment cannot silently skip the sync.
 ITEM_UUID="${GEMINI_OP_ITEM_UUID:-hvscsuq25owvgrqt235xwlfmgy}"
 
