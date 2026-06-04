@@ -24,8 +24,10 @@
 
 # Gemini API key for the panel-* skill backend on personal/alt hosts
 # (per D-6 in specs/pair-flow/design.md: codex on work, gemini on
-# personal/alt). The work host doesn't use gemini as a panel backend,
-# so the sync is gated on non-work + 1Password availability + non-CI.
+# personal/alt). The work host doesn't use gemini as a panel backend, so the
+# task's `when:` gates on non-work + non-CI; the script itself additionally
+# requires an authenticated 1Password session and strict-fails otherwise
+# (see scripts/claude-gemini-auth-sync.sh).
 - name: Sync Gemini API key from 1Password
   ansible.builtin.command:
     cmd: "{{ ansible_env.PWD }}/scripts/claude-gemini-auth-sync.sh"

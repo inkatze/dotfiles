@@ -5,8 +5,10 @@
 # rows are not navigational in v1 (REQ-F2.1 baseline).
 #
 # Rendering:
-#   * one row per worktree (D-34: aggregates concurrent sessions in the same
-#     worktree as a single row annotated "(N sessions)").
+#   * one row per worktree+branch (D-34: aggregates concurrent sessions in the
+#     same worktree as a single row annotated "(N sessions)"). The aggregation
+#     key is host|worktree|branch; a git worktree pins a single branch, so this
+#     is effectively per-worktree.
 #   * color and sort per D-22:
 #       red    → awaiting-input  (sort weight 0)
 #       red×   → stale lock      (sort weight 1, strikethrough)

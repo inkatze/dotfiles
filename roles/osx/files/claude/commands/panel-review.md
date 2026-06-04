@@ -25,7 +25,7 @@ For autonomous looping (review, apply, push, re-review until convergence), use `
    esac
    ```
 
-4. **Resolve the backend set.** If `$ARGUMENTS` contains `--backends a,b,c`, use those (comma-separated). Otherwise resolve the default by reading `~/.claude/pair-flow.yml` merged with `~/.claude/pair-flow.local.yml`'s `panel-backends` key (per D-6 / D-19); fall back to the profile table only if the config is missing:
+4. **Resolve the backend set.** If `$ARGUMENTS` contains `--backends a,b,c`, use those (comma-separated). Otherwise resolve the default from the merged pair-flow config: run `~/.claude/scripts/pair-flow-config.sh show` (the canonical merger of `~/.claude/pair-flow.yml` and `~/.claude/pair-flow.local.yml`, per D-6 / D-19) and read its `panel-backends` key; fall back to the profile table only if the config is missing:
 
    | Profile | Default backends |
    |---|---|

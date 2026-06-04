@@ -17,7 +17,7 @@ You want the `/copilot-pairing` shape (review, address, push, re-review, repeat)
 1. **Identify base branch and capture the diff** (same as `/panel-review` pre-flight 1).
 2. **(Optional) Jira ticket** (same as `/panel-review` pre-flight 2).
 3. **Detect repo profile** (same as `/panel-review` pre-flight 3).
-4. **Resolve the backend set.** Same logic as `/panel-review` pre-flight 4 (read `~/.claude/pair-flow.yml` + `pair-flow.local.yml` `panel-backends` first, then fall back to the profile table):
+4. **Resolve the backend set.** Same logic as `/panel-review` pre-flight 4 (run `~/.claude/scripts/pair-flow-config.sh show`, the canonical merger of `~/.claude/pair-flow.yml` and `pair-flow.local.yml`, and read its `panel-backends` key first, then fall back to the profile table):
 
    | Profile | Default backends |
    |---|---|

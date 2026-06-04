@@ -35,6 +35,16 @@ die() {
     exit 1
 }
 
+# Ensure python3 + PyYAML are present before any YAML read/write. Without this
+# guard a fresh machine fails mid-run with a cryptic ModuleNotFoundError,
+# breaking repo-class detection and every skill that depends on it.
+require_pyyaml() {
+    command -v python3 >/dev/null 2>&1 \
+        || die "python3 not found; required for YAML config parsing"
+    python3 -c 'import yaml' >/dev/null 2>&1 \
+        || die "Python module 'yaml' (PyYAML) not found; install it (e.g. pip install pyyaml) — required for pair-flow config parsing"
+}
+
 current_repo() {
     # Prefer gh repo view; fall back to parsing git remote.
     if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
@@ -110,6 +120,7 @@ infer_repo_class() {
 read_local_repo_class() {
     local repo="$1"
     [ ! -f "$LOCAL" ] && return 0
+    require_pyyaml
     python3 - "$LOCAL" "$repo" <<'PY'
 import sys, yaml
 path, repo = sys.argv[1], sys.argv[2]
@@ -129,6 +140,7 @@ write_local_repo_class() {
     local value="$2"
     local today
     today=$(date +%Y-%m-%d)
+    require_pyyaml
     python3 - "$LOCAL" "$repo" "$value" "$today" <<'PY'
 import sys, yaml, os
 path, repo, value, today = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
@@ -189,6 +201,7 @@ case "$cmd" in
     show)
         repo=$(current_repo) || exit $?
         [ -f "$DEFAULTS" ] || die "defaults file not found: $DEFAULTS"
+        require_pyyaml
         local_class=$(read_local_repo_class "$repo")
         local_path=""
         [ -f "$LOCAL" ] && local_path="$LOCAL"

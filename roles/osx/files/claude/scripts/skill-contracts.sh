@@ -17,7 +17,7 @@ done
 
 # Four-bucket presentation contract (Finding Categorization)
 for f in polish.md panel-pairing.md peer-review.md; do
-  [ -f "$CMDS/$f" ] && ! grep -q 'four.table\|four bucket\|four:.*Auto-applicable' "$CMDS/$f" \
+  [ -f "$CMDS/$f" ] && ! grep -qE 'four.table|four bucket|four:.*Auto-applicable' "$CMDS/$f" \
     && err "$f missing four-bucket presentation reference"
 done
 
@@ -41,13 +41,13 @@ done
 
 # D-21: never-auto-merge / always-draft invariant in execution/orchestration skills
 for f in execute-task.md orchestrate.md polish.md; do
-  [ -f "$CMDS/$f" ] && ! grep -qi 'never.*merge\|always.*draft\|draft PR\|--draft' "$CMDS/$f" \
+  [ -f "$CMDS/$f" ] && ! grep -qiE 'never.*merge|always.*draft|draft PR|--draft' "$CMDS/$f" \
     && err "$f missing D-21 never-auto-merge / always-draft invariant"
 done
 
 # D-33: Active-status gate in execution skills
 for f in execute-task.md orchestrate.md; do
-  [ -f "$CMDS/$f" ] && ! grep -q 'not.*Active\|Status.*Active\|Active.*status' "$CMDS/$f" \
+  [ -f "$CMDS/$f" ] && ! grep -qE 'not.*Active|Status.*Active|Active.*status' "$CMDS/$f" \
     && err "$f missing D-33 Active-status gate"
 done
 
