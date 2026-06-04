@@ -1,0 +1,1 @@
+- 2026-06-04 [dotfiles] pair-flow ships ~13 new bash scripts but repo has no shell test harness (no bats/shellspec); polish Agent-resolvable bucket is unreachable for shell-logic findings. Consider adding bats-core + a mise `test` task.

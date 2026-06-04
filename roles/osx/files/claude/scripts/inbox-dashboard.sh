@@ -142,6 +142,10 @@ for key in "${worktree_keys[@]:-}"; do
         s_state="${part%%^*}"
         rem="${part#*^}"
         s_fs="${rem%%^*}"
+        # Skip malformed parts with no first-seen timestamp; otherwise the
+        # arithmetic below would treat the empty field as 0 and report a
+        # bogus age measured from the epoch.
+        [ -n "$s_fs" ] || continue
         s_age=$((now_epoch - s_fs))
         case "$s_state" in
             awaiting-input) w=0 ;;

@@ -117,6 +117,10 @@ atomic_write() {
     local path="$1"
     local json="$2"
     local tmp="${path}.tmp.$$"
+    # Refuse to persist an empty payload: every caller passes jq output, so an
+    # empty string means jq failed (e.g. a pre-existing malformed entry file).
+    # Writing it would blank the entry; die instead so the failure surfaces.
+    [ -z "$json" ] && die "refusing to write empty entry to $path"
     printf '%s\n' "$json" > "$tmp" || die "could not write $tmp"
     mv -f "$tmp" "$path" || { rm -f "$tmp"; die "could not rename to $path"; }
 }
