@@ -123,7 +123,7 @@ Each layer is independently shippable. L5 and L1 ship first because they unlock 
 
 ### D-9: Skill hooks update `tasks.md` as side effects
 
-**Decision:** `/execute-task` updates `tasks.md` when implementation starts, when a PR opens, and when execution halts. `/orchestrate` updates `tasks.md` when picking a task. A PostToolUse or webhook-triggered hook updates `tasks.md` when a PR merges. The discipline is not the human's job.
+**Decision:** `/execute-task` updates `tasks.md` when implementation starts, when a PR opens, and when execution halts. `/orchestrate` updates `tasks.md` when picking a task. A PostToolUse hook (in-session merges) or the scheduled runner (D-29, out-of-session merges) updates `tasks.md` when a PR merges. The discipline is not the human's job.
 
 **Alternatives considered:**
 - Manual maintenance. Rejected; would silently drift, undermining `tasks.md` as state.
