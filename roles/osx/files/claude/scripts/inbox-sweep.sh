@@ -40,22 +40,32 @@ sweep_one() {
     entry_host=$(jq -r '.host // empty' "$path" 2>/dev/null)
     entry_pid=$(jq -r '.pid // empty' "$path" 2>/dev/null)
 
-    if [ -n "$heartbeat" ]; then
-        local hb_epoch
-        hb_epoch=$(iso_to_epoch "$heartbeat") || hb_epoch=0
-        age=$((now_epoch - hb_epoch))
-        if [ "$age" -gt "$STALE_SECONDS" ]; then
-            rm -f "$path"
-            return 0
-        fi
-    else
-        # Legacy entries with no heartbeat: age out at 24h.
-        local fs_epoch
-        fs_epoch=$(iso_to_epoch "$first_seen") || fs_epoch=0
-        legacy_age=$((now_epoch - fs_epoch))
-        if [ "$legacy_age" -gt "$LEGACY_SECONDS" ]; then
-            rm -f "$path"
-            return 0
+    # Staleness/legacy deletion is host-scoped: only the host that owns an
+    # entry deletes it by local clock, and the deletion then syncs out. On a
+    # shared/synced inbox this prevents a host with a fast clock or sync lag
+    # from prematurely sweeping another host's still-live entry (its heartbeat
+    # would look older than STALE_SECONDS purely from sync delay). Entries with
+    # no host field (legacy) are treated as local so they still age out.
+    # Trade-off: if a remote host dies permanently its entries linger here
+    # until that host returns; that is preferred over racing live deletions.
+    if [ "$entry_host" = "$HOST" ] || [ -z "$entry_host" ]; then
+        if [ -n "$heartbeat" ]; then
+            local hb_epoch
+            hb_epoch=$(iso_to_epoch "$heartbeat") || hb_epoch=0
+            age=$((now_epoch - hb_epoch))
+            if [ "$age" -gt "$STALE_SECONDS" ]; then
+                rm -f "$path"
+                return 0
+            fi
+        else
+            # Legacy entries with no heartbeat: age out at 24h.
+            local fs_epoch
+            fs_epoch=$(iso_to_epoch "$first_seen") || fs_epoch=0
+            legacy_age=$((now_epoch - fs_epoch))
+            if [ "$legacy_age" -gt "$LEGACY_SECONDS" ]; then
+                rm -f "$path"
+                return 0
+            fi
         fi
     fi
 

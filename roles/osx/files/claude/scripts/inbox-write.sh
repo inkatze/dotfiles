@@ -113,6 +113,15 @@ detect_branch() {
 }
 
 # Write an entry atomically. Args: path, json.
+#
+# Each individual write is atomic (tmp + rename). The read-modify-write across
+# subcommands (hook-event reads then rewrites the whole entry; tick reads then
+# rewrites last-heartbeat) is NOT serialized: a tick that lands between a
+# hook-event's read and write can revert that state change. The window is a few
+# milliseconds and the two fire on uncorrelated schedules (ticks every 30s,
+# hook-events on state transitions), so a collision is rare and self-heals on
+# the next tick or state event well within the 120s stale threshold. Accepted
+# as eventual consistency rather than adding a lock (flock is absent on macOS).
 atomic_write() {
     local path="$1"
     local json="$2"
@@ -143,11 +152,11 @@ maybe_notify() {
     case "$next" in
         awaiting-input)
             [ "$prev" = "awaiting-input" ] && return 0
-            printf '{"message":"awaiting input · %s"}' "$context" | "$notifier" permission >/dev/null 2>&1 || true
+            jq -nc --arg c "$context" '{message: ("awaiting input · " + $c)}' | "$notifier" permission >/dev/null 2>&1 || true
             ;;
         draft-pr-ready)
             [ "$prev" = "draft-pr-ready" ] && return 0
-            printf '{"cwd":"%s"}' "$context" | "$notifier" "done" >/dev/null 2>&1 || true
+            jq -nc --arg c "$context" '{cwd: $c}' | "$notifier" "done" >/dev/null 2>&1 || true
             ;;
     esac
 }
