@@ -1,1 +1,2 @@
 - 2026-06-04 [dotfiles] pair-flow ships ~13 new bash scripts but repo has no shell test harness (no bats/shellspec); polish Agent-resolvable bucket is unreachable for shell-logic findings. Consider adding bats-core + a mise `test` task.
+- 2026-06-04 [dotfiles] decouple review/pairing commands from pair-flow (config mis-homed in pair-flow.yml; employer org names leak in panel-review.md:23; CLAUDE.md over-couples them). Full scope in `decouple-review-tooling.md`.
