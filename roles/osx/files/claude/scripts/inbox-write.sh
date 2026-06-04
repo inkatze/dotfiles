@@ -143,7 +143,7 @@ maybe_notify() {
             ;;
         draft-pr-ready)
             [ "$prev" = "draft-pr-ready" ] && return 0
-            printf '{"cwd":"%s"}' "$context" | "$notifier" done >/dev/null 2>&1 || true
+            printf '{"cwd":"%s"}' "$context" | "$notifier" "done" >/dev/null 2>&1 || true
             ;;
     esac
 }

@@ -102,7 +102,7 @@ while IFS= read -r path; do
         i=$((i + 1))
     done
     if [ "$found" -ge 0 ]; then
-        worktree_blobs[$found]="${worktree_blobs[$found]};${blob}"
+        worktree_blobs[found]="${worktree_blobs[found]};${blob}"
     else
         worktree_keys+=("$key")
         worktree_blobs+=("$blob")
