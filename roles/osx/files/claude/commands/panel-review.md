@@ -91,7 +91,7 @@ Diff:
 - **Wall-clock estimates on M1 Max 32GB** (one model loaded at a time; Ollama swaps when the second is invoked): `qwen-coder:32b` ~5 min, `gpt-oss:20b` ~3 min (smaller, instruction-tuned, no reasoning chain). qwen-coder at ~19 GB and gpt-oss at ~13 GB can't co-reside in unified memory comfortably, so the panel still serializes in practice; gpt-oss swaps in faster than the retired deepseek-r1:32b did.
 - **copilot**: route through `gh copilot` or the chosen Copilot CLI; specifics depend on which CLI variant is current.
 
-If a backend invocation fails (timeout, parse error, model error), do **not** silently drop it: stop the run and surface the failure. The user invoked this skill specifically for the variance that backend provides; partial runs hide the fact that one source of variance went missing.
+If a backend invocation **does not recover** (a final non-zero exit, empty or unparseable output, or auth lost with no successful retry), do **not** silently drop it: stop the run and surface the failure. Judge by the final outcome, not intermediate stderr: do **not** stop on transient quota / rate-limit / retry messages the backend CLI emits while it retries internally if it ultimately returns a valid result. The user invoked this skill specifically for the variance that backend provides; partial runs hide the fact that one source of variance went missing.
 
 ### 3. Merge backend findings
 
