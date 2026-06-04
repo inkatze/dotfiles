@@ -155,17 +155,21 @@ read_state() {
 maybe_notify() {
     local prev="$1"
     local next="$2"
-    local context="$3"
+    local cwd="$3"
     local notifier="$HOME/.claude/scripts/notify-event.sh"
     [ ! -x "$notifier" ] && return 0
+    # Pass the real cwd: notify-event.sh derives project + branch itself
+    # (basename + `git -C "$cwd"`) and prepends that context. Pre-embedding it
+    # broke branch detection (a non-path cwd fails the git lookup) and
+    # duplicated the context in the permission notification body.
     case "$next" in
         awaiting-input)
             [ "$prev" = "awaiting-input" ] && return 0
-            jq -nc --arg c "$context" '{message: ("awaiting input · " + $c)}' | "$notifier" permission >/dev/null 2>&1 || true
+            jq -nc --arg cwd "$cwd" '{cwd: $cwd, message: "awaiting input"}' | "$notifier" permission >/dev/null 2>&1 || true
             ;;
         draft-pr-ready)
             [ "$prev" = "draft-pr-ready" ] && return 0
-            jq -nc --arg c "$context" '{cwd: $c}' | "$notifier" "done" >/dev/null 2>&1 || true
+            jq -nc --arg cwd "$cwd" '{cwd: $cwd}' | "$notifier" "done" >/dev/null 2>&1 || true
             ;;
     esac
 }
@@ -248,9 +252,7 @@ case "$cmd" in
                 | if ($target != "") then . + {"tmux-target": $target} else . end')
         fi
         atomic_write "$path" "$new_json"
-        context="${cwd##*/}"
-        [ -n "$branch" ] && context="$context · $branch"
-        maybe_notify "$prev_state" "$state" "$context"
+        maybe_notify "$prev_state" "$state" "$cwd"
         ;;
 
     tick)

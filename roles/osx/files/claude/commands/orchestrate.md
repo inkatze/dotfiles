@@ -15,7 +15,7 @@ You have a spec at `Active` status with a signed-off kickoff brief and want the 
 
 ### 1. Resolve the spec path
 
-Read `$ARGUMENTS`. If a path is provided (e.g., `/orchestrate specs/pair-flow`), use it. If empty, check:
+Read `$ARGUMENTS`. Ignore any flags (e.g., `--bookkeeping`) when resolving the spec path; the path is the first non-flag token. If a path token is present (e.g., `/orchestrate specs/pair-flow` or `/orchestrate --bookkeeping specs/pair-flow`), use it. If no path token is present, check:
 
 - Current branch matches D-32 (`pair-flow/<spec>/task-<ids>`) and derive the spec.
 - Repo root contains exactly one `specs/*/requirements.md` with `Status: Active`.
