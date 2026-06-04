@@ -1,7 +1,7 @@
 # Pair-Flow — Kickoff Brief
 
 **Spec path:** `specs/pair-flow/`
-**Spec commit:** 422f956b1683105668de1c56c8fe2ee12976a16c
+**Spec commit:** 7d99b2b5c3adfde4d9b73648b508d9386a248192 (Section 3 re-signed 2026-06-04 for D-54 + D-44 amendment; original sign-off 2026-05-25 at 422f956b1683105668de1c56c8fe2ee12976a16c)
 **Date started:** 2026-05-25
 **Date signed off:** 2026-05-25
 **Repo-class:** solo
@@ -62,7 +62,7 @@ Signed off: 2026-05-25
 
 ## 3. Design Walkthrough
 
-53 D-IDs across six clusters. All major decisions held through implementation without requiring reversal. Amendments identified below.
+54 D-IDs across six clusters. All major decisions held through implementation without requiring reversal. Amendments identified below.
 
 **Architecture (D-1 through D-5, D-18):** Five independently-shippable layers. `tasks.md` as canonical state. Two-brief model (kickoff = contract, handover = optional cache). Stateless orchestrator. Claude Code primitives only (with the pragmatic escape hatch from Section 1 if primitives prove insufficient). All confirmed by implementation.
 
@@ -70,7 +70,7 @@ Signed off: 2026-05-25
 
 **Panel/Convergence (D-6, D-12, D-13):** D-6 amended (see below). `/polish` is default convergence; `/panel-pairing` is escalation-only. Standalone Polish opens draft PR.
 
-**Execution (D-25, D-39, D-44, D-53):** Adaptive CI retry (transient 2x, logic escalate). In-session skill composition. Worktree ownership split (orchestrator creates, execute-task assumes). Research findings append to risk register.
+**Execution (D-25, D-39, D-44, D-53, D-54):** Adaptive CI retry (transient 2x, logic escalate). In-session skill composition. Worktree ownership split (orchestrator creates *or reuses*, execute-task assumes). Worktree reuse + `claude --worktree` interop (D-54, see amendment 5). Research findings append to risk register.
 
 **Orchestration (D-11, D-17, D-21, D-24, D-31, D-32, D-33, D-36, D-37, D-52):** Bundling rule. Advisory lockfile. Always-draft PRs, never auto-merge (permanent). Bundle sizing via citations + git history. Three-state lifecycle. Per-spec locking. One task per invocation.
 
@@ -88,7 +88,9 @@ Signed off: 2026-05-25
 
 4. *Effort levels and extended thinking in sub-agents:* Not addressed in the current design. Claude Code does not currently expose effort-level or thinking-budget controls to skills or the Agent tool. When these become available, pair-flow skills should differentiate: high effort for Discovery Rigor, regression-test writing, and research; normal effort for task selection, bookkeeping, and status updates. Current workaround: configure sessions by purpose (speed for bookkeeping, depth for execution). Recorded as a calibration note for Task 13.
 
-Signed off: 2026-05-25
+5. *D-54 worktree reuse + `claude --worktree` interop (added 2026-06-04, Task 16):* `/orchestrate`'s dispatch no longer unconditionally `git worktree add`s. It detects whether the session is already in a linked worktree (predicate `git rev-parse --git-dir` ≠ `git rev-parse --git-common-dir`, the same one the worktree-bootstrap hook uses), reuses a clean current worktree after a one-line confirm, and asks where to work when in the primary checkout (honoring a pre-directed "use the current branch"). Fresh worktrees move from the legacy sibling `<repo>--claude-worktrees-<suffix>` path to `<repo>/.claude/worktrees/<suffix>` so Claude Code's native `claude --worktree` / `EnterWorktree` tooling discovers them; D-32 branch naming is deliberately kept because `tasks-pr-sync.sh`, `skill-contracts.sh`, and `/resume` parse it (only the worktree *directory* needs to match for discovery, not the branch name). After create-or-reuse, `/orchestrate` prints the `cd <repo>/.claude/worktrees/<suffix> && claude` re-open command (`claude --worktree` always creates rather than attaches). D-44 amended in lockstep ("creates" → "creates or reuses"; path placement delegated to D-54). The ownership boundary is unchanged: `/execute-task` still assumes-exists and never learns whether the tree was created or reused. The confirm sits at an explicit decision point (which working tree to mutate), consistent with Section 1's interruption model.
+
+Signed off: 2026-05-25 (Sections 1, 2, 4, 5, 6); Section 3 re-signed 2026-06-04 (D-54 + D-44 amendment, spec commit 7d99b2b)
 
 ## 4. Verification Approach
 
