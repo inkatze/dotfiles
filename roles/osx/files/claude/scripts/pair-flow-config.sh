@@ -81,8 +81,12 @@ current_repo() {
 # searching for "[bot]" in the login).
 infer_repo_class() {
     if ! command -v gh >/dev/null 2>&1 || ! gh auth status >/dev/null 2>&1; then
-        # No gh, no signal. Default to solo (safer: surfaces for review rather
-        # than auto-applying).
+        # No gh, no signal. Suggest solo (the common case for these repos:
+        # dotfiles, tecpan). This is only a suggestion: `repo-class` returns it
+        # as needs-confirmation:<value> (exit 2) and the human confirms before
+        # it takes effect, so the autonomy gate is never set from inference
+        # alone. (solo enables Agent-resolvable auto-apply; multi-reviewer is
+        # the one that surfaces for review.)
         printf 'solo\n'
         return 0
     fi
