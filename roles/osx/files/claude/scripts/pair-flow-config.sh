@@ -190,12 +190,24 @@ case "$cmd" in
         repo=$(current_repo) || exit $?
         [ -f "$DEFAULTS" ] || die "defaults file not found: $DEFAULTS"
         local_class=$(read_local_repo_class "$repo")
-        python3 - "$DEFAULTS" "$repo" "$local_class" <<'PY'
+        local_path=""
+        [ -f "$LOCAL" ] && local_path="$LOCAL"
+        python3 - "$DEFAULTS" "$local_path" "$repo" "$local_class" <<'PY'
 import sys, yaml
-defaults_path, repo, local_class = sys.argv[1], sys.argv[2], sys.argv[3]
+defaults_path, local_path, repo, local_class = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 with open(defaults_path) as f:
     defaults = yaml.safe_load(f) or {}
 out = dict(defaults)
+if local_path:
+    with open(local_path) as f:
+        local = yaml.safe_load(f) or {}
+    # Top-level overrides per D-6 amendment: any scalar / list / dict key
+    # at the local file's top level (except `repos`, which is per-repo
+    # state, not a default override) wins over the tracked default.
+    for key, value in local.items():
+        if key == 'repos':
+            continue
+        out[key] = value
 out['repo'] = repo
 if local_class:
     out['repo-class'] = local_class

@@ -17,14 +17,14 @@ You want the `/copilot-pairing` shape (review, address, push, re-review, repeat)
 1. **Identify base branch and capture the diff** (same as `/panel-review` pre-flight 1).
 2. **(Optional) Jira ticket** (same as `/panel-review` pre-flight 2).
 3. **Detect repo profile** (same as `/panel-review` pre-flight 3).
-4. **Resolve the backend set.** Same logic as `/panel-review` pre-flight 4, but with different profile defaults tuned for autonomous loops (more variance, you walk away during iterations):
+4. **Resolve the backend set.** Same logic as `/panel-review` pre-flight 4 (read `~/.claude/pair-flow.yml` + `pair-flow.local.yml` `panel-backends` first, then fall back to the profile table):
 
    | Profile | Default backends |
    |---|---|
-   | work | `codex`, `qwen-coder` |
-   | personal | `qwen-coder`, `gpt-oss` |
+   | work | `codex` |
+   | personal / alt | `gemini` |
 
-   `--backends` overrides. `copilot` is opt-in only.
+   `--backends` overrides. `copilot` is opt-in only. The Ollama models (`qwen-coder`, `gpt-oss`) remain available via `--backends` for variance panels on big-stakes diffs.
 
 5. **Verify each backend** (same as `/panel-review` pre-flight 5; stop with the same install / auth messages on any failure).
 6. **Initialize iteration counter** = 0.
