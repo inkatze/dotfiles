@@ -67,7 +67,7 @@ Each layer is independently shippable. L5 and L1 ship first because they unlock 
 
 ### D-4: Solo vs multi-reviewer behavior split
 
-**Decision:** In solo repos (tecpan, dotfiles), `Agent-resolvable` auto-applies. In multi-reviewer repos (paycalc), `Agent-resolvable` surfaces for human review with evidence (failing-then-passing test, CI output, kickoff alignment) attached. Determination is per-repo via a config marker (see D-15).
+**Decision:** In solo repos (tecpan, dotfiles), `Agent-resolvable` auto-applies. In multi-reviewer repos (a work project), `Agent-resolvable` surfaces for human review with evidence (failing-then-passing test, CI output, kickoff alignment) attached. Determination is per-repo via a config marker (see D-15).
 
 **Alternatives considered:**
 - Always require human approval. Rejected; the user explicitly wants autonomy in solo repos.
@@ -696,7 +696,7 @@ Parallelism is driven by:
 - **Auto-respond to peer review feedback** (`/orchestrate` v2). After v1 trusted.
 - **Multi-spec concurrent orchestration**. After single-spec works.
 - **Handover-brief auto-write conditions** (D-2). Deferred unless v1 surfaces specific gaps.
-- **Migration of work projects** (paycalc). Out of scope for v1; design accommodates multi-reviewer but tecpan/dotfiles are the proving ground.
+- **Migration of work projects.** Out of scope for v1; design accommodates multi-reviewer but tecpan/dotfiles are the proving ground.
 - **Retirement of `/copilot-pairing` and `/copilot-review`**. Existing user-CLAUDE.md already marks these transitional. No change here.
 
 ## Sources

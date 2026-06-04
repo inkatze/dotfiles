@@ -155,7 +155,7 @@ After all items are addressed, commit the changes and push.
 Both mutations can leave replies invisible by attaching them to a *pending* review owned by the viewer:
 
 - `addPullRequestReviewComment` always builds onto a review and creates a pending one if none is in progress; replies sit as drafts until someone manually clicks Submit.
-- `addPullRequestReviewThreadReply` is the more direct mutation, but per a 2026-05-02 live-run failure on `SymmetrySoftware/stl-poc#13` it can also auto-vivify a pending review when the viewer has none in progress. The reply then stays invisible (to GitHub UI, to the human reviewer, to anyone else) until the pending review is submitted.
+- `addPullRequestReviewThreadReply` is the more direct mutation, but per a 2026-05-02 live-run failure on a work repo's PR it can also auto-vivify a pending review when the viewer has none in progress. The reply then stays invisible (to GitHub UI, to the human reviewer, to anyone else) until the pending review is submitted.
 
 After the batch of replies, **always** submit any pending review you own on this PR before resolving threads (see "Submit any auto-vivified pending review" below). A successful-looking run can otherwise complete with all replies silently invisible: the human reviewer sees no response and the threads still appear unanswered to them.
 

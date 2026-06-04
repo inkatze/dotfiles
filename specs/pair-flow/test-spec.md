@@ -512,5 +512,5 @@ Explicitly listing out-of-scope verification so the bar is clear:
 - **Behavior under git merge conflicts in `tasks.md`.** Possible during concurrent orchestrator runs. Handled at the merge level; no special tooling.
 - **Cross-version compatibility with future Claude Code releases.** The skills depend on Claude Code's slash-command and hook contracts; breakage on upgrade is detected by the next test cycle, not pre-emptively.
 - **Telemetry accuracy.** The post-implementation re-analysis is point-in-time; not continuously validated.
-- **Multi-reviewer behavior end-to-end.** The predicate (D-3, D-4) is implemented to support it, but the actual workflow on paycalc is out of v1 scope (see Out of scope in `tasks.md`).
+- **Multi-reviewer behavior end-to-end.** The predicate (D-3, D-4) is implemented to support it, but the actual workflow on a multi-reviewer work repo is out of v1 scope (see Out of scope in `tasks.md`).
 - **`/copilot-pairing` and `/copilot-review` integration.** These remain transitional and unchanged by this spec.

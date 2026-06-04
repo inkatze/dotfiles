@@ -19,7 +19,7 @@ The system is built on Claude Code primitives (skills, hooks, slash commands, sc
 - **Agent-resolvable** — New finding bucket for changes that are behavior-modifying but rigorously validated (failing-then-passing regression test, full CI green, kickoff-aligned, no hard disqualifier).
 - **tasks.md as state** — The spec's `tasks.md` doubles as the canonical orchestration state record. Sections: Completed, In progress, Awaiting input, Deferred, Out of scope.
 - **Solo repo** — A repo with no human peer reviewers beyond the spec author (e.g., tecpan, dotfiles). Permits `Agent-resolvable` to auto-apply.
-- **Multi-reviewer repo** — A repo where human peer review is part of the merge gate (e.g., paycalc). `Agent-resolvable` surfaces for review with evidence attached, does not auto-apply.
+- **Multi-reviewer repo** — A repo where human peer review is part of the merge gate (e.g., a work project). `Agent-resolvable` surfaces for review with evidence attached, does not auto-apply.
 
 ## REQ-A — Spec lifecycle (drafting and comprehension)
 

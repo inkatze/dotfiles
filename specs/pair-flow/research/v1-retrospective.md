@@ -5,12 +5,18 @@
 **Spec:** `specs/pair-flow/`
 **Task:** 13 (end-to-end validation)
 
+> Note: this retrospective generalizes a work project that was used as one of
+> the validation targets. Employer/org names, internal ticket IDs, teammate
+> names, internal code identifiers, and production data are intentionally
+> redacted; only the pair-flow learnings are recorded here. The detailed
+> work-specific evidence lives outside this public repo.
+
 ## What this retrospective covers
 
 Real e2e use of pair-flow across three repos between 2026-05-22 and 2026-06-03:
 
 1. **dotfiles** (this repo) — the spec authoring + skill development environment. 13 tasks completed through PR #28.
-2. **paycalc-services** (work project, multi-reviewer) — STEAI-748 STL API explain pipeline. 42 tasks completed via `/spec-draft` + `/spec-kickoff` + `/execute-task` direct invocation. Big-umbrella work; `/orchestrate` not used.
+2. **A work project** (multi-reviewer) — a large feature spec. 42 tasks completed via `/spec-draft` + `/spec-kickoff` + `/execute-task` direct invocation. Big-umbrella work; `/orchestrate` not used.
 3. **tecpan** (personal project, solo) — 4 specs kicked off (`lfpdppp-consents`, `settings`, `subscriptions`, `timbrado`), all signed off via `/spec-kickoff`. First `/orchestrate` execution shipped Tasks 3, 4, 5 of the settings spec as a bundled PR (tecpan PR #161, merged 2026-06-04). This is the missing piece that closes Task 13's "at least one tecpan task shipped via the full pipeline" Done-when.
 
 Section 1 captures what worked. Section 2 captures what needed iteration during the run. Section 3 lists concrete tunings per Task 13's Done-when. Section 4 separates personal-preference from generalizable for the standalone-extraction gate. Section 5 names what v1 did not validate.
@@ -19,46 +25,46 @@ Section 1 captures what worked. Section 2 captures what needed iteration during 
 
 ### Spec authoring carried multi-day context
 
-The STEAI-748 spec is the strongest signal. A 943-line `requirements.md` with explicit in-scope / out-of-scope boundaries (Knowledge Base build-out out of scope but the probe in scope; SLM training out of scope but evaluating Brandon's completed checkpoint in scope; chat-side multi-turn out of scope; substring grader replacement out of scope; etc.) survived 7 days of execution without scope creep. The precision came from `/spec-draft`'s Phase 1 scope elicitation. Without it, "scope was full of holes" (the user's own words about the pre-pair-flow attempt) would have repeated.
+The work spec is the strongest signal. A ~940-line `requirements.md` with explicit in-scope / out-of-scope boundaries (several adjacent capabilities held out of scope while their narrow probes stayed in scope) survived 7 days of execution without scope creep. The precision came from `/spec-draft`'s Phase 1 scope elicitation. Without it, "scope was full of holes" (the user's own words about the pre-pair-flow attempt) would have repeated.
 
 ### Kickoff brief was the durable contract, not the spec
 
-767-line kickoff briefs are not summaries; they are the working contract. Multiple decisions in STEAI-748 traced back to the brief, not the spec:
+~770-line kickoff briefs are not summaries; they are the working contract. Multiple decisions in the work spec traced back to the brief, not the spec:
 
-- Task 25's "no `fe-state.lua` change owed" conclusion came from re-reading the brief's credit-narration framing.
-- The 2026-05-28 "authorable-now queue" reframing (Tasks 47-50 are local-runnable now because local work was never blocked, only merge/rollout was gated) came from re-reading the brief's distinction between merge-path gating and local-authoring constraints.
+- A "no change owed here" conclusion on one task came from re-reading the brief's framing of that subsystem.
+- A mid-run "authorable-now queue" reframing (some later tasks were local-runnable immediately because local work was never blocked, only merge/rollout was gated) came from re-reading the brief's distinction between merge-path gating and local-authoring constraints.
 
 Downstream skills consulted the brief, not the four-file bundle. This validates D-2 (kickoff brief as contract, handover brief as optional cache).
 
 ### Observations convention surfaced real production bugs
 
-Task 13 added an observation convention to `/execute-task` and `/polish` (append one-liners to `specs/_observations/opportunities.md`). STEAI-748's observations file has 8 entries; 3 are resolved production bugs that would have shipped without the discipline:
+Task 13 added an observation convention to `/execute-task` and `/polish` (append one-liners to `specs/_observations/opportunities.md`). The work project's observations file has 8 entries; 3 are resolved production bugs that would have shipped without the discipline:
 
-1. **Model ID mapping in `narrative_verifier.call_narrative_verifier`** — passing the friendly model name (`claude-v4.5-haiku`) instead of the cross-region inference profile (`us.anthropic.claude-haiku-4-5-...`) caused live Bedrock rejection. Invisible to unit tests (they stub `call_converse_api`); surfaced live during the Task 47 inference-params probe. Resolved with two unit tests pinning the resolved id (commit `b30eb622`).
+1. **Model-id mapping bug** — passing a friendly model name instead of the cross-region inference profile id caused a live provider rejection. Invisible to unit tests (they stub the provider call); surfaced live during an inference-params probe. Resolved with two unit tests pinning the resolved id.
 
-2. **FICA narrator id-2 cumulative YTD regression on the May golden pin** — the deterministic narrator template omitted two cumulative YTD figures (`$4,576.22` and `$71,810.00`) that the LLM-only path emitted as part of its YTD walk. Surfaced on re-pin re-validation. Resolved same-session: `FicaAutoAdjust` gained `wages_ytd_before_period`, narrator template updated, two golden cases flipped FAIL→PASS, unit test `test_auto_adjust_standard_renders_cumulative_ytd_figures` locked the figures.
+2. **Cumulative-total regression on a golden pin** — a deterministic template omitted two cumulative figures that the LLM-only path emitted. Surfaced on re-pin re-validation. Resolved same-session: the data model gained the missing prior-period field, the template was updated, two golden cases flipped FAIL→PASS, and a unit test locked the figures.
 
-3. **Multistate narrator `$0.00`-base / non-zero-tax contradiction** — rendering internally-contradictory prose on real prod NJ/NY interstate payloads ("New Jersey starts by computing what the tax would be if all $0.00 in combined wages were taxed there... produced $373.96"). Same regression class as GDS test-40 but firing on prod traffic, not just the one golden case. Narrator-side resolved with new `all_wages_tax_requires_nonzero_base` invariant; the engine-side `0.00`/non-zero defect remains open as a follow-up.
+3. **Contradictory-prose defect on real traffic** — internally-contradictory narration on real production payloads (a zero-base / non-zero-result contradiction). Same regression class as one known test case but firing on production traffic, not just the golden case. The narration side was resolved with a new invariant; the engine-side defect remains open as a follow-up.
 
 The observation chain provided context across days (find → investigate → resolve → verify live), not just within a single session.
 
 ### `/execute-task` autonomous loop on big-umbrella work
 
-The 2026-05-28 `/execute-task` loop drained 42 tasks across STEAI-748's Phases 0-9, including Task 31 (GDS traversal + LLM-only baseline capture, 42 records / 79 captures), Task 32 (verdict population via Java `LayeredEvaluator`), and Task 25's credit-narration investigation (no `fe-state.lua` change owed, finding non-zero `tax_after_credit=$288.69` on the Branch-B interstate-SIT repro). This is the autonomous execution working at scale.
+The 2026-05-28 `/execute-task` loop drained 42 tasks across the work spec's phases, including baseline-capture, verdict-population, and a credit-narration investigation that concluded no change was owed. This is the autonomous execution working at scale.
 
 ### Spec-draft and spec-kickoff produced a structurally clean bundle on the first attempt
 
-Four tecpan specs (`lfpdppp-consents`, `settings`, `subscriptions`, `timbrado`) and the STEAI-748 spec were all drafted via `/spec-draft` and reached `Status: Active` via `/spec-kickoff` without validator errors. The validator is the structural gate; passing it on the first attempt across five real specs validates that the four-file format and the skill instructions are aligned.
+Four tecpan specs (`lfpdppp-consents`, `settings`, `subscriptions`, `timbrado`) and the work spec were all drafted via `/spec-draft` and reached `Status: Active` via `/spec-kickoff` without validator errors. The validator is the structural gate; passing it on the first attempt across five real specs validates that the four-file format and the skill instructions are aligned.
 
 ### Cross-session continuity
 
-The 7-day STEAI-748 timeline crossed at least 4 distinct Claude Code sessions (visible from commit cadence). `tasks.md` carried state through every transition. No information was lost. `/resume` was not needed because `tasks.md` + git log + PR state were sufficient (validating REQ-E2.1).
+The 7-day work-project timeline crossed at least 4 distinct Claude Code sessions (visible from commit cadence). `tasks.md` carried state through every transition. No information was lost. `/resume` was not needed because `tasks.md` + git log + PR state were sufficient (validating REQ-E2.1).
 
 ## 2. What needed iteration during the run
 
 ### `/polish` required more human attention than expected on the work project
 
-The first `/polish` standalone run on a multi-reviewer paycalc branch surfaced 5 Needs sign-off items (all test coverage gaps) and 1 Needs human judgment item, and walked them one-by-one. This was correct per the categorization (all five test gaps had clear single fixes routing them to Needs sign-off), but the one-by-one presentation was tedious when 4 of the 5 items shared the same decision shape ("add this test, yes / no").
+The first `/polish` standalone run on a multi-reviewer work branch surfaced 5 Needs sign-off items (all test coverage gaps) and 1 Needs human judgment item, and walked them one-by-one. This was correct per the categorization (all five test gaps had clear single fixes routing them to Needs sign-off), but the one-by-one presentation was tedious when 4 of the 5 items shared the same decision shape ("add this test, yes / no").
 
 Two root causes:
 
@@ -107,7 +113,7 @@ Fixed mid-run by adding "Interaction style" sections to both skills (commit `6c0
 
 ### Bundling rule
 
-**Finding:** not exercised in v1. STEAI-748 was a single big spec executed via direct `/execute-task` (no orchestrator). The 4 tecpan specs haven't been orchestrated yet.
+**Finding:** not exercised in v1. The work spec was a single big spec executed via direct `/execute-task` (no orchestrator). The 4 tecpan specs haven't been orchestrated yet.
 
 **Tuning recommendation:** wait. The bundling heuristic (D-24: Citations + git history, ≤700 lines, with effort-based fallback for < 5 matching PRs) is grounded but unmeasured. The first 2-3 `/orchestrate` runs on tecpan will produce real data.
 
@@ -119,7 +125,7 @@ Fixed mid-run by adding "Interaction style" sections to both skills (commit `6c0
 
 ### Inbox transitions
 
-**Finding:** not exercised in v1. The inbox substrate, heartbeats, tmux popup, and macOS notifications were validated at smoke-test level (Task 3) but not under real cross-session work. STEAI-748's 7-day timeline crossed sessions but the user did not report any inbox transitions firing because the work was all in-session execution, not multi-session handoff.
+**Finding:** not exercised in v1. The inbox substrate, heartbeats, tmux popup, and macOS notifications were validated at smoke-test level (Task 3) but not under real cross-session work. The work project's 7-day timeline crossed sessions but the user did not report any inbox transitions firing because the work was all in-session execution, not multi-session handoff.
 
 **Tuning recommendation:** wait for the first real `/orchestrate` run with multiple parallel sessions or for the scheduled bookkeeping runner (Task 12) to fire its first PR-merge reconciliation. The inbox is designed for the cases v1 has not exercised yet.
 
@@ -133,7 +139,7 @@ The standalone-project-extraction gate requires separating opinions that are per
 - **One tmux session per host** as the cross-session model. The inbox dashboard is keyed against this.
 - **Ansible + symlink-based config materialization** for shipping skills. Pair-flow's skill files live under `roles/osx/files/claude/commands/` because that's how this dotfiles repo manages Claude Code; an extracted project would ship skills differently (probably a Claude Code plugin manifest or a `~/.claude/commands/` writer).
 - **Solo / multi-reviewer split keyed by `pair-flow-config.sh repo-class`** with PR-history-based inference. The inference is good but the file location (`~/.claude/pair-flow.local.yml`) and the helper script's shape are personal-workflow choices.
-- **The specific repos targeted (tecpan, dotfiles, paycalc-services)** are the user's. The Active spec gate, the four-file format, and the categorization are not.
+- **The specific repos targeted** are the user's. The Active spec gate, the four-file format, and the categorization are not.
 
 ### Generalizable
 
@@ -143,14 +149,14 @@ The standalone-project-extraction gate requires separating opinions that are per
 - **Stateless step-machine orchestration** (D-5) reading from a markdown dependency graph. The "tasks.md is the database" pattern with per-spec advisory locks (D-17, D-37) and one-task-per-invocation (D-52).
 - **Test-first discipline in `/execute-task`** (REQ-B1.3, B1.4) plus adaptive CI retry (D-25).
 - **Discovery Rigor + Validation Rigor + Refactor Instinct** from the user-global CLAUDE.md. Tool-grounded over vibes, three-pass validation, lens-coverage table, parallel fan-out for non-trivial diffs.
-- **Observation convention** (`specs/_observations/opportunities.md` append-only one-liners as seed material). Validated as production-relevant; surfaced 3 real bugs in STEAI-748.
+- **Observation convention** (`specs/_observations/opportunities.md` append-only one-liners as seed material). Validated as production-relevant; surfaced 3 real bugs on the work project.
 - **Composability-by-default design principle** at the domain/logic layer, framework conventions at the boundary. Added during the v1 run; stack-agnostic; carries to any Phoenix / Rails / Next.js / Go project.
 - **Status-aware spec validation** (D-45) with warnings on Draft and errors on Active. Status-aware enforcement matches the lifecycle.
 - **Interaction style rules for spec-authoring skills** (progress indicator, progressive disclosure, visual aids, selectors with recommendations, smart defaults, running summary, small bites). These are presentation-layer rules; they generalize to any skill that walks a structured artifact with a human.
 
 ## 5. What v1 did not validate
 
-- **Multi-reviewer Agent-resolvable surface-for-review.** STEAI-748 bypassed `/orchestrate` (big-umbrella work, not orchestrator-shaped). The paycalc `/polish` run had no active brief, disabling Agent-resolvable entirely. Net: the multi-reviewer surface-with-evidence path (regression test + before/after + CI output + kickoff alignment shown to the human) was not exercised. A smaller-scope task run through `/orchestrate` on paycalc would close this gap.
+- **Multi-reviewer Agent-resolvable surface-for-review.** The work project bypassed `/orchestrate` (big-umbrella work, not orchestrator-shaped). The work-project `/polish` run had no active brief, disabling Agent-resolvable entirely. Net: the multi-reviewer surface-with-evidence path (regression test + before/after + CI output + kickoff alignment shown to the human) was not exercised. A smaller-scope task run through `/orchestrate` on a multi-reviewer repo would close this gap.
 - **Intra-spec parallelism (D-52) via multiple `/orchestrate` invocations.** Designed for but not exercised.
 - **Cross-spec concurrent `/orchestrate` (D-37).** Same.
 - **Scheduled bookkeeping runner (Task 12).** Documentation shipped; runner not yet scheduled against a real Active spec.
@@ -163,7 +169,7 @@ The standalone-project-extraction gate requires separating opinions that are per
 
 Per the gate in `tasks.md`'s Deferred section: "e2e validation on tecpan (solo), a work project (multi-reviewer), and dotfiles produces positive results; retrospective separates personal-preference decisions from generalizable ones."
 
-**Status:** dotfiles complete. Work project (STEAI-748): partial-positive — spec authoring, execution, observations all validated; orchestrator and multi-reviewer Agent-resolvable not exercised (the big-umbrella work didn't fit orchestrator dispatch). Tecpan: tecpan PR #161 (settings tasks 3-5 via `/orchestrate`) closes the orchestration validation gap.
+**Status:** dotfiles complete. Work project: partial-positive — spec authoring, execution, observations all validated; orchestrator and multi-reviewer Agent-resolvable not exercised (the big-umbrella work didn't fit orchestrator dispatch). Tecpan: tecpan PR #161 (settings tasks 3-5 via `/orchestrate`) closes the orchestration validation gap.
 
 **Recommendation: the extraction gate has enough evidence to fire.** The orchestrator's task selection, bundling (D-11), worktree dispatch with the `EnterWorktree` fix, `tasks.md` state updates, and lock release path all worked end-to-end on tecpan. The one remaining gap (multi-reviewer Agent-resolvable surface-with-evidence) is a calibration concern, not a structural one — it can be exercised post-extraction without invalidating the framework's design.
 
@@ -172,14 +178,14 @@ Per the gate in `tasks.md`'s Deferred section: "e2e validation on tecpan (solo),
 ## Open follow-ups (not gating Task 13)
 
 - Extend the contract-consistency checker (`skill-contracts.sh`) to catch "N findings tables" drift and other prose-vs-CLAUDE.md sync gaps.
-- The Phase 5b STEAI-748 engine-side `$0.00`-base / non-zero-tax defect is still open. Surfaced via the observation convention; resolution is outside pair-flow scope.
+- The work project's engine-side zero-base / non-zero-result defect is still open. Surfaced via the observation convention; resolution is outside pair-flow scope.
 - Investigate Anthropic's Dynamic Workflows API (deferred in `tasks.md`) once published. Most natural integration: discovery rigor fan-out in `/panel-review` and `/execute-task` conditional fan-out for multi-file mechanical work.
 - The `/orchestrate` "navigate to the worktree" gap was a real ambiguity; review the other skills for similar tool-name ambiguities (e.g., `/resume`'s instructions reference `git status` without naming the tool, which probably resolves fine but is worth a pass).
 
 ## Sources
 
-- STEAI-748 spec bundle (`~/Desktop/steai-748/specs/stl-api-explain-pipeline/`) including the 8-entry observations log.
+- The work spec bundle and its observations log (kept in a private, untracked location outside this repo).
 - Tecpan specs at `~/dev/tecpan/specs/` (`lfpdppp-consents`, `settings`, `subscriptions`, `timbrado`) all Active with signed-off kickoff briefs.
 - Dotfiles PR #28 (`https://github.com/inkatze/dotfiles/pull/28`).
-- Landscape survey conducted 2026-05-26 (memory: `project_pair_flow_steai_748_evidence.md`, `reference_ecosystem_tools.md`).
-- User feedback during run: "spec was full of holes" (work project pre-pair-flow), "tiring, heavy, requires a lot of discipline" (spec-draft / spec-kickoff), "the LLM attributes our speed to everything but us or our spec" (STEAI-748 work session).
+- Landscape survey conducted 2026-05-26 (memory: the pair-flow work-project evidence note, `reference_ecosystem_tools.md`).
+- User feedback during run: "spec was full of holes" (work project pre-pair-flow), "tiring, heavy, requires a lot of discipline" (spec-draft / spec-kickoff), "the LLM attributes our speed to everything but us or our spec" (work session).

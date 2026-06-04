@@ -24,6 +24,7 @@ STALE_SECONDS="${PAIR_FLOW_STALE_SECONDS:-120}"     # D-23: 2 minutes.
 LEGACY_SECONDS="${PAIR_FLOW_LEGACY_SECONDS:-86400}" # D-23: 24 hours.
 
 mkdir -p "$INBOX_DIR" 2>/dev/null || true
+chmod 700 "$INBOX_DIR" 2>/dev/null || true  # best-effort; entries hold path/branch metadata
 
 # Epoch from ISO 8601. BSD date.
 iso_to_epoch() {
@@ -94,7 +95,18 @@ case "$cmd" in
         for f in "$INBOX_DIR"/*.json; do
             [ -e "$f" ] || continue
             sweep_one "$f"
-            [ -f "$f" ] && printf '%s\n' "$f"
+            [ -f "$f" ] || continue
+            # Deletion is host-scoped (sweep_one), but display is not: a
+            # permanently dead remote host's stale entry is never deleted here,
+            # yet D-23 says readers must not show stale sessions. Filter stale
+            # entries from the listing regardless of host. Entries with no
+            # heartbeat are legacy and age out separately, so keep showing them.
+            hb=$(jq -r '."last-heartbeat" // empty' "$f" 2>/dev/null)
+            if [ -n "$hb" ]; then
+                hb_epoch=$(iso_to_epoch "$hb") || hb_epoch=0
+                [ "$((now_epoch - hb_epoch))" -gt "$STALE_SECONDS" ] && continue
+            fi
+            printf '%s\n' "$f"
         done
         ;;
     *)

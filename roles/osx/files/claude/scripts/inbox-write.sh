@@ -26,6 +26,10 @@ set -u
 
 INBOX_DIR="${PAIR_FLOW_INBOX:-$HOME/.claude/inbox}"
 mkdir -p "$INBOX_DIR" 2>/dev/null || true
+# Best-effort: entries hold worktree paths and branch names. Keep the dir
+# private even if it was created before Ansible set mode 0700, or via a
+# non-default PAIR_FLOW_INBOX. No hard fail.
+chmod 700 "$INBOX_DIR" 2>/dev/null || true
 
 die() {
     printf 'inbox-write: %s\n' "$1" >&2

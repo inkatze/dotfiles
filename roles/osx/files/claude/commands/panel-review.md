@@ -16,12 +16,15 @@ For autonomous looping (review, apply, push, re-review until convergence), use `
 
 1. **Identify base branch and capture the diff** (same as `/self-review` step 1).
 2. **(Optional) Jira ticket** (same as `/self-review` step 2).
-3. **Detect repo profile.** Work or personal, driven by the current repo's GitHub org:
+3. **Detect repo profile.** Work or personal, driven by an untracked, machine-local
+   signal so no employer identifiers live in this tracked, public file. Set
+   `PANEL_REVIEW_PROFILE=work` on work machines (e.g. a fish universal variable or
+   shell rc); anything else (unset or any other value) resolves to `personal`:
 
    ```bash
-   case "$(git remote get-url origin 2>/dev/null)" in
-     *[:/]SymmetrySoftware/*|*[:/]Gusto/*) echo work ;;
-     *) echo personal ;;
+   case "${PANEL_REVIEW_PROFILE:-personal}" in
+     work) echo work ;;
+     *)    echo personal ;;
    esac
    ```
 

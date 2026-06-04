@@ -9,14 +9,18 @@
 #     same worktree as a single row annotated "(N sessions)"). The aggregation
 #     key is host|worktree|branch; a git worktree pins a single branch, so this
 #     is effectively per-worktree.
-#   * color and sort per D-22:
-#       red    → awaiting-input  (sort weight 0)
-#       red×   → stale lock      (sort weight 1, strikethrough)
-#       orange → working >2h     (sort weight 2)
-#       blue   → draft-pr-ready  (sort weight 3)
-#       yellow → working >30min  (sort weight 4)
-#       green  → working fresh   (sort weight 5)
-#       grey   → idle / exited   (sort weight 6)
+#   * color and sort per D-22. D-22's table reserves weight 1 (red,
+#     strikethrough) for "stale lock", an orchestrator concept; a session
+#     dashboard has no lock state (stale heartbeats are swept before display
+#     per D-23), so weight 1 is used here for error/blocked sessions, which
+#     share the same red-strikethrough urgency styling.
+#       red    → awaiting-input    (sort weight 0)
+#       red×   → error / blocked   (sort weight 1, strikethrough)
+#       orange → working >2h       (sort weight 2)
+#       blue   → draft-pr-ready    (sort weight 3)
+#       yellow → working >30min    (sort weight 4)
+#       green  → working fresh     (sort weight 5)
+#       grey   → idle / exited     (sort weight 6)
 #
 # Stale entries (heartbeat older than 2 min) are removed by the sweeper before
 # rendering so the popup never shows ghost sessions.
@@ -146,10 +150,10 @@ for key in "${worktree_keys[@]:-}"; do
         s_state="${part%%^*}"
         rem="${part#*^}"
         s_fs="${rem%%^*}"
-        # Skip malformed parts with no first-seen timestamp; otherwise the
-        # arithmetic below would treat the empty field as 0 and report a
-        # bogus age measured from the epoch.
-        [ -n "$s_fs" ] || continue
+        # Skip malformed parts with no (or unparseable) first-seen timestamp;
+        # otherwise the arithmetic below would treat the field as 0 and report
+        # a bogus age measured from the epoch, dominating the sort order.
+        [ -n "$s_fs" ] && [ "$s_fs" != "0" ] || continue
         s_age=$((now_epoch - s_fs))
         case "$s_state" in
             awaiting-input) w=0 ;;

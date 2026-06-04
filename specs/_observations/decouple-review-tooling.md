@@ -19,9 +19,11 @@ into this public repo.
    (`roles/osx/files/claude/pair-flow.yml:8`) and is governed by D-6 / D-19 in
    the pair-flow spec. A non-pair-flow command's backend default should not be
    coupled to pair-flow's config file or its design decisions.
-2. **Public leak.** `panel-review.md:23` hardcodes the work-org allowlist
-   (`*[:/]SymmetrySoftware/*|*[:/]Gusto/*`) to detect the "work" profile. That
-   employer signal is baked into a tracked, public file.
+2. **Public leak (resolved in PR #28).** `panel-review.md` previously hardcoded a
+   work-org allowlist to detect the "work" profile, baking an employer signal
+   into a tracked, public file. Profile detection now reads the untracked
+   `PANEL_REVIEW_PROFILE` env var. The same scrub still needs to reach the files
+   under "broader org-name scrub" below.
 3. **Doc framing.** `roles/osx/files/CLAUDE.md` describes the review workflows
    as "the convergence layer of the pair-flow pipeline," reinforcing the
    coupling.
@@ -31,8 +33,8 @@ into this public repo.
 1. Move `panel-backends` + the work/personal signal **out of** `pair-flow.yml` /
    `pair-flow.local.yml` into a review-tooling config surface that is not
    pair-flow-coupled (its own file, or an env var).
-2. Remove `SymmetrySoftware|Gusto` from `panel-review.md:23`; resolve the
-   profile from an untracked/local source instead.
+2. Done in PR #28: the work-org allowlist was removed from `panel-review.md`;
+   the profile now resolves from the untracked `PANEL_REVIEW_PROFILE` env var.
 3. Re-frame `CLAUDE.md` so the review workflows are described as standalone
    tooling that pair-flow optionally invokes, not part of the pipeline.
 
@@ -59,20 +61,24 @@ local file. Mirrors the repo's existing leak-free patterns
 
 Out of scope for the decoupling itself, but the same org names also appear in:
 
-- `roles/fish/files/fish/functions/tm.fish` (many `Gusto/…` and
-  `SymmetrySoftware/…` clone URLs).
-- War-story notes referencing `SymmetrySoftware/stl-poc#13` in
-  `copilot-review.md`, `peer-review.md`, `copilot-pairing.md`.
-- MCP server names `claude_ai_Github-Gusto` / `claude_ai_Github-Symmetry` in
-  `copilot-pairing.md`.
+- `roles/fish/files/fish/functions/tm.fish` (many work-org clone URLs; these are
+  functional, so the scrub needs a config indirection, not deletion).
+- War-story notes referencing a work repo's PR in `copilot-review.md` and
+  `copilot-pairing.md` (`peer-review.md` scrubbed in PR #28).
+- MCP server names embedding the employer org in `copilot-pairing.md`.
+
+Note: `tm.fish`, `copilot-review.md`, and `copilot-pairing.md` are already in
+`main` history, so scrubbing the working tree does not remove them from the
+public record; handle that out of band (history rewrite / making the repo
+private / accepting the exposure).
 
 Decide whether to fold these into the same change or a dedicated hygiene pass.
 
 ## Pointers
 
 - `roles/osx/files/claude/pair-flow.yml:8` — `panel-backends: [codex]`
-- `roles/osx/files/claude/commands/panel-review.md:19-35` — profile detection +
-  backend resolution (org allowlist at :23)
+- `roles/osx/files/claude/commands/panel-review.md` (pre-flight step 3-4) —
+  profile detection (now via `PANEL_REVIEW_PROFILE`) + backend resolution
 - `roles/osx/files/claude/commands/panel-pairing.md` — defers to panel-review's
   backend resolution
 - `roles/osx/files/claude/scripts/pair-flow-config.sh` — reads
