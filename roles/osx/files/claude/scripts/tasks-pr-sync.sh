@@ -28,11 +28,18 @@ cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null ||
 out=$(printf '%s' "$input" | jq -r '.tool_response.stdout // empty' 2>/dev/null || printf '')
 [ -n "$cmd" ] || exit 0
 
-case "$cmd" in
-    *"gh pr create"*) action="open" ;;
-    *"gh pr merge"*)  action="merge" ;;
-    *)                exit 0 ;;
-esac
+# Match an actual `gh pr create` / `gh pr merge` invocation (at command start
+# or after a shell separator), not a mere substring mention. PostToolUse fires
+# after every Bash call, so a loose substring match (e.g. an echo/grep that
+# quotes the string) would rewrite tasks.md on unrelated commands.
+gh_pr() { printf '%s' "$cmd" | grep -qE "(^|[;&|(]|&&|\\|\\|)[[:space:]]*gh[[:space:]]+pr[[:space:]]+$1([[:space:]]|\$)"; }
+if gh_pr create; then
+    action="open"
+elif gh_pr merge; then
+    action="merge"
+else
+    exit 0
+fi
 
 branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || exit 0
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0

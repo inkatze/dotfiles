@@ -32,7 +32,9 @@ CLAUDE_PID="$2"
 INTERVAL="${PAIR_FLOW_HEARTBEAT_INTERVAL:-30}"
 WRITER="$HOME/.claude/scripts/inbox-write.sh"
 INBOX_DIR="${PAIR_FLOW_INBOX:-$HOME/.claude/inbox}"
-HOST=$(hostname -s 2>/dev/null || hostname)
+# Honor PAIR_FLOW_HOST exactly as inbox-write.sh's host_name() does, otherwise
+# the heartbeat would tick a different filename than the writer created.
+HOST="${PAIR_FLOW_HOST:-$(hostname -s 2>/dev/null || hostname)}"
 ENTRY="$INBOX_DIR/$HOST-$SESSION_ID.json"
 
 # Bail fast if the writer isn't available.

@@ -17,7 +17,9 @@
 set -u
 
 INBOX_DIR="${PAIR_FLOW_INBOX:-$HOME/.claude/inbox}"
-HOST=$(hostname -s 2>/dev/null || hostname)
+# Honor PAIR_FLOW_HOST exactly as inbox-write.sh's host_name() does, so
+# host-scoped staleness/PID checks recognize this host's own entries.
+HOST="${PAIR_FLOW_HOST:-$(hostname -s 2>/dev/null || hostname)}"
 STALE_SECONDS="${PAIR_FLOW_STALE_SECONDS:-120}"     # D-23: 2 minutes.
 LEGACY_SECONDS="${PAIR_FLOW_LEGACY_SECONDS:-86400}" # D-23: 24 hours.
 

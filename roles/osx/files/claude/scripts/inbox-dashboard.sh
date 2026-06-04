@@ -27,7 +27,9 @@ set -u
 
 SWEEPER="$HOME/.claude/scripts/inbox-sweep.sh"
 INBOX_DIR="${PAIR_FLOW_INBOX:-$HOME/.claude/inbox}"
-HOST=$(hostname -s 2>/dev/null || hostname)
+# Honor PAIR_FLOW_HOST exactly as inbox-write.sh's host_name() does, so local
+# entries are not mislabeled "[remote: ...]" when the host name is overridden.
+HOST="${PAIR_FLOW_HOST:-$(hostname -s 2>/dev/null || hostname)}"
 
 # ANSI color codes (256-color palette so dracula's red/yellow/green stay
 # coherent with the rest of the user's theme).

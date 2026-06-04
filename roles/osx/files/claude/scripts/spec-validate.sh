@@ -55,7 +55,7 @@ fi
 
 # --- status detection ----------------------------------------------------
 
-status_line=$(grep -E '^(\*\*Status:\*\*|Status:) +(Draft|Active|Done)\b' "$bundle/requirements.md" | head -n 1 || true)
+status_line=$(grep -E '^(\*\*Status:\*\*|Status:) +(Draft|Active|Done)([[:space:]]|$)' "$bundle/requirements.md" | head -n 1 || true)
 
 if [ -z "$status_line" ]; then
     # Treat missing Status as Draft. Per D-33, /orchestrate refuses to act
@@ -90,7 +90,7 @@ function emit_finding(line, msg,    level) {
 function check_task(    msg) {
     if (current_heading == "") return
     # Stable ID check.
-    if (current_heading !~ /^### (Task )?[0-9]+(\.[0-9]+)?\y/ && \
+    if (current_heading !~ /^### (Task )?[0-9]+(\.[0-9]+)?([^[:alnum:]_]|$)/ && \
         current_heading !~ /^### (Task )?[0-9]+(\.[0-9]+)?[[:space:]]/ && \
         current_heading !~ /^### (Task )?[0-9]+(\.[0-9]+)?\./) {
         emit_finding(current_line, "task heading lacks a stable numeric ID: " current_heading)
@@ -198,7 +198,7 @@ fi
 #
 # Section presence is a convention, not load-bearing for orchestration.
 
-if ! grep -qE '^## Completed\b' "$tasks_md"; then
+if ! grep -qE '^## Completed([[:space:]]|$)' "$tasks_md"; then
     printf '[WARN]  tasks.md: missing section "## Completed"\n'
     warnings=$((warnings + 1))
 fi
