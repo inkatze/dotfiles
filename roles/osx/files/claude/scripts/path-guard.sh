@@ -20,6 +20,11 @@
 
 set -u
 
+# This hook is an optimization (catch path typos), not a security boundary, and
+# it needs jq to parse the payload. Degrade to allow if jq is unavailable (fresh
+# machine / partial bootstrap) rather than risking any tool-call friction.
+command -v jq >/dev/null 2>&1 || exit 0
+
 # Read the entire JSON payload from stdin.
 payload=$(cat)
 if [ -z "$payload" ]; then

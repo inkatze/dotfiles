@@ -31,6 +31,11 @@ mkdir -p "$INBOX_DIR" 2>/dev/null || true
 # non-default PAIR_FLOW_INBOX. No hard fail.
 chmod 700 "$INBOX_DIR" 2>/dev/null || true
 
+# All read/modify/write paths need jq (some of the write-side calls are not
+# 2>/dev/null-guarded). Degrade silently if jq is unavailable, consistent with
+# tasks-pr-sync.sh, rather than emitting partial errors and empty-payload dies.
+command -v jq >/dev/null 2>&1 || exit 0
+
 die() {
     printf 'inbox-write: %s\n' "$1" >&2
     exit 1

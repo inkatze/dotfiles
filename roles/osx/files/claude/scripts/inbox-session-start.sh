@@ -19,6 +19,10 @@ HEARTBEAT="$HOME/.claude/scripts/inbox-heartbeat.sh"
 [ ! -x "$WRITER" ] && exit 0
 [ ! -x "$HEARTBEAT" ] && exit 0
 
+# Needs jq to parse the hook payload (and the writer needs it too); degrade
+# silently if absent rather than spawning a heartbeat with no entry to tick.
+command -v jq >/dev/null 2>&1 || exit 0
+
 # Buffer stdin so we can both feed it to inbox-write and extract session_id
 # for the heartbeat spawn.
 payload=""
