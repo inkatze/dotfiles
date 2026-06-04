@@ -220,7 +220,9 @@ Runs only on normal exit in standalone mode. Skipped entirely in nested mode and
 
 ## Observations
 
-During iteration, when you notice complexity growth, outdated patterns, newly available dependency features, or opportunities for improvement that are outside the current branch's scope, append a one-liner to `specs/_observations/opportunities.md` (create the file if it does not exist). Format: `- <YYYY-MM-DD> [<repo>] <observation>`. These accumulate as seed material for future `/spec-draft` invocations. Do not act on observations during this run; they are a passive record.
+This step applies **only when the repo has adopted pair-flow**, evidenced by an existing `specs/` directory containing at least one spec bundle (a `specs/<feature>/requirements.md`). If the repo has not adopted pair-flow, skip this step entirely: do **not** create `specs/_observations/` or any file under it (observations are seed material for `/spec-draft`, which is meaningless in a repo that does not use the spec pipeline).
+
+When pair-flow is in use and, during iteration, you notice complexity growth, outdated patterns, newly available dependency features, or opportunities for improvement that are outside the current branch's scope, append a one-liner to `specs/_observations/opportunities.md` (create the file if it does not exist). Format: `- <YYYY-MM-DD> [<repo>] <observation>`. These accumulate as seed material for future `/spec-draft` invocations. Do not act on observations during this run; they are a passive record.
 
 ## Maintenance
 

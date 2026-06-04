@@ -238,6 +238,8 @@ These hold at every step:
 
 ## Observations
 
+`/execute-task` only runs against an Active pair-flow spec, so the repo has necessarily adopted pair-flow and `specs/` already exists; writing observations here is always appropriate (unlike `/polish`, which can run in any repo and gates this step on adoption).
+
 During implementation and polish, when you notice complexity growth, outdated patterns, newly available dependency features, or opportunities for improvement that are outside the current task's scope, append a one-liner to `specs/_observations/opportunities.md` (create the file if it does not exist). Format: `- <YYYY-MM-DD> [<repo>] <observation>`. These accumulate as seed material for future `/spec-draft` invocations. Do not act on observations during this task; they are a passive record.
 
 ## Maintenance
