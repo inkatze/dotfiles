@@ -55,6 +55,12 @@ if [ ! -x "$SWEEPER" ]; then
     exit 1
 fi
 
+if ! command -v jq >/dev/null 2>&1; then
+    printf '%s\n' "inbox-dashboard: jq not found" >&2
+    sleep 2
+    exit 1
+fi
+
 # BSD date epoch parsing.
 iso_to_epoch() {
     [ -z "$1" ] && return 1

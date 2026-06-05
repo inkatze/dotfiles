@@ -10,9 +10,11 @@ from this README as the planning surface.
 
 Each spec declares its status in `requirements.md` as `**Status:** Draft|Active|Done`:
 
-- `Draft` — being authored or revised. Mutable. Validator runs as warnings.
-- `Active` — signed off (via `/spec-kickoff` when pair-flow ships) and under execution. Validator runs as errors that block dependent skills.
+- `Draft` — being authored or revised. Mutable. Validator runs task-structure checks as warnings.
+- `Active` — signed off (via `/spec-kickoff` when pair-flow ships) and under execution. Validator runs task-structure checks as errors that block dependent skills.
 - `Done` — all tasks moved to `Completed`. Historical artifact; brief retained indefinitely.
+
+Status controls the severity of the task-structure checks only. The four-file presence check (`requirements.md`, `design.md`, `tasks.md`, `test-spec.md`) always errors and exits 1 regardless of status, since it runs before status is even detected.
 
 ## Task conventions
 

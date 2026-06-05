@@ -214,10 +214,12 @@ case "$cmd" in
             new_json=$(jq --arg state "$state" \
                           --arg ts "$ts" \
                           --arg summary "$summary" \
-                          --arg cwd "$cwd" '
+                          --arg cwd "$cwd" \
+                          --arg branch "$branch" '
                 .state = $state |
                 ."last-heartbeat" = $ts |
                 .worktree = $cwd |
+                (if ($branch != "") then .branch = $branch else . end) |
                 if ($summary != "") then .summary = $summary else . end' "$path")
         else
             # Initialize.

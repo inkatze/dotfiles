@@ -16,6 +16,10 @@
 
 set -u
 
+# Needs jq to read entry fields; degrade silently (no sweep, empty list) if jq
+# is unavailable, consistent with the other inbox scripts.
+command -v jq >/dev/null 2>&1 || exit 0
+
 INBOX_DIR="${PAIR_FLOW_INBOX:-$HOME/.claude/inbox}"
 # Honor PAIR_FLOW_HOST exactly as inbox-write.sh's host_name() does, so
 # host-scoped staleness/PID checks recognize this host's own entries.
