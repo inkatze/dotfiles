@@ -14,3 +14,9 @@ fi
 # or the symlink temporarily missing): degrade to a placeholder so the dracula
 # status slot renders cleanly instead of erroring.
 printf 'inbox?'
+
+# Match dracula's polling cadence so its `custom:` slot does not re-invoke this
+# wrapper in a tight loop while the real script is unavailable (same pattern as
+# the real inbox-status.sh and the gpu-usage.sh sibling).
+rate=$(tmux show-option -gqv status-interval 2>/dev/null || true)
+sleep "${rate:-5}"

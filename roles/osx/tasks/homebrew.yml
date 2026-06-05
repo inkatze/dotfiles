@@ -22,6 +22,19 @@
   when: lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [osx]
 
+# Gemini config dir holds the API key file (~/.gemini/.api-key). Create it
+# with private perms declaratively, mirroring the ~/.claude/inbox precedent in
+# osx.yml; the sync script also chmods it 700 best-effort as defense-in-depth.
+- name: Ensure ~/.gemini directory exists with private perms
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.gemini"
+    state: directory
+    mode: '0700'
+  when:
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
+    - inventory_hostname != 'work'
+  tags: [osx]
+
 # Gemini API key for the panel-* skill backend on personal/alt hosts
 # (per D-6 in specs/pair-flow/design.md: codex on work, gemini on
 # personal/alt). The work host doesn't use gemini as a panel backend, so the

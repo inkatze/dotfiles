@@ -96,6 +96,10 @@ fi
 target_dir=$(dirname "$target")
 mkdir_err=$(mkdir -p "$target_dir" 2>&1) \
   || fail "could not create config directory $target_dir: $mkdir_err"
+# Best-effort: tighten the dir holding the API key, matching the Ansible file
+# task's 0700 (defense-in-depth for when the script runs before Ansible or is
+# invoked directly). No hard fail; the key file itself is chmod 600 below.
+chmod 700 "$target_dir" 2>/dev/null || true
 
 tmp=$(mktemp "${target}.XXXXXX" 2>&1) \
   || fail "could not create temp file next to $target: $tmp"
