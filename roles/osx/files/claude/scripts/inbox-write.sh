@@ -152,9 +152,17 @@ read_state() {
     jq -r '.state // empty' "$path" 2>/dev/null
 }
 
-# Fire macOS notification via the existing notify-event.sh path. Only on
-# transitions INTO awaiting-input or draft-pr-ready (REQ-F3.1) and only when
-# the previous state was different (no spam on idempotent bumps).
+# Fire a macOS notification via the existing notify-event.sh path on a
+# transition INTO draft-pr-ready (REQ-F3.1), and only when the previous state
+# was different (no spam on idempotent bumps).
+#
+# awaiting-input is intentionally NOT notified here: the direct
+# notify-event.sh permission/idle hooks in settings.json already fire on the
+# same permission_prompt/idle_prompt events that set awaiting-input, and they
+# carry the actual permission message (richer than a generic "awaiting input").
+# inbox-write still records the awaiting-input state above for the dashboard;
+# it just does not emit a second, duplicate notification. draft-pr-ready has no
+# direct hook, so inbox-write owns that notification.
 maybe_notify() {
     local prev="$1"
     local next="$2"
@@ -162,14 +170,8 @@ maybe_notify() {
     local notifier="$HOME/.claude/scripts/notify-event.sh"
     [ ! -x "$notifier" ] && return 0
     # Pass the real cwd: notify-event.sh derives project + branch itself
-    # (basename + `git -C "$cwd"`) and prepends that context. Pre-embedding it
-    # broke branch detection (a non-path cwd fails the git lookup) and
-    # duplicated the context in the permission notification body.
+    # (basename + `git -C "$cwd"`) and prepends that context.
     case "$next" in
-        awaiting-input)
-            [ "$prev" = "awaiting-input" ] && return 0
-            jq -nc --arg cwd "$cwd" '{cwd: $cwd, message: "awaiting input"}' | "$notifier" permission >/dev/null 2>&1 || true
-            ;;
         draft-pr-ready)
             [ "$prev" = "draft-pr-ready" ] && return 0
             jq -nc --arg cwd "$cwd" '{cwd: $cwd}' | "$notifier" "done" >/dev/null 2>&1 || true
