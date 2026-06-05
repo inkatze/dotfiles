@@ -4,6 +4,28 @@
     "pr": ""
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/path-guard.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/tasks-pr-sync.sh"
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "hooks": [
@@ -14,6 +36,10 @@
           {
             "type": "command",
             "command": "$HOME/.claude/scripts/tool-discovery.sh"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/inbox-session-start.sh"
           }
         ]
       }
@@ -24,6 +50,10 @@
           {
             "type": "command",
             "command": "$HOME/.claude/scripts/notify-event.sh done"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/inbox-write.sh hook-event idle"
           }
         ]
       }
@@ -35,6 +65,10 @@
           {
             "type": "command",
             "command": "$HOME/.claude/scripts/notify-event.sh permission"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/inbox-write.sh hook-event awaiting-input"
           }
         ]
       },
@@ -44,6 +78,10 @@
           {
             "type": "command",
             "command": "$HOME/.claude/scripts/notify-event.sh idle"
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/inbox-write.sh hook-event awaiting-input"
           }
         ]
       }

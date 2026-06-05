@@ -69,9 +69,9 @@ For each remaining thread, apply the canonical rigor in CLAUDE.md `Validation Ri
 
 Classify each as **valid**, **false positive**, **preference**, or **low-confidence** (passes did not converge; never guess). When the concern is a matter of preference, surface the trade-off rather than asserting correctness.
 
-### 5. Present the validated threads as three tables
+### 5. Present the validated threads as four tables
 
-Split per CLAUDE.md `Finding Categorization`. All three tables always appear; if a bucket is empty, print a single `none` row.
+Split per CLAUDE.md `Finding Categorization`. All four tables always appear; if a bucket is empty, print a single `none` row.
 
 **Auto-applicable** (the reviewer flagged something tool-grounded and mechanical; reply can be a terse "Done in `<sha>`"):
 
@@ -81,6 +81,17 @@ Split per CLAUDE.md `Finding Categorization`. All three tables always appear; if
 - **What we found**: a one-line, plain-prose verdict from our investigation. For Auto-applicable items this is usually "tool confirmed, fix is mechanical" or similar.
 - **Rule cited**: the linter / type-checker / formatter rule that confirms the reviewer's concern.
 - **Draft response**: short, polite. "Done in `<sha>`" or "Good catch, fixed in `<sha>`" is usually enough.
+
+**Agent-resolvable** (the reviewer flagged a behavior-level issue but the fix has a failing-then-passing regression test, full CI passes, and it aligns with the active kickoff brief; not in a hard-disqualifier zone):
+
+| # | Thread ID | File:Line | Reviewer's concern | What we found | Test path | Test before/after | CI run + result | Kickoff alignment | Draft response |
+|---|---|---|---|---|---|---|---|---|---|
+
+- **Test path**: the regression test file/test name that exercises the bug.
+- **Test before/after**: short evidence that the test failed on current code and passes after the fix.
+- **CI run + result**: the wider test / lint / type-check command and its result.
+- **Kickoff alignment**: one-line citation of the brief section the fix aligns with.
+- Repo-class behavior split (per `Finding Categorization`): solo repos auto-apply the fix and post the reply after sign-off on wording; multi-reviewer repos surface for human review with the evidence above, with `Apply / Skip / Modify` semantics (same shape as Needs sign-off).
 
 **Needs sign-off** (LLM has a clear recommended response, but the change touches a public API / external interface / sensitive area, or the response is non-trivial and benefits from approval before posting):
 
@@ -108,6 +119,7 @@ No lens-coverage table here: this skill validates pre-existing human threads, it
 Follow the standard review workflow (let me choose: all at once, one by one, batched decisions, or clustered decisions, with progress tracking). Option sets are derived from each thread's bucket per CLAUDE.md `Finding Categorization`:
 
 - **Auto-applicable**: apply the mechanical fix and post the terse "Done in `<sha>`" reply after sign-off on the reply text (the underlying fix is mechanical, the human still owns the reply since it goes to another person).
+- **Agent-resolvable**: in solo repos, auto-apply the fix and post the reply after sign-off on wording (the evidence in the table is the audit trail). In multi-reviewer repos, use `Apply / Skip / Modify` in batched mode (same shape as Needs sign-off); `Apply all / Skip all / Pick individually` in clustered mode. Determination per repo via `~/.claude/scripts/pair-flow-config.sh repo-class`; if the kickoff brief is not active for the current branch, the bucket is unavailable and the finding routes to Needs sign-off instead.
 - **Needs sign-off**: `Apply / Skip / Modify` in batched mode (Apply lands the proposed action + drafted reply; Skip drops the thread without posting; Modify lets you tweak the wording before it lands); `Apply all / Skip all / Pick individually` in clustered mode.
 - **Needs human judgment**: bespoke options per thread (the actual response branches; generic timing options are forbidden); cluster-wide options reflect the shared axis when clustering applies.
 
@@ -143,7 +155,7 @@ After all items are addressed, commit the changes and push.
 Both mutations can leave replies invisible by attaching them to a *pending* review owned by the viewer:
 
 - `addPullRequestReviewComment` always builds onto a review and creates a pending one if none is in progress; replies sit as drafts until someone manually clicks Submit.
-- `addPullRequestReviewThreadReply` is the more direct mutation, but per a 2026-05-02 live-run failure on `SymmetrySoftware/stl-poc#13` it can also auto-vivify a pending review when the viewer has none in progress. The reply then stays invisible (to GitHub UI, to the human reviewer, to anyone else) until the pending review is submitted.
+- `addPullRequestReviewThreadReply` is the more direct mutation, but per a 2026-05-02 live-run failure on a work repo's PR it can also auto-vivify a pending review when the viewer has none in progress. The reply then stays invisible (to GitHub UI, to the human reviewer, to anyone else) until the pending review is submitted.
 
 After the batch of replies, **always** submit any pending review you own on this PR before resolving threads (see "Submit any auto-vivified pending review" below). A successful-looking run can otherwise complete with all replies silently invisible: the human reviewer sees no response and the threads still appear unanswered to them.
 

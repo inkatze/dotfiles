@@ -2,11 +2,14 @@ Do a comprehensive code review of the current feature branch.
 
 ## Steps
 
-1. Identify the base branch and get the full diff:
+1. Identify the base branch and get the full diff. Fetch first, then diff against the remote-tracking base:
    ```
-   git diff main...HEAD
+   git fetch origin
+   git diff origin/main...HEAD
    ```
-   If the diff is large, review file-by-file using `git diff main...HEAD -- <path>`.
+   Fall back to the local base (`git diff main...HEAD`) only when there is no remote configured. If the diff is large, review file-by-file using `git diff origin/main...HEAD -- <path>`.
+
+   A stale local `main` in a long-lived worktree inflates the diff with already-merged commits, so the remote ref is the reliable base.
 
 2. **Check for a Jira ticket**: Extract a Jira ticket key from the branch name (e.g., `PROJ-123` from `PROJ-123-feature-name` or `feature/PROJ-123-description`). If a key is found, fetch the ticket using the Jira MCP tools (`getJiraIssue`) and note the description, acceptance criteria, and any relevant details. If no key is found or Jira tools are unavailable, skip this step.
 
@@ -34,7 +37,7 @@ Do a comprehensive code review of the current feature branch.
 
    Drop or downgrade items where the three passes do not converge. Eliminate false positives and speculative concerns. Only report issues you are confident about.
 
-5. Present results: the canonical lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` first, then the three findings tables per CLAUDE.md `Finding Categorization` (Auto-applicable, Needs sign-off, Needs human judgment, in fixed order; empty buckets get a single `none` row). No `Draft comment` column on the tables: this skill implements fixes, it does not post per-finding comments.
+5. Present results: the canonical lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` first, then the four findings tables per CLAUDE.md `Finding Categorization` (Auto-applicable, Agent-resolvable, Needs sign-off, Needs human judgment, in fixed order; empty buckets get a single `none` row). No `Draft comment` column on the tables: this skill implements fixes, it does not post per-finding comments.
 
 6. Follow the standard review workflow (let me choose: all at once, one by one, batched decisions, or clustered decisions, with progress tracking). Option sets are derived from each finding's bucket per CLAUDE.md `Finding Categorization`:
    - **Auto-applicable**: no question, apply with solution validation (no user prompt).

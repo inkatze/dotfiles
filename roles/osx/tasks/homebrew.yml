@@ -22,6 +22,35 @@
   when: lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [osx]
 
+# Gemini config dir holds the API key file (~/.gemini/.api-key). Create it
+# with private perms declaratively, mirroring the ~/.claude/inbox precedent in
+# osx.yml; the sync script also chmods it 700 best-effort as defense-in-depth.
+- name: Ensure ~/.gemini directory exists with private perms
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.gemini"
+    state: directory
+    mode: '0700'
+  when:
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
+    - inventory_hostname != 'work'
+  tags: [osx]
+
+# Gemini API key for the panel-* skill backend on personal/alt hosts
+# (per D-6 in specs/pair-flow/design.md: codex on work, gemini on
+# personal/alt). The work host doesn't use gemini as a panel backend, so the
+# task's `when:` gates on non-work + non-CI; the script itself additionally
+# requires an authenticated 1Password session and strict-fails otherwise
+# (see scripts/claude-gemini-auth-sync.sh).
+- name: Sync Gemini API key from 1Password
+  ansible.builtin.command:
+    cmd: "{{ ansible_env.PWD }}/scripts/claude-gemini-auth-sync.sh"
+  register: osx_claude_gemini_auth
+  changed_when: "'CHANGED' in osx_claude_gemini_auth.stdout"
+  when:
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
+    - inventory_hostname != 'work'
+  tags: [osx]
+
 # Ollama daemon + model management lives on the work host only.
 # Personal/alt hosts run the panel commands as clients and reach the
 # work host's Ollama via OLLAMA_HOST + OLLAMA_BASE_URL (set in fish

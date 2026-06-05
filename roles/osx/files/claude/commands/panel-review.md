@@ -16,27 +16,31 @@ For autonomous looping (review, apply, push, re-review until convergence), use `
 
 1. **Identify base branch and capture the diff** (same as `/self-review` step 1).
 2. **(Optional) Jira ticket** (same as `/self-review` step 2).
-3. **Detect repo profile.** Work or personal, driven by the current repo's GitHub org:
+3. **Detect repo profile.** Work or personal, driven by an untracked, machine-local
+   signal so no employer identifiers live in this tracked, public file. Set
+   `PANEL_REVIEW_PROFILE=work` on work machines (e.g. a fish universal variable or
+   shell rc); anything else (unset or any other value) resolves to `personal`:
 
    ```bash
-   case "$(git remote get-url origin 2>/dev/null)" in
-     *[:/]SymmetrySoftware/*|*[:/]Gusto/*) echo work ;;
-     *) echo personal ;;
+   case "${PANEL_REVIEW_PROFILE:-personal}" in
+     work) echo work ;;
+     *)    echo personal ;;
    esac
    ```
 
-4. **Resolve the backend set.** If `$ARGUMENTS` contains `--backends a,b,c`, use those (comma-separated). Otherwise apply the profile default:
+4. **Resolve the backend set.** If `$ARGUMENTS` contains `--backends a,b,c`, use those (comma-separated). Otherwise resolve the default from the merged pair-flow config: run `~/.claude/scripts/pair-flow-config.sh show` (the canonical merger of `~/.claude/pair-flow.yml` and `~/.claude/pair-flow.local.yml`, per D-6 / D-19) and read its `panel-backends` key; fall back to the profile table only if the config is missing:
 
    | Profile | Default backends |
    |---|---|
-   | work | `codex,qwen-coder` |
-   | personal | `qwen-coder,gpt-oss` |
+   | work | `codex` |
+   | personal / alt | `gemini` |
 
-   Supported backends: `codex`, `qwen-coder`, `gpt-oss`, `copilot`. `copilot` is **opt-in only** via `--backends`; do not auto-include it (the GitHub quota is the original constraint and including it implicitly defeats the point). `deepseek-r1` was retired: it is a reasoning model that emits `<think>` chain-of-thought blocks the panel prompt cannot reliably suppress, and ~2x wall-clock vs `qwen-coder`. `gpt-oss:20b` replaces it as a different-lineage second slot (OpenAI training, instruction-tuned, no reasoning trace).
+   Supported backends: `codex`, `gemini`, `qwen-coder`, `gpt-oss`, `copilot`. `copilot` is **opt-in only** via `--backends`; do not auto-include it (the GitHub quota is the original constraint and including it implicitly defeats the point). `deepseek-r1` was retired: it is a reasoning model that emits `<think>` chain-of-thought blocks the panel prompt cannot reliably suppress, and ~2x wall-clock vs `qwen-coder`. `gpt-oss:20b` replaces it as a different-lineage second slot (OpenAI training, instruction-tuned, no reasoning trace). The Ollama models remain available via `--backends` for variance panels when wanted.
 
 5. **Verify each backend.** Stop with a specific install / auth message if any fails; do not silently drop a backend (the user expects the variance the backend provides).
 
    - `codex`: `command -v codex` must succeed; `codex auth status` (or equivalent: query the codex CLI's own readiness probe) must report an authenticated session. If not authed, stop with `Codex CLI needs auth; run 'codex login'`. If not installed, stop with `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'`.
+   - `gemini`: `command -v gemini` must succeed. The `GEMINI_API_KEY` env var must be set (the dotfiles fish conf.d/gemini.fish exports it from `~/.gemini/.api-key`, which is written by `scripts/claude-gemini-auth-sync.sh` from the 1Password item declared in that script). If `gemini` is missing, stop with `Gemini CLI not installed; mise run osx will install via Brewfile 'gemini-cli'`. If `GEMINI_API_KEY` is unset, stop with `Gemini CLI needs auth; run 'mise run osx' to sync from 1Password (requires the 1Password item UUID to be set in scripts/claude-gemini-auth-sync.sh) or set GEMINI_API_KEY manually`.
    - `qwen-coder` / `gpt-oss`: `curl -sf "${OLLAMA_BASE_URL:-http://localhost:11434}/api/tags"` must return a body containing the model name (`qwen2.5-coder:32b` or `gpt-oss:20b`). If the API does not respond, stop with `Ollama service not running; brew services start ollama` (on the work host; on personal/alt the dotfiles fish conf.d/ollama.fish points OLLAMA_BASE_URL at the work host's LAN IP, see dotfiles `CLAUDE.md` "Cross-host Ollama topology"). If the model is missing, stop with `Model not pulled; ollama pull <name>` (the dotfiles Ansible task pulls both on the work host by default; missing means an opt-out or the cross-host route is not configured).
    - `copilot`: `gh copilot --help` must succeed and the account must have quota. Stop if `gh` is not authenticated or `gh copilot` returns a quota-exhausted error.
 
@@ -78,6 +82,7 @@ Diff:
 **Per-backend invocation patterns** (verify exact flags on first use; this is illustrative):
 
 - **codex**: `codex exec "<prompt>"` (or the equivalent flag set; the CLI may require `--model` or similar). Codex returns text on stdout; capture and parse the table.
+- **gemini**: `gemini -p "<prompt>" -o text` (the `-p` / `--prompt` flag drops the CLI into headless mode; `-o text` keeps stdout free of JSON envelope so the table parser sees the raw markdown). Add `-m <model>` to pin a specific Gemini model (defaults to whatever the CLI considers current). `--approval-mode plan` forces read-only operation. Stdout carries the model response; capture and parse the table.
 - **qwen-coder** and **gpt-oss** (Ollama): **prefer the HTTP API** for programmatic invocation. The base URL is read from `OLLAMA_BASE_URL` (set in fish conf.d/ollama.fish on personal/alt hosts to the work host's LAN IP) and falls back to `http://localhost:11434` on the work host itself:
   ```bash
   curl -s "${OLLAMA_BASE_URL:-http://localhost:11434}/api/generate" \
@@ -89,7 +94,7 @@ Diff:
 - **Wall-clock estimates on M1 Max 32GB** (one model loaded at a time; Ollama swaps when the second is invoked): `qwen-coder:32b` ~5 min, `gpt-oss:20b` ~3 min (smaller, instruction-tuned, no reasoning chain). qwen-coder at ~19 GB and gpt-oss at ~13 GB can't co-reside in unified memory comfortably, so the panel still serializes in practice; gpt-oss swaps in faster than the retired deepseek-r1:32b did.
 - **copilot**: route through `gh copilot` or the chosen Copilot CLI; specifics depend on which CLI variant is current.
 
-If a backend invocation fails (timeout, parse error, model error), do **not** silently drop it: stop the run and surface the failure. The user invoked this skill specifically for the variance that backend provides; partial runs hide the fact that one source of variance went missing.
+If a backend invocation **does not recover** (a final non-zero exit, empty or unparseable output, or auth lost with no successful retry), do **not** silently drop it: stop the run and surface the failure. Judge by the final outcome, not intermediate stderr: do **not** stop on transient quota / rate-limit / retry messages the backend CLI emits while it retries internally if it ultimately returns a valid result. The user invoked this skill specifically for the variance that backend provides; partial runs hide the fact that one source of variance went missing.
 
 ### 3. Merge backend findings
 
@@ -117,7 +122,7 @@ Drop or downgrade items where the three passes do not converge. Backends produce
 
 ### 6. Present results
 
-Lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` first (one row per lens, counts merged across backends, with `none` / `n/a` rows where applicable). Then the **three findings tables in fixed order** per `Finding Categorization`: Auto-applicable, Needs sign-off, Needs human judgment. Each table always appears; empty buckets get a single `none` row.
+Lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` first (one row per lens, counts merged across backends, with `none` / `n/a` rows where applicable). Then the **four findings tables in fixed order** per `Finding Categorization`: Auto-applicable, Agent-resolvable, Needs sign-off, Needs human judgment. Each table always appears; empty buckets get a single `none` row.
 
 Findings tables include a `Backend(s)` column so you can see which model surfaced what. Suggested columns: `# | Lens | File:Line | Finding | Rule cited | Backend(s) | Validation passes | Confidence | Recommendation`. Drop columns that are uniformly empty.
 
