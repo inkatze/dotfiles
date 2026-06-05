@@ -52,7 +52,10 @@ host_name() {
     if [ -n "${PAIR_FLOW_HOST:-}" ]; then
         printf '%s\n' "$PAIR_FLOW_HOST"
     else
-        # Strip any .local suffix so iCloud-synced files don't have macOS noise.
+        # `hostname -s` yields the short name without the .local/domain suffix,
+        # keeping iCloud-synced filenames clean. The bare-hostname fallback runs
+        # only if -s fails (rare on macOS) and may include a suffix; the other
+        # inbox scripts derive HOST identically, so it stays consistent per host.
         hostname -s 2>/dev/null || hostname
     fi
 }
