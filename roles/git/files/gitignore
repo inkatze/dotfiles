@@ -2,3 +2,4 @@
 .elixir-tools
 .elixir_ls
 mise.local.toml
+settings.local.json
