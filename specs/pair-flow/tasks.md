@@ -1,7 +1,7 @@
 # Pair-Flow — Tasks
 
 **Status:** Active
-**Last reviewed:** 2026-06-04 (Task 14 completed; Task 16 added and completed — `/orchestrate` worktree reuse + `claude --worktree` interop, D-54)
+**Last reviewed:** 2026-06-08 (standalone project extraction spun out to the private planwright repo; see Deferred)
 
 `repo-class` and other repo-level config are supplied by `~/.claude/pair-flow.yml` + `~/.claude/pair-flow.local.yml` per D-19, not in this file.
 
@@ -54,7 +54,7 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 - **Phone push notifications.** **Gate:** user demonstrates a workflow where macOS + tmux dashboard is insufficient.
 - **Migration of tecpan existing specs to kickoff briefs.** **Gate:** Task 6 lands and `/spec-kickoff` retrofit mode is verified.
 - **Bundle-sizing fallback to author-hint S/M/L mode** (D-24). **Gate:** Task 13 retrospective shows the Citations-plus-git-history heuristic is consistently off by >2x.
-- **Standalone project extraction.** Extract pair-flow into its own repo as an opinionated, framework-style tool other developers can adopt. Encodes senior/staff-level engineering judgment (test-first, spec-before-code, finding categorization as autonomy dispatch, composability by default, discovery rigor) as conventions where the proven path is the path of least resistance. Customizable but biased by design. **Gate:** e2e validation on tecpan (solo), a work project (multi-reviewer), and dotfiles produces positive results; retrospective separates personal-preference decisions from generalizable ones; landscape survey (2026-05-26) confirmed no existing tool covers the full loop.
+- **Standalone project extraction.** Spun out 2026-06-08 into the private **planwright** repo (`~/dev/planwright`, name locked); the gate fired per the v1 retrospective. Now tracked by planwright's own `specs/bootstrap/` spec (seed staged at its `specs/_pending/notes.md`), not here.
 - **Four-file format meta-spec.** Write a canonical specification for the four-file format itself (`requirements.md`, `design.md`, `tasks.md`, `test-spec.md`): structural rules, required fields per task, REQ-ID / D-ID conventions, status lifecycle, validator-enforceable invariants. Consolidates what currently lives implicitly across `specs/README.md`, `spec-validate.sh`, and `/spec-draft`. **Gate:** standalone project extraction gate fires (the format spec is one of the first deliverables for adoption by others). Until then, the current sources are sufficient and a meta-spec would just be one more place to keep in sync.
 - **Dynamic Workflows integration** (Anthropic announcement 2026-05-28). Investigate using Claude Code's Dynamic Workflows primitive within existing pair-flow skills. Two integration surfaces identified: (a) discovery rigor fan-out in `/self-review`, `/polish`, `/panel-review`, `/panel-pairing` — replace or augment the current `Explore`-per-lens pattern with deeper parallel sub-agent dispatch (many sub-agents per lens, with refutation), keeping the four-bucket categorization layer unchanged on top; (b) `/execute-task` conditional fan-out for multi-file mechanical work (mass renames, API migrations), research-heavy tasks (parallel doc consultation), and bundles with independent sub-tasks. Default sequential flow stays for single-feature tasks where test-first discipline requires sequencing. **Gate:** Anthropic publishes the Dynamic Workflows developer-facing API (currently undisclosed in the announcement post). First trial on `/panel-review` since it's already pluggable via `--backends`.
 
