@@ -47,6 +47,7 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 
 ## Deferred
 
+- **Retire pair-flow `/orchestrate` (and the execution skills it dispatches) in favor of planwright's.** Decided 2026-06-12 during planwright's bootstrap orchestration run: planwright's Task 13 `/orchestrate` becomes the user's daily orchestrator; the pair-flow one is deprecated-pending-replacement and receives no further maintenance (its self-maintenance footer is suspended). Removal lands as a follow-up PR in this repo. **Gate:** planwright Task 13 merged AND proven on at least one real orchestrated run end-to-end.
 - **Handover brief auto-write conditions** (D-2). Build only if v1 surfaces specific gaps. **Gate:** end-to-end validation in Task 13 identifies at least one resumption case where `tasks.md` + git + PR alone is insufficient.
 - **Headless `claude -p` resumption** (D-16). **Gate:** v1 stable for 30 days with positive telemetry; investigate reliability of headless mode on user's hosts.
 - **`/orchestrate` v2 (auto-respond to peer review)**. **Gate:** v1 trusted; user explicitly opts in. (Note: auto-merge remains out of scope at every tier per D-21.)
