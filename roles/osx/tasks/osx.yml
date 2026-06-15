@@ -74,14 +74,19 @@
 # copy, keeping the planwright repo the single source of truth. The migrated
 # slash commands (orchestrate, execute-task, spec-kickoff, spec-draft,
 # self-review, polish, resume) are retired from the pair-flow commands/ dir
-# below — planwright now supplies them as skills. The review-workflow commands
+# below; planwright now supplies them as skills. The review-workflow commands
 # planwright does not ship (panel-*, copilot-*, peer-review, code-review) stay.
 - name: Install planwright framework via its writer
-  ansible.builtin.shell:
-    cmd: "CLAUDE_DIR={{ ansible_env.HOME }}/.claude {{ ansible_env.HOME }}/dev/planwright/scripts/install.sh"
-  register: osx_planwright_install
-  changed_when: "'wrote' in osx_planwright_install.stdout or 'installed' in osx_planwright_install.stdout"
-  failed_when: osx_planwright_install.rc != 0
+  ansible.builtin.command:
+    cmd: "{{ ansible_env.HOME }}/dev/planwright/scripts/install.sh"
+  environment:
+    CLAUDE_DIR: "{{ ansible_env.HOME }}/.claude"
+  # The writer refresh-copies on every run and emits no changed/unchanged
+  # signal, so its output cannot drive idempotent change reporting. Report ok
+  # rather than match a phantom token; failed_when defaults to rc != 0.
+  changed_when: false
+  # `is exists` runs on the controller; for these dotfiles controller == target
+  # (run locally via mise run osx), so probing the target path here is sound.
   when: "(ansible_env.HOME ~ '/dev/planwright/scripts/install.sh') is exists"
   tags: [osx]
 
