@@ -66,16 +66,30 @@
     state: link
   tags: [osx]
 
-# planwright is the extraction of pair-flow's generalizable core (specs at
-# ~/dev/planwright). Its "writer" (scripts/install.sh, REQ-I1.2) materializes
-# the framework into the planwright-owned namespace under ~/.claude
-# (planwright/doctrine, planwright/scripts, skills/<name>) and touches nothing
-# it does not own. We invoke planwright's own installer rather than vendoring a
-# copy, keeping the planwright repo the single source of truth. The migrated
-# slash commands (orchestrate, execute-task, spec-kickoff, spec-draft,
-# self-review, polish, resume) are retired from the pair-flow commands/ dir
-# below; planwright now supplies them as skills. The review-workflow commands
-# planwright does not ship (panel-*, copilot-*, peer-review, code-review) stay.
+# planwright is the extraction of pair-flow's generalizable core. We clone it as
+# a sibling checkout at ~/dev/planwright and invoke its own "writer"
+# (scripts/install.sh, REQ-I1.2), which materializes the framework into the
+# planwright-owned namespace under ~/.claude (planwright/doctrine,
+# planwright/scripts, skills/<name>) and touches nothing it does not own. We
+# invoke planwright's own installer rather than vendoring a copy, keeping the
+# planwright repo the single source of truth. The migrated slash commands
+# (orchestrate, execute-task, spec-kickoff, spec-draft, self-review, polish,
+# resume) are retired from the pair-flow commands/ dir below; planwright now
+# supplies them as skills. The review-workflow commands planwright does not ship
+# (panel-*, copilot-*, peer-review, code-review) stay.
+- name: Ensure planwright repo is cloned (sibling checkout)
+  ansible.builtin.command:  # noqa: command-instead-of-module
+    cmd: "git clone git@github.com:inkatze/planwright.git {{ ansible_env.HOME }}/dev/planwright"
+    creates: "{{ ansible_env.HOME }}/dev/planwright"
+  # Deliberately the command module, not ansible.builtin.git: `creates` skips
+  # the task entirely once the checkout exists, so a re-run never fetches,
+  # checks out, or resets planwright. It is actively developed here and may sit
+  # on a feature branch with uncommitted work; ansible.builtin.git's
+  # update: false still risks checking out `version` against that working
+  # branch. SSH clone (private repo); a missing key fails loudly, which is the
+  # point of automating this over the prior silent `when`-guarded skip.
+  tags: [osx]
+
 - name: Install planwright framework via its writer
   ansible.builtin.command:
     cmd: "{{ ansible_env.HOME }}/dev/planwright/scripts/install.sh"
