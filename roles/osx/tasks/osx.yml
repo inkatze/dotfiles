@@ -66,6 +66,25 @@
     state: link
   tags: [osx]
 
+# planwright is the extraction of pair-flow's generalizable core (specs at
+# ~/dev/planwright). Its "writer" (scripts/install.sh, REQ-I1.2) materializes
+# the framework into the planwright-owned namespace under ~/.claude
+# (planwright/doctrine, planwright/scripts, skills/<name>) and touches nothing
+# it does not own. We invoke planwright's own installer rather than vendoring a
+# copy, keeping the planwright repo the single source of truth. The migrated
+# slash commands (orchestrate, execute-task, spec-kickoff, spec-draft,
+# self-review, polish, resume) are retired from the pair-flow commands/ dir
+# below — planwright now supplies them as skills. The review-workflow commands
+# planwright does not ship (panel-*, copilot-*, peer-review, code-review) stay.
+- name: Install planwright framework via its writer
+  ansible.builtin.shell:
+    cmd: "CLAUDE_DIR={{ ansible_env.HOME }}/.claude {{ ansible_env.HOME }}/dev/planwright/scripts/install.sh"
+  register: osx_planwright_install
+  changed_when: "'wrote' in osx_planwright_install.stdout or 'installed' in osx_planwright_install.stdout"
+  failed_when: osx_planwright_install.rc != 0
+  when: "(ansible_env.HOME ~ '/dev/planwright/scripts/install.sh') is exists"
+  tags: [osx]
+
 # Pair-flow cross-session inbox substrate (REQ-F1.1 in specs/pair-flow/).
 # Each Claude session writes a JSON file named {host}-{session-uuid}.json
 # under this directory; tmux dashboard + status segment read from it.
