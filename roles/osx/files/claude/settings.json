@@ -21,7 +21,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/scripts/tasks-pr-sync.sh"
+            "command": "$HOME/.claude/planwright/scripts/tasks-pr-sync.sh"
           }
         ]
       }
@@ -35,7 +35,7 @@
           },
           {
             "type": "command",
-            "command": "$HOME/.claude/scripts/tool-discovery.sh"
+            "command": "$HOME/.claude/planwright/scripts/tool-discovery.sh"
           },
           {
             "type": "command",

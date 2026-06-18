@@ -35,12 +35,12 @@ Tasks in `tasks.md` shall have a stable ID (e.g., `Task 3`, `Task 3.5`), explici
 
 ## `tasks.md` auto-update hook
 
-`roles/osx/files/claude/scripts/tasks-pr-sync.sh` is wired from `roles/osx/files/claude/settings.json` under `hooks.PostToolUse` with matcher `Bash`. It fires after every Bash tool call; the script itself filters to `gh pr create` and `gh pr merge` and parses the current branch against the pair-flow naming convention (D-32: `pair-flow/<spec>/task-<ids>`, where `<ids>` is either a single id like `3` / `3.5` or a bundle like `3-4` / `3.5-4`).
+The PostToolUse `tasks.md` sync hook is supplied by planwright, not this repo: `settings.json` wires `$HOME/.claude/planwright/scripts/tasks-pr-sync.sh` under `hooks.PostToolUse` with matcher `Bash` (the planwright writer materializes it; see the install task in `roles/osx/tasks/osx.yml`). It fires after every Bash tool call, filters to `gh pr create` / `gh pr merge`, and parses the current branch against planwright's convention (`planwright/<spec>/...`; the reserved `planwright/<spec>/spec` namespace no-ops).
 
-- **On `gh pr create`**: the matching task block(s) move from `Forward plan` to `In progress`. Two annotation lines (`Status: PR #N draft`, `Last activity: <today>`) are inserted right after the H3 header. Existing Status/Last-activity lines are stripped first, so the hook is idempotent.
-- **On `gh pr merge`**: the matching task block(s) move from wherever they are (typically `In progress`) to `Completed` as one-line bullets referencing the PR. The original task block (with `Deliverables:`, etc.) is removed; the PR carries the implementation detail.
+- **On `gh pr create`**: the matching task block moves to `In progress`, annotated with the PR number.
+- **On `gh pr merge`**: the block moves to `Completed`, annotated with the PR number and merge date.
 
-The hook is silent on no-op cases (non-Bash tool, non-matching command, branch not in D-32 format, no matching task block in `tasks.md`). Out-of-session merges (the user clicks Merge in the GitHub web UI) are reconciled by the scheduled remote agent runner per D-29 once that ships (Task 12). The hook does not commit the change; it leaves a `git status` diff for the next commit boundary.
+Worker sessions resolve and write the canonical `tasks.md` in the primary checkout under the per-spec advisory lock. The hook is silent on no-op cases (non-Bash tool, non-`gh pr` command, branch not in planwright format, no matching task block, validation failure) and never commits; it leaves a `git status` diff for the next commit boundary. The exact transition format and branch grammar are owned by the planwright repo.
 
 | Spec | Status | Purpose | Cold-start next step |
 |---|---|---|---|
