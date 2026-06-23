@@ -66,42 +66,36 @@
     state: link
   tags: [osx]
 
-# planwright is the extraction of pair-flow's generalizable core. We clone it as
-# a sibling checkout at ~/dev/planwright and invoke its own "writer"
-# (scripts/install.sh, REQ-I1.2), which materializes the framework into the
-# planwright-owned namespace under ~/.claude (planwright/doctrine,
-# planwright/scripts, skills/<name>) and touches nothing it does not own. We
-# invoke planwright's own installer rather than vendoring a copy, keeping the
-# planwright repo the single source of truth. The migrated slash commands
-# (orchestrate, execute-task, spec-kickoff, spec-draft, self-review, polish,
-# resume) are retired from the pair-flow commands/ dir below; planwright now
-# supplies them as skills. The review-workflow commands planwright does not ship
-# (panel-*, copilot-*, peer-review, code-review) stay.
-- name: Ensure planwright repo is cloned (sibling checkout)
-  ansible.builtin.command:  # noqa: command-instead-of-module
-    cmd: "git clone git@github.com:inkatze/planwright.git {{ ansible_env.HOME }}/dev/planwright"
-    creates: "{{ ansible_env.HOME }}/dev/planwright"
-  # Deliberately the command module, not ansible.builtin.git: `creates` skips
-  # the task entirely once the checkout exists, so a re-run never fetches,
-  # checks out, or resets planwright. It is actively developed here and may sit
-  # on a feature branch with uncommitted work; ansible.builtin.git's
-  # update: false still risks checking out `version` against that working
-  # branch. SSH clone (private repo); a missing key fails loudly, which is the
-  # point of automating this over the prior silent `when`-guarded skip.
+# planwright is the extraction of pair-flow's generalizable core, now a public
+# Claude Code plugin. We install it through the standard marketplace flow rather
+# than vendoring a copy or running its ~/.claude/ writer: add the repo as a
+# marketplace, then install the plugin (both named planwright). HTTPS source so
+# a fresh machine needs no SSH key now that the repo is public. The plugin
+# auto-wires its own hooks (SessionStart tool-discovery, PostToolUse
+# tasks-pr-sync) via its hooks.json resolved against CLAUDE_PLUGIN_ROOT, so
+# settings.json no longer wires them by hand, and doctrine docs/scripts resolve
+# plugin-relative at runtime. Updates are handled by upgrade.yml via
+# `claude plugin update`. The migrated slash commands (orchestrate,
+# execute-task, spec-kickoff, spec-draft, self-review, polish, resume) are
+# retired from the pair-flow commands/ dir below; planwright supplies them as
+# skills. The review-workflow commands planwright does not ship (panel-*,
+# copilot-*, peer-review, code-review) stay. Both tasks are idempotent (rc 0 on
+# re-run, output reports "already"); CI-guarded because the matrix has no
+# `claude` CLI.
+- name: Add planwright plugin marketplace
+  ansible.builtin.command:
+    cmd: claude plugin marketplace add https://github.com/inkatze/planwright.git
+  register: osx_planwright_marketplace
+  changed_when: "'already' not in osx_planwright_marketplace.stdout"
+  when: lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [osx]
 
-- name: Install planwright framework via its writer
+- name: Install planwright plugin
   ansible.builtin.command:
-    cmd: "{{ ansible_env.HOME }}/dev/planwright/scripts/install.sh"
-  environment:
-    CLAUDE_DIR: "{{ ansible_env.HOME }}/.claude"
-  # The writer refresh-copies on every run and emits no changed/unchanged
-  # signal, so its output cannot drive idempotent change reporting. Report ok
-  # rather than match a phantom token; failed_when defaults to rc != 0.
-  changed_when: false
-  # `is exists` runs on the controller; for these dotfiles controller == target
-  # (run locally via mise run osx), so probing the target path here is sound.
-  when: "(ansible_env.HOME ~ '/dev/planwright/scripts/install.sh') is exists"
+    cmd: claude plugin install planwright@planwright --scope user
+  register: osx_planwright_install
+  changed_when: "'already' not in osx_planwright_install.stdout"
+  when: lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [osx]
 
 # Pair-flow cross-session inbox substrate (REQ-F1.1 in specs/pair-flow/).

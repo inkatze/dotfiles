@@ -76,19 +76,22 @@ script before opening a repo you did not author.
 
 ### Tool-discovery hook
 
-The SessionStart `tool-discovery` hook is supplied by planwright, not this
-repo: `settings.json` wires `$HOME/.claude/planwright/scripts/tool-discovery.sh`,
-which the planwright writer materializes (see the planwright install task in
-`roles/osx/tasks/osx.yml`). It runs alongside the worktree bootstrap, scans
-the cwd for known config files (linters, formatters, type checkers, hook
-managers, CI workflows), and emits a markdown summary as `additionalContext`
-so the agent sees what the project ships without grepping. Silent no-op
-(exit 0, no output) when any of: nothing is detected, the cwd is outside a
-git work tree, or `jq` is unavailable; a missing summary therefore does not
-necessarily mean "no tooling found". Discovery feeds the `Discovery Rigor`
-and `Refactor Instinct` rules in the user-global `CLAUDE.md`, both of which
-prefer tool-grounded findings over judgment. Behavior and extension live in
-the planwright repo; this repo only wires it.
+The SessionStart `tool-discovery` hook is supplied by the planwright plugin,
+not this repo. planwright installs as a Claude Code plugin (marketplace flow,
+see the planwright install task in `roles/osx/tasks/osx.yml`), and the plugin
+wires its own hooks via its `hooks/hooks.json` resolved against
+`CLAUDE_PLUGIN_ROOT`: `tool-discovery` on SessionStart and `tasks-pr-sync` on
+PostToolUse(Bash). The tracked `settings.json` therefore no longer wires
+either; doing so would double-fire them. The hook runs alongside the worktree
+bootstrap, scans the cwd for known config files (linters, formatters, type
+checkers, hook managers, CI workflows), and emits a markdown summary as
+`additionalContext` so the agent sees what the project ships without grepping.
+Silent no-op (exit 0, no output) when any of: nothing is detected, the cwd is
+outside a git work tree, or `jq` is unavailable; a missing summary therefore
+does not necessarily mean "no tooling found". Discovery feeds the `Discovery
+Rigor` and `Refactor Instinct` rules in the user-global `CLAUDE.md`, both of
+which prefer tool-grounded findings over judgment. Behavior and extension live
+in the planwright repo; this repo only installs the plugin.
 
 ## MCP server registration
 
