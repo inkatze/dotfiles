@@ -35,7 +35,7 @@ Tasks in `tasks.md` shall have a stable ID (e.g., `Task 3`, `Task 3.5`), explici
 
 ## `tasks.md` auto-update hook
 
-The PostToolUse `tasks.md` sync hook is supplied by planwright, not this repo: `settings.json` wires `$HOME/.claude/planwright/scripts/tasks-pr-sync.sh` under `hooks.PostToolUse` with matcher `Bash` (the planwright writer materializes it; see the install task in `roles/osx/tasks/osx.yml`). It fires after every Bash tool call, filters to `gh pr create` / `gh pr merge`, and parses the current branch against planwright's convention (`planwright/<spec>/...`; the reserved `planwright/<spec>/spec` namespace no-ops).
+The PostToolUse `tasks.md` sync hook is supplied by the planwright plugin, not this repo. planwright installs as a Claude Code plugin (marketplace flow; see the install task in `roles/osx/tasks/osx.yml`), and the plugin wires this hook itself via its `hooks/hooks.json` resolved against `CLAUDE_PLUGIN_ROOT` (matcher `Bash` under `hooks.PostToolUse`); the tracked `settings.json` no longer wires it. It fires after every Bash tool call, filters to `gh pr create` / `gh pr merge`, and parses the current branch against planwright's convention (`planwright/<spec>/...`; the reserved `planwright/<spec>/spec` namespace no-ops).
 
 - **On `gh pr create`**: the matching task block moves to `In progress`, annotated with the PR number.
 - **On `gh pr merge`**: the block moves to `Completed`, annotated with the PR number and merge date.
