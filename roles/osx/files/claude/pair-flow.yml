@@ -5,9 +5,9 @@
 # specs/pair-flow/design.md.
 #
 # The spec-driven pipeline (/orchestrate, /execute-task, /spec-*) now ships as
-# the planwright plugin and reads its own config via planwright's config-get.sh
-# (see roles/osx/tasks/osx.yml); the orchestrator lock threshold that used to
-# live here moved with it.
+# the planwright plugin (installed via roles/osx/tasks/osx.yml) and reads its
+# own config through planwright's own config mechanism; the orchestrator lock
+# threshold that used to live here moved with it.
 
 # Backends used by /panel-review and /panel-pairing when --backends is not set.
 # Per D-6: codex is the tracked default. Personal/alt hosts override to
