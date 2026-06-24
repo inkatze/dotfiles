@@ -84,14 +84,14 @@
 # `claude` CLI in the matrix.
 - name: Update planwright plugin marketplace
   ansible.builtin.command:
-    cmd: claude plugin marketplace update planwright
+    cmd: "{{ ansible_env.HOME }}/.local/bin/claude plugin marketplace update planwright"
   changed_when: false
   when: lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [upgrade]
 
 - name: Update planwright plugin
   ansible.builtin.command:
-    cmd: claude plugin update planwright@planwright
+    cmd: "{{ ansible_env.HOME }}/.local/bin/claude plugin update planwright@planwright"
   register: osx_planwright_update
   changed_when: "'already at the latest' not in osx_planwright_update.stdout"
   when: lookup('ansible.builtin.env', 'CI', default='') == ''

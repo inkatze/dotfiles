@@ -84,7 +84,7 @@
 # `claude` CLI.
 - name: Add planwright plugin marketplace
   ansible.builtin.command:
-    cmd: claude plugin marketplace add https://github.com/inkatze/planwright.git
+    cmd: "{{ ansible_env.HOME }}/.local/bin/claude plugin marketplace add https://github.com/inkatze/planwright.git"
   register: osx_planwright_marketplace
   changed_when: "'already' not in osx_planwright_marketplace.stdout"
   when: lookup('ansible.builtin.env', 'CI', default='') == ''
@@ -92,7 +92,7 @@
 
 - name: Install planwright plugin
   ansible.builtin.command:
-    cmd: claude plugin install planwright@planwright --scope user
+    cmd: "{{ ansible_env.HOME }}/.local/bin/claude plugin install planwright@planwright --scope user"
   register: osx_planwright_install
   changed_when: "'already' not in osx_planwright_install.stdout"
   when: lookup('ansible.builtin.env', 'CI', default='') == ''
