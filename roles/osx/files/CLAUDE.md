@@ -281,7 +281,7 @@ The review workflows above are the convergence layer of a larger spec-driven pip
 
 **Autonomy gate.** The four-bucket `Finding Categorization` above is how the dotfiles-local review commands (`/panel-*`, `/peer-review`) decide what to apply autonomously vs. surface to the human. `repo-class` (solo vs multi-reviewer, via `~/.claude/scripts/pair-flow-config.sh repo-class`) determines whether Agent-resolvable findings auto-apply (solo) or surface with test + CI + kickoff-alignment evidence for review (multi-reviewer). `repo-class` is a dotfiles-local concept (planwright has no equivalent), so `pair-flow-config.sh` and `pair-flow.yml` stay in this repo.
 
-**Cross-session awareness.** Active sessions write heartbeat state to `~/.claude/inbox/`; a tmux popup (`prefix + i`) and a status-bar segment surface which sessions need attention, and macOS notifications fire on transitions into `awaiting-input` / `draft-pr-ready`. This inbox/heartbeat substrate is dotfiles-local (`scripts/inbox-*.sh`).
+**Cross-session awareness.** Active sessions write heartbeat state to `~/.claude/inbox/`; a tmux popup (`prefix + i`) and a status-bar segment surface which sessions need attention, and macOS notifications fire on transitions into `awaiting-input` / `draft-pr-ready`. This inbox/heartbeat substrate is dotfiles-local (`roles/osx/files/claude/scripts/inbox-*.sh`).
 
 **Hard invariants.** Never auto-merge (merge is a reserved human action, permanent, not deferred). Never act on a non-Active spec (no bypass flag). Never auto-chain `/orchestrate` into `/spec-kickoff`. Never force-push, amend, squash, or rebase; create new commits only.
 
