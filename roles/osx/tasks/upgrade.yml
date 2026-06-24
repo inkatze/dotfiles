@@ -74,3 +74,25 @@
   changed_when: "'CHANGED' in osx_claude_mcp_github_upgrade.stdout"
   when: lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [upgrade]
+
+# planwright ships as a Claude Code plugin (installed in osx.yml). Updating is
+# a two-step marketplace flow: refresh the marketplace manifest from GitHub,
+# then pull the newest plugin version. The marketplace refresh always reports
+# success and never signals whether anything changed (changed_when: false);
+# the plugin update distinguishes "already at the latest" from an actual bump.
+# A restart is required for a new plugin version to take effect. CI-guarded: no
+# `claude` CLI in the matrix.
+- name: Update planwright plugin marketplace
+  ansible.builtin.command:
+    cmd: "{{ ansible_env.HOME }}/.local/bin/claude plugin marketplace update planwright"
+  changed_when: false
+  when: lookup('ansible.builtin.env', 'CI', default='') == ''
+  tags: [upgrade]
+
+- name: Update planwright plugin
+  ansible.builtin.command:
+    cmd: "{{ ansible_env.HOME }}/.local/bin/claude plugin update planwright@planwright"
+  register: osx_planwright_update
+  changed_when: "'already at the latest' not in osx_planwright_update.stdout"
+  when: lookup('ansible.builtin.env', 'CI', default='') == ''
+  tags: [upgrade]

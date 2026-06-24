@@ -15,27 +15,13 @@
         ]
       }
     ],
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/planwright/scripts/tasks-pr-sync.sh"
-          }
-        ]
-      }
-    ],
+    "PostToolUse": [],
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
             "command": "$HOME/.claude/scripts/worktree-bootstrap.sh"
-          },
-          {
-            "type": "command",
-            "command": "$HOME/.claude/planwright/scripts/tool-discovery.sh"
           },
           {
             "type": "command",
@@ -93,7 +79,8 @@
     "typescript-lsp@claude-plugins-official": true,
     "lua-lsp@claude-plugins-official": true,
     "gopls-lsp@claude-plugins-official": true,
-    "rust-analyzer-lsp@claude-plugins-official": true
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "planwright@planwright": true
   },
   "alwaysThinkingEnabled": true,
   "permissions": {
