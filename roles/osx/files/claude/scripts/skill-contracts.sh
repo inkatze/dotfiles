@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Contract-consistency checker for the dotfiles-local review skill files
+# Contract-consistency checker for the dotfiles-local review command files
 # (panel-*, peer-review). Greps them for cross-file invariants that must stay
 # aligned. Runs as a lefthook pre-commit job filtered to
 # roles/osx/files/claude/commands/*.md.
@@ -23,13 +23,13 @@ for f in panel-pairing.md; do
 done
 
 # Four-bucket presentation contract (Finding Categorization)
-for f in panel-pairing.md peer-review.md; do
-  [ -f "$CMDS/$f" ] && ! grep -qE 'four.table|four bucket|four:.*Auto-applicable' "$CMDS/$f" \
+for f in panel-review.md panel-pairing.md peer-review.md; do
+  [ -f "$CMDS/$f" ] && ! grep -qE 'four.*table|four bucket|four:.*Auto-applicable' "$CMDS/$f" \
     && err "$f missing four-bucket presentation reference"
 done
 
 # pair-flow-config.sh repo-class in skills that use it
-for f in panel-pairing.md peer-review.md; do
+for f in panel-review.md panel-pairing.md peer-review.md; do
   [ -f "$CMDS/$f" ] && ! grep -q 'pair-flow-config\.sh' "$CMDS/$f" \
     && err "$f missing pair-flow-config.sh reference"
 done
