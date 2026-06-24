@@ -72,7 +72,7 @@
 # marketplace, then install the plugin (both named planwright). HTTPS source so
 # a fresh machine needs no SSH key now that the repo is public. The plugin
 # auto-wires its own hooks (SessionStart tool-discovery, PostToolUse
-# tasks-pr-sync) via its hooks.json resolved against CLAUDE_PLUGIN_ROOT, so
+# tasks-pr-sync) via its hooks/hooks.json resolved against CLAUDE_PLUGIN_ROOT, so
 # settings.json no longer wires them by hand, and doctrine docs/scripts resolve
 # plugin-relative at runtime. Updates are handled by upgrade.yml via
 # `claude plugin update`. The migrated slash commands (orchestrate,
