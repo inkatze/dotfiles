@@ -52,7 +52,7 @@ Linters, formatters, type checkers, static analyzers, complexity / duplication m
 
 ### 2. Backend discovery pass
 
-For each backend in the resolved set, invoke it **once** with the full diff, the tooling output from step 1, and a lens-walk prompt covering all 9 canonical lenses from CLAUDE.md `Discovery Rigor (Issue Identification)`. Each invocation is independent; run them in parallel (separate `Bash` tool calls in the same response) when possible.
+For each backend in the resolved set, invoke it **once** with the full diff, the tooling output from step 1, and a lens-walk prompt covering the 9 canonical lenses from CLAUDE.md `Discovery Rigor (Issue Identification)` plus a 10th **defensive-completeness lens** (panel-specific, listed below). Each invocation is independent; run them in parallel (separate `Bash` tool calls in the same response) when possible.
 
 **Prompt structure to send each backend** (adapt the literal wording per backend's preferences; the substance is what matters):
 
@@ -69,6 +69,7 @@ Lenses:
 7. Documentation (docstrings, READMEs, ADRs, config docs)
 8. Tests / verification (coverage of new behavior, missing failing-case tests)
 9. Cross-file consistency (broken invariants, sibling-pattern drift)
+10. Defensive completeness & consistency (input validation and presence/type/shape guards on every consumed field: numeric-ness, presence, non-empty; symmetric handling across parallel code paths, e.g. a validation gate mirroring its mapper; once a defensive guard exists for one field/case, flag sibling fields/cases that lack it). Report low-reachability and currently-unwired-code-path findings too, but state the reachability in the finding so triage can defer gold-plating quickly. This is the lens that surfaces the fine-grained defensive tail an exhaustive external bot would otherwise raise later.
 
 Output format: ONLY a Markdown table with columns Lens, File:Line, Finding, Rule cited (if any), Severity. No preamble (including `<think>` blocks, "Thinking..." traces, or any reasoning model intermediate output). No commentary, observations, or summaries after the table. The table is the entire response. One row per finding; if a lens has zero findings, emit a row like `| Documentation | n/a | none (one-line reason) | | n/a |` so the empty lens stays visible.
 
