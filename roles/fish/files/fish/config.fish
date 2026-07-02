@@ -106,9 +106,15 @@ set -xg SPACEFISH_CHAR_SUFFIX '  '
 
 # Stabilize SSH_AUTH_SOCK for tmux sessions via a fixed symlink.
 # When reconnecting SSH, the new socket is symlinked to a stable path so
-# existing tmux panes don't get a stale SSH_AUTH_SOCK.
+# existing tmux panes don't get a stale SSH_AUTH_SOCK. Always prefer the
+# 1Password agent (the real key source) and NEVER capture the empty macOS
+# launchd agent (0 keys) — capturing it breaks auth + op-ssh-sign signing.
+# Mirrors the IdentityAgent logic in ~/.ssh/config.
 if status --is-interactive; and set -q SSH_CONNECTION
-    if test -S "$SSH_AUTH_SOCK"; and not string match -q '*/.ssh/auth_sock' "$SSH_AUTH_SOCK"
+    set -l _onep_sock "$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+    if test -S "$_onep_sock"
+        ln -sf "$_onep_sock" ~/.ssh/auth_sock
+    else if test -S "$SSH_AUTH_SOCK"; and not string match -q '*com.apple.launchd*' "$SSH_AUTH_SOCK"; and not string match -q '*/.ssh/auth_sock' "$SSH_AUTH_SOCK"
         ln -sf "$SSH_AUTH_SOCK" ~/.ssh/auth_sock
     end
     set -gx SSH_AUTH_SOCK ~/.ssh/auth_sock
