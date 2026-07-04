@@ -46,6 +46,13 @@
     state: link
   tags: [fish]
 
+- name: Symlink ssh-auth.fish into fish conf.d
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/fish/files/ssh-auth.fish"
+    dest: "{{ ansible_env.HOME }}/.config/fish/conf.d/ssh-auth.fish"
+    state: link
+  tags: [fish]
+
 - name: Install fisherman
   ansible.builtin.shell:
     cmd: >
