@@ -3,3 +3,7 @@
 .elixir_ls
 mise.local.toml
 settings.local.json
+
+# grammar-backed-explain observations log — local-only until planwright reworks
+# the observations mechanism (paycalc-services / STEAI-843)
+specs/_observations/
