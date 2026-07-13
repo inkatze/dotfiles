@@ -31,7 +31,7 @@ into this public repo.
 ## Scope
 
 1. **Resolved 2026-07-13, more completely than proposed** (see Status above): rather than moving `panel-backends` + the work/personal signal
-   **out of** `pair-flow.yml` / `pair-flow.local.yml` into a separate review-tooling config surface, both files were deleted and the setting became a hardcoded profile-table default (no config file, no indirection at all).
+   **out of** `pair-flow.yml` into a separate review-tooling config surface, the tracked file was deleted outright and the setting became a hardcoded profile-table default (no config file, no indirection at all). `pair-flow.local.yml` (untracked, never Ansible-managed) is unaffected by this — orphaned wherever it existed, not deleted.
 2. Done in PR #28: the work-org allowlist was removed from `panel-review.md`;
    the profile now resolves from the untracked `PANEL_REVIEW_PROFILE` env var.
 3. Re-frame `CLAUDE.md` so the review workflows are described as standalone
@@ -55,8 +55,8 @@ Pick the leak-free shape (no org/host names in tracked files):
 Recommended: neutral tracked default `[gemini]`; work signal in the untracked
 local file. Mirrors the repo's existing leak-free patterns
 (`scripts/playbook.sh` reads `$PERSONALHOST`/`$ALTHOST` from env;
-`pair-flow.local.yml`, since deleted, used to be "per-host, agent-maintained, never tracked", read by
-`roles/osx/files/claude/scripts/pair-flow-config.sh`, also since deleted).
+`pair-flow.local.yml` used to be "per-host, agent-maintained, never tracked", read by
+`roles/osx/files/claude/scripts/pair-flow-config.sh` (deleted 2026-07-13) — the file itself is untouched by that deletion, just orphaned).
 
 ## Separate, optional: broader org-name scrub
 

@@ -3,7 +3,7 @@
 **Status:** Active
 **Last reviewed:** 2026-06-08 (standalone project extraction spun out to the private planwright repo; see Deferred)
 
-`repo-class` and `pair-flow.yml` / `pair-flow.local.yml` were removed 2026-07-13; see Completed. Repo-level config, where still needed, now lives as hardcoded defaults in the consuming skill files.
+`repo-class` and `pair-flow.yml` (tracked) were removed 2026-07-13; see Completed. `pair-flow.local.yml` (never tracked, never Ansible-managed) is now orphaned wherever it existed and stays that way — no automated cleanup, consistent with this file always having been out of Ansible's reach (see Out of scope). Repo-level config, where still needed, now lives as hardcoded defaults in the consuming skill files.
 
 Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 when both fall within the bundling rule.
 
@@ -59,7 +59,7 @@ Tasks are ordered by dependency, not by feature. Tasks may be bundled per D-11 w
 ## Out of scope
 
 - **Auto-merge at any tier** (D-21). Pair-flow never merges PRs. Merge is a reserved human action. This is permanent, not deferred.
-- **Ansible managing `~/.claude/pair-flow.local.yml`.** Moot: the file and the repo-class mechanism it backed were removed 2026-07-13; see Completed.
+- **Ansible managing `~/.claude/pair-flow.local.yml`.** Still out of scope, unchanged by the 2026-07-13 repo-class retirement (see Completed): the mechanism that read it (`pair-flow-config.sh`) is gone, so the file is now orphaned wherever it existed, but nothing added or removed touches it — it was never Ansible-managed and stays that way.
 - Replacement or absorption of `/copilot-pairing` and `/copilot-review`. User-global CLAUDE.md already marks these transitional; that retirement is a separate spec (unrelated to the repo-class removal below — copilot-pairing's behavior does not vary by repo-class and was not touched).
 - Migration of work-project workflows. Proving ground is tecpan/dotfiles.
 - **End-to-end validation on a work project (multi-reviewer).** Was Task 15 in Forward plan; moot now that `repo-class` (solo vs multi-reviewer) is removed — there is no multi-reviewer-specific behavior left to validate.

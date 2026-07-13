@@ -36,6 +36,16 @@ bucket_phrases=(
   "bucket out of three: Auto-applicable, Needs sign-off, or Needs human judgment"
   "the validated threads as three tables"
 )
+# bucket_files and bucket_phrases are parallel by position; a future edit
+# that adds one without the other silently indexes the wrong phrase (or hits
+# an "unbound variable" with no clue why) instead of failing clearly here.
+bucket_files_count=$(echo "$bucket_files" | wc -w | tr -d ' ')
+if [ "$bucket_files_count" -ne "${#bucket_phrases[@]}" ]; then
+  err "bucket_files ($bucket_files_count entries) and bucket_phrases (${#bucket_phrases[@]} entries) are out of sync"
+  echo ""
+  echo "skill-contracts: $errors invariant(s) broken"
+  exit 1
+fi
 i=0
 for f in $bucket_files; do
   phrase="${bucket_phrases[$i]}"
