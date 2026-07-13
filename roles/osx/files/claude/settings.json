@@ -26,36 +26,8 @@
         ]
       }
     ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/scripts/notify-event.sh done"
-          }
-        ]
-      }
-    ],
-    "Notification": [
-      {
-        "matcher": "permission_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/scripts/notify-event.sh permission"
-          }
-        ]
-      },
-      {
-        "matcher": "idle_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/scripts/notify-event.sh idle"
-          }
-        ]
-      }
-    ],
+    "Stop": [],
+    "Notification": [],
     "SubagentStop": []
   },
   "enabledPlugins": {
