@@ -59,6 +59,29 @@
     state: link
   tags: [osx]
 
+# Cleanup for the 2026-07-13 repo-class / pair-flow-config.sh retirement
+# (see specs/pair-flow/tasks.md Completed). Any host that previously ran the
+# now-deleted "Symlink pair-flow defaults" task has a dangling symlink here
+# (its target, roles/osx/files/claude/pair-flow.yml, no longer exists in the
+# tree). state: absent on an already-missing path is a no-op, so this is
+# safe on a fresh machine too.
+- name: Remove dangling pair-flow.yml symlink (repo-class retirement cleanup)
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.claude/pair-flow.yml"
+    state: absent
+  tags: [osx]
+
+# Same retirement: the inbox substrate (specs/pair-flow/tasks.md Completed,
+# "Retire Task 3") deleted inbox-sweep.sh, the only thing that ever cleaned
+# up ~/.claude/inbox/ entries, without removing the directory itself. Any
+# host that ran an old Claude Code session has stale {host}-{uuid}.json
+# entries here with nothing left to sweep them.
+- name: Remove orphaned inbox directory (cross-session inbox retirement cleanup)
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.claude/inbox"
+    state: absent
+  tags: [osx]
+
 # planwright is the extraction of pair-flow's generalizable core, now a public
 # Claude Code plugin. We install it through the standard marketplace flow rather
 # than vendoring a copy or running its ~/.claude/ writer: add the repo as a
