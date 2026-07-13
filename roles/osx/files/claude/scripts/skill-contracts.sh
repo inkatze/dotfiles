@@ -20,7 +20,7 @@ err() { echo "ERROR: $1"; errors=$((errors + 1)); }
 # alternation-regex across files: a shared regex lets an unrelated match
 # elsewhere in the same file (e.g. "three-pass" validation prose) mask a real
 # regression in the sentence that actually declares the bucket count. This is
-# the exact gap the v1-retrospective (research/v1-retrospective.md:89)
+# the exact gap the v1-retrospective (specs/pair-flow/research/v1-retrospective.md:89)
 # already caught once ("three findings tables" drifted to four undetected).
 #
 # NOTE: each check below is an explicit if-block, not a `cond && ! grep &&
