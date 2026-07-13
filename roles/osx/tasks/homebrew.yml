@@ -23,8 +23,8 @@
   tags: [osx]
 
 # Gemini config dir holds the API key file (~/.gemini/.api-key). Create it
-# with private perms declaratively, mirroring the ~/.claude/inbox precedent in
-# osx.yml; the sync script also chmods it 700 best-effort as defense-in-depth.
+# with private perms declaratively; the sync script also chmods it 700
+# best-effort as defense-in-depth.
 - name: Ensure ~/.gemini directory exists with private perms
   ansible.builtin.file:
     path: "{{ ansible_env.HOME }}/.gemini"

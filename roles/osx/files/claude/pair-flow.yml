@@ -1,4 +1,4 @@
-# Config for the dotfiles-local review + inbox surfaces (read via
+# Config for the dotfiles-local review surfaces (read via
 # pair-flow-config.sh). Tracked in dotfiles, materialized at
 # ~/.claude/pair-flow.yml. Per-repo overrides live in ~/.claude/pair-flow.local.yml
 # (agent-maintained, host-local, NOT tracked here). See D-19 in
@@ -13,7 +13,3 @@
 # Per D-6: codex is the tracked default. Personal/alt hosts override to
 # [gemini] via pair-flow.local.yml (user does not fund OpenAI for personal use).
 panel-backends: [codex]
-
-# Refresh cadence for the inbox heartbeat field. Readers treat entries with
-# heartbeat older than 2x this interval (plus a small jitter) as stale. Per D-23.
-inbox-heartbeat-interval: 30s
