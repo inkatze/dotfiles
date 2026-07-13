@@ -1,7 +1,7 @@
 # Pair-Flow — Tasks
 
 **Status:** Active
-**Last reviewed:** 2026-06-08 (standalone project extraction spun out to the private planwright repo; see Deferred)
+**Last reviewed:** 2026-07-13 (repo-class / pair-flow-config.sh retirement, panel-pairing + copilot-pairing review pass). planwright (the standalone project extraction, see Deferred) went public 2026-06-23 and is no longer private.
 
 `repo-class` and `pair-flow.yml` (tracked) were removed 2026-07-13; see Completed. `pair-flow.local.yml` (never tracked, never Ansible-managed) is now orphaned wherever it existed and stays that way — no automated cleanup, consistent with this file always having been out of Ansible's reach (see Out of scope). Repo-level config, where still needed, now lives as hardcoded defaults in the consuming skill files.
 
