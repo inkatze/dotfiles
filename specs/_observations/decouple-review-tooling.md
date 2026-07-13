@@ -1,7 +1,7 @@
 # Scoping note: decouple review/pairing tooling from pair-flow
 
 - Recorded: 2026-06-04
-- Status: seed for a future `/spec-draft` (do NOT implement on `spec/pair-flow`)
+- Status: **Item 1 resolved 2026-07-13** — `pair-flow-config.sh` and `pair-flow.yml` were deleted outright (repo-class was found not to gate anything real; `panel-backends` is now a hardcoded profile-table default in `panel-review.md`/`panel-pairing.md`, no config file). More complete than the relocation this note proposed. Items 2-3 (org-name scrub, CLAUDE.md "convergence layer" framing) remain open; still a seed for `/spec-draft` if pursued.
 - Suggested branch: off `main`, e.g. `refactor/decouple-review-config`
 
 ## Problem

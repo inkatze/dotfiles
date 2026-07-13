@@ -59,13 +59,6 @@
     state: link
   tags: [osx]
 
-- name: Symlink pair-flow defaults
-  ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/osx/files/claude/pair-flow.yml"
-    dest: "{{ ansible_env.HOME }}/.claude/pair-flow.yml"
-    state: link
-  tags: [osx]
-
 # planwright is the extraction of pair-flow's generalizable core, now a public
 # Claude Code plugin. We install it through the standard marketplace flow rather
 # than vendoring a copy or running its ~/.claude/ writer: add the repo as a

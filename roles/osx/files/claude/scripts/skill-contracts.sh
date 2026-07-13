@@ -15,23 +15,10 @@ errors=0
 
 err() { echo "ERROR: $1"; errors=$((errors + 1)); }
 
-# D-32: branch naming pattern (pair-flow/<spec>/task-<ids>) parsed by the
-# kickoff-brief detection in /panel-pairing.
-for f in panel-pairing.md; do
-  [ -f "$CMDS/$f" ] && ! grep -q 'pair-flow/.*task-' "$CMDS/$f" \
-    && err "$f missing D-32 branch naming pattern"
-done
-
-# Four-bucket presentation contract (Finding Categorization)
+# Three-bucket presentation contract (Finding Categorization)
 for f in panel-review.md panel-pairing.md peer-review.md; do
-  [ -f "$CMDS/$f" ] && ! grep -qE 'four.*table|four bucket|four:.*Auto-applicable' "$CMDS/$f" \
-    && err "$f missing four-bucket presentation reference"
-done
-
-# pair-flow-config.sh repo-class in skills that use it
-for f in panel-review.md panel-pairing.md peer-review.md; do
-  [ -f "$CMDS/$f" ] && ! grep -q 'pair-flow-config\.sh' "$CMDS/$f" \
-    && err "$f missing pair-flow-config.sh reference"
+  [ -f "$CMDS/$f" ] && ! grep -qE 'three.*table|three bucket|three:.*Auto-applicable' "$CMDS/$f" \
+    && err "$f missing three-bucket presentation reference"
 done
 
 if [ "$errors" -gt 0 ]; then
