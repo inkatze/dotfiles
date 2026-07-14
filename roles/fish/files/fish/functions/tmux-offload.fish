@@ -74,8 +74,50 @@ function tmux-offload --description "Bootstrap a full interactive claude session
         return 1
     end
 
-    sleep 1.5
+    # remain-on-exit must be set immediately: without it, a claude that exits
+    # right away (missing binary, rejected --model/--permission-mode value)
+    # closes the window before we can ever observe that it died.
+    tmux set-option -p -t $window_id remain-on-exit on 2>/dev/null
+
+    # Poll for the pane entering the alternate screen, which claude's main
+    # chat UI (but not its startup banners or the first-run folder-trust
+    # prompt) switches into. A blind fixed sleep here previously sent the
+    # task text into whatever was on screen and then unconditionally pressed
+    # Enter -- on an untrusted directory that silently answered "yes, trust
+    # this folder" on the human's behalf and dropped the task entirely,
+    # since the trust prompt is a selection menu, not a text field.
+    set -l ready 0
+    set -l dead 0
+    set -l waited 0
+    while test $waited -lt 15000
+        if test (tmux display-message -p -t $window_id '#{pane_dead}' 2>/dev/null) = 1
+            set dead 1
+            break
+        end
+        if test (tmux display-message -p -t $window_id '#{alternate_on}' 2>/dev/null) = 1
+            set ready 1
+            break
+        end
+        sleep 0.3
+        set waited (math $waited + 300)
+    end
+
+    if test $dead -eq 1
+        echo "tmux-offload: claude exited immediately in $window_id; task not delivered" >&2
+        return 1
+    end
+
+    if test $ready -ne 1
+        echo "tmux-offload: claude in $window_id hasn't reached its chat UI yet (it may be waiting on a trust or permission prompt) — task not sent; inspect with 'tmux capture-pane -p -t $window_id' and drive it manually" >&2
+        echo $window_id
+        return 1
+    end
+
     tmux send-keys -t $window_id -l -- $task
+    or begin
+        echo "tmux-offload: failed to deliver the task to $window_id" >&2
+        return 1
+    end
     tmux send-keys -t $window_id Enter
 
     # Best-effort session-id discovery: wait for a transcript file to appear
