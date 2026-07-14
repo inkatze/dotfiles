@@ -11,6 +11,8 @@ For interactive, one-pass review of Copilot's current threads, run `/copilot-rev
 
 ## Steps
 
+Steps 1, 2, 3, 4, 6, and 8 supply the shared fetch/validate/implement/mutate methodology both modes apply; the "Nested loop" section below cites each by number where it reuses one. Steps 5 (interactive table presentation) and 7 (interactive commit + push) are standalone-only — nested mode replaces them with its own autonomous step (e).
+
 ### 1. Get PR and repo info
 
 ```bash
