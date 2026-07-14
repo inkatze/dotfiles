@@ -27,7 +27,14 @@ function tmux-offload --description "Bootstrap a full interactive claude session
         return 1
     end
 
+    # A single fish list->string->list round trip (join, recapture, rejoin):
+    # any embedded newline inside an $argv element causes the first command
+    # substitution to split $task into multiple list elements (fish splits
+    # captured command output on newlines), which corrupts both the jq
+    # --arg call and the send-keys delivery below. The second join collapses
+    # that split back into one line.
     set -l task (string join ' ' -- $argv)
+    set task (string join ' ' -- $task)
 
     set -l work_dir $_flag_dir
     if test -z "$work_dir"
