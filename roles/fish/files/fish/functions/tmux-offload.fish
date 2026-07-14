@@ -50,6 +50,19 @@ function tmux-offload --description "Bootstrap a full interactive claude session
         set -a claude_args --model (string escape -- $_flag_model)
     end
 
+    # Snapshot the project's transcript directory before launch so session-id
+    # discovery below can diff against it instead of trusting mtimes alone:
+    # a sibling transcript from an already-running or concurrently-launched
+    # session in the same dir can satisfy a `-newer` check just as easily as
+    # this one's, misattributing someone else's session id rather than merely
+    # missing one.
+    set -l slug (string replace -a '/' '-' -- (string replace -a '.' '-' -- $work_dir))
+    set -l project_dir ~/.claude/projects/$slug
+    set -l before_files
+    if test -d $project_dir
+        set before_files (find $project_dir -maxdepth 1 -name '*.jsonl' 2>/dev/null)
+    end
+
     # Ghost-text (inline autosuggestion) in the input box is visually
     # indistinguishable from real typed input in a plain capture-pane dump,
     # which is exactly what this session polls to drive the child. Disable it.
@@ -65,19 +78,30 @@ function tmux-offload --description "Bootstrap a full interactive claude session
     tmux send-keys -t $window_id -l -- $task
     tmux send-keys -t $window_id Enter
 
-    # Best-effort session-id discovery: claude's transcript slug replaces
-    # every '/' and '.' in the cwd with '-'. Racy if another offload targets
-    # the same dir concurrently; a missing id just means `--list` won't be
-    # able to `--resume` it later, nothing else depends on it.
-    set -l marker (mktemp)
-    sleep 2
-    set -l slug (string replace -a '/' '-' -- (string replace -a '.' '-' -- $work_dir))
-    set -l found (find ~/.claude/projects/$slug -maxdepth 1 -name '*.jsonl' -newer $marker 2>/dev/null)
+    # Best-effort session-id discovery: wait for a transcript file to appear
+    # that wasn't in the pre-launch snapshot. Ambiguous (more than one new
+    # file) or absent just means `--list` won't be able to `--resume` it
+    # later; nothing else depends on it.
     set -l session_id ""
-    if test -n "$found"
-        set session_id (basename $found[1] .jsonl)
+    set -l waited 0
+    while test $waited -lt 5000
+        set -l after_files
+        if test -d $project_dir
+            set after_files (find $project_dir -maxdepth 1 -name '*.jsonl' 2>/dev/null)
+        end
+        set -l new_files
+        for f in $after_files
+            if not contains -- $f $before_files
+                set -a new_files $f
+            end
+        end
+        if test (count $new_files) -eq 1
+            set session_id (basename $new_files[1] .jsonl)
+            break
+        end
+        sleep 0.5
+        set waited (math $waited + 500)
     end
-    rm -f $marker
 
     set -l log_dir ~/.claude/tmux-offload
     mkdir -p $log_dir
