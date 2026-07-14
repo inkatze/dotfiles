@@ -3,6 +3,10 @@ function tmux-offload --description "Bootstrap a full interactive claude session
     or return 1
 
     if set -q _flag_list
+        if test (count $argv) -gt 0
+            echo "tmux-offload: --list takes no additional arguments" >&2
+            return 1
+        end
         set -l log ~/.claude/tmux-offload/sessions.jsonl
         if not test -f $log
             echo "tmux-offload: no sessions logged yet" >&2
