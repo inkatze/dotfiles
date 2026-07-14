@@ -35,6 +35,11 @@ function tmux-offload --description "Bootstrap a full interactive claude session
     # that split back into one line.
     set -l task (string join ' ' -- $argv)
     set task (string join ' ' -- $task)
+    set task (string trim -- $task)
+    if test -z "$task"
+        echo "tmux-offload: task description must not be empty or whitespace-only" >&2
+        return 1
+    end
 
     set -l work_dir $_flag_dir
     if test -z "$work_dir"
