@@ -163,6 +163,8 @@ function tmux-offload --description "Bootstrap a full interactive claude session
     end
 
     set -l log_dir ~/.claude/tmux-offload
+    set -l old_umask (umask)
+    umask 077
     mkdir -p $log_dir
     if type -q jq
         jq -nc --arg ts (date -u +%Y-%m-%dT%H:%M:%SZ) \
@@ -177,6 +179,7 @@ function tmux-offload --description "Bootstrap a full interactive claude session
     else
         echo "tmux-offload: jq not installed; session not recorded in $log_dir/sessions.jsonl" >&2
     end
+    umask $old_umask
 
     echo $window_id
 end
