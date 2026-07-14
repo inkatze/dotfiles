@@ -13,7 +13,12 @@ function tmux-offload --description "Bootstrap a full interactive claude session
             return 1
         end
         if type -q jq
-            jq -r '[.ts, .target, .window_id, .model, .permission_mode, .session_id, .task] | @tsv' $log | column -t -s \t
+            set -l rows (jq -r '[.ts, .target, .window_id, .model, .permission_mode, .session_id, .task] | @tsv' $log)
+            if test -z "$rows"
+                echo "tmux-offload: no sessions logged yet" >&2
+                return 1
+            end
+            printf '%s\n' $rows | column -t -s \t
         else
             cat $log
         end
