@@ -174,6 +174,8 @@ function tmux-offload --description "Bootstrap a full interactive claude session
             --arg session_id "$session_id" \
             --arg task $task \
             '{ts:$ts,target:$target,window_id:$window_id,dir:$dir,model:$model,permission_mode:$mode,session_id:$session_id,task:$task}' >>$log_dir/sessions.jsonl
+    else
+        echo "tmux-offload: jq not installed; session not recorded in $log_dir/sessions.jsonl" >&2
     end
 
     echo $window_id
