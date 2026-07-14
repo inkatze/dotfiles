@@ -33,6 +33,11 @@ function tmux-offload --description "Bootstrap a full interactive claude session
     if test -z "$work_dir"
         set work_dir (pwd)
     end
+    if not test -d $work_dir
+        echo "tmux-offload: -d $work_dir is not a directory" >&2
+        return 1
+    end
+    set work_dir (realpath $work_dir)
 
     set -l perm_mode $_flag_permission_mode
     if test -z "$perm_mode"
