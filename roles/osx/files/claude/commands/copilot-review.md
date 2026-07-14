@@ -5,7 +5,7 @@ Review and address unresolved GitHub Copilot review threads on the current PR. P
 Read the literal flag `--nested` from `$ARGUMENTS` at the start of the run.
 
 - **Standalone** (no flag): run "## Steps" once, end to end: fetch threads, validate, present the table, address items via the interactive review workflow (step 6), commit + push (step 7), reply + resolve (step 8). Ends by handing control back to you.
-- **Nested** (`--nested`): run "## Nested loop (--nested)" below. It repeats the fetch/validate/address/commit/push/reply/resolve cycle autonomously, re-requesting Copilot's review each iteration and waiting for its response, until the unresolved-thread queue converges to zero, returns start diminishing (see the nested stop-conditions table), or a safety condition fires. Unlike `/polish` or `/panel-review --nested`, nested mode here is **not** local-only: Copilot's review loop requires a pushed commit to produce a fresh review, so it still pushes every iteration. It never creates, marks ready, or merges the PR itself; those stay reserved human (or invoking-skill) actions. This still makes it a *nestable* review skill for planwright's `review_sequence` config knob, as long as the consumer accounts for the push side-effect.
+- **Nested** (`--nested`): run "## Nested loop (--nested)" below. It repeats the fetch/validate/address/commit/push/reply/resolve cycle autonomously, re-requesting Copilot's review each iteration and waiting for its response, until the unresolved-thread queue converges to zero, returns start diminishing (see the nested stop-conditions table), or a safety condition fires. Unlike `/polish` or `/panel-review --nested`, nested mode here is **not** local-only: Copilot's review loop requires a pushed commit to produce a fresh review, so it still pushes every iteration. It never creates or merges the PR itself; those stay reserved human (or invoking-skill) actions. At convergence it asks whether to mark the PR ready and only does so on that run's explicit confirmation (see "After the loop" below); it never does so on any other exit path. This still makes it a *nestable* review skill for planwright's `review_sequence` config knob, as long as the consumer accounts for the push side-effect.
 
 For interactive, one-pass review of Copilot's current threads, run `/copilot-review` without `--nested`.
 
@@ -629,10 +629,29 @@ These hold at every step:
 - **Never** commit or touch files outside the PR's diff to "fix" something we noticed in passing. Surface it as an adjacent finding for human review instead.
 - **Never** modify CI configuration, `.env`, secrets, or lockfiles unless the Copilot thread is specifically about that file.
 - **Never** post anything to chat platforms or tickets.
-- **Never** create, mark ready, or merge the PR itself; those stay reserved human (or invoking-skill) actions. Nested mode pushes commits to the existing PR's branch, but never touches the PR's lifecycle state.
+- **Never** create or merge the PR itself; those stay reserved human (or invoking-skill) actions. Nested mode pushes commits to the existing PR's branch but otherwise never touches the PR's lifecycle state, with one narrow exception: marking the PR ready for review, which this loop may do only at convergence, only after the explicit per-run confirmation described in "After the loop" below. Never automatically, never on a diminishing-returns/stop-condition/iteration-cap exit, and never for create or merge — those stay absolute.
 - **Never** skip step (g) after a Path-A push, with one narrowly-scoped exception: the **Partial scope creep recipe** step 3 *defers* (f) and (g) only for the pre-decision handoff pause, while the loop waits for the user's three-choice answer. The exception ends there; it does **not** exempt the iteration from the post-push poll. Because the recipe's step 1 ran a full Path A push for the in-scope threads, that pushed code must still be confirmed by an (f) + (g) cycle before the loop terminates: option (a) satisfies this by resuming into a fresh Path A, and options (b) and (c) must run the poll explicitly before ending. The deferral never covers the case where in-scope code was pushed and the loop would otherwise terminate without a post-push review. Outside that pre-decision pause, the 10-minute poll is the only authoritative signal that Copilot has (or has not) reviewed. App-mode auto-review, step (f)'s HTTP outcome, prior iterations' patterns, and elapsed iteration count are not substitutes. Confirmation bias from a long successful run is the failure mode this invariant catches. **Path B also runs (g)** even though HEAD is unchanged: Copilot can re-review unchanged HEAD on PR-state changes (description/title/label edits, replies, resolves), and the (g) TIMEOUT branch falls through to (f.5) safely on Path B.
 - **Never** leave replies in a pending review. `addPullRequestReviewThreadReply` may auto-vivify a pending review owned by the viewer when none is in progress; step (e.4) submits it before resolving threads. A run that completes with replies still pending is a silent failure: GitHub, Copilot, and humans see no replies, and the next iteration polls Copilot reviewing against a state where it has no record of our responses (confirmation-bias path: looks fine, isn't).
 - **Never** trust an external-effect step's happy-path response without re-querying state. After step (f)'s `request_copilot_review` MCP call, verify the bot is on `reviewRequests.nodes`; after step (e.3)'s reply mutation, verify zero pending reviews owned by the viewer remain. Both bugs that motivated this section's wording (2026-05-02 live run on `SymmetrySoftware/stl-poc#13`) returned success and looked fine.
+
+### After the loop
+
+What happens next depends on why the loop ended:
+
+- **Convergence** (unresolved-thread queue reached zero, via step (g) or the bootstrap's immediate-success exit). Present any remaining adjacent findings per "Handoff presentation" below, then check `gh pr view --json isDraft -q '.isDraft'`. If the PR is no longer a draft, stop here. If it is still a draft, ask once: "Mark PR #<n> ready for review?" On yes, run `gh pr ready <number>`. On no, end the run with the PR left as a draft. This confirmation-gated ready-flip is the only PR-lifecycle action this loop takes, and only on this exit path.
+- **Diminishing returns, any other stop condition, or the iteration cap.** Present any remaining adjacent findings per "Handoff presentation" below, then hand off. Do **not** ask about marking ready: residual unresolved Copilot threads or an unresolved safety condition means the run isn't done, regardless of how it looks.
+
+#### Handoff presentation
+
+Follow the CLAUDE.md `Code & PR Reviews` workflow rules for any remaining adjacent findings. Do not default to one-by-one; choose the mode that minimizes human effort:
+
+**Clustered decisions first.** Look for adjacent findings that share a decision axis (same fix template, same lens, same scope). When a cluster of 3+ exists, use clustered-decision mode: one `AskUserQuestion` per cluster with cluster-wide actions — `Apply all / Skip all / Pick individually` for Needs sign-off clusters, bespoke cluster-wide options for Needs human judgment clusters. List each cluster's members before the question.
+
+**Batched decisions for the rest.** Findings that don't fit a cluster use batched-decision mode: up to 4 per `AskUserQuestion` call, each its own single-select question. Needs sign-off items get `Apply / Skip / Modify`; Needs human judgment items get bespoke options per finding.
+
+**Progress tracking.** Show a progress indicator (e.g., `[2/5]`) so the position and remaining count are always visible.
+
+**Skip the workflow-choice prompt.** The loop has already done the autonomous work and is handing off a small residual set; don't ask "how do you want to review these" when the item count and clustering shape make the right mode obvious.
 
 ## Maintenance
 
