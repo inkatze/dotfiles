@@ -92,6 +92,24 @@ Plans are written with limited context and the codebase may have changed since. 
 
 **Machine-local environment layer.** Every project gets a gitignored, per-machine env file using the stack's native convention (`mise.local.toml`, `.envrc.local`, `.env.local`): machine paths and session plumbing live there, never in tracked config and never as secrets in either. Long-lived processes (tmux workers, orchestrators, daemons) must reference stable indirections — a fixed symlink like `~/.ssh/auth_sock`, a named socket path — rather than capturing ephemeral values (forwarded agent sockets, `/tmp` paths) that die with the session that created them. When worktrees are placed inside the repo, a repo-root local env file covers all of them via ancestor-directory config loading; pair it with the tool's trusted-path mechanism so fresh worktrees need no per-worktree trust step. Origin: the 2026-06-12 planwright orchestration run, where a stale forwarded SSH agent socket broke commit signing across every worker.
 
+## Offloading Work via tmux
+
+For substantial, semi-independent subtasks, prefer offloading to a **separate, full `claude` session in its own tmux window** over the in-process Agent/Task tool when the subtask would benefit from its own context window, a different model tier, or persistence beyond this conversation (resumable later via `claude --resume <session-id>` even after the window is gone). Reach for the in-process Agent tool instead when the work is quick, needs to return a result inline, or doesn't warrant its own tool-call budget.
+
+Use `tmux-offload` (fish function, tracked at `roles/fish/files/fish/functions/tmux-offload.fish`) to launch it:
+
+    tmux-offload [-n name] [-m model] [-p permission-mode] [-d dir] <task description>
+    tmux-offload --list   # show logged offloads: ts, target, window_id, model, mode, session_id, task
+
+This is a **bootstrap only** — it opens a new tmux window (not the active one), starts a real interactive `claude` session in it, sends the task as its first message, logs the launch (including the session ID, best-effort) to `~/.claude/tmux-offload/sessions.jsonl`, and prints the window's stable target (a tmux window ID like `@21`, immune to name collisions). It deliberately never runs headless (`-p`): headless can't be steered mid-task and gives worse results. **You (the launching/"tower" session) own driving it from there**, using the Bash tool:
+
+- Poll with `tmux capture-pane -p -t <target>` periodically to see what the offloaded session is doing; back off the interval once it's clearly mid-task.
+- Inject steering input with `tmux send-keys -t <target> -l -- '<text>'` followed by a *separate* `tmux send-keys -t <target> Enter` call — don't rely on the child to guess follow-ups on its own.
+- The child launches with `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false` so its input-box ghost text (inline autosuggestion) can't be mistaken for real typed content when you read the pane. `--permission-mode` defaults to `acceptEdits` (auto-approves file edits); answer anything else that prompts yourself via `send-keys` rather than leaving it to block.
+- Model choice: omit `-m` to let `claude` use its own default unless you're confident the subtask needs a different tier — `-m opus` for harder/higher-stakes work, `-m haiku` for cheap, mechanical, high-volume work.
+- Decide whether to close the window yourself (`tmux kill-window -t <target>`) or ask the user first — this depends on the task, not a fixed rule. Close it unprompted when the work was self-contained, read-only, or low-stakes and you can see it's clearly finished. Ask before closing when it produced something that needs review (a PR, a destructive operation, an ambiguous or partial result) or you're not confident it actually finished.
+- Because the session ID is logged, closing the window doesn't lose the work: `claude --resume <session-id>` in a fresh window picks the conversation back up. Check `tmux-offload --list` for a launched session's ID.
+
 ## Code & PR Reviews
 
 When reviewing code, features, or addressing PR feedback:
