@@ -257,7 +257,7 @@ Same validation rigor as the interactive Steps above, executed on autopilot, wit
 
 ### When to use nested mode
 
-You want a hands-off pairing pass with Copilot. The loop: address Copilot's threads, push, re-request review, wait, repeat. It pauses for human input the moment anything is ambiguous, looping, expanding scope, or breaking tests — and it stops on its own once Copilot's unresolved-thread queue reaches zero, or once further iterations are netting little progress, rather than grinding through the rest of the hard iteration cap. As a planwright `review_sequence` entry, this can run alongside or instead of the default `/polish --nested` when Copilot quota is available and its angle is wanted in the same convergence step; keep in mind it pushes each iteration (see "Invocation modes" above).
+You want a hands-off drain pass with Copilot. The loop: address Copilot's threads, push, re-request review, wait, repeat. It pauses for human input the moment anything is ambiguous, looping, expanding scope, or breaking tests — and it stops on its own once Copilot's unresolved-thread queue reaches zero, or once further iterations are netting little progress, rather than grinding through the rest of the hard iteration cap. As a planwright `review_sequence` entry, this can run alongside or instead of the default `/polish --nested` when Copilot quota is available and its angle is wanted in the same convergence step; keep in mind it pushes each iteration (see "Invocation modes" above).
 
 ### Nested pre-flight (once per run)
 
