@@ -99,7 +99,7 @@ For substantial, semi-independent subtasks, prefer offloading to a **separate, f
 Use `tmux-offload` (fish function, tracked at `roles/fish/files/fish/functions/tmux-offload.fish`) to launch it:
 
     tmux-offload [-n name] [-m model] [-p permission-mode] [-d dir] <task description>
-    tmux-offload --list   # show logged offloads: ts, target, window_id, model, mode, session_id, task
+    tmux-offload --list   # show logged offloads: ts, target, window_id, dir, model, mode, session_id, task
 
 This is a **bootstrap only** — it opens a new tmux window (not the active one), starts a real interactive `claude` session in it, sends the task as its first message, logs the launch (including the session ID, best-effort) to `~/.claude/tmux-offload/sessions.jsonl`, and prints the window's stable target (a tmux window ID like `@21`, immune to name collisions). It deliberately never runs headless (`-p`): headless can't be steered mid-task and gives worse results. **You (the launching/"tower" session) own driving it from there**, using the Bash tool:
 
