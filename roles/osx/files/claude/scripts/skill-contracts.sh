@@ -23,11 +23,12 @@ err() { echo "ERROR: $1"; errors=$((errors + 1)); }
 # the exact gap the v1-retrospective (specs/pair-flow/research/v1-retrospective.md:89)
 # already caught once ("three findings tables" drifted to four undetected).
 #
-# panel-review.md carries two anchor sentences, not one: its standalone mode
-# declares the bucket count via the "three findings tables" phrasing, and its
-# --nested loop (formerly the separate panel-pairing.md, folded in behind the
-# --nested flag) declares it via the "bucket out of three" phrasing. Both
-# must independently hold in the merged file.
+# panel-review.md carries two anchor sentences, not one, both inside the
+# shared Steps 1-6 pipeline that standalone and --nested both run identically
+# (step 5's "bucket out of three" phrasing and step 6's "three findings
+# tables" phrasing) — neither is nested-only. copilot-review.md carries a
+# third, analogous anchor for its own adjacent-findings output ("Three
+# adjacent-findings tables"). All three must independently hold.
 #
 # NOTE: each check below is an explicit if-block, not a `cond && ! grep &&
 # err` chain. Under `set -e`, a chain like that exits the script silently
@@ -40,9 +41,14 @@ bucket_checks=(
   "panel-review.md|three findings tables in fixed order"
   "panel-review.md|bucket out of three: Auto-applicable, Needs sign-off, or Needs human judgment"
   "peer-review.md|the validated threads as three tables"
+  "copilot-review.md|Three adjacent-findings tables"
 )
-bucket_files="panel-review.md peer-review.md"
+bucket_files="panel-review.md peer-review.md copilot-review.md"
 for check in "${bucket_checks[@]}"; do
+  case "$check" in
+    *'|'*) ;;
+    *) err "malformed bucket_checks entry (missing '|' separator): \"$check\""; continue ;;
+  esac
   f="${check%%|*}"
   phrase="${check#*|}"
   if [ -f "$CMDS/$f" ]; then
