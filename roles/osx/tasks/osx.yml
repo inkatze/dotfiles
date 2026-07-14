@@ -59,11 +59,27 @@
     state: link
   tags: [osx]
 
-- name: Symlink pair-flow defaults
+# Cleanup for the 2026-07-13 repo-class / pair-flow-config.sh retirement
+# (see specs/pair-flow/tasks.md Completed). Any host that previously ran the
+# now-deleted "Symlink pair-flow defaults" task has a dangling symlink here
+# (its target, roles/osx/files/claude/pair-flow.yml, no longer exists in the
+# tree). state: absent on an already-missing path is a no-op, so this is
+# safe on a fresh machine too.
+- name: Remove dangling pair-flow.yml symlink (repo-class retirement cleanup)
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/osx/files/claude/pair-flow.yml"
-    dest: "{{ ansible_env.HOME }}/.claude/pair-flow.yml"
-    state: link
+    path: "{{ ansible_env.HOME }}/.claude/pair-flow.yml"
+    state: absent
+  tags: [osx]
+
+# Same retirement: the inbox substrate (specs/pair-flow/tasks.md Completed,
+# "Retire Task 3") deleted inbox-sweep.sh, the only thing that ever cleaned
+# up ~/.claude/inbox/ entries, without removing the directory itself. Any
+# host that ran an old Claude Code session has stale {host}-{uuid}.json
+# entries here with nothing left to sweep them.
+- name: Remove orphaned inbox directory (cross-session inbox retirement cleanup)
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.claude/inbox"
+    state: absent
   tags: [osx]
 
 # planwright is the extraction of pair-flow's generalizable core, now a public
@@ -96,20 +112,6 @@
   register: osx_planwright_install
   changed_when: "'already' not in osx_planwright_install.stdout"
   when: lookup('ansible.builtin.env', 'CI', default='') == ''
-  tags: [osx]
-
-# Pair-flow cross-session inbox substrate (REQ-F1.1 in specs/pair-flow/).
-# Each Claude session writes a JSON file named {host}-{session-uuid}.json
-# under this directory; tmux dashboard + status segment read from it.
-# Mode 0700 because entries embed working-tree paths and branch names that
-# are not sensitive but also not meant for other users on the machine.
-# Sync mechanism (iCloud Drive vs Syncthing) is left to the user; either
-# works because each file is a single-writer, atomic-rename, sub-1KB JSON.
-- name: Ensure Claude inbox directory exists
-  ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.claude/inbox"
-    state: directory
-    mode: '0700'
   tags: [osx]
 
 - name: Create Cursor rules directory

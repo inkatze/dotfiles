@@ -15,23 +15,51 @@ errors=0
 
 err() { echo "ERROR: $1"; errors=$((errors + 1)); }
 
-# D-32: branch naming pattern (pair-flow/<spec>/task-<ids>) parsed by the
-# kickoff-brief detection in /panel-pairing.
-for f in panel-pairing.md; do
-  [ -f "$CMDS/$f" ] && ! grep -q 'pair-flow/.*task-' "$CMDS/$f" \
-    && err "$f missing D-32 branch naming pattern"
-done
-
-# Four-bucket presentation contract (Finding Categorization)
-for f in panel-review.md panel-pairing.md peer-review.md; do
-  [ -f "$CMDS/$f" ] && ! grep -qE 'four.*table|four bucket|four:.*Auto-applicable' "$CMDS/$f" \
-    && err "$f missing four-bucket presentation reference"
-done
-
-# pair-flow-config.sh repo-class in skills that use it
-for f in panel-review.md panel-pairing.md peer-review.md; do
-  [ -f "$CMDS/$f" ] && ! grep -q 'pair-flow-config\.sh' "$CMDS/$f" \
-    && err "$f missing pair-flow-config.sh reference"
+# Three-bucket presentation contract (Finding Categorization). Anchored to
+# each file's own specific declarative sentence rather than a shared
+# alternation-regex across files: a shared regex lets an unrelated match
+# elsewhere in the same file (e.g. "three-pass" validation prose) mask a real
+# regression in the sentence that actually declares the bucket count. This is
+# the exact gap the v1-retrospective (specs/pair-flow/research/v1-retrospective.md:89)
+# already caught once ("three findings tables" drifted to four undetected).
+#
+# NOTE: each check below is an explicit if-block, not a `cond && ! grep &&
+# err` chain. Under `set -e`, a chain like that exits the script silently
+# the moment grep SUCCEEDS (the good case): the short-circuited `&&` list
+# evaluates to non-zero as the last command run, and errexit kills the
+# script before `err` (or anything after it) ever runs. Bare-loop chains of
+# that shape happened not to trip it in testing, but it's fragile either
+# way; explicit ifs are unambiguous under set -e.
+bucket_files="panel-review.md panel-pairing.md peer-review.md"
+bucket_phrases=(
+  "three findings tables in fixed order"
+  "bucket out of three: Auto-applicable, Needs sign-off, or Needs human judgment"
+  "the validated threads as three tables"
+)
+# bucket_files and bucket_phrases are parallel by position; a future edit
+# that adds one without the other silently indexes the wrong phrase (or hits
+# an "unbound variable" with no clue why) instead of failing clearly here.
+bucket_files_count=$(echo "$bucket_files" | wc -w | tr -d ' ')
+if [ "$bucket_files_count" -ne "${#bucket_phrases[@]}" ]; then
+  err "bucket_files ($bucket_files_count entries) and bucket_phrases (${#bucket_phrases[@]} entries) are out of sync"
+  echo ""
+  echo "skill-contracts: $errors invariant(s) broken"
+  exit 1
+fi
+i=0
+for f in $bucket_files; do
+  phrase="${bucket_phrases[$i]}"
+  i=$((i + 1))
+  if [ -f "$CMDS/$f" ]; then
+    if ! grep -qF "$phrase" "$CMDS/$f"; then
+      err "$f missing expected bucket-count sentence: \"$phrase\""
+    fi
+    # Guard against the retired bucket being reintroduced under wording the
+    # sentence check above wouldn't catch.
+    if grep -q 'Agent-resolvable' "$CMDS/$f"; then
+      err "$f references the retired Agent-resolvable bucket"
+    fi
+  fi
 done
 
 if [ "$errors" -gt 0 ]; then

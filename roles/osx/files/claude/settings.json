@@ -22,56 +22,12 @@
           {
             "type": "command",
             "command": "$HOME/.claude/scripts/worktree-bootstrap.sh"
-          },
-          {
-            "type": "command",
-            "command": "$HOME/.claude/scripts/inbox-session-start.sh"
           }
         ]
       }
     ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/scripts/notify-event.sh done"
-          },
-          {
-            "type": "command",
-            "command": "$HOME/.claude/scripts/inbox-write.sh hook-event idle"
-          }
-        ]
-      }
-    ],
-    "Notification": [
-      {
-        "matcher": "permission_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/scripts/notify-event.sh permission"
-          },
-          {
-            "type": "command",
-            "command": "$HOME/.claude/scripts/inbox-write.sh hook-event awaiting-input"
-          }
-        ]
-      },
-      {
-        "matcher": "idle_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/scripts/notify-event.sh idle"
-          },
-          {
-            "type": "command",
-            "command": "$HOME/.claude/scripts/inbox-write.sh hook-event awaiting-input"
-          }
-        ]
-      }
-    ],
+    "Stop": [],
+    "Notification": [],
     "SubagentStop": []
   },
   "enabledPlugins": {
