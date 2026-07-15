@@ -16,6 +16,8 @@ pre-commit:
     fish-lint:
       glob: "*.fish"
       run: |
+        command -v fish_indent >/dev/null || { echo "fish-lint: fish_indent not found on PATH" >&2; exit 1; }
+        command -v fish >/dev/null || { echo "fish-lint: fish not found on PATH" >&2; exit 1; }
         for f in {staged_files}; do
           fish_indent --check "$f" || exit 1
           fish -c "source '$f'" || exit 1
