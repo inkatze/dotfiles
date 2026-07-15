@@ -20,7 +20,7 @@ pre-commit:
         command -v fish >/dev/null || { echo "fish-lint: fish not found on PATH" >&2; exit 1; }
         for f in {staged_files}; do
           fish_indent --check "$f" || exit 1
-          fish -c "source '$f'" || exit 1
+          fish -n -- "$f" || exit 1
         done
     baseline-plaintext-guard:
       glob: "specs/metrics-baseline/snapshots/baseline-*"

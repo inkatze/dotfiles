@@ -18,6 +18,15 @@ function __tmux_offload_unlock --description "Release a lock acquired by __tmux_
     rmdir $argv[1] 2>/dev/null
 end
 
+# C0 controls, DEL, and C1 controls (\x80-\x9f) can drive a terminal
+# underneath the receiving program (title/prompt spoofing, cursor tricks)
+# even when written via send-keys -l, which only stops keybinding
+# interpretation, not raw control-byte interpretation by the pty. Used on
+# every user-controlled value that ends up in the pty or in --list's output.
+function __tmux_offload_strip_controls --description "Strip C0/C1 control and escape bytes"
+    string replace -ra '[\x00-\x08\x0b-\x1f\x7f-\x9f]' '' -- $argv[1]
+end
+
 function tmux-offload --description "Bootstrap a full interactive claude session in a new tmux window for this session to drive and manage"
     argparse 'n/name=' 'm/model=' 'p/permission-mode=' 'd/dir=' l/list -- $argv
     or begin
@@ -38,13 +47,18 @@ function tmux-offload --description "Bootstrap a full interactive claude session
             return 1
         end
         set -l log_lock $log_dir/sessions.lock
-        if not __tmux_offload_lock $log_lock 2000
+        set -l have_lock 0
+        if __tmux_offload_lock $log_lock 2000
+            set have_lock 1
+        else
             echo "tmux-offload: could not acquire session log lock; reading without it" >&2
         end
         if type -q jq
             set -l rows (jq -r '[.ts, .target, .window_id, .dir, .model, .permission_mode, .session_id, .task] | @tsv' $log)
             set -l jq_status $status
-            __tmux_offload_unlock $log_lock
+            if test $have_lock -eq 1
+                __tmux_offload_unlock $log_lock
+            end
             if test $jq_status -ne 0
                 echo "tmux-offload: $log appears corrupted or unreadable (jq exited $jq_status)" >&2
                 return 1
@@ -54,9 +68,20 @@ function tmux-offload --description "Bootstrap a full interactive claude session
                 return 1
             end
             printf '%s\n' $rows | column -t -s \t
+            if test $status -ne 0
+                echo "tmux-offload: failed to format the session list" >&2
+                return 1
+            end
         else
             cat $log
-            __tmux_offload_unlock $log_lock
+            set -l cat_status $status
+            if test $have_lock -eq 1
+                __tmux_offload_unlock $log_lock
+            end
+            if test $cat_status -ne 0
+                echo "tmux-offload: failed to read $log" >&2
+                return 1
+            end
         end
         return 0
     end
@@ -82,16 +107,17 @@ function tmux-offload --description "Bootstrap a full interactive claude session
     set task (string join ' ' -- $task)
     set task (string trim -- $task)
     # tmux send-keys -l writes these bytes into the pane's pty verbatim (that's
-    # what -l means: no keyname interpretation). A task containing raw C0/C1
-    # control or escape bytes could still drive the terminal underneath the
-    # receiving program (title/prompt spoofing, cursor tricks) even though -l
-    # already stops keybinding interpretation. Strip them before use.
-    set task (string replace -ra '[\x00-\x08\x0b-\x1f\x7f]' '' -- $task)
+    # what -l means: no keyname interpretation). Strip them before use.
+    set task (__tmux_offload_strip_controls $task)
     if test -z "$task"
         echo "tmux-offload: task description must not be empty or whitespace-only" >&2
         return 1
     end
 
+    if set -q _flag_dir; and test -z "$_flag_dir"
+        echo "tmux-offload: -d/--dir must not be empty" >&2
+        return 1
+    end
     set -l work_dir $_flag_dir
     if test -z "$work_dir"
         set work_dir (pwd)
@@ -106,19 +132,38 @@ function tmux-offload --description "Bootstrap a full interactive claude session
         return 1
     end
 
+    if set -q _flag_permission_mode; and test -z "$_flag_permission_mode"
+        echo "tmux-offload: -p/--permission-mode must not be empty" >&2
+        return 1
+    end
     set -l perm_mode $_flag_permission_mode
     if not set -q _flag_permission_mode
         set perm_mode acceptEdits
         echo "tmux-offload: no -p/--permission-mode given; defaulting to acceptEdits (auto-approves file edits in the launched session) — pass -p explicitly to silence this" >&2
     end
+    set perm_mode (__tmux_offload_strip_controls $perm_mode)
 
+    if set -q _flag_name; and test -z "$_flag_name"
+        echo "tmux-offload: -n/--name must not be empty" >&2
+        return 1
+    end
     set -l session (tmux display-message -p '#S')
-    set -l win_name $_flag_name
+    set -l win_name ""
+    if set -q _flag_name
+        set win_name (__tmux_offload_strip_controls $_flag_name)
+    end
     if test -z "$win_name"
         set win_name "offload-"(date +%H%M%S)"-"(random 100 999)
     end
 
-    set -l model $_flag_model
+    if set -q _flag_model; and test -z "$_flag_model"
+        echo "tmux-offload: -m/--model must not be empty" >&2
+        return 1
+    end
+    set -l model ""
+    if set -q _flag_model
+        set model (__tmux_offload_strip_controls $_flag_model)
+    end
     set -l claude_args --permission-mode $perm_mode
     if set -q _flag_model
         set -a claude_args --model $model
@@ -241,6 +286,9 @@ function tmux-offload --description "Bootstrap a full interactive claude session
             set -l candidate (basename $new_files[1] .jsonl)
             set -l claims_dir $log_dir/claims
             mkdir -p $claims_dir 2>/dev/null
+            if not chmod 700 $claims_dir 2>/dev/null
+                echo "tmux-offload: could not tighten permissions on $claims_dir" >&2
+            end
             if mkdir $claims_dir/$candidate.claimed 2>/dev/null
                 set session_id $candidate
             end
@@ -259,9 +307,14 @@ function tmux-offload --description "Bootstrap a full interactive claude session
         # predates this logic (or was touched by something else) keeps
         # whatever permissions it already had. Tighten explicitly so the
         # guarantee doesn't depend on creation order.
-        chmod 700 $log_dir 2>/dev/null
+        if not chmod 700 $log_dir 2>/dev/null
+            echo "tmux-offload: could not tighten permissions on $log_dir" >&2
+        end
         set -l log_lock $log_dir/sessions.lock
-        if not __tmux_offload_lock $log_lock 2000
+        set -l have_lock 0
+        if __tmux_offload_lock $log_lock 2000
+            set have_lock 1
+        else
             echo "tmux-offload: could not acquire session log lock; writing without it" >&2
         end
         jq -nc --arg ts (date -u +%Y-%m-%dT%H:%M:%SZ) \
@@ -274,8 +327,12 @@ function tmux-offload --description "Bootstrap a full interactive claude session
             --arg task "$task" \
             '{ts:$ts,target:$target,window_id:$window_id,dir:$dir,model:$model,permission_mode:$mode,session_id:$session_id,task:$task}' >>$log
         or echo "tmux-offload: failed to write session log entry to $log" >&2
-        __tmux_offload_unlock $log_lock
-        chmod 600 $log 2>/dev/null
+        if test $have_lock -eq 1
+            __tmux_offload_unlock $log_lock
+        end
+        if not chmod 600 $log 2>/dev/null
+            echo "tmux-offload: could not tighten permissions on $log" >&2
+        end
     else
         echo "tmux-offload: jq not installed; session not recorded in $log" >&2
     end
