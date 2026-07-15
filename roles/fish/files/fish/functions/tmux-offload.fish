@@ -248,6 +248,11 @@ function tmux-offload --description "Bootstrap a full interactive claude session
     if not mkdir -p $log_dir 2>/dev/null
         echo "tmux-offload: could not create $log_dir; session not recorded" >&2
     else if type -q jq
+        # umask only governs newly-created paths; a directory/file that
+        # predates this logic (or was touched by something else) keeps
+        # whatever permissions it already had. Tighten explicitly so the
+        # guarantee doesn't depend on creation order.
+        chmod 700 $log_dir 2>/dev/null
         set -l log_lock $log_dir/sessions.lock
         if not __tmux_offload_lock $log_lock 2000
             echo "tmux-offload: could not acquire session log lock; writing without it" >&2
@@ -263,6 +268,7 @@ function tmux-offload --description "Bootstrap a full interactive claude session
             '{ts:$ts,target:$target,window_id:$window_id,dir:$dir,model:$model,permission_mode:$mode,session_id:$session_id,task:$task}' >>$log_dir/sessions.jsonl
         or echo "tmux-offload: failed to write session log entry to $log_dir/sessions.jsonl" >&2
         __tmux_offload_unlock $log_lock
+        chmod 600 $log_dir/sessions.jsonl 2>/dev/null
     else
         echo "tmux-offload: jq not installed; session not recorded in $log_dir/sessions.jsonl" >&2
     end
