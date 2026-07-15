@@ -69,6 +69,8 @@ for check in "${bucket_checks[@]}"; do
     if ! grep -qF "$phrase" "$CMDS/$f"; then
       err "$f missing expected bucket-count sentence: \"$phrase\""
     fi
+  else
+    err "$f referenced in bucket_checks but does not exist at $CMDS/$f"
   fi
 done
 # Guard against the retired bucket being reintroduced under wording the
