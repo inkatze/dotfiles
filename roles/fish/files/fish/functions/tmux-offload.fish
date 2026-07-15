@@ -276,38 +276,43 @@ function tmux-offload --description "Bootstrap a full interactive claude session
     # Best-effort session-id discovery: wait for a transcript file to appear
     # that wasn't in the pre-launch snapshot. Ambiguous (more than one new
     # file) or absent just means `--list` won't be able to `--resume` it
-    # later; nothing else depends on it.
+    # later; nothing else depends on it. Skipped entirely without jq: the
+    # discovered id would never be logged (the write below is jq-gated too),
+    # so running it anyway would just leave orphaned claim directories under
+    # $log_dir/claims for a run that can't record sessions in the first place.
     set -l session_id ""
-    set -l waited 0
-    while test $waited -lt 5000
-        set -l after_files
-        if test -d $project_dir
-            set after_files (find $project_dir -maxdepth 1 -name '*.jsonl' 2>/dev/null)
-        end
-        set -l new_files
-        for f in $after_files
-            if not contains -- $f $before_files
-                set -a new_files $f
+    if type -q jq
+        set -l waited 0
+        while test $waited -lt 5000
+            set -l after_files
+            if test -d $project_dir
+                set after_files (find $project_dir -maxdepth 1 -name '*.jsonl' 2>/dev/null)
             end
-        end
-        if test (count $new_files) -eq 1
-            # Claim the transcript atomically before trusting it: a second
-            # tmux-offload racing against this same work_dir could observe
-            # the identical new file and, without this, both invocations
-            # would attribute the same session_id to two different windows.
-            set -l candidate (basename $new_files[1] .jsonl)
-            set -l claims_dir $log_dir/claims
-            mkdir -p $claims_dir 2>/dev/null
-            if not chmod 700 $claims_dir 2>/dev/null
-                echo "tmux-offload: could not tighten permissions on $claims_dir" >&2
+            set -l new_files
+            for f in $after_files
+                if not contains -- $f $before_files
+                    set -a new_files $f
+                end
             end
-            if mkdir $claims_dir/$candidate.claimed 2>/dev/null
-                set session_id $candidate
+            if test (count $new_files) -eq 1
+                # Claim the transcript atomically before trusting it: a second
+                # tmux-offload racing against this same work_dir could observe
+                # the identical new file and, without this, both invocations
+                # would attribute the same session_id to two different windows.
+                set -l candidate (basename $new_files[1] .jsonl)
+                set -l claims_dir $log_dir/claims
+                mkdir -p $claims_dir 2>/dev/null
+                if not chmod 700 $claims_dir 2>/dev/null
+                    echo "tmux-offload: could not tighten permissions on $claims_dir" >&2
+                end
+                if mkdir $claims_dir/$candidate.claimed 2>/dev/null
+                    set session_id $candidate
+                end
+                break
             end
-            break
+            sleep 0.5
+            set waited (math $waited + 500)
         end
-        sleep 0.5
-        set waited (math $waited + 500)
     end
 
     set -l old_umask (umask)

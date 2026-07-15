@@ -98,7 +98,7 @@ For substantial, semi-independent subtasks, prefer offloading to a **separate, f
 
 Use `tmux-offload` (fish function, tracked at `roles/fish/files/fish/functions/tmux-offload.fish`) to launch it:
 
-    tmux-offload [-n name] [-m model] [-p permission-mode] [-d dir] <task description>
+    tmux-offload [-n <name>] [-m <model>] [-p <mode>] [-d <dir>] <task description>
     tmux-offload --list   # show logged offloads: ts, target, window_id, dir, model, mode, session_id, task
 
 This is a **bootstrap only**: it opens a new tmux window (not the active one), starts a real interactive `claude` session in it, and sends the task as its first message. Only that full-success path also logs the launch (including the session ID, best-effort; requires `jq`, and logging is skipped with a stderr warning, not silently, if `jq` isn't installed) to `~/.claude/tmux-offload/sessions.jsonl` (the not-ready and dead-window outcomes below don't log anything). It prints the window's id on success or if it merely hasn't reached its chat UI yet (a tmux window ID like `@21`, immune to name collisions; the `target` field in `--list`'s output is `session:window-name` and can collide, so drive the window via the printed id or the log's `window_id` field, not `target`); if claude exited immediately instead, nothing is printed to stdout, only an error. Omit `-n` and the window name defaults to `offload-HHMMSS-RRR` (launch time plus a random suffix). It deliberately never runs claude headless (claude's own `-p`/`--print` flag, distinct from tmux-offload's own `-p`/`--permission-mode`): headless can't be steered mid-task and gives worse results. **You (the launching/"tower" session) own driving it from there**, using the Bash tool:
