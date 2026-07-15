@@ -168,6 +168,7 @@
     cmd: brew services restart colima
   register: services_colima_restart
   changed_when: "'Successfully' in services_colima_restart.stdout"
+  failed_when: false
   when:
     - inventory_hostname == 'personal'
     - services_colima_inotify is changed
