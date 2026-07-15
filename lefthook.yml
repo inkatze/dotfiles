@@ -13,6 +13,13 @@ pre-commit:
     skill-contracts:
       glob: "roles/osx/files/claude/commands/*.md"
       run: roles/osx/files/claude/scripts/skill-contracts.sh
+    fish-lint:
+      glob: "*.fish"
+      run: |
+        for f in {staged_files}; do
+          fish_indent --check "$f" || exit 1
+          fish -c "source '$f'" || exit 1
+        done
     baseline-plaintext-guard:
       glob: "specs/metrics-baseline/snapshots/baseline-*"
       run: |
