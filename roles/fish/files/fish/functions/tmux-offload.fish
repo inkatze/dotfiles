@@ -154,6 +154,10 @@ function tmux-offload --description "Bootstrap a full interactive claude session
         echo "tmux-offload: no -p/--permission-mode given; defaulting to acceptEdits (auto-approves file edits in the launched session) — pass -p explicitly to silence this" >&2
     end
     set perm_mode (__tmux_offload_strip_controls $perm_mode)
+    if test -z "$perm_mode"
+        echo "tmux-offload: -p/--permission-mode must not consist only of control characters" >&2
+        return 1
+    end
 
     if set -q _flag_name; and test -z "$_flag_name"
         echo "tmux-offload: -n/--name must not be empty" >&2
@@ -175,6 +179,10 @@ function tmux-offload --description "Bootstrap a full interactive claude session
     set -l model ""
     if set -q _flag_model
         set model (__tmux_offload_strip_controls $_flag_model)
+        if test -z "$model"
+            echo "tmux-offload: -m/--model must not consist only of control characters" >&2
+            return 1
+        end
     end
     set -l claude_args --permission-mode $perm_mode
     if set -q _flag_model
@@ -243,7 +251,15 @@ function tmux-offload --description "Bootstrap a full interactive claude session
             set dead 1
             break
         end
-        if test (tmux display-message -p -t $window_id '#{alternate_on}' 2>/dev/null) = 1
+        # Same vanished-window race as the #{pane_dead} check above, but for
+        # a window that disappears between that check and this one: empty
+        # output here means gone, not "not yet in the alternate screen".
+        set -l alternate_on (tmux display-message -p -t $window_id '#{alternate_on}' 2>/dev/null)
+        if test -z "$alternate_on"
+            set dead 1
+            break
+        end
+        if test "$alternate_on" = 1
             set ready 1
             break
         end
