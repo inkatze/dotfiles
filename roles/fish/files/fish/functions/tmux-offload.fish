@@ -24,7 +24,7 @@ end
 # interpretation, not raw control-byte interpretation by the pty. Used on
 # every user-controlled value that ends up in the pty or in --list's output.
 function __tmux_offload_strip_controls --description "Strip C0/C1 control and escape bytes"
-    string replace -ra '[\x00-\x08\x0b-\x1f\x7f-\x9f]' '' -- $argv[1]
+    string replace -ra '[\x00-\x1f\x7f-\x9f]' '' -- $argv[1]
 end
 
 function tmux-offload --description "Bootstrap a full interactive claude session in a new tmux window for this session to drive and manage"
@@ -127,8 +127,20 @@ function tmux-offload --description "Bootstrap a full interactive claude session
         return 1
     end
     set work_dir (realpath $work_dir)
+    if test (count $work_dir) -ne 1
+        echo "tmux-offload: -d resolves to a path containing embedded newlines; refusing to use it" >&2
+        return 1
+    end
     if test -z "$work_dir"
         echo "tmux-offload: failed to resolve a real path for the working directory" >&2
+        return 1
+    end
+    # work_dir ends up in --list's displayed output (the .dir field) and in the
+    # tmux -c argument, the same exposure other user-controlled values get
+    # sanitized for above -- reject rather than silently transform, since a
+    # stripped value could point tmux -c at a directory that no longer exists.
+    if test (__tmux_offload_strip_controls $work_dir) != "$work_dir"
+        echo "tmux-offload: -d resolves to a path containing control characters; refusing to use it" >&2
         return 1
     end
 
