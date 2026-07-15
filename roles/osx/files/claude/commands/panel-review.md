@@ -105,11 +105,11 @@ Diff:
 - **qwen-coder** and **gpt-oss** (Ollama): **prefer the HTTP API** for programmatic invocation. The base URL is read from `OLLAMA_BASE_URL` (set in fish conf.d/ollama.fish on personal/alt hosts to the work host's LAN IP) and falls back to `http://localhost:11434` on the work host itself:
   ```bash
   curl -s "${OLLAMA_BASE_URL:-http://localhost:11434}/api/generate" \
-    -d "$(jq -nR --arg model 'qwen2.5-coder:32b' --rawfile prompt /tmp/panel-review-prompt.txt \
+    -d "$(jq -nR --arg model 'qwen2.5-coder:32b' --rawfile prompt "/tmp/panel-review-prompt.$$.txt" \
       '{model: $model, prompt: $prompt, stream: false}')" \
     | jq -r '.response'
   ```
-  The API returns clean JSON with the response under `.response`. `ollama run <model> "<prompt>"` works as a fallback but emits ANSI escape codes (cursor moves, line clears) intended for an interactive TTY; even when piped, those leak into the output and require post-processing (`sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\r'`). The HTTP API path avoids that entirely.
+  Namespace this prompt file by `$$` (the shell PID), not a fixed name: two concurrent `--nested` runs in different worktrees would otherwise race on the same path, with one run's write landing between the other's write and its `curl` call, scoring the wrong diff. The API returns clean JSON with the response under `.response`. `ollama run <model> "<prompt>"` works as a fallback but emits ANSI escape codes (cursor moves, line clears) intended for an interactive TTY; even when piped, those leak into the output and require post-processing (`sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\r'`). The HTTP API path avoids that entirely.
 - **Wall-clock estimates on M1 Max 32GB** (one model loaded at a time; Ollama swaps when the second is invoked): `qwen-coder:32b` ~5 min, `gpt-oss:20b` ~3 min (smaller, instruction-tuned, no reasoning chain). qwen-coder at ~19 GB and gpt-oss at ~13 GB can't co-reside in unified memory comfortably, so the panel still serializes in practice; gpt-oss swaps in faster than the retired deepseek-r1:32b did.
 - **copilot**: route through `gh copilot` or the chosen Copilot CLI; specifics depend on which CLI variant is current.
 
