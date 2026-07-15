@@ -87,8 +87,9 @@ function tmux-offload --description "Bootstrap a full interactive claude session
     set work_dir (realpath $work_dir)
 
     set -l perm_mode $_flag_permission_mode
-    if test -z "$perm_mode"
+    if not set -q _flag_permission_mode
         set perm_mode acceptEdits
+        echo "tmux-offload: no -p/--permission-mode given; defaulting to acceptEdits (auto-approves file edits in the launched session) — pass -p explicitly to silence this" >&2
     end
 
     set -l session (tmux display-message -p '#S')
