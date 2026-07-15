@@ -71,9 +71,9 @@ function tmux-offload --description "Bootstrap a full interactive claude session
         set win_name "offload-"(date +%H%M%S)"-"(random 100 999)
     end
 
-    set -l claude_args --permission-mode (string escape -- $perm_mode)
+    set -l claude_args --permission-mode $perm_mode
     if set -q _flag_model
-        set -a claude_args --model (string escape -- $_flag_model)
+        set -a claude_args --model $_flag_model
     end
 
     # Snapshot the project's transcript directory before launch so session-id
@@ -92,8 +92,14 @@ function tmux-offload --description "Bootstrap a full interactive claude session
     # Ghost-text (inline autosuggestion) in the input box is visually
     # indistinguishable from real typed input in a plain capture-pane dump,
     # which is exactly what this session polls to drive the child. Disable it.
-    set -l window_id (tmux new-window -d -P -F '#{window_id}' -t $session -n $win_name -c $work_dir \
-        "env CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false claude $claude_args")
+    #
+    # The launch command is passed as discrete argv tokens, never a single
+    # shell-string: tmux execs argv directly with no shell re-parsing, so a
+    # crafted -m/-p value can't inject shell metacharacters regardless of
+    # what default-shell resolves to (it isn't pinned to fish anywhere, and
+    # falls back to whatever $SHELL the tmux server itself started under).
+    set -l window_id (tmux new-window -d -P -F '#{window_id}' -t $session -n $win_name -c $work_dir -- \
+        env CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false claude $claude_args)
 
     if test -z "$window_id"
         echo "tmux-offload: failed to create tmux window" >&2
