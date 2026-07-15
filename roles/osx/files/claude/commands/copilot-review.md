@@ -491,7 +491,7 @@ Do NOT trigger the **No response** stop condition based on this step's HTTP outc
 Reached on Path B after step (g) returns TIMEOUT (Copilot did not re-review the unchanged HEAD). On Path A, (g)'s NEW_REVIEW branch already re-fetches threads and (g)'s TIMEOUT branch triggers **No response**, so this step is Path B-only. Re-fetch reviewThreads (same query as step (a)) and count unresolved Copilot threads:
 
 - **Zero remaining**: success. Exit the loop. Print the iteration summary noting "resolve-only iteration, (g) timed out as expected, all Copilot threads now resolved".
-- **One or more remaining** (rare: a resolve mutation failed again): record this count as `unresolved_after` for step (h)'s diminishing-returns tracking. Check the **Diminishing returns** stop condition (below) before continuing; if it does not fire, increment iteration counter and loop back to step (a). If the same threads remain unresolved across two consecutive iterations, trigger the **Persistent resolve failure** stop condition.
+- **One or more remaining** (rare: a resolve mutation failed again): record this count as `unresolved_after` for step (h)'s diminishing-returns tracking. Check stop conditions in this order, since both can be true in the same iteration and **Persistent resolve failure** is the more specific signal: first, if the same threads remain unresolved across two consecutive iterations, trigger **Persistent resolve failure**. Otherwise, check the **Diminishing returns** stop condition (below); if it does not fire either, increment the iteration counter and loop back to step (a).
 
 #### g. Wait for Copilot's response
 
