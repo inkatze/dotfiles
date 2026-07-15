@@ -1,4 +1,5 @@
 .DS_Store
+.ansible/
 playbook/files
 vars
 group_vars/secrets.yml
