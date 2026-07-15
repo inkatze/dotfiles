@@ -292,4 +292,4 @@ The review workflows above are the convergence layer of a larger spec-driven pip
 - **`mise`**: Runtime version manager for all languages (replaces nvm, rbenv, pyenv).
 - **`age`**: File encryption tool for metrics snapshots under `specs/metrics-baseline/`.
 - **`lefthook`**: Git hooks manager. Pre-commit hooks are defined in `lefthook.yml`.
-- **`jq`**: JSON processor. Used by Ansible to merge `settings.json` into `~/.claude/`.
+- **`jq`**: JSON processor. Used by Ansible to merge `settings.json` into `~/.claude/`, and at runtime by `tmux-offload` for session logging and `--list`.
