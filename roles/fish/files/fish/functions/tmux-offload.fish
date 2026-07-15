@@ -139,8 +139,14 @@ function tmux-offload --description "Bootstrap a full interactive claude session
 
     # remain-on-exit must be set immediately: without it, a claude that exits
     # right away (missing binary, rejected --model/--permission-mode value)
-    # closes the window before we can ever observe that it died.
-    tmux set-option -p -t $window_id remain-on-exit on 2>/dev/null
+    # closes the window before we can ever observe that it died. If setting
+    # it fails, the pane is almost certainly already gone -- treat that the
+    # same as the dead branch below rather than proceeding to poll a window
+    # this session can no longer observe.
+    if not tmux set-option -p -t $window_id remain-on-exit on 2>/dev/null
+        echo "tmux-offload: claude exited immediately in $window_id; task not delivered" >&2
+        return 1
+    end
 
     # Poll for the pane entering the alternate screen, which claude's main
     # chat UI (but not its startup banners or the first-run folder-trust
