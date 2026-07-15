@@ -43,7 +43,21 @@ bucket_checks=(
   "peer-review.md|the validated threads as three tables"
   "copilot-review.md|Three adjacent-findings tables"
 )
-bucket_files="panel-review.md peer-review.md copilot-review.md"
+# Derived from bucket_checks, not hand-maintained, so the Agent-resolvable
+# guard below can never drift out of sync with the files bucket_checks
+# actually covers (a malformed entry is reported by the main loop below;
+# this pass just skips it rather than double-reporting).
+bucket_files=""
+for check in "${bucket_checks[@]}"; do
+  case "$check" in
+    *'|'*) f="${check%%|*}" ;;
+    *) continue ;;
+  esac
+  case " $bucket_files " in
+    *" $f "*) ;;
+    *) bucket_files="$bucket_files $f" ;;
+  esac
+done
 for check in "${bucket_checks[@]}"; do
   case "$check" in
     *'|'*) ;;
