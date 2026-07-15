@@ -1,3 +1,23 @@
+# mkdir is atomic across processes (unlike test -f + touch), which is what
+# makes it safe as a lock primitive for concurrent tmux-offload invocations.
+function __tmux_offload_lock --description "Acquire a mkdir-based lock, retrying until timeout_ms"
+    set -l dir $argv[1]
+    set -l timeout_ms $argv[2]
+    set -l waited 0
+    while not mkdir $dir 2>/dev/null
+        if test $waited -ge $timeout_ms
+            return 1
+        end
+        sleep 0.05
+        set waited (math $waited + 50)
+    end
+    return 0
+end
+
+function __tmux_offload_unlock --description "Release a lock acquired by __tmux_offload_lock"
+    rmdir $argv[1] 2>/dev/null
+end
+
 function tmux-offload --description "Bootstrap a full interactive claude session in a new tmux window for this session to drive and manage"
     argparse 'n/name=' 'm/model=' 'p/permission-mode=' 'd/dir=' l/list -- $argv
     or return 1
@@ -12,8 +32,13 @@ function tmux-offload --description "Bootstrap a full interactive claude session
             echo "tmux-offload: no sessions logged yet" >&2
             return 1
         end
+        set -l log_lock ~/.claude/tmux-offload/sessions.lock
+        if not __tmux_offload_lock $log_lock 2000
+            echo "tmux-offload: could not acquire session log lock; reading without it" >&2
+        end
         if type -q jq
             set -l rows (jq -r '[.ts, .target, .window_id, .model, .permission_mode, .session_id, .task] | @tsv' $log)
+            __tmux_offload_unlock $log_lock
             if test -z "$rows"
                 echo "tmux-offload: no sessions logged yet" >&2
                 return 1
@@ -21,6 +46,7 @@ function tmux-offload --description "Bootstrap a full interactive claude session
             printf '%s\n' $rows | column -t -s \t
         else
             cat $log
+            __tmux_offload_unlock $log_lock
         end
         return 0
     end
@@ -170,7 +196,16 @@ function tmux-offload --description "Bootstrap a full interactive claude session
             end
         end
         if test (count $new_files) -eq 1
-            set session_id (basename $new_files[1] .jsonl)
+            # Claim the transcript atomically before trusting it: a second
+            # tmux-offload racing against this same work_dir could observe
+            # the identical new file and, without this, both invocations
+            # would attribute the same session_id to two different windows.
+            set -l candidate (basename $new_files[1] .jsonl)
+            set -l claims_dir ~/.claude/tmux-offload/claims
+            mkdir -p $claims_dir 2>/dev/null
+            if mkdir $claims_dir/$candidate.claimed 2>/dev/null
+                set session_id $candidate
+            end
             break
         end
         sleep 0.5
@@ -182,6 +217,10 @@ function tmux-offload --description "Bootstrap a full interactive claude session
     umask 077
     mkdir -p $log_dir
     if type -q jq
+        set -l log_lock $log_dir/sessions.lock
+        if not __tmux_offload_lock $log_lock 2000
+            echo "tmux-offload: could not acquire session log lock; writing without it" >&2
+        end
         jq -nc --arg ts (date -u +%Y-%m-%dT%H:%M:%SZ) \
             --arg target "$session:$win_name" \
             --arg window_id $window_id \
@@ -191,6 +230,7 @@ function tmux-offload --description "Bootstrap a full interactive claude session
             --arg session_id "$session_id" \
             --arg task $task \
             '{ts:$ts,target:$target,window_id:$window_id,dir:$dir,model:$model,permission_mode:$mode,session_id:$session_id,task:$task}' >>$log_dir/sessions.jsonl
+        __tmux_offload_unlock $log_lock
     else
         echo "tmux-offload: jq not installed; session not recorded in $log_dir/sessions.jsonl" >&2
     end
