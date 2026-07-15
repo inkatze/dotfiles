@@ -10,7 +10,7 @@ You want a `/self-review` shape but with one or more external models contributin
 - Personal repos (local Ollama models from different lineages: Alibaba's Qwen2.5-Coder, OpenAI's gpt-oss).
 - Any time you want a non-Anthropic angle without paying GitHub Copilot's per-request quota.
 
-For the standard Claude-only review, use `/self-review`. For autonomous looping (review, apply, re-review until convergence, draining only Auto-applicable items) instead of one interactive pass, pass `--nested` — see "Invocation modes" below. `--nested` is also what makes this skill a *nestable* review skill for planwright's `review_sequence` config knob (an ordered list of `--nested`-invocable review skills that `/execute-task`'s convergence phase runs; the default is `[polish]`), so you can add `panel-review` alongside or instead of `/polish --nested` there.
+For the standard Claude-only review, use `/self-review`. For autonomous looping (review, apply, re-review until convergence, draining only Auto-applicable items) instead of one interactive pass, pass `--nested`; see "Invocation modes" below. `--nested` is also what makes this skill a *nestable* review skill for planwright's `review_sequence` config knob (an ordered list of `--nested`-invocable review skills that `/execute-task`'s convergence phase runs; the default is `[polish]`), so you can add `panel-review` alongside or instead of `/polish --nested` there.
 
 ## Invocation modes
 
@@ -102,7 +102,7 @@ Diff:
 
 - **codex**: `codex exec "<prompt>"` (or the equivalent flag set; the CLI may require `--model` or similar). Codex returns text on stdout; capture and parse the table.
 - **gemini**: `gemini -p "<prompt>" -o text` (the `-p` / `--prompt` flag drops the CLI into headless mode; `-o text` keeps stdout free of JSON envelope so the table parser sees the raw markdown). Add `-m <model>` to pin a specific Gemini model (defaults to whatever the CLI considers current). `--approval-mode plan` forces read-only operation. Stdout carries the model response; capture and parse the table.
-- **qwen-coder** and **gpt-oss** (Ollama): **prefer the HTTP API** for programmatic invocation. The base URL is read from `OLLAMA_BASE_URL` (set in fish conf.d/ollama.fish on personal/alt hosts to the work host's LAN IP) and falls back to `http://localhost:11434` on the work host itself. **Write the prompt file and run `curl` in the same `Bash` tool invocation**: the `Bash` tool spawns a fresh shell per call, so `$$` in a later call is a different PID than `$$` in an earlier one — if the write and the read land in separate tool calls, the `--rawfile` path silently points at a file that was never created and `jq` fails.
+- **qwen-coder** and **gpt-oss** (Ollama): **prefer the HTTP API** for programmatic invocation. The base URL is read from `OLLAMA_BASE_URL` (set in fish conf.d/ollama.fish on personal/alt hosts to the work host's LAN IP) and falls back to `http://localhost:11434` on the work host itself. **Write the prompt file and run `curl` in the same `Bash` tool invocation**: the `Bash` tool spawns a fresh shell per call, so `$$` in a later call is a different PID than `$$` in an earlier one; if the write and the read land in separate tool calls, the `--rawfile` path silently points at a file that was never created and `jq` fails.
   ```bash
   prompt_file="/tmp/panel-review-prompt.$$.txt"
   cat > "$prompt_file" <<'PROMPT_EOF'
@@ -217,7 +217,7 @@ For non-testable fixes (formatting, typos in comments, doc adjustments), substit
 
 #### d. Commit
 
-Land the code, then move on. **Do not push** — nested mode is local-only; the invoking skill (or a follow-up standalone `/panel-review` / `/self-review` run) owns publishing the branch.
+Land the code, then move on. **Do not push**; nested mode is local-only, the invoking skill (or a follow-up standalone `/panel-review` / `/self-review` run) owns publishing the branch.
 
 1. `git add` only the files actually changed (never `git add -A`).
 2. Commit with a message of the form `chore(panel): iter N, <short summary>` (e.g., `chore(panel): iter 1, drop unused imports and fix typos`).
@@ -257,7 +257,7 @@ If any condition fires, **stop**. Print the latest tables, name the condition, a
 
 These hold at every step:
 
-- **Never** push, create a PR, or mutate anything in this repo's git remote or its PR. "Local-only" here is scoped to git/PR actions specifically (the same convention `/polish` uses), not to network calls in general: step 2's backend discovery pass does send the diff and tooling output to external services (Codex, Gemini, Copilot, or Ollama over `OLLAMA_BASE_URL`) on every iteration — that egress is real and pre-existing (unchanged from the retired `/panel-pairing`), just not a git/PR mutation. Nested mode converges the branch locally; publishing it is the invoking skill's job (or a follow-up standalone `/panel-review` / `/self-review` run).
+- **Never** push, create a PR, or mutate anything in this repo's git remote or its PR. "Local-only" here is scoped to git/PR actions specifically (the same convention `/polish` uses), not to network calls in general: step 2's backend discovery pass does send the diff and tooling output to external services (Codex, Gemini, Copilot, or Ollama over `OLLAMA_BASE_URL`) on every iteration; that egress is real and pre-existing (unchanged from the retired `/panel-pairing`), just not a git/PR mutation. Nested mode converges the branch locally; publishing it is the invoking skill's job (or a follow-up standalone `/panel-review` / `/self-review` run).
 - **Never** address a Needs sign-off or Needs human judgment item, even if it looks easy. Those are reserved for the post-loop human pass via standalone `/panel-review` or manual fixes.
 - **Never** route a finding to Auto-applicable without a specific rule citation. "I am sure this is a typo" does not qualify; "ruff F401: imported but unused" does. The rule citation must come from the project tooling run in step (a), not from a backend's free-form recommendation.
 - **Never** silently drop a backend that failed in step (a). The user picked the backend set; partial runs hide which variance source went missing.

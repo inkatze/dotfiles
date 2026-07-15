@@ -28,7 +28,7 @@ err() { echo "ERROR: $1"; errors=$((errors + 1)); }
 # panel-review.md carries two anchor sentences, not one, both inside the
 # shared Steps 1-6 pipeline that standalone and --nested both run identically
 # (step 5's "bucket out of three" phrasing and step 6's "three findings
-# tables" phrasing) — neither is nested-only. copilot-review.md carries a
+# tables" phrasing); neither is nested-only. copilot-review.md carries a
 # third, analogous anchor for its own adjacent-findings output ("Three
 # adjacent-findings tables"). All three must independently hold.
 #
