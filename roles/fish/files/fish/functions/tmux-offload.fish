@@ -62,7 +62,7 @@ function tmux-offload --description "Bootstrap a full interactive claude session
     end
 
     if test (count $argv) -eq 0
-        echo "usage: tmux-offload [-n name] [-m model] [-p permission-mode] [-d dir] <task description>" >&2
+        echo "usage: tmux-offload [-n <name>] [-m <model>] [-p <mode>] [-d <dir>] <task description>" >&2
         echo "       tmux-offload --list" >&2
         return 1
     end
