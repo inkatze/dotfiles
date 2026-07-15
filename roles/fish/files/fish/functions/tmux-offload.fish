@@ -111,9 +111,10 @@ function tmux-offload --description "Bootstrap a full interactive claude session
         set win_name "offload-"(date +%H%M%S)"-"(random 100 999)
     end
 
+    set -l model $_flag_model
     set -l claude_args --permission-mode $perm_mode
     if set -q _flag_model
-        set -a claude_args --model $_flag_model
+        set -a claude_args --model $model
     end
 
     # Snapshot the project's transcript directory before launch so session-id
@@ -261,7 +262,7 @@ function tmux-offload --description "Bootstrap a full interactive claude session
             --arg target "$session:$win_name" \
             --arg window_id $window_id \
             --arg dir $work_dir \
-            --arg model "$_flag_model" \
+            --arg model "$model" \
             --arg mode $perm_mode \
             --arg session_id "$session_id" \
             --arg task "$task" \
