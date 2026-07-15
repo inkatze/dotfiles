@@ -85,6 +85,10 @@ function tmux-offload --description "Bootstrap a full interactive claude session
         return 1
     end
     set work_dir (realpath $work_dir)
+    if test -z "$work_dir"
+        echo "tmux-offload: failed to resolve a real path for the working directory" >&2
+        return 1
+    end
 
     set -l perm_mode $_flag_permission_mode
     if not set -q _flag_permission_mode
