@@ -194,6 +194,10 @@ function tmux-offload --description "Bootstrap a full interactive claude session
         return 1
     end
     tmux send-keys -t $window_id Enter
+    or begin
+        echo "tmux-offload: task was typed but not submitted in $window_id -- press Enter manually or inspect with 'tmux capture-pane -p -t $window_id'" >&2
+        return 1
+    end
 
     # Best-effort session-id discovery: wait for a transcript file to appear
     # that wasn't in the pre-launch snapshot. Ambiguous (more than one new
