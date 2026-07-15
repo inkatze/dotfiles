@@ -20,7 +20,10 @@ end
 
 function tmux-offload --description "Bootstrap a full interactive claude session in a new tmux window for this session to drive and manage"
     argparse 'n/name=' 'm/model=' 'p/permission-mode=' 'd/dir=' l/list -- $argv
-    or return 1
+    or begin
+        echo "tmux-offload: if the task description itself contains a hyphen-prefixed word (e.g. \"--verbose\" or \"-5\"), insert a literal -- to stop flag parsing before it: tmux-offload [flags] -- <task description>" >&2
+        return 1
+    end
 
     if set -q _flag_list
         if test (count $argv) -gt 0
