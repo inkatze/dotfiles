@@ -153,7 +153,13 @@ function tmux-offload --description "Bootstrap a full interactive claude session
     set -l dead 0
     set -l waited 0
     while test $waited -lt 15000
-        if test (tmux display-message -p -t $window_id '#{pane_dead}' 2>/dev/null) = 1
+        # tmux display-message doesn't error for a window-id that's gone --
+        # it exits 0 with empty stdout, which would otherwise satisfy
+        # neither `= 1` comparison below and just burn the full timeout.
+        # #{pane_dead} is always "0" or "1" for a window that still exists,
+        # so empty output unambiguously means the window vanished.
+        set -l pane_dead (tmux display-message -p -t $window_id '#{pane_dead}' 2>/dev/null)
+        if test -z "$pane_dead"; or test "$pane_dead" = 1
             set dead 1
             break
         end
