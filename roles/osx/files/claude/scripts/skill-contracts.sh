@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Contract-consistency checker for the dotfiles-local review command files
-# (panel-review, peer-review). Greps them for cross-file invariants that must
-# stay aligned. Runs as a lefthook pre-commit job filtered to
-# roles/osx/files/claude/commands/*.md.
+# (panel-review, peer-review, copilot-review). Greps them for cross-file
+# invariants that must stay aligned. Runs as a lefthook pre-commit job
+# filtered to roles/osx/files/claude/commands/*.md.
 #
 # The spec-driven pipeline skills (orchestrate, execute-task, spec-draft,
 # spec-kickoff, polish, self-review, resume) moved to the planwright plugin,
