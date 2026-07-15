@@ -74,6 +74,12 @@ function tmux-offload --description "Bootstrap a full interactive claude session
     set -l task (string join ' ' -- $argv)
     set task (string join ' ' -- $task)
     set task (string trim -- $task)
+    # tmux send-keys -l writes these bytes into the pane's pty verbatim (that's
+    # what -l means: no keyname interpretation). A task containing raw C0/C1
+    # control or escape bytes could still drive the terminal underneath the
+    # receiving program (title/prompt spoofing, cursor tricks) even though -l
+    # already stops keybinding interpretation. Strip them before use.
+    set task (string replace -ra '[\x00-\x08\x0b-\x1f\x7f]' '' -- $task)
     if test -z "$task"
         echo "tmux-offload: task description must not be empty or whitespace-only" >&2
         return 1
