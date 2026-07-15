@@ -25,17 +25,19 @@ function tmux-offload --description "Bootstrap a full interactive claude session
         return 1
     end
 
+    set -l log_dir ~/.claude/tmux-offload
+    set -l log $log_dir/sessions.jsonl
+
     if set -q _flag_list
         if test (count $argv) -gt 0; or set -q _flag_name; or set -q _flag_model; or set -q _flag_permission_mode; or set -q _flag_dir
             echo "tmux-offload: --list takes no additional arguments or flags" >&2
             return 1
         end
-        set -l log ~/.claude/tmux-offload/sessions.jsonl
         if not test -f $log
             echo "tmux-offload: no sessions logged yet" >&2
             return 1
         end
-        set -l log_lock ~/.claude/tmux-offload/sessions.lock
+        set -l log_lock $log_dir/sessions.lock
         if not __tmux_offload_lock $log_lock 2000
             echo "tmux-offload: could not acquire session log lock; reading without it" >&2
         end
@@ -232,7 +234,7 @@ function tmux-offload --description "Bootstrap a full interactive claude session
             # the identical new file and, without this, both invocations
             # would attribute the same session_id to two different windows.
             set -l candidate (basename $new_files[1] .jsonl)
-            set -l claims_dir ~/.claude/tmux-offload/claims
+            set -l claims_dir $log_dir/claims
             mkdir -p $claims_dir 2>/dev/null
             if mkdir $claims_dir/$candidate.claimed 2>/dev/null
                 set session_id $candidate
@@ -243,7 +245,6 @@ function tmux-offload --description "Bootstrap a full interactive claude session
         set waited (math $waited + 500)
     end
 
-    set -l log_dir ~/.claude/tmux-offload
     set -l old_umask (umask)
     umask 077
     if not mkdir -p $log_dir 2>/dev/null
@@ -266,12 +267,12 @@ function tmux-offload --description "Bootstrap a full interactive claude session
             --arg mode $perm_mode \
             --arg session_id "$session_id" \
             --arg task "$task" \
-            '{ts:$ts,target:$target,window_id:$window_id,dir:$dir,model:$model,permission_mode:$mode,session_id:$session_id,task:$task}' >>$log_dir/sessions.jsonl
-        or echo "tmux-offload: failed to write session log entry to $log_dir/sessions.jsonl" >&2
+            '{ts:$ts,target:$target,window_id:$window_id,dir:$dir,model:$model,permission_mode:$mode,session_id:$session_id,task:$task}' >>$log
+        or echo "tmux-offload: failed to write session log entry to $log" >&2
         __tmux_offload_unlock $log_lock
-        chmod 600 $log_dir/sessions.jsonl 2>/dev/null
+        chmod 600 $log 2>/dev/null
     else
-        echo "tmux-offload: jq not installed; session not recorded in $log_dir/sessions.jsonl" >&2
+        echo "tmux-offload: jq not installed; session not recorded in $log" >&2
     end
     umask $old_umask
 
