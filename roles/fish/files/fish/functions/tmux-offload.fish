@@ -40,7 +40,7 @@ function tmux-offload --description "Bootstrap a full interactive claude session
             echo "tmux-offload: could not acquire session log lock; reading without it" >&2
         end
         if type -q jq
-            set -l rows (jq -r '[.ts, .target, .window_id, .model, .permission_mode, .session_id, .task] | @tsv' $log)
+            set -l rows (jq -r '[.ts, .target, .window_id, .dir, .model, .permission_mode, .session_id, .task] | @tsv' $log)
             __tmux_offload_unlock $log_lock
             if test -z "$rows"
                 echo "tmux-offload: no sessions logged yet" >&2
