@@ -264,7 +264,7 @@ function tmux-offload --description "Bootstrap a full interactive claude session
             --arg model "$_flag_model" \
             --arg mode $perm_mode \
             --arg session_id "$session_id" \
-            --arg task $task \
+            --arg task "$task" \
             '{ts:$ts,target:$target,window_id:$window_id,dir:$dir,model:$model,permission_mode:$mode,session_id:$session_id,task:$task}' >>$log_dir/sessions.jsonl
         or echo "tmux-offload: failed to write session log entry to $log_dir/sessions.jsonl" >&2
         __tmux_offload_unlock $log_lock
