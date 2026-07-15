@@ -43,7 +43,12 @@ function tmux-offload --description "Bootstrap a full interactive claude session
         end
         if type -q jq
             set -l rows (jq -r '[.ts, .target, .window_id, .dir, .model, .permission_mode, .session_id, .task] | @tsv' $log)
+            set -l jq_status $status
             __tmux_offload_unlock $log_lock
+            if test $jq_status -ne 0
+                echo "tmux-offload: $log appears corrupted or unreadable (jq exited $jq_status)" >&2
+                return 1
+            end
             if test -z "$rows"
                 echo "tmux-offload: no sessions logged yet" >&2
                 return 1
