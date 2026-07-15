@@ -150,10 +150,10 @@
   tags: [services, stremio]
 
 - name: Disable colima mountInotify to avoid Gatekeeper verify churn
-  ansible.builtin.replace:
+  ansible.builtin.lineinfile:
     path: "{{ ansible_env.HOME }}/.colima/default/colima.yaml"
     regexp: "^mountInotify:.*$"
-    replace: "mountInotify: false"
+    line: "mountInotify: false"
   register: services_colima_inotify
   when:
     - inventory_hostname == 'personal'
@@ -168,7 +168,6 @@
     cmd: brew services restart colima
   register: services_colima_restart
   changed_when: "'Successfully' in services_colima_restart.stdout"
-  failed_when: false
   when:
     - inventory_hostname == 'personal'
     - services_colima_inotify is changed
