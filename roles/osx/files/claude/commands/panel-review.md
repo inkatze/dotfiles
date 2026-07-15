@@ -1,4 +1,4 @@
-Do a comprehensive code review of the current feature branch using configurable non-Anthropic model backends, so the variance does not come exclusively from this Claude session.
+Do a comprehensive code review of the current feature branch using configurable non-Anthropic model backends, so the variance does not come exclusively from this Claude session. Pass `--nested` to loop autonomously (review, apply, re-review) until convergence instead of running one interactive pass.
 
 Same Discovery + Validation rigor as `/self-review`. The backends provide the discovery angle (different training distributions catch what Claude would miss); validation is grounded locally in this session.
 
@@ -10,9 +10,20 @@ You want a `/self-review` shape but with one or more external models contributin
 - Personal repos (local Ollama models from different lineages: Alibaba's Qwen2.5-Coder, OpenAI's gpt-oss).
 - Any time you want a non-Anthropic angle without paying GitHub Copilot's per-request quota.
 
-For autonomous looping (review, apply, push, re-review until convergence), use `/panel-pairing` instead. For the standard Claude-only review, use `/self-review`.
+For the standard Claude-only review, use `/self-review`. For autonomous looping (review, apply, re-review until convergence, draining only Auto-applicable items) instead of one interactive pass, pass `--nested`; see "Invocation modes" below. `--nested` is also what makes this skill a *nestable* review skill for planwright's `review_sequence` config knob (an ordered list of `--nested`-invocable review skills that `/execute-task`'s convergence phase runs; the default is `[polish]`), so you can add `panel-review` alongside or instead of `/polish --nested` there.
+
+## Invocation modes
+
+Read the literal flag `--nested` from `$ARGUMENTS` at the start of the run.
+
+- **Standalone** (no flag): run "## Steps" once, end to end, including the interactive review workflow (step 7), the documentation check (step 8), and commit + push + PR (step 9). Ends by handing the review to you directly.
+- **Nested** (`--nested`): run "## Nested loop (--nested)" below. It repeats "## Steps" 1-6 (the discovery + validation pipeline) as its per-iteration body, auto-applies only Auto-applicable items, and hands off Needs sign-off / Needs human judgment items when it exits. **Local-only**, same contract as `/polish` and `/self-review --nested`: it never pushes and never creates or touches a PR. The invoking skill (or a standalone `/panel-review` / `/self-review` run afterward) owns publishing the branch.
+
+Record the resolved mode in every iteration summary when nested.
 
 ## Pre-flight (once per run)
+
+Runs identically in both modes.
 
 1. **Identify base branch and capture the diff** (same as `/self-review` step 1).
 2. **(Optional) Jira ticket** (same as `/self-review` step 2).
@@ -44,7 +55,14 @@ For autonomous looping (review, apply, push, re-review until convergence), use `
    - `qwen-coder` / `gpt-oss`: `curl -sf "${OLLAMA_BASE_URL:-http://localhost:11434}/api/tags"` must return a body containing the model name (`qwen2.5-coder:32b` or `gpt-oss:20b`). If the API does not respond, stop with `Ollama service not running; brew services start ollama` (on the work host; on personal/alt the dotfiles fish conf.d/ollama.fish points OLLAMA_BASE_URL at the work host's LAN IP, see dotfiles `CLAUDE.md` "Cross-host Ollama topology"). If the model is missing, stop with `Model not pulled; ollama pull <name>` (the dotfiles Ansible task pulls both on the work host by default; missing means an opt-out or the cross-host route is not configured).
    - `copilot`: `gh copilot --help` must succeed and the account must have quota. Stop if `gh` is not authenticated or `gh copilot` returns a quota-exhausted error.
 
+**Nested-only additions** (run these after the five items above, only when `--nested` was passed):
+
+6. **Initialize iteration counter** = 0.
+7. **Confirm the working tree is clean.** `git status --porcelain` must be empty before the loop starts. Uncommitted changes interfere with per-iteration commit boundaries and make rollback ambiguous. If the tree is dirty, stop and ask the user to commit or stash first.
+
 ## Steps
+
+Steps 1-6 are the shared discovery + validation pipeline; both modes run them identically. Steps 7-9 are standalone-only (the nested loop replaces them with its own categorize/apply/handoff cycle, see "Nested loop" below).
 
 ### 1. Run project tooling once
 
@@ -84,14 +102,18 @@ Diff:
 
 - **codex**: `codex exec "<prompt>"` (or the equivalent flag set; the CLI may require `--model` or similar). Codex returns text on stdout; capture and parse the table.
 - **gemini**: `gemini -p "<prompt>" -o text` (the `-p` / `--prompt` flag drops the CLI into headless mode; `-o text` keeps stdout free of JSON envelope so the table parser sees the raw markdown). Add `-m <model>` to pin a specific Gemini model (defaults to whatever the CLI considers current). `--approval-mode plan` forces read-only operation. Stdout carries the model response; capture and parse the table.
-- **qwen-coder** and **gpt-oss** (Ollama): **prefer the HTTP API** for programmatic invocation. The base URL is read from `OLLAMA_BASE_URL` (set in fish conf.d/ollama.fish on personal/alt hosts to the work host's LAN IP) and falls back to `http://localhost:11434` on the work host itself:
+- **qwen-coder** and **gpt-oss** (Ollama): **prefer the HTTP API** for programmatic invocation. The base URL is read from `OLLAMA_BASE_URL` (set in fish conf.d/ollama.fish on personal/alt hosts to the work host's LAN IP) and falls back to `http://localhost:11434` on the work host itself. **Write the prompt file and run `curl` in the same `Bash` tool invocation**: the `Bash` tool spawns a fresh shell per call, so `$$` in a later call is a different PID than `$$` in an earlier one; if the write and the read land in separate tool calls, the `--rawfile` path silently points at a file that was never created and `jq` fails.
   ```bash
+  prompt_file="/tmp/panel-review-prompt.$$.txt"
+  cat > "$prompt_file" <<'PROMPT_EOF'
+  <the lens-walk prompt, with tooling output and diff appended>
+  PROMPT_EOF
   curl -s "${OLLAMA_BASE_URL:-http://localhost:11434}/api/generate" \
-    -d "$(jq -nR --arg model 'qwen2.5-coder:32b' --rawfile prompt /tmp/panel-review-prompt.txt \
+    -d "$(jq -nR --arg model 'qwen2.5-coder:32b' --rawfile prompt "$prompt_file" \
       '{model: $model, prompt: $prompt, stream: false}')" \
     | jq -r '.response'
   ```
-  The API returns clean JSON with the response under `.response`. `ollama run <model> "<prompt>"` works as a fallback but emits ANSI escape codes (cursor moves, line clears) intended for an interactive TTY; even when piped, those leak into the output and require post-processing (`sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\r'`). The HTTP API path avoids that entirely.
+  Namespace this prompt file by `$$` (the shell PID), not a fixed name: two concurrent `--nested` runs in different worktrees would otherwise race on the same path, with one run's write landing between the other's write and its `curl` call, scoring the wrong diff. The API returns clean JSON with the response under `.response`. `ollama run <model> "<prompt>"` works as a fallback but emits ANSI escape codes (cursor moves, line clears) intended for an interactive TTY; even when piped, those leak into the output and require post-processing (`sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\r'`). The HTTP API path avoids that entirely.
 - **Wall-clock estimates on M1 Max 32GB** (one model loaded at a time; Ollama swaps when the second is invoked): `qwen-coder:32b` ~5 min, `gpt-oss:20b` ~3 min (smaller, instruction-tuned, no reasoning chain). qwen-coder at ~19 GB and gpt-oss at ~13 GB can't co-reside in unified memory comfortably, so the panel still serializes in practice; gpt-oss swaps in faster than the retired deepseek-r1:32b did.
 - **copilot**: route through `gh copilot` or the chosen Copilot CLI; specifics depend on which CLI variant is current.
 
@@ -119,7 +141,7 @@ Apply CLAUDE.md `Validation Rigor (Issue Identification)` in full, locally in th
 - **Pass 2: orthogonal angle.** Callers, related paths, project conventions, sibling implementations, existing test coverage.
 - **Pass 3: outside-in angle.** `git log` / `git blame`, repo-wide search, official docs, library source / tests, deepwiki MCP, GitHub issues, RFCs, web search for text or research-based claims.
 
-Drop or downgrade items where the three passes do not converge. Backends produce findings; validation grounds them. A finding that survives three passes with high confidence routes to Auto-applicable or Needs sign-off per `Finding Categorization`; lower confidence or genuinely ambiguous resolutions route to Needs human judgment.
+Drop or downgrade items where the three passes do not converge. Backends produce findings; validation grounds them. A finding that survives three passes with high confidence routes to Auto-applicable or Needs sign-off per `Finding Categorization`; lower confidence or genuinely ambiguous resolutions route to Needs human judgment. Each finding lands in exactly one bucket out of three: Auto-applicable, Needs sign-off, or Needs human judgment. The four Auto-applicable conditions and the disqualifiers are in CLAUDE.md `Finding Categorization`. Validation Rigor is a hard gate for findings routed to Auto-applicable, since nested mode applies those without asking.
 
 ### 6. Present results
 
@@ -127,7 +149,7 @@ Lens-coverage table from CLAUDE.md `Discovery Rigor (Issue Identification)` firs
 
 Findings tables include a `Backend(s)` column so you can see which model surfaced what. Suggested columns: `# | Lens | File:Line | Finding | Rule cited | Backend(s) | Validation passes | Confidence | Recommendation`. Drop columns that are uniformly empty.
 
-### 7. Follow the standard review workflow
+### 7. Follow the standard review workflow (standalone only)
 
 Per CLAUDE.md `Code & PR Reviews`: ask which mode (a/b/c/d) and apply progress tracking. Option sets are derived from the bucket per `Finding Categorization`:
 
@@ -137,16 +159,138 @@ Per CLAUDE.md `Code & PR Reviews`: ask which mode (a/b/c/d) and apply progress t
 
 When implementing fixes, apply CLAUDE.md `Validation Rigor (Solutions)`: targeted failing test → fix → confirm pass; wider check (project tests, linters, type checkers); edge / integration / manual when relevant. For non-testable changes, substitute review angles and note why no test was added.
 
-### 8. Documentation check
+### 8. Documentation check (standalone only)
 
 Before committing, verify documentation affected by the changes is up to date: docstrings, READMEs, requirements / design docs, task / planning files, configuration docs, any prose referencing changed code. Search the repo for references to changed function names, feature names, or concepts. Include doc issues in the review findings alongside code issues.
 
-### 9. Commit, push, PR
+### 9. Commit, push, PR (standalone only)
 
 After all items are addressed, commit. Then if the review found nothing substantive (or after everything is addressed), offer to push and handle the PR, gracefully reusing an existing one if present (same as `/self-review` step 9, including the push-hook failure handling that forbids `--no-verify`).
 
+## Nested loop (--nested)
+
+Iterate steps 1-6 above autonomously, applying only Auto-applicable items, until none remain. Hand control back when no Auto-applicable items are left to drain (surfacing any Needs sign-off and Needs human judgment items in the final tables) or any safety condition fires. **Local-only**: never pushes, never creates or touches a PR (see "Local-only invariants" below).
+
+### When to use nested mode
+
+You want a hands-off draining pass over `/panel-review`'s findings (review, apply, re-review, repeat) but with non-Anthropic model backends doing the discovery instead of GitHub Copilot, and without babysitting the interactive workflow. Common cases:
+
+- As a planwright `review_sequence` entry, alongside or instead of the default `/polish --nested`.
+- Copilot quota is exhausted for the month and you still want draining-style autonomous cleanup.
+- You want backend variance (different training distributions) without GitHub's per-request billing model.
+- You are starting from a branch with no PR yet and want draining-style cleanup before opening one.
+
+For interactive review of all buckets, run `/panel-review` without `--nested`.
+
+Run "## Pre-flight" items 1-7 above before entering the loop (items 6-7, the iteration counter and clean-tree check, are nested-only and only run when `--nested` was passed).
+
+### Iteration loop
+
+For each iteration (cap = **15**):
+
+**Cap check (run at the start of every iteration, before step (a)).** Read the iteration counter (initialized to 0 in pre-flight; incremented in step (e)). If the counter has reached **15**, do not enter step (a). Trigger the **Iteration cap** stop condition and hand control back. This is the only place the cap is enforced; the increment in (e) does not enforce it itself.
+
+#### a. Generate + validate findings
+
+Run Steps 1-6 above in full: project tooling sweep, parallel backend discovery pass, merge + dedupe, self-critique pass, three-pass Validation Rigor on every finding, categorize + present.
+
+Be more conservative than in standalone mode because nobody is checking the categorization in real time. **When in doubt, route to Needs sign-off or Needs human judgment, never Auto-applicable.** False negatives (a real action-bucket item routed to human) are cheap, costing one extra iteration. False positives (a judgment item auto-applied) silently corrupt the branch.
+
+#### b. Decide loop fate
+
+Branch on the bucket counts from step (a).
+
+- **All three buckets empty.** Success. Exit the loop. Print the final summary noting "panel converged, no findings remain". Do not commit (nothing changed this iteration).
+- **Auto-applicable empty, Needs sign-off or Needs human judgment non-empty.** Stop. Trigger **Human attention required** stop condition. Print the latest tables and hand control back. Do not commit, do not auto-apply anything from the populated buckets.
+- **Auto-applicable non-empty, regardless of the other buckets.** Proceed to step (c). Items in the other buckets are re-evaluated next iteration; the user addresses them after the loop hands off.
+
+#### c. Apply Auto-applicable items (solution validation rigor)
+
+For each Auto-applicable item, apply CLAUDE.md `Validation Rigor (Solutions)` even though the fix is mechanical:
+
+1. **Pre-fix tool run.** Run the cited tool against the file(s) and confirm the rule actually fires on the current code. If it does not (e.g., the rule was already silenced, the file changed since discovery), drop the item and continue. Do not apply a fix for a rule that does not currently fire.
+2. **Apply the fix.**
+3. **Post-fix tool run.** Run the cited tool again against the same file(s) and confirm the rule no longer fires.
+4. **Wider check.** Run the broader project test suite, linters, and type-checkers. Any failure (even a pre-existing one we surface for the first time) triggers the **Test failure** stop condition.
+
+For non-testable fixes (formatting, typos in comments, doc adjustments), substitute review angles per the canonical doctrine in CLAUDE.md.
+
+#### d. Commit
+
+Land the code, then move on. **Do not push**; nested mode is local-only, the invoking skill (or a follow-up standalone `/panel-review` / `/self-review` run) owns publishing the branch.
+
+1. `git add` only the files actually changed (never `git add -A`).
+2. Commit with a message of the form `chore(panel): iter N, <short summary>` (e.g., `chore(panel): iter 1, drop unused imports and fix typos`).
+3. Do **not** amend, squash, or rebase. Each iteration is its own commit so you can inspect and revert per-iteration if needed.
+
+#### e. Iteration summary
+
+Print a short summary:
+
+- Iteration N / cap.
+- Backends invoked + wall-clock per backend (so you can see which were slow / fast).
+- Counts: Auto-applicable applied, Needs sign-off surfaced, Needs human judgment surfaced, dropped at step (c.1) (Auto-applicable rule no longer fires).
+- Files touched.
+- Commit SHA.
+- Test command run + result.
+
+This is what you scroll back through to audit the run. Then increment iteration counter and loop to (a).
+
+### Stop conditions (mandatory human handoff)
+
+If any condition fires, **stop**. Print the latest tables, name the condition, and wait for the user. Do not commit further, do not invoke backends again.
+
+| Condition | Trigger |
+|---|---|
+| **Human attention required** | Step (b) found Needs sign-off or Needs human judgment items and Auto-applicable is empty. The normal path to handoff. |
+| **Test failure** | Any test, linter, type-check, or formatter failed at step (c.4), including pre-existing failures surfaced for the first time. |
+| **Loop detection** | A substantively similar finding (same file, same root issue, regardless of which backend surfaced it) has been raised in two consecutive iterations after the prior iteration applied a fix. Indicates the fix is not actually addressing the underlying issue, or that backends are hallucinating consistent false positives. |
+| **Backend failure** | A backend invocation in step (a) did **not recover**: a final non-zero exit, empty or unparseable output, or auth lost with no successful retry. Judge by the final outcome, not intermediate stderr: do **not** fire on transient quota / rate-limit / retry notices the backend CLI prints while it retries internally and then still returns a valid result. Stop only on a non-recovered failure, rather than silently dropping the backend; the user invoked this skill specifically for that backend's variance. |
+| **Iteration cap** | 15 iterations completed without convergence. |
+| **Ambiguity** | A finding is borderline between buckets and the bright-line conditions cannot be confidently asserted across two consecutive iterations. Hand off rather than guessing. |
+| **Security-sensitive** | Any Auto-applicable candidate touches auth, secrets, crypto, permissions, IAM, SQL/shell construction, or sandbox boundaries. Per the categorization disqualifiers, the item should already be Needs sign-off; if for any reason it landed in Auto-applicable, stop. |
+| **Migrations / data / destructive ops** | Same as above for schema migrations, backfills, deletes, drops, anything irreversible. |
+| **Dirty working tree** | Pre-flight found uncommitted changes. Stop before iteration one. |
+| **High false-positive ratio** | At least 3 items in the iteration AND more than half were dropped at step (c.1) (rule no longer fires). Backends may be misreading the diff or hallucinating tool output. Pause for re-alignment rather than spamming useless commits. |
+
+### Local-only invariants
+
+These hold at every step:
+
+- **Never** push, create a PR, or mutate anything in this repo's git remote or its PR. "Local-only" here is scoped to git/PR actions specifically (the same convention `/polish` uses), not to network calls in general: step 2's backend discovery pass does send the diff and tooling output to external services (Codex, Gemini, Copilot, or Ollama over `OLLAMA_BASE_URL`) on every iteration; that egress is real and pre-existing (unchanged from the retired `/panel-pairing`), just not a git/PR mutation. Nested mode converges the branch locally; publishing it is the invoking skill's job (or a follow-up standalone `/panel-review` / `/self-review` run).
+- **Never** address a Needs sign-off or Needs human judgment item, even if it looks easy. Those are reserved for the post-loop human pass via standalone `/panel-review` or manual fixes.
+- **Never** route a finding to Auto-applicable without a specific rule citation. "I am sure this is a typo" does not qualify; "ruff F401: imported but unused" does. The rule citation must come from the project tooling run in step (a), not from a backend's free-form recommendation.
+- **Never** silently drop a backend that failed in step (a). The user picked the backend set; partial runs hide which variance source went missing.
+- **Never** modify CI configuration, `.env`, secrets, or lockfiles, even on a tool's recommendation.
+- **Never** amend, squash, or rebase commits.
+- **Never** post anything to chat platforms, tickets, or any remote system.
+- **Never** skip step (c.4) (wider test / lint / type-check run). A "simple" fix that breaks an unrelated test is the failure mode this guards against.
+- **Never** trust the iteration counter alone for cap enforcement; verify at the top of the iteration via the explicit cap check.
+
+### After the loop
+
+When the nested loop exits (success, human handoff, or any other stop condition), present any remaining Needs sign-off / Needs human judgment items per the "Handoff presentation" rules below, then hand control back (to the invoking skill if nested-of-a-parent, or directly to the user if run standalone with `--nested`).
+
+#### Handoff presentation
+
+Follow the CLAUDE.md `Code & PR Reviews` workflow rules. Do not default to one-by-one; choose the mode that minimizes human effort:
+
+**Clustered decisions first.** Look for items that share a decision axis: same fix template (e.g., "add missing test coverage"), same lens (all doc nits, all naming nits), same scope (all in one module). When a cluster of 3+ items exists, use clustered-decision mode per CLAUDE.md: one `AskUserQuestion` per cluster with cluster-wide actions. For Needs sign-off clusters: `Apply all / Skip all / Pick individually`. For Needs human judgment clusters: bespoke options reflecting the shared axis. List each cluster's members before the question so the user can spot mis-grouped items.
+
+**Batched decisions for the rest.** Items that don't fit a cluster use batched-decision mode: up to 4 findings per `AskUserQuestion` call, each as its own single-select question. Needs sign-off items get `Apply / Skip / Modify`. Needs human judgment items get bespoke options per finding.
+
+**Progress tracking.** Always show a progress indicator (e.g., `[2/5]` or `cluster [1/2]: 4 findings`) so the user knows their position and what's left.
+
+**Skip the workflow choice prompt.** Unlike standalone `/panel-review`, the nested loop has already done the autonomous work and is handing off a small residual set. Don't ask "how do you want to review these?" when the answer is obvious from the item count and clustering shape. Just present them in the best mode.
+
+The user's next move depends on the exit reason:
+
+- On success ("panel converged, no findings remain"): consider running standalone `/panel-review` or `/self-review` to do a final pass and open a PR.
+- On Human attention required: address the surfaced items (already presented above), then re-run with `--nested` to drain anything new, then open a PR.
+- On Test failure or other safety stops: investigate the named condition. The nested loop does not auto-resume; re-invoke explicitly after the underlying issue is understood.
+
 ## Maintenance
 
-After completing the workflow, check if any part of these instructions seems outdated or misaligned with current tooling: backend CLI command syntax changes (Codex flags, Ollama API), new backend options worth adding, changes to model names / sizes, or drift from `/self-review`'s discovery shape (which this skill mirrors). If something looks off, flag it and offer a ready-to-use prompt to paste into a new dotfiles session to update this command.
+After completing the workflow, check if any part of these instructions seems outdated or misaligned with current tooling: backend CLI command syntax changes (Codex flags, Ollama API), new backend options worth adding, changes to model names / sizes, drift from `/self-review`'s discovery shape (which this skill mirrors), changes to `Finding Categorization` thresholds, or stop-condition gaps revealed by a real nested run. If something looks off, flag it and offer a ready-to-use prompt to paste into a new dotfiles session to update this command.
 
 $ARGUMENTS
