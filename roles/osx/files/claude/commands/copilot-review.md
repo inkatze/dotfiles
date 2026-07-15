@@ -286,7 +286,7 @@ You want a hands-off drain pass with Copilot. The loop: address Copilot's thread
    - Otherwise → `repo_mode = "collaborator"`. Use the explicit re-request POST in step (f).
 4. **Initialize iteration counter** = 0. The loop's per-iteration filter is `isResolved: false` (step (a)), so we don't need to snapshot HEAD or the baseline thread-ID set.
 5. **Bootstrap a first review when the PR has none (zero threads, zero reviews).** Before entering the iteration loop, check the start state. When the PR's `reviewThreads` returns **zero** unresolved Copilot threads (step (a)'s query) **and** `reviews(last: 20)` (from step 3) shows **no** Copilot-authored review at all, the PR is brand-new to Copilot: neither Path A (code changes) nor Path B (already-handled / false-positive threads) has anything to act on, and step (a) has no threads to fetch. Bootstrap one review before the loop starts (bot-login detection for this same no-review state is handled by step 3's "Fallback when no Copilot review is found"; this step closes the loop-entry gap):
-   - **Capture the poll window.** Write the poll-window start epoch and baseline review id exactly as step (e)'s Path A step 2 does (`echo $(( $(date +%s) - 2 )) > /tmp/copilot-review-nested-push-epoch.NUMBER` plus the baseline-id GraphQL block). With no prior Copilot review the baseline file lands empty (the empty string) — step (g)'s poll documents this as the "any non-empty review id passes" case.
+   - **Capture the poll window.** Write the baseline review id and poll-window start epoch exactly as step (e)'s Path A steps 1 and 2 do (the baseline-id GraphQL block, then `echo $(( $(date +%s) - 2 )) > /tmp/copilot-review-nested-push-epoch.NUMBER`). With no prior Copilot review the baseline file lands empty (the empty string) — step (g)'s poll documents this as the "any non-empty review id passes" case.
    - **Request the review.** Run step (f) (mode-aware: `app` mode calls the `request_copilot_review` MCP tool then verifies `reviewRequests.nodes`; `collaborator` mode runs the REST re-request). The **Re-review unavailable** stop condition applies if `app` mode finds no `request_copilot_review` MCP tool, same as in the loop.
    - **Poll for the first review.** Run step (g)'s poll, treating the bootstrap like Path A for (g)'s exit handling (a requested review that must arrive). On **NEW_REVIEW**, fall into the iteration loop at step (a) and process whatever threads the first review produced; if that review carries zero unresolved Copilot threads, the run is an immediate success: print the step (h) summary with `unresolved_before` and `unresolved_after` both `0` (net resolved `0`, since the bootstrap review itself is the only data point and it already converged) and exit. On **TIMEOUT**, fire the **No response** stop condition (the requested review never arrived).
    - **Iteration accounting.** The bootstrap reuses step (g)'s existing counter handling and adds no increment of its own: a clean first review exits with the counter still at 0; a first review with threads takes step (g)'s `NEW_REVIEW` branch, which increments the counter to 1 and loops to step (a) exactly as any review cycle would. The bootstrap therefore never costs a cap slot beyond the review cycle it initiates.
@@ -345,34 +345,38 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
 
 **Path A (code changes were made, the common path):**
 
-1. **Commit and push.**
+1. **Capture the baseline Copilot-review id, then commit and push.**
+   - **Capture the baseline id first, before pushing:**
+     ```bash
+     gh api graphql -f query='
+       query($owner: String!, $repo: String!, $number: Int!) {
+         repository(owner: $owner, name: $repo) {
+           pullRequest(number: $number) {
+             reviews(last: 20) { nodes { id author { login } } }
+           }
+         }
+       }
+     ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER \
+       | jq -r --arg bot 'copilot-pull-request-reviewer' '
+           .data.repository.pullRequest.reviews.nodes
+           | map(select(.author.login == $bot))
+           | last // empty
+           | .id // ""' \
+       > /tmp/copilot-review-nested-baseline-review-id.NUMBER
+     ```
+     (substitute the PR number from pre-flight step 1; substitute the verified bot login from pre-flight step 3 in the `--arg bot ...` flag if it differs from the default, otherwise the baseline file silently lands empty and step (g) loses its disambiguation). Capturing this **before** the push, not after, closes a race: a fast auto-triggered Copilot review landing in the gap between `git push` returning and a post-push baseline query would otherwise be mistaken for pre-existing and excluded, leaving step (g)'s poll waiting for a second review that may never arrive.
    - `git add` only the files we actually changed for this iteration (never `git add -A`).
    - Commit with a message of the form `chore(copilot): iter N, address <short summary>`.
    - Push: `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or any rebase flag. If the push fails on a hook (pre-push test, security check, lefthook stage, etc.), trigger the **Push hook failure** stop condition; do not silently retry, do not bypass with `--no-verify`, and do not "fix" unrelated test flakes inside this branch.
-2. **Capture poll-window start epoch and baseline Copilot-review id** (substitute the PR number from pre-flight step 1; substitute the verified bot login from pre-flight step 3 in the `--arg bot ...` flag if it differs from the default, otherwise the baseline file silently lands empty and step (g) loses its disambiguation):
+2. **Capture poll-window start epoch** (baseline Copilot-review id was already captured in step 1, before the push):
    ```bash
    echo $(( $(date +%s) - 2 )) > /tmp/copilot-review-nested-push-epoch.NUMBER
-   gh api graphql -f query='
-     query($owner: String!, $repo: String!, $number: Int!) {
-       repository(owner: $owner, name: $repo) {
-         pullRequest(number: $number) {
-           reviews(last: 20) { nodes { id author { login } } }
-         }
-       }
-     }
-   ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER \
-     | jq -r --arg bot 'copilot-pull-request-reviewer' '
-         .data.repository.pullRequest.reviews.nodes
-         | map(select(.author.login == $bot))
-         | last // empty
-         | .id // ""' \
-     > /tmp/copilot-review-nested-baseline-review-id.NUMBER
    ```
    The Bash tool spawns a fresh shell per invocation, so plain shell variables will not be visible to the step (g) script. Use the temp files, or inline the literal values into the step (g) script when you send it. Filenames are namespaced by PR number so concurrent nested runs on different PRs (e.g., separate worktrees) do not clobber each other.
 
    We capture two values because step (g) needs both:
-   - **`push_epoch`** (poll-window start, kept under that legacy name in the variable + temp-file path for backward compatibility with existing run-script copies; conceptually it is the lower bound for the (g) poll filter, applicable to both Path A after a push and Path B with no push) drives the 10-minute deadline math. We subtract 2 seconds when writing the file to absorb a sub-second race: jq's `fromdateiso8601` is second-precision, and a fast Copilot review submitted between `git push` returning and our `date +%s` call could land its `submittedAt` one second before `push_epoch` and be falsely filtered out. Two seconds is conservative for plausible clock skew and still keeps the (g) poll's start before any meaningful new-review submission window.
-   - **`baseline_id`** lets the poll match a *new* Copilot review unambiguously even when its `submittedAt` rounds down to the same second as `push_epoch`. Filtering on `submittedAt > push_epoch` alone misses same-second submissions (jq's `fromdateiso8601` is second-precision, and macOS `date` doesn't support sub-second `%N`). Filtering on `id != baseline_id` alone would re-match older Copilot reviews. Combining both (`submittedAt >= push_epoch AND id != baseline_id`) excludes pre-existing reviews and accepts same-second submissions. If there is no prior Copilot review, the baseline file holds the empty string and any non-empty review id passes.
+   - **`push_epoch`** (poll-window start, kept under that legacy name in the variable + temp-file path for backward compatibility with existing run-script copies; conceptually it is the lower bound for the (g) poll filter, applicable to both Path A after a push and Path B with no push) drives the 10-minute deadline math. We subtract 2 seconds when writing the file to absorb a sub-second race: jq's `fromdateiso8601` is second-precision, and a fast Copilot review submitted around the same moment as our `date +%s` call could land its `submittedAt` one second earlier and be falsely filtered out. Two seconds is conservative for plausible clock skew and still keeps the (g) poll's start before any meaningful new-review submission window.
+   - **`baseline_id`** (from step 1, above) lets the poll match a *new* Copilot review unambiguously even when its `submittedAt` rounds down to the same second as `push_epoch`. Filtering on `submittedAt > push_epoch` alone misses same-second submissions (jq's `fromdateiso8601` is second-precision, and macOS `date` doesn't support sub-second `%N`). Filtering on `id != baseline_id` alone would re-match older Copilot reviews. Combining both (`submittedAt >= push_epoch AND id != baseline_id`) excludes pre-existing reviews and accepts same-second submissions. If there is no prior Copilot review, the baseline file holds the empty string and any non-empty review id passes.
 
    **Why `reviews(last: 20)` here, not a narrower window.** A narrower window can drop the most recent Copilot review on long-lived PRs: each `addPullRequestReviewThreadReply` in (e.3) can auto-vivify a separate viewer-authored review (see step (e.4) "Two auto-vivify modes"), and several review-state mutations can stack up between Copilot reviews. With `last: 5`, the most recent Copilot review can fall out of the window, the jq pipeline writes the empty string to the baseline file, and step (g)'s poll then cannot distinguish "new Copilot review submitted at the same second as `push_epoch`" from "no new review at all". `last: 20` keeps the actual baseline visible across realistic clutter. (Pre-flight step 3 uses the same `last: 20` window for the same robustness reason; see its no-Copilot-review fallback for the bootstrap case where this PR has no prior Copilot review at all.)
 3. **Reply to threads** using Steps step 8 mutations above. **Use `addPullRequestReviewThreadReply` only**; see the DO-NOT-USE callout in Steps step 8 above about `addPullRequestReviewComment`. **Body construction: inline bash heredoc, not temp file.** Build the body inside the same `Bash` invocation that runs the GraphQL mutation:
@@ -410,7 +414,7 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
 
 **Path B (no code changes; every thread was `already-handled` or `false positive`):**
 
-1. Skip commit/push (no new HEAD), but still capture the poll-window start epoch (`push_epoch`, using the same `echo $(( $(date +%s) - 2 )) > /tmp/copilot-review-nested-push-epoch.NUMBER` capture from Path A step 2; the variable and temp-file name keep the `push_epoch` / `push-epoch` legacy spelling) and baseline Copilot-review id using the same GraphQL block as Path A step 2. Step (g)'s poll runs on Path B too (see step 5).
+1. Skip commit/push (no new HEAD), but still capture the baseline Copilot-review id using the same GraphQL block as Path A step 1, and the poll-window start epoch (`push_epoch`, using the same `echo $(( $(date +%s) - 2 )) > /tmp/copilot-review-nested-push-epoch.NUMBER` capture from Path A step 2; the variable and temp-file name keep the `push_epoch` / `push-epoch` legacy spelling). Step (g)'s poll runs on Path B too (see step 5).
 2. Post the reply for each thread, varying by classification (use `addPullRequestReviewThreadReply` either way; same DO-NOT-USE callout applies):
    - **`already-handled`**: reply with a short body referencing the prior commit that actually addressed it. Find the commit via `git log "$(gh pr view --json baseRefName -q '.baseRefName')..HEAD" --oneline -- <file>` (scoped to this branch's commits, top entry is the most recent). Do not hardcode `main`: PRs targeting `develop`, `release/*`, or any other base branch would otherwise return wrong or empty commits.
    - **`false positive`**: post the dismissal reply drafted in step (b) (citing the three passes and why the concern does not apply).
@@ -542,7 +546,7 @@ Branch on the script's exit:
 - **Exit 1 (`TIMEOUT`) on Path A**: trigger the **No response** stop condition (Copilot did not review the new code).
 - **Exit 1 (`TIMEOUT`) on Path B**: fall through to step (f.5) for the resolved-thread sanity check; success if zero unresolved. Path B TIMEOUT is the expected outcome when no observable PR-state change triggered Copilot to re-review an unchanged HEAD; the resolves we already landed mean the loop has converged.
 - **Exit 2 (bad input)**: step (e) failed to capture `push_epoch`. Bug in our flow. Stop and surface the script's stderr.
-- **Any other exit code (e.g. 143 from SIGTERM, 137 from SIGKILL/OOM, or any 128+N signal exit from a harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly, reading `push_epoch` and `baseline_id` from the temp files. The recovery query uses `reviews(last: 20)` for the same reason the poll script and step (e.2)'s baseline capture do: viewer-authored auto-vivified reviews and other state churn since the push can stack up, and a narrower window can miss the new Copilot review. (Substitute the verified bot login from pre-flight step 3 in the `--arg bot ...` flag if it differs from the default; same instruction as the poll script.)
+- **Any other exit code (e.g. 143 from SIGTERM, 137 from SIGKILL/OOM, or any 128+N signal exit from a harness session end)**: the script was killed externally; its output is not authoritative. Re-query GraphQL directly, reading `push_epoch` and `baseline_id` from the temp files. The recovery query uses `reviews(last: 20)` for the same reason the poll script and step (e.1)'s baseline capture do: viewer-authored auto-vivified reviews and other state churn since the push can stack up, and a narrower window can miss the new Copilot review. (Substitute the verified bot login from pre-flight step 3 in the `--arg bot ...` flag if it differs from the default; same instruction as the poll script.)
   ```bash
   push_epoch=$(cat /tmp/copilot-review-nested-push-epoch.NUMBER)
   baseline_id=$(cat /tmp/copilot-review-nested-baseline-review-id.NUMBER)
@@ -609,7 +613,7 @@ If any condition fires, **stop**. Print the latest iteration table, name the con
 
 When an iteration's threads split between in-scope (lines this PR introduced or modified) and out-of-scope (pre-existing code the PR does not touch), the **Scope creep** row above is a partial stop, not a full stop. Use this recipe instead of treating the iteration as a hard handoff:
 
-1. **Address the in-scope threads as normal.** Run steps (b) validate, (c) implement, (d) local check, (e.1) commit + push, (e.3) reply, (e.4) submit any pending review, (e.5) resolve. Treat them exactly as you would an iteration with no out-of-scope threads.
+1. **Address the in-scope threads as normal.** Run steps (b) validate, (c) implement, (d) local check, (e.1) capture baseline + commit + push, (e.2) capture poll-window epoch, (e.3) reply, (e.4) submit any pending review, (e.5) resolve. Treat them exactly as you would an iteration with no out-of-scope threads.
 2. **Reply to the out-of-scope threads as adjacent findings.** For each, post a reply via `addPullRequestReviewThreadReply` whose body names: (a) that the lines pre-date this PR's diff (cite the commit or `git blame` evidence), (b) what the proposed fix would be (so the human or a follow-up PR has the design ready), and (c) where the fix should live (separate PR, follow-up issue, or specific file outside the diff). **Do NOT call `resolveReviewThread` on these.** Leaving them unresolved is what hands them to the human as live findings. **After all adjacent replies are posted, re-run the (e.4) pending-review submission guard.** Auto-vivify mode (a) can re-occur on these new replies even after step 1's (e.4) cleared the queue, so query `reviews(states: PENDING)` filtered by `author.login == viewer.login` again, submit each via `submitPullRequestReview(id, event: COMMENT)`, and re-assert zero pending reviews owned by the viewer remain before proceeding to step 3. If a pending review cannot be submitted, stop with the **Pending reply unsubmittable** condition.
 3. **Pause for the human decision; defer (f)/(g) only until they answer.** Do not re-request review *at this moment*: the next move is a human decision (the three-choice prompt below), so polling before they answer would only delay the handoff. This deferral is the **only** documented exception to the "never skip step (g) after a Path-A push" auto-execution invariant, and it covers **only** the pre-decision pause, not the iteration as a whole. Step 1 ran a full Path A commit + push for the in-scope threads, so that pushed code has not yet been re-reviewed by Copilot; whichever option the user picks, the loop must not terminate until a post-push (f) + (g) cycle has confirmed convergence on it (zero unresolved Copilot threads on the latest post-push review, or step (g)'s documented TIMEOUT handling firing). Print the iteration summary table per step (h), with the adjacent-finding count broken out, and ask the user to choose:
    - **(a) Approve fixing in this PR**: resume the loop on the next iteration with the deferred fixes pulled into scope. Pushing the new commit lands via the normal Path A flow, whose (f) + (g) re-reviews both the deferred fixes and step 1's already-pushed in-scope code, so the post-push poll requirement is satisfied by continuation.
