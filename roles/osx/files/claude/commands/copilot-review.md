@@ -370,7 +370,7 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
        }
      ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER > /tmp/copilot-review-nested-baseline-raw.NUMBER \
        || { echo "baseline GraphQL query failed (auth, rate limit, network); stop and diagnose, do not proceed"; exit 1; }
-     jq -re --arg bot 'copilot-pull-request-reviewer' '
+     jq -r --arg bot 'copilot-pull-request-reviewer' '
          .data.repository.pullRequest.reviews.nodes
          | map(select(.author.login == $bot))
          | last // empty
@@ -378,7 +378,7 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
        > /tmp/copilot-review-nested-baseline-review-id.NUMBER \
        || { echo "jq failed to parse the baseline GraphQL response; stop and diagnose, do not proceed"; exit 1; }
      ```
-     (substitute the PR number from pre-flight step 1; substitute the verified bot login from pre-flight step 3 in the `--arg bot ...` flag if it differs from the default, otherwise the baseline file silently lands empty and step (g) loses its disambiguation). **Check the query and jq steps for failure explicitly** (the `||` guards above): the bootstrap path (pre-flight step 5) legitimately produces an empty baseline file when a PR genuinely has no prior Copilot review, so an empty file alone can't distinguish "no prior review" from "the capture itself failed." A failed `gh api` call or a jq parse error must stop the run rather than silently write an empty file that looks identical to the legitimate no-prior-review case. Capturing this **before** the push, not after, closes a race: a fast auto-triggered Copilot review landing in the gap between `git push` returning and a post-push baseline query would otherwise be mistaken for pre-existing and excluded, leaving step (g)'s poll waiting for a second review that may never arrive.
+     (substitute the PR number from pre-flight step 1; substitute the verified bot login from pre-flight step 3 in the `--arg bot ...` flag if it differs from the default, otherwise the baseline file silently lands empty and step (g) loses its disambiguation). **Check the query and jq steps for failure explicitly** (the `||` guards above): the bootstrap path (pre-flight step 5) legitimately produces an empty baseline file when a PR genuinely has no prior Copilot review, so an empty file alone can't distinguish "no prior review" from "the capture itself failed." A failed `gh api` call or a jq parse error must stop the run rather than silently write an empty file that looks identical to the legitimate no-prior-review case. Use plain `jq -r` (not `jq -re`) for this extraction: with no prior Copilot review the `select` yields no output, and `-e` would exit 4 on that empty result and falsely trip the parse-failure guard on the legitimate bootstrap case, whereas `-r` exits 0 (the file lands empty, as intended) while a genuine parse/compile/invalid-JSON error still exits non-zero and fires the guard. Capturing this **before** the push, not after, closes a race: a fast auto-triggered Copilot review landing in the gap between `git push` returning and a post-push baseline query would otherwise be mistaken for pre-existing and excluded, leaving step (g)'s poll waiting for a second review that may never arrive.
    - **Capture the poll-window start epoch here too, before pushing** (not after, as earlier versions of this loop did): the gap between a completed push and a later Bash tool call running `date +%s` is elapsed real time, not just clock skew, and in an LLM-driven, multi-tool-call workflow that gap can plausibly exceed the 2-second buffer below, missing a fast auto-triggered review the same way an after-the-push baseline capture would.
      ```bash
      echo $(( $(date +%s) - 2 )) > /tmp/copilot-review-nested-push-epoch.NUMBER
@@ -537,7 +537,7 @@ while [ $(date +%s) -lt $deadline ]; do
     query($owner: String!, $repo: String!, $number: Int!) {
       repository(owner: $owner, name: $repo) {
         pullRequest(number: $number) {
-          reviews(last: 20) { nodes { id author { login } state submittedAt } }
+          reviews(last: 20) { nodes { id author { login } state submittedAt body } }
         }
       }
     }
@@ -549,6 +549,7 @@ while [ $(date +%s) -lt $deadline ]; do
             and (.id? // "") != $baseline
             and ((.submittedAt? // null) | type) == "string"
             and ((.submittedAt | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) >= $since)
+            and ((.body? // "") | test("encountered an error and was unable to review"; "i") | not)
           ))
         | last // empty')
   if [ -n "$latest" ]; then echo "NEW_REVIEW $latest"; exit 0; fi
@@ -558,6 +559,8 @@ echo "TIMEOUT"; exit 1
 ```
 
 The `.author.login?` / `.id?` / `.submittedAt` guards (null-safe access, plus an explicit `type == "string"` check before `fromdateiso8601`) keep a malformed or partial GraphQL node from crashing the jq pipeline outright; a node that doesn't match the expected shape simply fails the `select` instead of aborting the whole poll iteration.
+
+**Errored reviews do not count as a response.** The `.body` exclusion (`test("encountered an error and was unable to review"; "i") | not`) filters out Copilot's error placeholder — a review it posts as `state: COMMENTED` with an *empty* thread set when its reviewer fails (e.g. a diff too large for it, or a service outage: `"Copilot encountered an error and was unable to review this pull request. You can try again by re-requesting a review."`). Without this filter that placeholder is indistinguishable from a genuine clean pass: same `COMMENTED` state, same new id/timestamp, zero unresolved threads — so the loop would **falsely converge** on a review that never actually happened. Excluding it here means a run where Copilot only ever errors yields no matching review, the poll TIMEOUTs, and Path A fires the **No response** stop condition — handing the call to the human (re-request, wait, or accept Copilot as unavailable for this PR) instead of silently reporting convergence. Verify the review *body*, never just its `state` and thread count.
 
 **Alternative**: `Monitor` the same script with an until-loop if you want streaming progress lines.
 
@@ -578,7 +581,7 @@ Branch on the script's exit:
     query($owner: String!, $repo: String!, $number: Int!) {
       repository(owner: $owner, name: $repo) {
         pullRequest(number: $number) {
-          reviews(last: 20) { nodes { id author { login } state submittedAt } }
+          reviews(last: 20) { nodes { id author { login } state submittedAt body } }
         }
       }
     }
@@ -590,6 +593,7 @@ Branch on the script's exit:
             and (.id? // "") != $baseline
             and ((.submittedAt? // null) | type) == "string"
             and ((.submittedAt | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) >= $since)
+            and ((.body? // "") | test("encountered an error and was unable to review"; "i") | not)
           ))'
   ```
   - **New Copilot review found**: treat as `NEW_REVIEW` and proceed as above.
