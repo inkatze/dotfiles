@@ -17,8 +17,6 @@ set -uo pipefail
 
 label="$(tmux show-option -gqv @dracula-gpu-usage-label 2>/dev/null || true)"
 label="${label:-GPU}"
-rate="$(tmux show-option -gqv status-interval 2>/dev/null || true)"
-rate="${rate:-5}"
 
 reading=""
 if [[ "$(uname -s)" == "Darwin" ]]; then
@@ -64,5 +62,3 @@ elif [[ "$reading" == *:* ]]; then
 else
   printf '%s %s%%\n' "$label" "$reading"
 fi
-
-sleep "$rate"
