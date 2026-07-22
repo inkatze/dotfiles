@@ -1,1 +1,2 @@
 - 2026-07-15 [dotfiles] roles/services/tasks/main.yml manages colimas lifecycle via Ansible (start + restart-on-mountInotify-change) while stremio-watchdog.sh (launchd) independently restarts colima on health failure. The one-time restart introduced by the mountInotify branch can momentarily race the watchdog on first apply; colimas own locks likely serialize it, but the dual-ownership of colimas lifecycle (Ansible + watchdog) is untracked and worth a design note if the stremio/colima lifecycle is ever specced.
+Consumed-by: specs/media-server-cleanup (2026-07-22)
