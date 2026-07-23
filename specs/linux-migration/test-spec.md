@@ -186,11 +186,15 @@ wired ethernet, and reach a full multi-user system over SSH.
 ### REQ-E1.4 — Auto power-on after power loss [manual]
 
 Battery-aware: sustain an AC outage until the battery drains to
-power-off, then restore wall power; the machine boots to the LUKS
-prompt unattended (and is then remotely unlockable per REQ-E1.3). Two
-invalid passes: a wall-cut with a charged battery (the battery bridges
-it; nothing is exercised) and a user-initiated hard power-off with AC
-present (no power-loss event occurs, so autorestart never fires).
+power-off, then restore wall power promptly (no deep-discharge dwell);
+the machine boots to the LUKS prompt unattended (and is then remotely
+unlockable per REQ-E1.3). Two invalid passes: a wall-cut with a
+charged battery (the battery bridges it; nothing is exercised) and a
+user-initiated hard power-off with AC present (no power-loss event
+occurs, so autorestart never fires). Escape hatch: if battery health
+contraindicates the drain (swelling, failing health readout), verify
+the autorestart setting's persistence only and record the untested
+drain path as an accepted residual in the runbook.
 
 ### REQ-E1.5 — Legacy WAN forward retired [manual]
 

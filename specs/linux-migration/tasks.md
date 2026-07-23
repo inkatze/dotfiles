@@ -81,8 +81,9 @@ Task 10's final verification runs last (it depends on 7, 8, and 9).
   entry for the migrated host using machine-local indirection (no LAN
   IP or real hostname committed; the hostname convention feeding fish
   guards and tmux session naming decided and noted); a secret/IP
-  scanner (e.g. gitleaks) added to lefthook as a pre-commit backstop
-  for REQ-F1.1; repo docs updated where they describe the host model:
+  scanner (e.g. gitleaks with custom rules for LAN-IP and hostname
+  patterns, which stock rulesets do not flag) added to lefthook as a
+  pre-commit backstop for REQ-F1.1; repo docs updated where they describe the host model:
   CLAUDE.md (Ansible role layout, and its cross-host Ollama topology
   section), README.md (Linux-host bootstrap entry point), and
   specs/README.md (spec-table row and a tasks.md-format-v2 note).

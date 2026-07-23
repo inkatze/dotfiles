@@ -261,10 +261,12 @@ done-when enumeration.
 Rows 11–14, appended at the sign-off lens pass (2026-07-23):
 
 11. **Evil-maid residual** — No Security boot policy + unencrypted
-    initramfs means physical access can tamper the boot chain; LUKS
-    protects data at rest, not the boot path. **Accepted residual
+    initramfs means physical access can tamper the boot chain or steal
+    the dropbear host key (which would defeat the fingerprint pin);
+    LUKS protects data at rest, not the boot path. **Accepted residual
     risk** (home machine, physical threat model accepted); fingerprint
-    pinning (REQ-B1.7) covers the remote-impersonation slice.
+    pinning (REQ-B1.7) covers network-MITM impersonation without key
+    theft, nothing more.
 12. **Both remote paths down simultaneously** → physical presence is
     the only recovery. **Accepted consequence**, recorded in D-8's
     amendment; mitigation is path independence (router vs host).
@@ -342,8 +344,16 @@ required after one iteration. All 5 were operator-approved as one
 cluster and applied: REQ-F1.2 monitoring-key exemption + corrected
 sshd-fingerprint coverage, Task 10 sshd fingerprint pin, Task 10
 router-VPN fallback hook, Task 4 Ollama-section homing, REQ-E1.4
-hard-power-off alternative removed. Convergence confirmed by a second
-backend iteration (see below). Validator clean after application.
+hard-power-off alternative removed. A second backend iteration over
+the fixed diff returned 5 strictly smaller-bore findings: 1 declined
+(apt-timer verification is gold-plating over the two-clean-runs
+criterion), 4 operator-approved and applied (risk-row-11 pinning
+overclaim corrected, REQ-B1.1 instruction artifact removed, battery
+test given prompt-recharge + health escape hatch, gitleaks custom-rule
+note). Panel concluded at diminishing returns by operator decision:
+prose findings carry no citable tool rule, so the auto-drain bucket is
+structurally unreachable and each further iteration only shrinks
+severity. Validator clean after every application.
 
 **Post-lens stale-reference sweep:** run after the C1–C4 edit set
 (REQ mints and re-scopes: none new in this pass; re-scoped REQ-A1.1,

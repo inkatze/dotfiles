@@ -96,8 +96,8 @@ stacks arrive as their own future specs. *(Cites: the invocation
 
 - **REQ-B1.1** The installed OS version SHALL be chosen from current
   t2linux compatibility guidance at execution time — the latest release
-  with solid T2 support, not model memory — and the system SHALL be
-  fully updated post-install.
+  with solid T2 support, rather than any pre-recorded version
+  assumption — and the system SHALL be fully updated post-install.
   *(Cites: D-1, research: t2linux/T2-Ubuntu releases (Sources).)*
 - **REQ-B1.2** The system SHALL install to and boot from the internal
   SSD with the whole disk allocated to Linux (no macOS partition
