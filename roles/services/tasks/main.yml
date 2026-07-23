@@ -7,116 +7,6 @@
     state: link
   tags: [services]
 
-- name: Create stremio config directory
-  ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.config/stremio-server"
-    state: directory
-    mode: "0755"
-  when: inventory_hostname == 'personal'
-  tags: [services, stremio]
-
-- name: Symlink stremio docker-compose.yml
-  ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/services/files/stremio/docker-compose.yml"
-    dest: "{{ ansible_env.HOME }}/.config/stremio-server/docker-compose.yml"
-    state: link
-  when: inventory_hostname == 'personal'
-  tags: [services, stremio]
-
-- name: Check if keychain is unlocked
-  ansible.builtin.command:
-    cmd: security show-keychain-info {{ ansible_env.HOME }}/Library/Keychains/login.keychain-db
-  register: services_keychain_check
-  failed_when: false
-  changed_when: false
-  when: inventory_hostname == 'personal'
-  tags: [services, stremio]
-
-- name: Prompt for keychain password
-  ansible.builtin.pause:
-    prompt: "Enter keychain password to unlock login keychain"
-    echo: false
-  register: services_keychain_password
-  no_log: true
-  when:
-    - inventory_hostname == 'personal'
-    - services_keychain_check.rc != 0
-  tags: [services, stremio]
-
-- name: Unlock login keychain
-  ansible.builtin.command:
-    cmd: >-
-      security unlock-keychain
-      -p {{ services_keychain_password.user_input }}
-      {{ ansible_env.HOME }}/Library/Keychains/login.keychain-db
-  no_log: true
-  when:
-    - inventory_hostname == 'personal'
-    - services_keychain_check.rc != 0
-  tags: [services, stremio]
-
-- name: Check for 1Password service account token in keychain
-  ansible.builtin.command:
-    cmd: security find-generic-password -a op-service-account -s OP_SERVICE_ACCOUNT_TOKEN -w
-  register: services_op_token
-  failed_when: false
-  changed_when: false
-  no_log: true
-  when: inventory_hostname == 'personal'
-  tags: [services, stremio]
-
-- name: Prompt for 1Password service account token
-  ansible.builtin.pause:
-    prompt: "Enter 1Password service account token (one-time setup)"
-    echo: false
-  register: services_op_token_input
-  no_log: true
-  when:
-    - inventory_hostname == 'personal'
-    - services_op_token.rc != 0
-  tags: [services, stremio]
-
-- name: Store 1Password service account token in keychain
-  ansible.builtin.command:
-    cmd: >-
-      security add-generic-password
-      -a op-service-account
-      -s OP_SERVICE_ACCOUNT_TOKEN
-      -w "{{ services_op_token_input.user_input }}"
-  no_log: true
-  when:
-    - inventory_hostname == 'personal'
-    - services_op_token.rc != 0
-  tags: [services, stremio]
-
-- name: Read 1Password service account token from keychain
-  ansible.builtin.command:
-    cmd: security find-generic-password -a op-service-account -s OP_SERVICE_ACCOUNT_TOKEN -w
-  register: services_op_token
-  no_log: true
-  when: inventory_hostname == 'personal'
-  tags: [services, stremio]
-
-- name: Generate zurg config from 1Password
-  ansible.builtin.command:
-    cmd: >-
-      op inject -f
-      -i "{{ ansible_env.PWD }}/roles/services/files/stremio/zurg-config.yml"
-      -o "{{ ansible_env.HOME }}/.config/stremio-server/zurg-config.yml"
-  environment:
-    OP_SERVICE_ACCOUNT_TOKEN: "{{ services_op_token.stdout }}"
-  when: inventory_hostname == 'personal'
-  changed_when: true
-  no_log: true
-  tags: [services, stremio]
-
-- name: Set zurg config permissions
-  ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.config/stremio-server/zurg-config.yml"
-    mode: "0600"
-  when: inventory_hostname == 'personal'
-  tags: [services, stremio]
-
 - name: Start colima service
   ansible.builtin.command:
     cmd: brew services start colima
@@ -124,7 +14,7 @@
   changed_when: "'Successfully started' in services_colima_result.stdout"
   failed_when: false
   when: inventory_hostname == 'personal'
-  tags: [services, stremio]
+  tags: [services, colima]
 
 - name: Wait for colima to be ready
   ansible.builtin.command:
@@ -134,7 +24,7 @@
   retries: 30
   delay: 2
   when: inventory_hostname == 'personal'
-  tags: [services, stremio]
+  tags: [services, colima]
 
 # colima's default $HOME mount plus mountInotify:true runs a file-event relay
 # over the entire home directory, spawning adhoc-signed limactl ~1/sec. Each
@@ -147,7 +37,7 @@
     path: "{{ ansible_env.HOME }}/.colima/default/colima.yaml"
   register: services_colima_config
   when: inventory_hostname == 'personal'
-  tags: [services, stremio]
+  tags: [services, colima]
 
 - name: Disable colima mountInotify to avoid Gatekeeper verify churn
   ansible.builtin.lineinfile:
@@ -158,7 +48,7 @@
   when:
     - inventory_hostname == 'personal'
     - services_colima_config.stat.exists
-  tags: [services, stremio]
+  tags: [services, colima]
 
 # brew services restart is safe for colima (unlike ollama): colima's formula
 # service block is a bare `colima start -f` with no custom plist keys to lose on
@@ -171,7 +61,7 @@
   when:
     - inventory_hostname == 'personal'
     - services_colima_inotify is changed
-  tags: [services, stremio]
+  tags: [services, colima]
 
 - name: Wait for colima to be ready after restart
   ansible.builtin.command:
@@ -184,47 +74,4 @@
   when:
     - inventory_hostname == 'personal'
     - services_colima_inotify is changed
-  tags: [services, stremio]
-
-- name: Symlink stremio watchdog script
-  ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/services/files/stremio/stremio-watchdog.sh"
-    dest: "{{ ansible_env.HOME }}/.config/stremio-server/stremio-watchdog.sh"
-    state: link
-  when: inventory_hostname == 'personal'
-  tags: [services, stremio]
-
-- name: Make stremio watchdog script executable
-  ansible.builtin.file:
-    path: "{{ ansible_env.PWD }}/roles/services/files/stremio/stremio-watchdog.sh"
-    mode: "0755"
-  when: inventory_hostname == 'personal'
-  tags: [services, stremio]
-
-- name: Template stremio watchdog launchd plist
-  ansible.builtin.template:
-    src: "{{ ansible_env.PWD }}/roles/services/templates/com.inkatze.stremio-watchdog.plist.j2"
-    dest: "{{ ansible_env.HOME }}/Library/LaunchAgents/com.inkatze.stremio-watchdog.plist"
-    mode: "0644"
-  when: inventory_hostname == 'personal'
-  tags: [services, stremio]
-
-- name: Start stremio server
-  ansible.builtin.command:
-    cmd: docker compose up -d
-    chdir: "{{ ansible_env.HOME }}/.config/stremio-server"
-  register: services_stremio_result
-  changed_when: "'Started' in services_stremio_result.stdout or 'Creating' in services_stremio_result.stdout"
-  when: inventory_hostname == 'personal'
-  tags: [services, stremio]
-
-- name: Bootstrap and enable stremio watchdog launchd agent
-  ansible.builtin.command:
-    cmd: >-
-      launchctl bootstrap gui/{{ ansible_user_uid }}
-      {{ ansible_env.HOME }}/Library/LaunchAgents/com.inkatze.stremio-watchdog.plist
-  register: services_watchdog_bootstrap
-  failed_when: services_watchdog_bootstrap.rc not in [0, 5, 37]
-  changed_when: services_watchdog_bootstrap.rc == 0
-  when: inventory_hostname == 'personal'
-  tags: [services, stremio]
+  tags: [services, colima]
