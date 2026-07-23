@@ -58,6 +58,14 @@ staged ordering turns an irreversible act into one preceded by verified
 safeguards, and the wipe step itself stays human-directed (the
 deploy/migration decision-domain rule).
 
+*(Amended at kickoff lens pass 2026-07-23: Startup Security target
+corrected to No Security — Reduced Security still requires an
+Apple-signed OS and cannot boot the installed system; WiFi/BT firmware
+is additionally exported from macOS pre-wipe as an offline fallback for
+the post-install retrieval; the router's legacy WAN port-forward is
+disabled at wipe time so the fresh install is never internet-reachable
+before hardening.)*
+
 ### D-3: LUKS full-disk encryption with dropbear-initramfs remote unlock  (N)
 
 **Decision:** The root filesystem is LUKS-encrypted. Early boot runs
@@ -111,6 +119,8 @@ alongside `roles/osx/`, `os_family`-guarded playbook wiring, and an
 inventory entry for the migrated host. macOS roles stay untouched for
 the remaining Mac hosts. The baseline covers fish, mise, tmux, core CLI
 tooling, SSH server config, and the Tailscale package.
+*(Amended at kickoff 2026-07-22: the baseline also carries the
+1Password CLI (`op`), per REQ-F1.2.)*
 
 **Alternatives considered:**
 - Making `roles/osx/` tasks individually conditional on platform.
@@ -160,8 +170,9 @@ task behind it, and REQ-E1.4 has no other cheap path on this hardware.
 spot: the home router's built-in VPN server is the into-the-LAN door
 (reaches dropbear during early boot, works when the host VPN is down),
 and Tailscale on the host is the day-to-day mesh across the operator's
-devices. The pre-existing WAN-exposed SSH port-forward on the router is
-retired once both paths are verified.
+devices. The router's pre-existing legacy WAN-exposed port-forward is
+disabled at wipe time and permanently retired once both paths are
+verified.
 
 **Alternatives considered:**
 - Tailscale only. Rejected because: the host's Tailscale is not up
@@ -179,7 +190,7 @@ retired once both paths are verified.
 - ZeroTier / NetBird cloud. Rejected because: ZeroTier's layer-2
   custom-protocol model is the wrong shape here; NetBird cloud offers no
   advantage over Tailscale at this scale and loses the Headscale exit.
-- Keep the WAN-exposed SSH forward. Rejected because: continuously
+- Keep the legacy WAN-exposed forward. Rejected because: continuously
   scanned attack surface; both replacement paths strictly dominate it.
 
 **Chosen because:** The 2026 landscape review (Sources) showed managed
@@ -187,6 +198,16 @@ Tailscale is free at this scale with a transparent security record,
 while the router VPN uniquely covers the early-boot and
 host-down cases; together they retire the exposed SSH port with no new
 self-hosted services.
+
+*(Amended at kickoff lens pass 2026-07-23: a minimum protocol bar is
+set for the router VPN (WireGuard- or IKEv2-class; no PPTP/L2TP-PSK,
+REQ-E1.2); the combined-failure state — both access paths down, leaving
+physical presence as the only recovery — is an explicitly accepted
+consequence, mirroring D-3's reboot-wait acceptance; and a fallback
+branch is recorded if the router VPN proves unusable: a
+WireGuard-capable device or Tailscale subnet-router on another LAN host
+becomes the into-the-LAN door before the legacy forward is permanently
+retired.)*
 
 ### D-9: Wired ethernet via adapter for unlock path and server duty  (N)
 
@@ -206,15 +227,21 @@ is the correct default for the always-on role.
 
 ## Cross-cutting concerns
 
-- **Decision-domains walk (2026-07-22).** Domains crossed and where
-  they are decided: deploy/migration strategy (the wipe; human-directed
-  irreversible step, D-2, Task 5), authentication/authorization (SSH
-  key-auth, VPN identity; D-8, REQ-E1.1), secrets & configuration (LUKS
-  keys, dropbear authorized keys, VPN credentials; all live on-machine
-  or in the vault, never in this repo, REQ-F1.1), dependency adoption
-  (t2linux kernel stream, Tailscale, dropbear-initramfs; see below).
-  Domains not crossed: data storage/modeling, caching, queues, API
-  surface, observability infrastructure, versioning.
+- **Decision-domains walk (2026-07-22; updated at kickoff
+  2026-07-23).** Domains crossed and where they are decided:
+  deploy/migration strategy (the wipe; human-directed irreversible
+  step, D-2, Task 5), authentication/authorization (SSH key-auth, VPN
+  identity; D-8, REQ-E1.1), secrets & configuration (all migration
+  secrets live in 1Password, the vault of record per REQ-F1.2, never
+  in this repo; on-machine key files exist only where the mechanism
+  requires them, covered by REQ-B1.7 fingerprint pinning; REQ-F1.1),
+  dependency adoption (t2linux kernel stream, Tailscale,
+  dropbear-initramfs; see below), observability (crossed and decided
+  at kickoff: REQ-E1.6, minimal off-host signal only), concurrency
+  (task-graph serialization decided at kickoff: one physical machine,
+  reboot-bearing tasks execute serially, Task 10 verifies last with a
+  dependency on Task 9). Domains not crossed: data storage/modeling,
+  caching, queues, API surface, versioning.
 - **Dependency adoption notes.** t2linux kernel stream: community-
   maintained third-party kernel binaries — active org, multi-distro
   user base, but a supply-chain trust decision; mitigated by using the
