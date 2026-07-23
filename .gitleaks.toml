@@ -1,0 +1,38 @@
+title = "dotfiles secret / operational-detail scanner"
+
+# REQ-F1.1 pre-commit backstop for specs/linux-migration (Task 4, D-5).
+# Stock gitleaks rules catch credentials but not the operational detail this
+# public repo must keep out of committed artifacts: LAN IPs and internal
+# hostnames. useDefault keeps the credential coverage; the two custom rules
+# below add the LAN-IP and internal-hostname patterns stock rulesets ignore.
+# lefthook runs this in `--staged` mode as a pre-commit hook, so only new
+# staged changes are scanned; existing history is not re-flagged.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "lan-ip-rfc1918"
+description = "RFC1918 private LAN IP address (operational detail, REQ-F1.1)"
+regex = '''\b(?:10\.(?:25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])(?:\.(?:25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])){2}|172\.(?:1[6-9]|2[0-9]|3[01])(?:\.(?:25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])){2}|192\.168(?:\.(?:25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])){2})\b'''
+tags = ["lan-ip", "req-f1.1"]
+
+[[rules]]
+id = "internal-hostname"
+description = "Internal mDNS / private-TLD hostname (operational detail, REQ-F1.1)"
+regex = '''\b[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.(?:local|lan|home|internal|corp)\b'''
+tags = ["hostname", "req-f1.1"]
+
+# Known-intentional values already documented in the repo's own topology.
+# A NEW LAN IP or internal hostname (e.g. the migrated Linux host's) still
+# fires; only these specific, already-committed values are exempt.
+[allowlist]
+description = "Repo's documented topology + existing macOS host aliases"
+regexes = [
+  # Ollama work-host DHCP reservation, documented in CLAUDE.md /
+  # roles/fish/files/ollama.fish (Cross-host Ollama topology).
+  '''192\.168\.1\.20''',
+  # Existing macOS host hostnames referenced by scripts/playbook.sh.
+  '''\bcrojtini(\.local)?\b''',
+  '''\bpanela(\.local)?\b''',
+]

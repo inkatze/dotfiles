@@ -1,5 +1,6 @@
 [tools]
 lefthook = "2.0.4"
+gitleaks = "8.30.0"
 
 [tasks.lint]
 description = "Run all linters (yamllint, ansible-lint, syntax-check)"
