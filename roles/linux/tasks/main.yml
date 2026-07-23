@@ -1,0 +1,31 @@
+---
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+  tags: [linux]
+
+- name: Install baseline apt packages
+  ansible.builtin.apt:
+    name: "{{ linux_apt_packages }}"
+    state: present
+  become: true
+  tags: [linux]
+
+- name: Install mise runtime manager
+  ansible.builtin.include_tasks: mise.yml
+  tags: [linux]
+
+- name: Configure OpenSSH server
+  ansible.builtin.include_tasks: ssh-server.yml
+  tags: [linux, ssh]
+
+- name: Install Tailscale
+  ansible.builtin.include_tasks: tailscale.yml
+  tags: [linux]
+
+- name: Install 1Password CLI
+  ansible.builtin.include_tasks: onepassword.yml
+  tags: [linux]
