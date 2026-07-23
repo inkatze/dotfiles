@@ -277,3 +277,18 @@ Validator after edits: 0 errors, 0 warnings.
 Class: expression-only
 Anchor: `4516a474f25bde6e53d3379b300e54075fe8e40d` — computed as
 `scripts/spec-anchor.sh specs/media-server-cleanup`
+
+### Amendment 2 — 2026-07-22 · panel iteration 2, guard-sync re-anchor
+
+Two straggler syncs of Amendment 1's quit-Stremio guard to its sibling
+surfaces, operator-approved: D-1 step 4 and REQ-B1.5 now state the guard
+Task 2 carries. Two further iteration-2 findings declined: pgrep-style
+process-exit checks for Plex/Stremio in test-spec (the launchctl checks
+already catch a running server; validation passes did not converge on a
+durable gap). Cites: the `requirements.md` Changelog entry dated
+2026-07-22 ("Panel review iteration 2"). Validator after edits: 0 errors,
+0 warnings.
+
+Class: expression-only
+Anchor: `e210d8a474a56e454eed9b98d451eaf0f267f8e7` — computed as
+`scripts/spec-anchor.sh specs/media-server-cleanup`

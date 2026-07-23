@@ -97,7 +97,8 @@ All REQ-B requirements apply to the personal host the stack runs on.
   application data zapped, including the Plex library under
   `~/Library/Application Support/`. *(Cites: D-1, D-4.)*
 - **REQ-B1.5** The installed-but-untracked Stremio cask SHALL be
-  uninstalled with its application data zapped. *(Cites: D-4.)*
+  uninstalled with its application data zapped, quitting the app first if
+  running. *(Cites: D-4.)*
 - **REQ-B1.6** The `OP_SERVICE_ACCOUNT_TOKEN` generic-password keychain
   entry SHALL be deleted. *(Cites: D-1.)*
 - **REQ-B1.7** colima, the docker tooling, and non-media containers (the
@@ -162,6 +163,9 @@ All REQ-B requirements apply to the personal host the stack runs on.
   sweep scoped to known leftover `~/Library` paths with D-4's manual
   residual sweep at Task 3 verification; a quit-Stremio-if-running guard
   before the cask zap, symmetric with the Plex stop-verify.
+- 2026-07-22 — Panel review iteration 2 (expression-only): the
+  quit-Stremio guard synced to its sibling surfaces — D-1 step 4 and
+  REQ-B1.5 — so REQ, decision, and task state the same guard.
 
 ## Sources
 

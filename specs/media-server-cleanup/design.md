@@ -17,8 +17,9 @@ in-flight watchdog invocation to exit, and remove its plist and logs;
 (2) stop and remove the containers — `autoheal` first (it is itself a
 recovery layer), then `stremio-server` and `zurg` — and delete their
 volumes; (3) remove `~/.config/stremio-server/`; (4) stop
-Plex (the `tv.plex.player-helper` launchd agent, then the server), verify
-the processes have exited, and uninstall the Plex casks and the untracked
+Plex (the `tv.plex.player-helper` launchd agent, then the server), quit
+Stremio if running, verify the processes have exited, and uninstall the
+Plex casks and the untracked
 Stremio cask; (5) remove leftover application data; (6) delete the
 `OP_SERVICE_ACCOUNT_TOKEN` keychain entry last.
 *(Amended at kickoff lens pass 2026-07-22: autoheal ordered first within
