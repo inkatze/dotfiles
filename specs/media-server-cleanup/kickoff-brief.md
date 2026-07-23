@@ -261,3 +261,19 @@ Anchor: `4c20daf294453eb99997fe2ba85a4dd696cc034e` — computed as
 ## 9. Amendment log
 
 (none yet)
+
+### Amendment 1 — 2026-07-22 · panel-review expression-only re-anchor
+
+Three Task 2 wording gap-fills from `/panel-review --nested` (gemini
+backend), operator-approved one by one: `docker stop` + `docker rm`
+(aligning the deliverable sketch with D-1's stop-and-remove); the script's
+sweep scoped to known leftover `~/Library` paths with D-4's manual
+residual sweep staying at Task 3 verification; a quit-Stremio-if-running
+guard before the cask zap, symmetric with the Plex stop-verify. No
+decision contradicted, no REQ meaning altered. Cites: the
+`requirements.md` Changelog entry dated 2026-07-22 ("Panel review").
+Validator after edits: 0 errors, 0 warnings.
+
+Class: expression-only
+Anchor: `4516a474f25bde6e53d3379b300e54075fe8e40d` — computed as
+`scripts/spec-anchor.sh specs/media-server-cleanup`

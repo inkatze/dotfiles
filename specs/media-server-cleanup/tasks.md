@@ -28,13 +28,15 @@
 
 - **Deliverables:** an idempotent `scripts/teardown-media-server.sh`
   implementing the D-1 order (watchdog bootout by label + in-flight
-  invocation drain + plist/log removal → direct `docker rm` of `autoheal`
-  first, then `stremio-server` and `zurg`, and `docker volume rm` of
+  invocation drain + plist/log removal → `docker stop` + `docker rm` of
+  `autoheal` first, then `stremio-server` and `zurg`, and
+  `docker volume rm` of
   `stremio-server_stremio-data` and `stremio-server_zurg-data` →
   `~/.config/stremio-server/` removal → Plex helper bootout
-  (`tv.plex.player-helper`) and server stop, verified exited →
-  `brew uninstall --zap` of the Plex and Stremio casks →
-  leftover `~/Library` sweep → keychain entry deletion), every step a
+  (`tv.plex.player-helper`) and server stop, verified exited → quit
+  Stremio if running, then `brew uninstall --zap` of the Plex and Stremio
+  casks → sweep of known leftover `~/Library` paths (D-4's manual residual
+  sweep remains at Task 3 verification) → keychain entry deletion), every step a
   guarded no-op when its target is already absent, with guards that
   distinguish "target absent" from "cannot determine" (docker steps abort
   when the daemon is unreachable rather than skipping), no dependence on

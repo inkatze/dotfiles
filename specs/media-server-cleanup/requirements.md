@@ -156,6 +156,12 @@ All REQ-B requirements apply to the personal host the stack runs on.
   A1.4 guard/tag, B1.7 running, C1.2 Task-3 checkpoint, D1.1 absence
   clause, intro tag accounting); out-of-scope lists synced; design.md
   cross-cutting domain accounting aligned with the kickoff gap check.
+- 2026-07-22 — Panel review (`/panel-review --nested`, gemini backend),
+  three expression-only Task 2 gap-fills, operator-approved: `docker
+  stop` + `docker rm` (matching D-1's stop-and-remove); the script's
+  sweep scoped to known leftover `~/Library` paths with D-4's manual
+  residual sweep at Task 3 verification; a quit-Stremio-if-running guard
+  before the cask zap, symmetric with the Plex stop-verify.
 
 ## Sources
 
