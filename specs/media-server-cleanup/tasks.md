@@ -1,6 +1,6 @@
 # Media Server Cleanup — Tasks
 
-**Status:** Draft
+**Status:** Ready
 **Last reviewed:** 2026-07-22
 **Format-version:** 2
 **Execution:** derived — see the status render
@@ -16,8 +16,8 @@
   deleted; `[tasks.stremio]` removed from `mise.toml`; the three Plex
   casks removed from `Brewfile.personal`.
 - **Done when:** `yamllint` and `ansible-lint` pass; a repo-wide search
-  for stremio/zurg/plex matches nothing outside `specs/` and
-  `resign-ipa.fish`; the colima tasks run under
+  for stremio/zurg/plex/autoheal/watchdog matches nothing outside `specs/`
+  and `resign-ipa.fish`; the colima tasks run under
   `./scripts/playbook.sh -t colima`.
 - **Dependencies:** none
 - **Citations:** D-2, D-3 · REQ-A1.1, REQ-A1.2, REQ-A1.3, REQ-A1.4,
@@ -27,24 +27,32 @@
 ### Task 2 — Author the teardown script
 
 - **Deliverables:** an idempotent `scripts/teardown-media-server.sh`
-  implementing the D-1 order (watchdog bootout + plist/log removal →
-  direct `docker rm`/`docker volume rm` of the media containers and
-  volumes → `~/.config/stremio-server/` removal → Plex helper bootout and
-  server stop → `brew uninstall --zap` of the Plex and Stremio casks →
+  implementing the D-1 order (watchdog bootout by label + in-flight
+  invocation drain + plist/log removal → direct `docker rm` of `autoheal`
+  first, then `stremio-server` and `zurg`, and `docker volume rm` of
+  `stremio-server_stremio-data` and `stremio-server_zurg-data` →
+  `~/.config/stremio-server/` removal → Plex helper bootout
+  (`tv.plex.player-helper`) and server stop, verified exited →
+  `brew uninstall --zap` of the Plex and Stremio casks →
   leftover `~/Library` sweep → keychain entry deletion), every step a
-  guarded no-op when its target is already absent, no dependence on
+  guarded no-op when its target is already absent, with guards that
+  distinguish "target absent" from "cannot determine" (docker steps abort
+  when the daemon is unreachable rather than skipping), no dependence on
   repo-tracked files (D-2 consequence), and colima plus non-media
   containers untouched.
-- **Done when:** script review is clean; each step verified to no-op when
-  its target is absent; no secret material appears in the script.
+- **Done when:** script review is clean; each step's absent-target guard
+  is reviewed (the absent path is exercised by Task 3's REQ-D1.2
+  double-run); no secret material appears in the script.
 - **Dependencies:** none
 - **Citations:** D-1, D-2, D-4, D-5 · REQ-B1.1, REQ-B1.2, REQ-B1.3,
-  REQ-B1.4, REQ-B1.5, REQ-B1.6, REQ-C1.2, REQ-D1.2
+  REQ-B1.4, REQ-B1.5, REQ-B1.6, REQ-B1.7, REQ-C1.2, REQ-D1.2
 - **Estimated effort:** half day
 
 ### Task 3 — Execute the teardown on the personal host and verify
 
-- **Deliverables:** the teardown executed on the personal host; the
+- **Deliverables:** the teardown executed on the personal host, with the
+  host checkout synced past Task 1's merge and no concurrent playbook or
+  mise run during execution (D-2); the
   verification checklist from `test-spec.md` completed and its results
   recorded in the task PR (no media containers/volumes/launchd
   agents/apps/data/keychain entry; colima and the Firebird dev container
@@ -61,11 +69,14 @@
 
 - **Deliverables:** the 1Password service account whose only consumer was
   the media stack revoked/deleted by the human in the 1Password admin
-  surface; the revocation noted in the task record.
-- **Done when:** the human confirms the service account no longer exists;
-  the Real-Debrid vault item itself is untouched.
+  surface; the Real-Debrid API token regenerated in the Real-Debrid
+  dashboard and the vault item's value updated in place (REQ-C1.3); the
+  revocation and rotation noted in the task record.
+- **Done when:** the human confirms the service account no longer exists
+  and the Real-Debrid token has been regenerated; the Real-Debrid vault
+  item itself is retained (value updated, item not deleted).
 - **Dependencies:** 3
-- **Citations:** REQ-C1.1
+- **Citations:** REQ-C1.1, REQ-C1.3
 - **Estimated effort:** half day
 
 ### Task 5 — Remove the teardown script and close out
@@ -93,5 +104,7 @@
 - Transmission, VLC, Infuse, `resign-ipa.fish`, `my.cnf`, and the
   colima/docker runtime: excluded per the Scope section of
   `requirements.md`.
+- Deletion of the Real-Debrid vault item: the item stays; only its token
+  value is regenerated per REQ-C1.3 (Task 4).
 - The future media-server re-add design: a separate spec, which should
   cite this bundle and obs:552c0512's resolution.

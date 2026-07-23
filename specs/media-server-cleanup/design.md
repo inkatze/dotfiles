@@ -1,6 +1,6 @@
 # Media Server Cleanup — Design
 
-**Status:** Draft
+**Status:** Ready
 **Last reviewed:** 2026-07-22
 **Format-version:** 2
 **Execution:** derived — see the status render
@@ -12,25 +12,36 @@ Origin tags: `N` = new decision, minted in the 2026-07-22 drafting session.
 ### D-1: Teardown ordering — supervisors before services  (N)
 
 **Decision:** The machine teardown proceeds in this order: (1) bootout the
-`com.inkatze.stremio-watchdog` launchd agent and remove its plist and logs;
-(2) stop and remove the `stremio-server`, `zurg`, and `autoheal` containers
-and delete their volumes; (3) remove `~/.config/stremio-server/`; (4) stop
-Plex (helper launchd agent, then the server) and uninstall the Plex casks;
-(5) remove leftover application data; (6) delete the
+`com.inkatze.stremio-watchdog` launchd agent by label, wait for any
+in-flight watchdog invocation to exit, and remove its plist and logs;
+(2) stop and remove the containers — `autoheal` first (it is itself a
+recovery layer), then `stremio-server` and `zurg` — and delete their
+volumes; (3) remove `~/.config/stremio-server/`; (4) stop
+Plex (the `tv.plex.player-helper` launchd agent, then the server), verify
+the processes have exited, and uninstall the Plex casks and the untracked
+Stremio cask; (5) remove leftover application data; (6) delete the
 `OP_SERVICE_ACCOUNT_TOKEN` keychain entry last.
+*(Amended at kickoff lens pass 2026-07-22: autoheal ordered first within
+step 2, watchdog drain and Plex-stop verification added, Stremio cask
+placed in step 4.)*
 
 **Alternatives considered:**
 - Arbitrary-order checklist. Rejected because: the watchdog restarts
   unresponsive containers (and colima itself) every 5 minutes, and
   autoheal restarts unhealthy containers — tearing services down under a
   live supervisor races the supervisor's recovery loop.
-- Keychain entry first. Rejected because: deleting the credential before
-  the services are gone gains nothing and removes the ability to re-render
-  config if the teardown has to be aborted midway.
+- Keychain entry first. Rejected because: deleting the credential earlier
+  gains nothing; the independent, non-destructive step stays last to keep
+  the ordering simple. (The original re-render-on-abort rationale is void
+  after D-2: once Task 1 lands, the repo templates a re-render would need
+  are already gone.)
 
 **Chosen because:** disabling the recovery layers first makes every later
-step race-free, and deleting the credential last keeps the teardown
-abortable until the destructive steps are done.
+step race-free, and deleting the credential last keeps the one
+non-destructive, order-independent step out of the way of the destructive
+sequence. *(Amended at kickoff lens pass 2026-07-22: the earlier
+"abortable until the destructive steps are done" claim was stale — D-2
+removes the re-render capability the abort window would have protected.)*
 
 ### D-2: Repo untracking lands before the machine teardown executes  (N)
 
@@ -123,10 +134,14 @@ verified execution keeps the repo free of dead tooling.
   1Password service-account revocation) and *Data storage* (irreversible
   deletion of the Plex library and Docker volumes) were escalated to the
   human during elicitation and resolved as recorded in the requirements
-  (full teardown; revocation as a manual task). No other catalog domain is
-  touched: no auth, API surface, caching, queueing, observability,
-  deploy/migration, dependency-adoption, or versioning decision arises
-  from a removal.
+  (full teardown; revocation as a manual task). *Concurrency* (the
+  supervisor race) is decided by D-1's ordering; *Deploy & migration*
+  (the non-atomic, irreversible rollout) by D-2's ordering plus D-5's
+  script with human-directed execution; the mise-task edge of *API
+  surface* by REQ-A1.2. No other catalog domain is touched: no auth,
+  caching, queueing, observability, dependency-adoption, or versioning
+  decision arises from a removal. *(Amended at kickoff lens pass
+  2026-07-22: domain accounting aligned with the kickoff gap check.)*
 - **Data hygiene:** no artifact of this spec repeats credential values,
   the rendered zurg config's contents, or LAN addresses; references name
   the item, never its value (REQ-C1.2).

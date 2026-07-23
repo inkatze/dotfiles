@@ -1,0 +1,1 @@
+- 2026-07-22 [dotfiles] planwright resolve-catalog.sh decision-domains exits 0 with empty stdout when no overlay exists; the kickoff gap check expected a merged catalog path or content. Worth confirming intended contract in planwright.
