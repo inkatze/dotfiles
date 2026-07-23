@@ -1,7 +1,7 @@
 # Linux Migration — Design
 
-**Status:** Draft
-**Last reviewed:** 2026-07-22
+**Status:** Ready
+**Last reviewed:** 2026-07-23
 **Format-version:** 2
 **Execution:** derived — see the status render
 

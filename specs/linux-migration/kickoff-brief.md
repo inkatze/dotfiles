@@ -362,4 +362,37 @@ for the old wordings ("reduced security", "SSH port-forward",
 single-destination backup phrasing, "B1.3 through B1.6" ranges,
 Task 10 dependency lists); brief sections 2, 3, 5, 6, 7 reconciled
 above in place (this being the pre-sign-off window, sections are not
-yet append-only).
+yet append-only). Re-run after the panel edits: clean.
+
+### Pre-flip verification
+
+- **Lint:** the repository's lint surface (lefthook: yamllint,
+  ansible-lint, syntax-check) has no markdown-applicable hooks; every
+  commit of this run passed it. No markdown linter is configured; the
+  bundle's operative lint is `spec-validate`, clean (0 errors,
+  0 warnings) after every edit and at the Ready flip.
+- **Recorded-claim re-derivation:** the §6 critical path re-derives
+  identically via `scripts/spec-graph.sh` (crit: 2 3 5 6 7 10,
+  unchanged by the Task 10 dependency addition); the §7 "11 seed
+  domains" figure re-derives from the resolved catalog; REQ↔test-spec
+  coverage is validator-enforced. Other figures are cited, not copied,
+  per the meta-spec's cite-derived-figures rule.
+- **Validator at Ready:** 0 errors, 0 warnings.
+
+### Sign-off record
+
+First activation sign-off, approved by the operator 2026-07-23 after
+the shared-understanding approval summary. Status flipped Draft→Ready
+and `Last reviewed:` bumped to 2026-07-23 on all four spec files.
+Walkthrough scope: full bundle (sections 2–7 signed 2026-07-22 –
+2026-07-23). Verification: full-bundle nine-lens fan-out (this
+section) plus an operator-directed `/panel-review --nested` pass
+(Gemini backend, two iterations), every finding dispositioned; no
+inconsistency halt; no carried open questions.
+
+Class: meaning
+Lens-pass: §8 "Discovery-Rigor lens review" above (full-bundle
+fan-out, 2026-07-23, all findings dispositioned; mid-walk delta passes
+recorded in §3 and §7)
+Anchor: `42f4a48e496d7b7ee4beb51ed5a02218557cf705` — computed as
+`scripts/spec-anchor.sh specs/linux-migration`
