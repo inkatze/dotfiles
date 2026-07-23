@@ -1,0 +1,19 @@
+---
+
+# Baseline apt packages for the Linux platform (specs/linux-migration, D-5):
+# fish, tmux, core CLI tooling, and the OpenSSH server. mise, Tailscale, and
+# the 1Password CLI have their own repo-backed install task files.
+linux_apt_packages:
+  - fish
+  - tmux
+  - git
+  - curl
+  - wget
+  - unzip
+  - ca-certificates
+  - gnupg
+  - build-essential
+  - openssh-server
+
+# sshd hardening drop-in filename (REQ-E1.1: key-only auth, no root login).
+linux_ssh_hardening_dropin: 60-hardening.conf
