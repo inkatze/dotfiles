@@ -23,16 +23,16 @@ description = "Internal mDNS / private-TLD hostname (operational detail, REQ-F1.
 regex = '''\b[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.(?:local|lan|home|internal|corp)\b'''
 tags = ["hostname", "req-f1.1"]
 
-# Known-intentional values already documented in the repo's own topology.
+# Known-intentional value already documented in the repo's own topology.
 # A NEW LAN IP or internal hostname (e.g. the migrated Linux host's) still
-# fires; only these specific, already-committed values are exempt.
+# fires; only this specific, already-committed value is exempt. Real machine
+# hostnames are deliberately NOT allowlisted: the internal-hostname rule only
+# matches dotted `.local`-style names, and allowlisting a real `<host>.local`
+# would defeat the REQ-F1.1 backstop for exactly the value it must catch.
 [allowlist]
-description = "Repo's documented topology + existing macOS host aliases"
+description = "Repo's documented Ollama work-host reservation"
 regexes = [
   # Ollama work-host DHCP reservation, documented in CLAUDE.md /
   # roles/fish/files/ollama.fish (Cross-host Ollama topology).
   '''192\.168\.1\.20''',
-  # Existing macOS host hostnames referenced by scripts/playbook.sh.
-  '''\bcrojtini(\.local)?\b''',
-  '''\bpanela(\.local)?\b''',
 ]
