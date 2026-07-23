@@ -329,6 +329,22 @@ claims in `requirements.md` Sources carry no altitude assertion; the
 deliverable is mechanism-altitude throughout and the task decomposition
 matches. Not applicable; no altitude D-ID required.
 
+### Panel review (`/panel-review --nested`, operator-directed)
+
+Run 2026-07-23 after the lens dispositions, before the anchor (so its
+fixes cannot stale it). Backend: Gemini (profile `personal` default),
+one iteration, ~4 min. 7 raw findings → 1 dropped as false positive
+(Intel-T2 vs Apple-Silicon partition-layout confusion; the bundle's
+t2linux-cited partitioning stands), 2 merged (same root), leaving 5
+validated Needs-sign-off items — none Auto-applicable (markdown prose
+carries no citable tool rule), so the loop stopped at Human attention
+required after one iteration. All 5 were operator-approved as one
+cluster and applied: REQ-F1.2 monitoring-key exemption + corrected
+sshd-fingerprint coverage, Task 10 sshd fingerprint pin, Task 10
+router-VPN fallback hook, Task 4 Ollama-section homing, REQ-E1.4
+hard-power-off alternative removed. Convergence confirmed by a second
+backend iteration (see below). Validator clean after application.
+
 **Post-lens stale-reference sweep:** run after the C1–C4 edit set
 (REQ mints and re-scopes: none new in this pass; re-scoped REQ-A1.1,
 A1.4, A1.5, B1.7, E1.1, E1.2, E1.4, E1.5, E1.6, F1.2): bundle grepped

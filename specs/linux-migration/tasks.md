@@ -83,10 +83,9 @@ Task 10's final verification runs last (it depends on 7, 8, and 9).
   guards and tmux session naming decided and noted); a secret/IP
   scanner (e.g. gitleaks) added to lefthook as a pre-commit backstop
   for REQ-F1.1; repo docs updated where they describe the host model:
-  CLAUDE.md (Ansible role layout), README.md (Linux-host bootstrap
-  entry point), specs/README.md (spec-table row and a
-  tasks.md-format-v2 note), and the cross-host Ollama topology
-  section.
+  CLAUDE.md (Ansible role layout, and its cross-host Ollama topology
+  section), README.md (Linux-host bootstrap entry point), and
+  specs/README.md (spec-table row and a tasks.md-format-v2 note).
 - **Done when:** `ansible-playbook --syntax-check`, yamllint, and
   ansible-lint pass; the baseline capture exists; a macOS-host
   playbook run after the split shows no unexpected changed or failed
@@ -196,26 +195,31 @@ Task 10's final verification runs last (it depends on 7, 8, and 9).
 ### Task 10 — Server readiness
 
 - **Deliverables:** SSH hardening applied through the repo role
-  (key-only, password authentication and root login disabled);
-  Tailscale up with the host reachable from off-LAN; the home router's
-  VPN server (modern protocol per REQ-E1.2) configured and verified
-  from off-LAN to reach dropbear during early boot; the legacy WAN
-  port-forward (disabled at Task 5) confirmed permanently retired; a
-  headless boot test (no display or keyboard) passing; power-loss
-  recovery exercised from a genuine power-off state (battery-aware:
-  full drain or equivalent hard-off, then wall power restored), with a
-  Linux-native fallback researched if the pre-wipe setting did not
-  survive; a bounded thermal soak (~30 minutes sustained load)
-  recorded with no thermal shutdown; the minimal off-host health
-  signal configured (its home — which machine or monitor runs it, and
-  the restricted-key setup — documented in the runbook), detecting
-  both induced conditions.
+  (key-only, password authentication and root login disabled), with
+  the sshd host-key fingerprint recorded in the runbook and pinned on
+  client machines; Tailscale up with the host reachable from off-LAN;
+  the home router's VPN server (modern protocol per REQ-E1.2)
+  configured and verified from off-LAN to reach dropbear during early
+  boot — if the router VPN proves unusable (capability or protocol
+  floor), the D-8 fallback (a WireGuard-capable device or Tailscale
+  subnet-router on another LAN host) is implemented as the
+  into-the-LAN door before the legacy forward is permanently retired;
+  the legacy WAN port-forward (disabled at Task 5) confirmed
+  permanently retired; a headless boot test (no display or keyboard)
+  passing; power-loss recovery exercised battery-aware (an outage
+  sustained until the battery drains to power-off, then wall power
+  restored), with a Linux-native fallback researched if the pre-wipe
+  setting did not survive; a bounded thermal soak (~30 minutes
+  sustained load) recorded with no thermal shutdown; the minimal
+  off-host health signal configured (its home — which machine or
+  monitor runs it, and the restricted-key setup — documented in the
+  runbook), detecting both induced conditions.
 - **Done when:** Every REQ-E requirement verifies, from off-LAN where
   the requirement implies remote access: a headless reboot is remotely
   unlockable over the router-VPN path to dropbear, the running system
   is reachable over both access paths from off-LAN, an external scan
-  shows the old port closed, power-loss recovery from a genuine
-  power-off is demonstrated, the soak completes without thermal
+  shows the old port closed, power-loss recovery from a
+  drained-battery power-off is demonstrated, the soak completes without thermal
   shutdown, and the health signal both reports healthy and detects an
   induced outage and an induced disk-threshold breach.
 - **Dependencies:** 7, 8, 9

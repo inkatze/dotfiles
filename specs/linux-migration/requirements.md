@@ -215,11 +215,14 @@ stacks arrive as their own future specs. *(Cites: the invocation
   dropbear key material, VPN credentials, Tailscale auth, LUKS
   passphrase records) SHALL live in 1Password — never in this repo and
   never as plain files on the network drive — and execution steps that
-  need one SHALL retrieve it from 1Password at use time. Host-side
-  operational key material that must exist as files by mechanism (the
-  dropbear initramfs host key, the host's sshd host keys) is exempt
-  from the vault-only rule; its integrity is covered by the REQ-B1.7
-  fingerprint pinning.
+  need one SHALL retrieve it from 1Password at use time. Operational
+  key material that must exist as files by mechanism — the dropbear
+  initramfs host key, the host's sshd host keys, and the dedicated
+  forced-command monitoring key on its runner machine (REQ-E1.6) — is
+  exempt from the vault-only rule: host-key integrity is covered by
+  fingerprint pinning (dropbear per REQ-B1.7; sshd per the fingerprint
+  recorded and pinned at Task 10), and the monitoring key by its
+  forced-command restriction.
   *(Cites: kickoff §3 REQ-F (2026-07-22), security-posture doctrine
   (Sources), kickoff lens pass (2026-07-23).)*
 
@@ -252,6 +255,15 @@ stacks arrive as their own future specs. *(Cites: the invocation
   entries reconciled to the tightened REQs; design cross-cutting
   notes updated (observability/concurrency domains, secrets wording,
   D-2/D-8 amendment annotations).
+- 2026-07-23 — `/panel-review --nested` pass (Gemini backend), 5
+  validated findings applied: REQ-F1.2 exemption extended to the
+  monitoring key and sshd-fingerprint coverage corrected; Task 10
+  gains the sshd fingerprint pin and the router-VPN-unusable fallback
+  hook; Task 4 names CLAUDE.md as the Ollama-section home; the
+  invalid "hard power-off" alternative removed from the REQ-E1.4
+  verification (drained-battery outage is the only valid pass). One
+  backend finding dropped as false positive (Intel-T2 vs
+  Apple-Silicon partition-layout confusion).
 
 ## Sources
 
