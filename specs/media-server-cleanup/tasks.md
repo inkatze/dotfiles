@@ -95,7 +95,10 @@
 
 ## Awaiting input
 
-(none yet)
+- Pending kickoff ready-flip of the spec PR (#39): the CI wait expired
+  while checks were still in progress (none failed). Re-entry: once the
+  head-SHA rollup is fully green, run `gh pr ready 39` (or re-run
+  `/spec-kickoff`, which completes only the flip).
 
 ## Deferred
 
