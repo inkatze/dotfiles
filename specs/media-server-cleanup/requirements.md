@@ -166,6 +166,14 @@ All REQ-B requirements apply to the personal host the stack runs on.
 - 2026-07-22 — Panel review iteration 2 (expression-only): the
   quit-Stremio guard synced to its sibling surfaces — D-1 step 4 and
   REQ-B1.5 — so REQ, decision, and task state the same guard.
+- 2026-07-22 — Completion (Task 5 close-out). All five tasks executed:
+  the repo untracking merged (PR #40), the teardown script authored
+  (PR #41) and executed on the personal host with the full REQ-B
+  checklist, idempotency double-run, and clean full-playbook run
+  recorded (PR #42), the 1Password service account revoked and the
+  Real-Debrid token regenerated in place (PR #43), and the teardown
+  script deleted per D-5 in this task's PR (present only in history).
+  Final REQ-A1.5 sweep clean.
 
 ## Sources
 
