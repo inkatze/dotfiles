@@ -1,6 +1,11 @@
 work ansible_host=127.0.0.1 ansible_connection=local current_env=work
 personal ansible_host=127.0.0.1 ansible_connection=local current_env=personal
 alt ansible_host=127.0.0.1 ansible_connection=local current_env=personal
+# Migrated Linux host (specs/linux-migration). Runs the playbook locally like
+# the Mac hosts, so no LAN IP or real hostname is committed (REQ-F1.1); the
+# machine maps its real hostname to this `server` alias via a gitignored
+# machine-local file (see scripts/playbook.sh).
+server ansible_host=127.0.0.1 ansible_connection=local current_env=server
 
 [secrets]
 work

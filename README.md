@@ -12,6 +12,27 @@ setup exactly as mine; feel free to fork it or change the variables described be
 if you're using Mojave or higher (10.14+)
 - If installing apps from the Mac App Store, you need to log into the store manually before running the role (This is not needed if you used an AppleID while doing the first setup)
 
+## Linux host bootstrap
+
+The migrated Linux host (`specs/linux-migration`) is managed by the same
+playbook through the `linux` platform role (apt baseline: fish, tmux, core
+CLI, `openssh-server`; mise; sshd hardening drop-in; Tailscale; the
+1Password CLI). The `os_family` guards in `main.yml` run `linux` on Debian
+-family hosts and skip the macOS `osx` role.
+
+1. Install Ansible and mise (`curl https://mise.run | sh`), then run
+   `mise install` in the repo to get the pinned tooling (lefthook,
+   gitleaks).
+2. Name this machine's inventory alias without committing its hostname
+   (REQ-F1.1): `mkdir -p ~/.config/dotfiles && echo server >
+   ~/.config/dotfiles/host` (or export `DOTFILES_HOST=server`).
+3. Run `./scripts/playbook.sh` (or `mise run install`). It reads the alias
+   file and targets the `server` inventory host.
+
+Driving the first run's failures to zero (apt-lock contention,
+cross-platform config roles) is the `specs/linux-migration` Task 7
+stabilization loop.
+
 ## Quickstart
 
 If you just want to know what you need to install, change and run to get things started,

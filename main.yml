@@ -2,7 +2,14 @@
 - name: Configure development environment
   hosts: all
   roles:
-    - osx
+    # Platform baselines are os_family-guarded: macOS hosts run `osx`
+    # (Homebrew, macOS defaults), the migrated host runs `linux` (apt, sshd).
+    # The remaining roles are cross-platform config; the Linux stabilization
+    # loop (specs/linux-migration Task 7) drives their first Linux run clean.
+    - role: osx
+      when: ansible_os_family == "Darwin"
+    - role: linux
+      when: ansible_os_family == "Debian"
     - kitty
     - fish
     - services

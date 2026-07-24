@@ -1,0 +1,23 @@
+---
+
+# The sshd hardening lives in a role-owned drop-in so the effective config is
+# asserted by the repo, not hand-edited on the host (REQ-E1.1). Task 10
+# records and pins the resulting host-key fingerprint.
+- name: Deploy sshd hardening drop-in
+  ansible.builtin.copy:
+    src: "sshd/{{ linux_ssh_hardening_dropin }}"
+    dest: "/etc/ssh/sshd_config.d/{{ linux_ssh_hardening_dropin }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Restart sshd
+  tags: [linux, ssh]
+
+- name: Ensure the ssh service is enabled and running
+  ansible.builtin.service:
+    name: ssh
+    enabled: true
+    state: started
+  become: true
+  tags: [linux, ssh]

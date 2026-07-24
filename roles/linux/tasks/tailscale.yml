@@ -1,0 +1,32 @@
+---
+
+# Tailscale mesh package (D-8). This installs the package only; `tailscale up`
+# and MFA/identity are operator steps at Task 10, not repo automation.
+- name: Add the Tailscale apt signing key
+  ansible.builtin.get_url:
+    url: "https://pkgs.tailscale.com/stable/ubuntu/{{ ansible_distribution_release }}.noarmor.gpg"
+    dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  tags: [linux]
+
+- name: Add the Tailscale apt repository
+  ansible.builtin.deb822_repository:
+    name: tailscale
+    types: [deb]
+    uris: https://pkgs.tailscale.com/stable/ubuntu
+    suites: "{{ ansible_distribution_release }}"
+    components: [main]
+    signed_by: /usr/share/keyrings/tailscale-archive-keyring.gpg
+  become: true
+  tags: [linux]
+
+- name: Install the Tailscale package
+  ansible.builtin.apt:
+    name: tailscale
+    state: present
+    update_cache: true
+  become: true
+  tags: [linux]

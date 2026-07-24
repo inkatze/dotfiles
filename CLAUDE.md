@@ -146,6 +146,14 @@ that route to it over the LAN.
 | `work` | Served, bound to `0.0.0.0:11434` via `OLLAMA_HOST` in `~/Library/LaunchAgents/homebrew.mxcl.ollama.plist` | unset (the `ollama` CLI and HTTP consumers fall back to `localhost:11434`) |
 | `personal`, `alt` | Not managed by Ansible | `OLLAMA_HOST=192.168.1.20:11434` (for the `ollama` CLI) and `OLLAMA_BASE_URL=http://192.168.1.20:11434` (for HTTP consumers like `/panel-*` skills) |
 
+The migrated Linux host (`server`, `specs/linux-migration`) joins this
+topology as a **client**, same posture as `personal`/`alt`: `work` stays
+the sole daemon, and `server` routes to it over the LAN. The `linux` role
+does not manage an Ollama daemon (Ollama is not in the Linux baseline);
+wiring `server`'s client env into `roles/fish/files/ollama.fish` (whose
+hostname patterns mirror `scripts/playbook.sh`) is part of the Task 7
+stabilization loop, not the platform split.
+
 The work host's IP is a DHCP reservation at `192.168.1.20`. Updates:
 
 - Change the IP: edit `roles/fish/files/ollama.fish`.
@@ -177,5 +185,32 @@ revert the LaunchAgent edit, and SSH-tunnel from clients instead
 
 ## Ansible role layout
 
-`roles/osx/` is the Mac role. Claude-related files live under
-`roles/osx/files/claude/`; symlink tasks are in `roles/osx/tasks/`.
+The repo is split by platform via `os_family` guards in `main.yml`:
+
+| Role | Guard | Covers |
+|---|---|---|
+| `roles/osx/` | `ansible_os_family == "Darwin"` | Homebrew, macOS defaults, Claude/Cursor config, MCP + Ollama plumbing |
+| `roles/linux/` | `ansible_os_family == "Debian"` | apt baseline (fish, tmux, core CLI, `openssh-server`), mise, sshd hardening drop-in, Tailscale, 1Password CLI (`op`) |
+
+Only one platform baseline runs on a given host; the other role is skipped
+whole by its `when:` guard, so adding `roles/linux/` left the Mac hosts'
+runs unchanged. The remaining roles (`kitty`, `fish`, `services`,
+`environments`, `neovim`, `tmux`, `ssh`, `git`) are cross-platform config
+and run on every host; driving their first Linux run clean is the
+`specs/linux-migration` Task 7 stabilization loop, not the platform split
+itself.
+
+Claude-related files live under `roles/osx/files/claude/`; symlink tasks
+are in `roles/osx/tasks/`. The `linux` role's sshd hardening lives at
+`roles/linux/files/sshd/60-hardening.conf` (a role-owned `sshd_config.d/`
+drop-in, REQ-E1.1: key-only auth, no root login).
+
+**Inventory and host aliases.** `hosts` lists `work`, `personal`, `alt`
+(macOS) and `server` (the migrated Linux host); all run the playbook
+locally (`ansible_connection=local`), so no LAN IP or real hostname is
+committed (REQ-F1.1). `scripts/playbook.sh` maps the running machine to an
+alias: the Mac hosts match on hostname patterns, while the Linux host
+names its alias through a machine-local indirection — the `DOTFILES_HOST`
+env var or a gitignored `~/.config/dotfiles/host` file — so its real
+hostname stays out of the repo. Mac hosts have neither and fall through
+to the existing pattern match, so their resolution is unchanged.

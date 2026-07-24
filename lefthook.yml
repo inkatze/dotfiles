@@ -10,6 +10,8 @@ pre-commit:
     syntax-check:
       glob: "*.{yml,yaml}"
       run: ansible-playbook main.yml --syntax-check
+    gitleaks:
+      run: gitleaks git --staged --no-banner --redact --config .gitleaks.toml
     skill-contracts:
       glob: "roles/osx/files/claude/commands/*.md"
       run: roles/osx/files/claude/scripts/skill-contracts.sh

@@ -1,0 +1,18 @@
+---
+
+# mise is not in the Ubuntu archive; install it via the official script the
+# same way CI does. Guarded on the binary so re-runs are no-ops (Task 7 drives
+# full idempotency of the Linux run).
+- name: Check for mise binary
+  ansible.builtin.stat:
+    path: "{{ ansible_env.HOME }}/.local/bin/mise"
+  register: linux_mise_bin
+  tags: [linux]
+
+- name: Install mise via the official installer
+  ansible.builtin.shell:
+    cmd: set -o pipefail && curl -fsSL https://mise.run | sh
+    executable: /bin/bash
+  when: not linux_mise_bin.stat.exists
+  changed_when: not linux_mise_bin.stat.exists
+  tags: [linux]
