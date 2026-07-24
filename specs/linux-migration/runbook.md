@@ -194,7 +194,7 @@ as unrecovered rather than left implicitly satisfied:
 | Criterion | Evidence |
 |---|---|
 | Boots the installed system from the internal disk | Root on `nvme0n1p3` → LUKS `dm_crypt-0` → LVM `ubuntu--vg-ubuntu--lv` (ext4) |
-| LUKS volume unlocks at the console | `/etc/crypttab`: `dm_crypt-0 UUID=c005d57c-… none luks` (passphrase at console) |
+| LUKS volume unlocks at the console | `/etc/crypttab` maps `dm_crypt-0` to the root LUKS partition with `none luks` (passphrase prompted at console; the volume UUID is deliberately not recorded here) |
 | Linux plus preserved EFI, no macOS volumes | `nvme0n1p1` vfat *EFI System* (1G, preserved) · `p2` ext4 `/boot` · `p3` `crypto_LUKS`; no Apple APFS/HFS+ partitions present |
 
 ### T2 hardware bring-up: kernel-update mechanism + recovery (Task 6)
