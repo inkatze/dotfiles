@@ -26,7 +26,7 @@ installer-USB creation time.
 | ISO | `ubuntu-26.04-7.0.9-t2-resolute.iso` (~5.9 GB, assembled from 4 parts) |
 | ISO SHA-256 | `d8d3773a486d83b0e5f0d125645cfd4b4063a74c23695a1391a9d4bec47133a9` |
 | Downloader | t2linux `iso.sh` from the release (pinned to `v7.0.9-1`; concatenates the `.iso.00`–`.iso.03` parts and self-verifies the digest) |
-| BridgeOS/firmware at prep | `23P5067` (final version re-recorded at Task 5 wipe time) |
+| BridgeOS/firmware at prep | `23P5067` (confirmed unchanged at Task 5 — see "Final pre-wipe firmware version") |
 
 **Why this release (REQ-B1.1):** at execution time `v7.0.9-1` was the
 newest t2linux Ubuntu release with no blocking issue noted for this
@@ -153,8 +153,49 @@ These are part of this same runbook; each is written by its owning task
 as it executes. Listed here so the structure is known up front.
 
 ### Final pre-wipe firmware version (Task 5)
-_To be completed by Task 5._ Record the final BridgeOS/firmware version
-string re-read immediately before erasing (version string only).
+
+The firmware version was not re-read from macOS immediately before
+erasing. It is recoverable anyway: the T2/EFI firmware is not touched by
+the OS install, so DMI on the installed Linux system reports the same
+firmware that was running at wipe time.
+
+| Item | Value |
+|---|---|
+| EFI/BootROM version | `2103.100.6.0.0` |
+| BridgeOS (iBridge) firmware | `23.16.15067.0.0,0` |
+| Firmware date | 2026-04-18 |
+| Machine | `MacBookPro15,1` (board `Mac-937A206F2EE63C01`) |
+| Read from | `/sys/class/dmi/id/bios_version`, installed system |
+
+This is the same firmware recorded as `23P5067` at Task 2 prep —
+`23P5067` is the BridgeOS build ID for iBridge `23.16.15067.0.0`. The
+two records agreeing is positive evidence that no firmware-bearing
+update landed between prep and the wipe.
+
+#### Pre-wipe re-checks — disposition
+
+Two of the Task 5 pre-wipe re-checks were not recorded at the time and
+cannot be reconstructed now that macOS is erased. They are logged here
+as unrecovered rather than left implicitly satisfied:
+
+- **Software Update re-check (nothing pending):** not recorded;
+  unrecoverable. The firmware agreement above is indirect evidence that
+  no firmware-bearing update was applied in the window.
+- **Backup delta-sweep since Task 1:** not recorded; unrecoverable from
+  this host. Any state created on macOS between Task 1 and the wipe that
+  was not in the Task 1 backup is gone.
+- **Router legacy WAN port-forward disabled:** not recorded at wipe
+  time. Task 10 independently requires an external scan showing the old
+  port closed; that scan is the verification of record for REQ-E1.5, so
+  this item is deferred to Task 10 rather than reconstructed.
+
+#### Install verification (Done-when, verified post-install)
+
+| Criterion | Evidence |
+|---|---|
+| Boots the installed system from the internal disk | Root on `nvme0n1p3` → LUKS `dm_crypt-0` → LVM `ubuntu--vg-ubuntu--lv` (ext4) |
+| LUKS volume unlocks at the console | `/etc/crypttab`: `dm_crypt-0 UUID=c005d57c-… none luks` (passphrase at console) |
+| Linux plus preserved EFI, no macOS volumes | `nvme0n1p1` vfat *EFI System* (1G, preserved) · `p2` ext4 `/boot` · `p3` `crypto_LUKS`; no Apple APFS/HFS+ partitions present |
 
 ### T2 hardware bring-up: kernel-update mechanism + recovery (Task 6)
 _To be completed by Task 6._ The kernel-update mechanism and its recovery
