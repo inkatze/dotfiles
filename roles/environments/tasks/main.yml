@@ -9,21 +9,21 @@
     cmd: brew --prefix
   register: environments_brew_prefix
   changed_when: false
-  when: ansible_os_family == "Darwin"
+  when: ansible_facts.os_family == "Darwin"
   tags: [always]
 
 - name: Resolve the fish install prefix
   ansible.builtin.set_fact:
     environments_fish_prefix: >-
       {{ environments_brew_prefix.stdout
-         if ansible_os_family == 'Darwin'
+         if ansible_facts.os_family == 'Darwin'
          else '/usr' }}
   tags: [always]
 
 - name: Symlink mise configuration file
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/environments/files/mise.toml"
-    dest: "{{ ansible_env.HOME }}/.config/mise.toml"
+    src: "{{ ansible_facts.env.PWD }}/roles/environments/files/mise.toml"
+    dest: "{{ ansible_facts.env.HOME }}/.config/mise.toml"
     state: link
   tags: [environments]
 
@@ -36,8 +36,8 @@
 
 - name: Symlink default initial packages file
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/environments/files/{{ item.defaults }}"
-    dest: "{{ ansible_env.HOME }}/.{{ item.defaults }}"
+    src: "{{ ansible_facts.env.PWD }}/roles/environments/files/{{ item.defaults }}"
+    dest: "{{ ansible_facts.env.HOME }}/.{{ item.defaults }}"
     state: link
   with_items: "{{ environments_mise_tools }}"
   when: item.defaults is defined

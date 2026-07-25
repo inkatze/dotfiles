@@ -94,12 +94,12 @@ linux_mise_tools:
 # Absolute path to the user-level mise binary. The tasks below shell out to it
 # directly rather than relying on PATH, because on a fresh host mise has just
 # been installed into ~/.local/bin and the ansible process' PATH predates it.
-linux_mise_bin: "{{ ansible_env.HOME }}/.local/bin/mise"
+linux_mise_bin: "{{ ansible_facts.env.HOME }}/.local/bin/mise"
 
 # Where the Linux-only mise config is materialized. mise reads every *.toml
 # under ~/.config/mise/conf.d as global config, alongside ~/.config/mise.toml
 # (which the environments role owns), so the two do not collide.
-linux_mise_conf_d: "{{ ansible_env.HOME }}/.config/mise/conf.d"
+linux_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
 
 # Deliberately NOT in this list, so the omissions read as decisions rather than
 # oversights:

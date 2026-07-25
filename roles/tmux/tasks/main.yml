@@ -6,20 +6,20 @@
     depth: "10"
     force: true
     recursive: true
-    dest: "{{ ansible_env.HOME }}/.tmux/plugins/tpm"
+    dest: "{{ ansible_facts.env.HOME }}/.tmux/plugins/tpm"
   tags: [tmux, skip_ansible_lint]
 
 - name: Symlink tmux.conf
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/tmux/files/tmux.conf"
-    dest: "{{ ansible_env.HOME }}/.tmux.conf"
+    src: "{{ ansible_facts.env.PWD }}/roles/tmux/files/tmux.conf"
+    dest: "{{ ansible_facts.env.HOME }}/.tmux.conf"
     state: link
   tags: [tmux]
 
 - name: Symlink tmux scripts directory
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/tmux/files/scripts"
-    dest: "{{ ansible_env.HOME }}/.tmux/scripts"
+    src: "{{ ansible_facts.env.PWD }}/roles/tmux/files/scripts"
+    dest: "{{ ansible_facts.env.HOME }}/.tmux/scripts"
     state: link
   tags: [tmux]
 
@@ -58,14 +58,14 @@
 
 - name: Clean tpm plugins
   ansible.builtin.command:
-    cmd: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/clean_plugins"
+    cmd: "{{ ansible_facts.env.HOME }}/.tmux/plugins/tpm/bin/clean_plugins"
   register: tmux_cleaned_plugins
   changed_when: "'Removing' in tmux_cleaned_plugins.stdout"
   tags: [tmux]
 
 - name: Install tpm plugins
   ansible.builtin.command:
-    cmd: "{{ ansible_env.HOME }}/.tmux/plugins/tpm/bin/install_plugins"
+    cmd: "{{ ansible_facts.env.HOME }}/.tmux/plugins/tpm/bin/install_plugins"
   register: tmux_installed_plugins
   changed_when: "'Installing' in tmux_installed_plugins.stdout"
   tags: [tmux]

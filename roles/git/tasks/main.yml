@@ -2,8 +2,8 @@
 
 - name: Symlink gitconfig
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/git/files/gitconfig"
-    dest: "{{ ansible_env.HOME }}/.gitconfig"
+    src: "{{ ansible_facts.env.PWD }}/roles/git/files/gitconfig"
+    dest: "{{ ansible_facts.env.HOME }}/.gitconfig"
     state: link
     force: true
   tags: [git]
@@ -13,7 +13,7 @@
 # value is host-resolved, not repo content.
 - name: Write machine-local git overrides
   ansible.builtin.copy:
-    dest: "{{ ansible_env.HOME }}/.gitconfig.local"
+    dest: "{{ ansible_facts.env.HOME }}/.gitconfig.local"
     mode: "0644"
     content: |
       # Managed by the dotfiles git role — do not edit by hand; the next
@@ -24,8 +24,8 @@
 
 - name: Symlink gitignore
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/git/files/gitignore"
-    dest: "{{ ansible_env.HOME }}/.gitignore"
+    src: "{{ ansible_facts.env.PWD }}/roles/git/files/gitignore"
+    dest: "{{ ansible_facts.env.HOME }}/.gitignore"
     state: link
     force: true
   tags: [git]

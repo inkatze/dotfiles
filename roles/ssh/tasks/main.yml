@@ -1,15 +1,15 @@
 ---
 - name: Create .ssh directory
   ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.ssh"
+    path: "{{ ansible_facts.env.HOME }}/.ssh"
     state: directory
     mode: "0700"
   tags: [ssh]
 
 - name: Symlink ssh config
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/ssh/files/config"
-    dest: "{{ ansible_env.HOME }}/.ssh/config"
+    src: "{{ ansible_facts.env.PWD }}/roles/ssh/files/config"
+    dest: "{{ ansible_facts.env.HOME }}/.ssh/config"
     state: link
     force: true
     mode: "0600"
@@ -17,8 +17,8 @@
 
 - name: Symlink known hosts
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/ssh/files/known_hosts"
-    dest: "{{ ansible_env.HOME }}/.ssh/known_hosts"
+    src: "{{ ansible_facts.env.PWD }}/roles/ssh/files/known_hosts"
+    dest: "{{ ansible_facts.env.HOME }}/.ssh/known_hosts"
     state: link
     force: true
     mode: "0600"
@@ -31,7 +31,7 @@
 # timestamp preservation keeps re-runs idempotent (changed=0).
 - name: Ensure machine-local ssh files exist
   ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.ssh/{{ item }}"
+    path: "{{ ansible_facts.env.HOME }}/.ssh/{{ item }}"
     state: touch
     mode: "0600"
     modification_time: preserve
@@ -58,7 +58,7 @@
 
 - name: Sync LAN ssh aliases from 1Password
   ansible.builtin.command:
-    cmd: "{{ ansible_env.PWD }}/scripts/ssh-lan-config-sync.sh"
+    cmd: "{{ ansible_facts.env.PWD }}/scripts/ssh-lan-config-sync.sh"
   register: ssh_lan_sync
   changed_when: "'CHANGED:' in ssh_lan_sync.stdout"
   when:
@@ -77,8 +77,8 @@
 
 - name: Symlink allowed signers
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/ssh/files/allowed_signers"
-    dest: "{{ ansible_env.HOME }}/.ssh/allowed_signers"
+    src: "{{ ansible_facts.env.PWD }}/roles/ssh/files/allowed_signers"
+    dest: "{{ ansible_facts.env.HOME }}/.ssh/allowed_signers"
     state: link
     force: true
     mode: "0600"

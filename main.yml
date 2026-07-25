@@ -7,9 +7,9 @@
     # The remaining roles are cross-platform config; the Linux stabilization
     # loop (specs/linux-migration Task 7) drives their first Linux run clean.
     - role: osx
-      when: ansible_os_family == "Darwin"
+      when: ansible_facts.os_family == "Darwin"
     - role: linux
-      when: ansible_os_family == "Debian"
+      when: ansible_facts.os_family == "Debian"
     - kitty
     - fish
     - services

@@ -3,7 +3,7 @@
 - name: Download neovim stable
   ansible.builtin.unarchive:
     src: "{{ neovim_download_url }}"
-    dest: "{{ ansible_env.HOME }}/.local"
+    dest: "{{ ansible_facts.env.HOME }}/.local"
     remote_src: true
   tags: [neovim]
 
@@ -21,8 +21,8 @@
 
 - name: Symlink neovim configuration
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/neovim/files/nvim"
-    dest: "{{ ansible_env.HOME }}/.config/nvim"
+    src: "{{ ansible_facts.env.PWD }}/roles/neovim/files/nvim"
+    dest: "{{ ansible_facts.env.HOME }}/.config/nvim"
     state: link
   tags: [neovim]
 

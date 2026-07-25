@@ -11,25 +11,25 @@
     cmd: brew --prefix
   register: fish_brew_prefix
   changed_when: false
-  when: ansible_os_family == "Darwin"
+  when: ansible_facts.os_family == "Darwin"
   tags: [always]
 
 - name: Resolve the fish install prefix
   ansible.builtin.set_fact:
-    fish_prefix: "{{ fish_brew_prefix.stdout if ansible_os_family == 'Darwin' else '/usr' }}"
+    fish_prefix: "{{ fish_brew_prefix.stdout if ansible_facts.os_family == 'Darwin' else '/usr' }}"
   tags: [always]
 
 - name: Create fish configuration directory
   ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.config"
+    path: "{{ ansible_facts.env.HOME }}/.config"
     recurse: true
     state: directory
   tags: [fish]
 
 - name: Symlink fish configuration
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/fish/files/fish"
-    dest: "{{ ansible_env.HOME }}/.config/fish"
+    src: "{{ ansible_facts.env.PWD }}/roles/fish/files/fish"
+    dest: "{{ ansible_facts.env.HOME }}/.config/fish"
     state: link
   tags: [fish]
 
@@ -39,29 +39,29 @@
 # populated conf.d yet, so the symlink dest's parent does not exist.
 - name: Create fish conf.d directory
   ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.config/fish/conf.d"
+    path: "{{ ansible_facts.env.HOME }}/.config/fish/conf.d"
     state: directory
     mode: "0755"
   tags: [fish]
 
 - name: Symlink ollama.fish into fish conf.d
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/fish/files/ollama.fish"
-    dest: "{{ ansible_env.HOME }}/.config/fish/conf.d/ollama.fish"
+    src: "{{ ansible_facts.env.PWD }}/roles/fish/files/ollama.fish"
+    dest: "{{ ansible_facts.env.HOME }}/.config/fish/conf.d/ollama.fish"
     state: link
   tags: [fish]
 
 - name: Symlink gemini.fish into fish conf.d
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/fish/files/gemini.fish"
-    dest: "{{ ansible_env.HOME }}/.config/fish/conf.d/gemini.fish"
+    src: "{{ ansible_facts.env.PWD }}/roles/fish/files/gemini.fish"
+    dest: "{{ ansible_facts.env.HOME }}/.config/fish/conf.d/gemini.fish"
     state: link
   tags: [fish]
 
 - name: Symlink ssh-auth.fish into fish conf.d
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/fish/files/ssh-auth.fish"
-    dest: "{{ ansible_env.HOME }}/.config/fish/conf.d/ssh-auth.fish"
+    src: "{{ ansible_facts.env.PWD }}/roles/fish/files/ssh-auth.fish"
+    dest: "{{ ansible_facts.env.HOME }}/.config/fish/conf.d/ssh-auth.fish"
     state: link
   tags: [fish]
 
@@ -96,8 +96,8 @@
 
 - name: Symlink theme configuration
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/fish/files/starship.toml"
-    dest: "{{ ansible_env.HOME }}/.config/starship.toml"
+    src: "{{ ansible_facts.env.PWD }}/roles/fish/files/starship.toml"
+    dest: "{{ ansible_facts.env.HOME }}/.config/starship.toml"
     state: link
   tags: [fish]
 
