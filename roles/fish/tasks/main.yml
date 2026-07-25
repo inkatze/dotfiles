@@ -1,10 +1,22 @@
 ---
 
-- name: Get fish directory
+# The fish install prefix. This was an unguarded `brew --prefix`, and because
+# it carries tags: [always] it ran on EVERY invocation regardless of --tags —
+# so on a Linux host the play died here before reaching any selected task,
+# making the entire playbook unrunnable. Homebrew stays the source of truth on
+# macOS (REQ-D1.2: same command, same value); Linux uses /usr, where the apt
+# fish lands at /usr/bin/fish.
+- name: Get the Homebrew prefix (macOS only)
   ansible.builtin.command:
     cmd: brew --prefix
-  register: fish_dir
+  register: fish_brew_prefix
   changed_when: false
+  when: ansible_os_family == "Darwin"
+  tags: [always]
+
+- name: Resolve the fish install prefix
+  ansible.builtin.set_fact:
+    fish_prefix: "{{ fish_brew_prefix.stdout if ansible_os_family == 'Darwin' else '/usr' }}"
   tags: [always]
 
 - name: Create fish configuration directory
@@ -58,7 +70,7 @@
     cmd: >
       curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish |
       source && fisher install jorgebucaran/fisher
-    executable: "{{ fish_dir.stdout }}/bin/fish"
+    executable: "{{ fish_prefix }}/bin/fish"
   when: fish_plugins | length > 0
   changed_when: false
   tags: [fish, skip_ansible_lint]  # Fish does not have a pipefail option
@@ -66,7 +78,7 @@
 - name: Retrieve installed fisherman packages
   ansible.builtin.shell:
     cmd: fisher list
-    executable: "{{ fish_dir.stdout }}/bin/fish"
+    executable: "{{ fish_prefix }}/bin/fish"
   register: fish_fisherman_plugins
   changed_when: false
   failed_when: false
@@ -76,7 +88,7 @@
 - name: Install fish plugins
   ansible.builtin.shell:
     cmd: fisher install {{ item }}
-    executable: "{{ fish_dir.stdout }}/bin/fish"
+    executable: "{{ fish_prefix }}/bin/fish"
   with_items: "{{ fish_plugins }}"
   when: "fish_plugins | list and item not in fish_fisherman_plugins.stdout"
   changed_when: true  # It updates the plugin every time this runs
@@ -92,7 +104,7 @@
 - name: Update fisherman plugins
   ansible.builtin.shell:
     cmd: fisher update
-    executable: "{{ fish_dir.stdout }}/bin/fish"
+    executable: "{{ fish_prefix }}/bin/fish"
   changed_when: false
   tags: [upgrade]
 
