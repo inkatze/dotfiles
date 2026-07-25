@@ -14,6 +14,24 @@
   become: true
   tags: [linux]
 
+# Debian ships fd as `fdfind` (the `fd` binary name belongs to another
+# package). Shim it so muscle memory from the Macs works unchanged.
+# ~/.local/bin is already on PATH via config.fish's fish_add_path.
+# User-scoped, so no become required.
+- name: Ensure ~/.local/bin exists
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.local/bin"
+    state: directory
+    mode: "0755"
+  tags: [linux]
+
+- name: Shim fd to fdfind
+  ansible.builtin.file:
+    src: /usr/bin/fdfind
+    dest: "{{ ansible_env.HOME }}/.local/bin/fd"
+    state: link
+  tags: [linux]
+
 - name: Install mise runtime manager
   ansible.builtin.include_tasks: mise.yml
   tags: [linux]
