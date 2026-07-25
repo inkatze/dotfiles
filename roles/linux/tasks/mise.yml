@@ -5,14 +5,51 @@
 # full idempotency of the Linux run).
 - name: Check for mise binary
   ansible.builtin.stat:
-    path: "{{ ansible_env.HOME }}/.local/bin/mise"
-  register: linux_mise_bin
+    path: "{{ linux_mise_bin }}"
+  register: linux_mise_bin_stat
   tags: [linux]
 
 - name: Install mise via the official installer
   ansible.builtin.shell:
     cmd: set -o pipefail && curl -fsSL https://mise.run | sh
     executable: /bin/bash
-  when: not linux_mise_bin.stat.exists
-  changed_when: not linux_mise_bin.stat.exists
+  when: not linux_mise_bin_stat.stat.exists
+  changed_when: not linux_mise_bin_stat.stat.exists
+  tags: [linux]
+
+# The handful of tools that are installed user-level instead of via apt. mise
+# reads every *.toml under ~/.config/mise/conf.d as global config, so this sits
+# beside the ~/.config/mise.toml the environments role owns without either
+# clobbering the other, and without putting Linux-only pins in the config the
+# macOS hosts share.
+- name: Ensure the mise conf.d directory exists
+  ansible.builtin.file:
+    path: "{{ linux_mise_conf_d }}"
+    state: directory
+    mode: "0755"
+  tags: [linux]
+
+- name: Symlink the Linux mise configuration
+  ansible.builtin.file:
+    src: "{{ ansible_env.PWD }}/roles/linux/files/mise/linux.toml"
+    dest: "{{ linux_mise_conf_d }}/linux.toml"
+    state: link
+  tags: [linux]
+
+# No `mise trust` step: anything under ~/.config/mise is global config and is
+# trusted implicitly (unlike the repo-local mise.toml the environments role
+# has to trust). Calling `mise trust` on it anyway is worse than redundant —
+# with the path already trusted, mise falls through to trusting the process'
+# working directory instead, which under ansible means the repo checkout.
+#
+# Installed one at a time, in declared order: mise's pipx backend shells out to
+# `uv tool install`, so uv has to be on PATH before the pipx: entries are
+# reached. mise prints nothing for an already-installed tool, so idempotency
+# keys off the install line it emits on stderr for a fresh one.
+- name: Install the user-level mise tools
+  ansible.builtin.command:
+    cmd: "{{ linux_mise_bin }} install {{ item }}"
+  register: linux_mise_tool_install
+  changed_when: "'installed' in linux_mise_tool_install.stderr"
+  loop: "{{ linux_mise_tools }}"
   tags: [linux]
