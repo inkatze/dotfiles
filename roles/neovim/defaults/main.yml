@@ -9,3 +9,12 @@ neovim_archive: "nvim-{{ neovim_os_token }}-{{ ansible_architecture }}"
 neovim_install_dir: "{{ ansible_env.HOME }}/.local/{{ neovim_archive }}"
 neovim_release_base: "https://github.com/neovim/neovim/releases/download/stable"
 neovim_download_url: "{{ neovim_release_base }}/{{ neovim_archive }}.tar.gz"
+
+# Where the nvim binary is linked. macOS keeps /usr/local/bin (Homebrew leaves
+# it user-writable, so this needs no root and REQ-D1.2 holds). On Linux that
+# path is root-owned, and nothing about this role actually requires root:
+# ~/.local/bin is already on PATH via config.fish and holds the fd shim too.
+neovim_bin_link: >-
+  {{ '/usr/local/bin/nvim'
+     if ansible_os_family == 'Darwin'
+     else ansible_env.HOME ~ '/.local/bin/nvim' }}

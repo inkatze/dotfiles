@@ -7,15 +7,16 @@
     remote_src: true
   tags: [neovim]
 
-# /usr/local/bin is user-writable on a Homebrew Mac but root-owned on Linux, so
-# the symlink needs elevation there and only there — become: true on macOS
-# would itself be a behavior change (REQ-D1.2).
+# macOS keeps /usr/local/bin, which Homebrew leaves user-writable (REQ-D1.2:
+# unchanged there). On Linux that directory is root-owned, but nothing here
+# needs root: ~/.local/bin is already on PATH via config.fish's fish_add_path
+# and is where the fd shim lands too. Linking there keeps the whole neovim
+# role user-level, so `become` disappears from this role entirely.
 - name: Symlink neovim binary
   ansible.builtin.file:
     src: "{{ neovim_install_dir }}/bin/nvim"
-    dest: /usr/local/bin/nvim
+    dest: "{{ neovim_bin_link }}"
     state: link
-  become: "{{ ansible_os_family != 'Darwin' }}"
   tags: [neovim]
 
 - name: Symlink neovim configuration
