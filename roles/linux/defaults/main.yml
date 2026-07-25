@@ -47,6 +47,28 @@ linux_apt_packages:
   - llvm
   - mkcert
   - xsltproc           # Linux equivalent of the libxslt CLI
+  # Headers for the mise toolchains that build from source. macOS gets these
+  # transitively through Homebrew; on apt the runtime libs ship separately from
+  # their -dev headers, so a source build fails without them. The first two are
+  # observed failures on this host, not precaution:
+  #   libyaml-dev    ruby 3.4.2 -- psych could not configure ("fatal error:
+  #                  yaml.h: No such file or directory"); ruby-build then fails
+  #                  the whole build because --with-ext lists psych explicitly.
+  #                  libyaml-0-2 (runtime) was already present; only the
+  #                  headers were missing.
+  #   libreadline-dev  lua 5.1.5 -- src/lua.c includes <readline/readline.h>
+  #                  and make dies at lua.o.
+  # The last two are pre-emptive: they are ruby extensions built under
+  # --with-ext=...,+ so a missing header skips them SILENTLY rather than
+  # failing, surfacing much later as a gem that will not install.
+  #   libffi-dev     fiddle, and the many gems that link libffi
+  #   libgmp-dev     bignum acceleration
+  # libssl-dev is deliberately absent: mise's ruby-build downloads and builds
+  # its own OpenSSL into the ruby prefix, so ruby does not need the system one.
+  - libyaml-dev
+  - libreadline-dev
+  - libffi-dev
+  - libgmp-dev
 
   # Misc tools
   - ddgr
