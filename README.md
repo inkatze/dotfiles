@@ -33,6 +33,29 @@ Driving the first run's failures to zero (apt-lock contention,
 cross-platform config roles) is the `specs/linux-migration` Task 7
 stabilization loop.
 
+## Machine-local files (`~/.config/dotfiles/`)
+
+This repo is public, so `specs/linux-migration` REQ-F1.1 keeps real
+hostnames and LAN addresses out of committed artifacts. The values that
+name a specific machine live in untracked files under
+`~/.config/dotfiles/` instead. None are created by Ansible; each is
+optional, and its absence degrades visibly rather than silently.
+
+| File | Read by | Holds |
+|---|---|---|
+| `host` | `scripts/playbook.sh`, `roles/fish/files/ollama.fish` | This machine's inventory alias: `work`, `personal`, `alt` or `server` |
+| `ssh-host` | the `sshc` fish function | Hostname `kitten ssh` connects to |
+| `kitty-ssh.conf` | kitty's `ssh.conf`, via `globinclude` | Host-specific kitty `ssh.conf` sections (see that file for an example) |
+
+`host` is the one that matters most: `scripts/playbook.sh` uses it to pick
+the inventory host, falling back to `work` (with a warning) when nothing
+resolves, and `ollama.fish` uses it to decide whether this box is an Ollama
+client. Set it on every host except `work`:
+
+```bash
+mkdir -p ~/.config/dotfiles && echo personal > ~/.config/dotfiles/host
+```
+
 ## Quickstart
 
 If you just want to know what you need to install, change and run to get things started,
