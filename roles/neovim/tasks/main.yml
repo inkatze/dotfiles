@@ -2,8 +2,7 @@
 
 - name: Download neovim stable
   ansible.builtin.unarchive:
-    src: >-
-      https://github.com/neovim/neovim/releases/download/stable/nvim-{{ neovim_os_token }}-{{ ansible_architecture }}.tar.gz
+    src: "{{ neovim_download_url }}"
     dest: "{{ ansible_env.HOME }}/.local"
     remote_src: true
   tags: [neovim]
