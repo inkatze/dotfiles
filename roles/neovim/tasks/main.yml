@@ -1,16 +1,21 @@
 ---
 
-- name: Download neovim nightly
+- name: Download neovim stable
   ansible.builtin.unarchive:
-    src: https://github.com/neovim/neovim/releases/download/stable/nvim-macos-{{ ansible_architecture }}.tar.gz
+    src: "{{ neovim_download_url }}"
     dest: "{{ ansible_env.HOME }}/.local"
     remote_src: true
   tags: [neovim]
 
+# macOS keeps /usr/local/bin, which Homebrew leaves user-writable (REQ-D1.2:
+# unchanged there). On Linux that directory is root-owned, but nothing here
+# needs root: ~/.local/bin is already on PATH via config.fish's fish_add_path
+# and is where the fd shim lands too. Linking there keeps the whole neovim
+# role user-level, so `become` disappears from this role entirely.
 - name: Symlink neovim binary
   ansible.builtin.file:
-    src: "{{ ansible_env.HOME }}/.local/nvim-macos-{{ ansible_architecture }}/bin/nvim"
-    dest: /usr/local/bin/nvim
+    src: "{{ neovim_install_dir }}/bin/nvim"
+    dest: "{{ neovim_bin_link }}"
     state: link
   tags: [neovim]
 

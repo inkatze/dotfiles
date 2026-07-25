@@ -88,3 +88,12 @@
     prune = true
 [init]
     defaultBranch = main
+# Machine-local overrides, written by the git role. Kept LAST because git
+# resolves a key to its last-seen value, so this file wins over anything above.
+# It carries the OS-specific 1Password SSH signer path: the value above is the
+# macOS one, and on Linux the binary lives at /opt/1Password/op-ssh-sign, so
+# without this override every commit on a Linux host fails to sign
+# (commit.gpgsign is on). Git ignores a missing include, so a host that has not
+# run the role yet degrades to the macOS default rather than erroring here.
+[include]
+    path = ~/.gitconfig.local

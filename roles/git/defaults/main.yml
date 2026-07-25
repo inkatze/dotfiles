@@ -1,0 +1,10 @@
+---
+
+# 1Password ships its SSH signing helper at a different path per platform. The
+# tracked gitconfig hardcodes the macOS one; the git role writes the resolved
+# value into ~/.gitconfig.local, which the tracked file includes last so this
+# wins. commit.gpgsign is on, so a wrong path here means every commit fails.
+git_onepassword_ssh_sign_path: >-
+  {{ '/Applications/1Password.app/Contents/MacOS/op-ssh-sign'
+     if ansible_os_family == 'Darwin'
+     else '/opt/1Password/op-ssh-sign' }}
