@@ -73,13 +73,46 @@
   failed_when: false
   tags: [environments]
 
+# `mise install <tool>` is silent and exit-0 when the pinned version is already
+# installed, so its output cannot distinguish a real install from a no-op. The
+# `changed_when: "'already installed' not in ...stdout"` this replaces was
+# inherited from the asdf era (asdf printed that string; mise never has) and
+# survived the asdf->mise swap in ce31623 unexamined. Empty stdout does not
+# contain the string, so the test was always true and this task reported
+# `changed` on EVERY run -- verified by two consecutive runs on a fully
+# converged host, the second of which still reported changed for all items.
+# That permanently blocked the "a second run is changed=0" convergence check.
+#
+# Gate on mise's own answer instead: `mise ls --missing` lists only tool
+# versions that are declared but not installed, so empty stdout means there is
+# nothing to do.
+- name: Find mise tool versions that are declared but not installed
+  ansible.builtin.shell:
+    cmd: mise ls --missing
+    chdir: "{{ ansible_facts.env.HOME }}"
+    executable: "{{ environments_fish_prefix }}/bin/fish"
+  register: environments_mise_missing
+  changed_when: false
+  tags: [environments]
+
+# Coarse on purpose: if anything at all is missing, every tool is passed to
+# `mise install`. The already-present ones are silent no-ops (that is the same
+# property that broke the old changed_when), so the cost is negligible and it
+# avoids matching loop names against mise's output -- which would be wrong
+# anyway, since this list says `nodejs` where mise reports `node`.
+#
+# chdir to $HOME on both tasks: mise layers config from the cwd upward, and
+# Ansible runs from the repo root, so without it the check would also see this
+# repo's own mise.toml (gitleaks, lefthook) and the role's idempotency would
+# depend on which directory the playbook was invoked from.
 - name: Install default tool versions
   ansible.builtin.shell:
     cmd: mise install {{ item.name }}
+    chdir: "{{ ansible_facts.env.HOME }}"
     executable: "{{ environments_fish_prefix }}/bin/fish"
-  register: environments_mise_installation_result
-  changed_when: "'already installed' not in environments_mise_installation_result.stdout"
   with_items: "{{ environments_mise_tools }}"
+  when: environments_mise_missing.stdout | length > 0
+  changed_when: true
   tags: [environments]
 
 - name: Update NodeJS config
