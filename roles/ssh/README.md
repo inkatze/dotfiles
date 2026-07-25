@@ -26,20 +26,50 @@ dirtying your dotfiles checkout. `UserKnownHostsFile` now lists
 `~/.ssh/known_hosts.local` **first**, and ssh appends to the first file in the
 list, so new keys land outside the repo.
 
-## `~/.ssh/config.local` template
+## `~/.ssh/config.local` — synced from 1Password
 
 Included *before* the `Host *` block, so machine-local settings win
-(`ssh_config` is first-value-wins). Fill in your own values:
+(`ssh_config` is first-value-wins).
 
-```sshconfig
-Host <alias> <lan-ip>
-    User <user>
-    ForwardAgent yes
-    SendEnv ANTHROPIC_API_KEY
+It is **not** hand-written and **not** gitignored-and-forgotten: a gitignored
+file would not sync across hosts, which is the whole point of managing dotfiles
+with Ansible. Instead the *structure* is committed as
+`files/config.lan.tpl` — containing only `op://` secret references, no values —
+and `scripts/ssh-lan-config-sync.sh` renders it through
+[`op inject`](https://www.1password.dev/cli/reference/commands/inject/) at
+playbook time. Structure stays reviewable in git; values stay in 1Password.
 
-Host <alias>
-    Hostname <alias>.local
-```
+### One-time 1Password setup
+
+Create an item (default: vault `Private`, item `dotfiles-lan-ssh`; override
+with `DOTFILES_OP_VAULT` / `DOTFILES_OP_ITEM`) with these text fields:
+
+| Field | Holds |
+|---|---|
+| `server_alias` | short ssh alias for the Linux host |
+| `server_host` | resolvable hostname (e.g. `<alias>.local`) |
+| `server_ip` | LAN address |
+| `server_user` | login user |
+
+Then `op signin` and run the playbook. The script prints `OK` when the file
+already matches, `CHANGED` when it rewrites it, and `FAILED:` on any
+precondition failure.
+
+### Behavior worth knowing
+
+- **A host without `op` is skipped, not failed.** The play reports it and moves
+  on, so a machine that legitimately has no 1Password CLI does not break the
+  run. A host that *has* `op` but hits a locked vault or a missing field **does**
+  fail — that is a real error, not an absence.
+- **It fails closed.** The rendered output is rejected before installation if a
+  template expression survived, if a secret reference leaked onto a config
+  line, if no `Host` block is present, or if the result does not parse under
+  `ssh -G`. A half-rendered `config.local` would break every ssh call on the
+  host, so none of these are warnings.
+- **It never writes through a symlink** or over a non-regular file.
+
+Tests: `scripts/ssh-lan-config-sync-test.sh` (stubs `op`, so it needs no vault,
+session, or network).
 
 ## Rotating a LAN host's key
 
