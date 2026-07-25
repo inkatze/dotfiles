@@ -1,0 +1,9 @@
+---
+
+# Neovim publishes release assets as nvim-<os>-<arch>.tar.gz. The arch token
+# already matches ansible_architecture on both platforms (arm64 on Apple
+# silicon, x86_64 on the Linux host); only the OS token differed, and it was
+# hardcoded to macos — so the download 404'd on Linux and failed the run.
+neovim_os_token: "{{ 'macos' if ansible_os_family == 'Darwin' else 'linux' }}"
+neovim_install_dir: >-
+  {{ ansible_env.HOME }}/.local/nvim-{{ neovim_os_token }}-{{ ansible_architecture }}
