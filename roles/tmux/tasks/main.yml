@@ -43,9 +43,15 @@
   when: tmux_color_profiles.rc != 0
   tags: [tmux]
 
+# /tmp, not /private/tmp. The old path was macOS-only and failed outright on
+# Linux with "issue creating /private as requested: [Errno 13] Permission
+# denied" -- the file module tried to create a top-level /private as a
+# non-root user. /tmp is correct on both: it is tmux's default socket
+# directory on Linux, and on macOS /tmp is a symlink to private/tmp, so this
+# resolves to exactly the path this task used to name.
 - name: Ensure tmux socket directory exists
   ansible.builtin.file:
-    path: "/private/tmp/tmux-{{ ansible_facts.user_uid }}"
+    path: "/tmp/tmux-{{ ansible_facts.user_uid }}"
     state: directory
     mode: "0700"
   tags: [tmux]
