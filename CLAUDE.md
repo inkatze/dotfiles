@@ -235,7 +235,29 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 | `host` | `scripts/playbook.sh`, `roles/fish/files/ollama.fish` | This machine's inventory alias (`work`/`personal`/`alt`/`server`) |
 | `ssh-host` | the `sshc` function in `roles/fish/files/fish/config.fish` | `kitten ssh` target hostname |
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
+| `op-service-account-token` | `scripts/ssh-lan-config-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
 
 None are created by Ansible and none live in the repo (`~/.config/kitty` is
 a symlink into it, which is why the kitty companion sits here instead).
 Each is optional; absence degrades visibly rather than silently.
+
+`op-service-account-token` is the only one that is a *secret*. It exists
+because the 1Password desktop-app integration authorizes per calling process
+and re-prompts for each new one — fine in a long-lived terminal, useless under
+Ansible (a fresh process per task), and impossible during a headless boot where
+no desktop app is running to approve anything. A service-account token
+authenticates non-interactively instead.
+
+Two consequences worth knowing before moving items around:
+
+- **Service accounts cannot access the Personal or Private vault.** 1Password
+  refuses the grant outright, which is why `dotfiles-lan-ssh` lives in the
+  `Dotfiles Service Account` vault rather than `Private`, and why that is the
+  script's default vault.
+- The script refuses to read the file unless it is mode 0600 or 0400, and an
+  already-exported `OP_SERVICE_ACCOUNT_TOKEN` takes precedence, so CI can
+  supply one without the file existing.
+
+To rotate: `op service-account create <name> --vault 'Dotfiles Service
+Account':read_items`, write the returned token to the file with `umask 077`,
+and never let it reach a terminal — it is printed exactly once.

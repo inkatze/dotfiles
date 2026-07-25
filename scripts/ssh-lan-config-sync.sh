@@ -31,8 +31,36 @@ fail() {
   exit 1
 }
 
-VAULT="${DOTFILES_OP_VAULT:-Private}"
+# Not Private. 1Password refuses to grant a service account access to the
+# Personal/Private vault at all ("You can't grant a service account access to
+# your Personal or Private vault"), so the item lives in a vault that can be
+# shared with one.
+VAULT="${DOTFILES_OP_VAULT:-Dotfiles Service Account}"
 ITEM="${DOTFILES_OP_ITEM:-dotfiles-lan-ssh}"
+
+# Prefer a service-account token over the desktop-app integration.
+#
+# The desktop path authorizes per calling process and re-prompts for each new
+# one. That is fine in a long-lived terminal and useless under Ansible, which
+# spawns a fresh process per task -- and impossible during Task 10's headless
+# boot test, where no desktop app is running to approve anything. A service
+# account token authenticates non-interactively and headlessly.
+#
+# The token is machine-local and gitignored, alongside the other files in
+# ~/.config/dotfiles/ (see CLAUDE.md). An already-exported token wins, so CI or
+# a caller can override without touching the file.
+OP_TOKEN_FILE="${DOTFILES_OP_TOKEN_FILE:-$HOME/.config/dotfiles/op-service-account-token}"
+if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -f "$OP_TOKEN_FILE" ]; then
+  # Refuse a token file others can read: it is a bearer credential.
+  perms="$(stat -c '%a' "$OP_TOKEN_FILE" 2>/dev/null || stat -f '%Lp' "$OP_TOKEN_FILE" 2>/dev/null || echo '')"
+  case "$perms" in
+    600 | 400) ;;
+    '') fail "could not stat token file $OP_TOKEN_FILE" ;;
+    *) fail "$OP_TOKEN_FILE is mode $perms; must be 600 or 400 (chmod 600 it)" ;;
+  esac
+  OP_SERVICE_ACCOUNT_TOKEN="$(cat "$OP_TOKEN_FILE")"
+  export OP_SERVICE_ACCOUNT_TOKEN
+fi
 
 # Resolve the template relative to this script so the caller's cwd does not
 # matter (Ansible invokes it with ansible_env.PWD, a human may not).
@@ -67,8 +95,16 @@ sed -e "s|__OP_VAULT__|$VAULT|g" -e "s|__OP_ITEM__|$ITEM|g" \
 
 # --force: never prompt (this runs unattended under Ansible).
 # --file-mode 0600: ssh refuses a group/world-readable config.
-if ! op inject --force --file-mode 0600 --in-file "$tmp_tpl" --out-file "$tmp_out" 2>/dev/null; then
-  fail "op inject failed reading vault='$VAULT' item='$ITEM' — is the 1Password session unlocked and the item present? (op signin)"
+# stdout is redirected because `op inject --out-file` echoes the path it wrote,
+# which would otherwise land in the stdout Ansible registers and greps for the
+# OK:/CHANGED: markers.
+#
+# stderr is NOT swallowed. It used to be, and that cost real debugging time:
+# every failure surfaced as the generic message below regardless of cause, so a
+# malformed template and a dismissed auth prompt looked identical. op's own
+# error line is the useful part -- pass it through and keep the hint as context.
+if ! op inject --force --file-mode 0600 --in-file "$tmp_tpl" --out-file "$tmp_out" >/dev/null; then
+  fail "op inject failed reading vault='$VAULT' item='$ITEM' — see the op error above (locked session? missing item? bad field name?)"
 fi
 
 # op's exit status has not always distinguished an unresolved reference from a
