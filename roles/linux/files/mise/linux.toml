@@ -1,0 +1,51 @@
+# Linux-only mise tools.
+#
+# apt is the default package manager on this host; mise is the exception and
+# every entry below has to earn its place (see the rationale block at the
+# bottom of roles/linux/defaults/main.yml). Tools that apt already serves well
+# stay in apt, where unattended-upgrades keeps them patched.
+#
+# Deliberately NOT merged into roles/environments/files/mise.toml: that file is
+# the global config on every host, and pinning ansible-core there would shadow
+# the Macs' Homebrew `ansible` (the batteries-included bundle) with a core-only
+# install that carries no community.general — which roles/osx needs for
+# homebrew and osx_defaults. The Macs keep getting these tools from Homebrew.
+#
+# Versions are pinned on purpose. mise-managed tools are invisible to
+# unattended-upgrades, so bumping one has to be a visible, reviewable commit
+# rather than a silent background update.
+[tools]
+
+# The pipx backend shells out to `pipx install`. pipx is not installed here and
+# is not wanted (it would be another apt package). When `uv` is present mise
+# uses `uv tool install` instead. Without this entry, installing any pipx: tool
+# fails with:
+#   pipx install <pkg>: No such file or directory (os error 2)
+# uv must therefore be installed before the pipx: entries below, which is why
+# roles/linux/tasks/mise.yml installs linux_mise_tools in declared order.
+uv = "0.11.32"
+
+# Removes `sudo apt install ansible` from the bootstrap entirely: ansible is
+# what runs this playbook, so sourcing it from apt is a chicken-and-egg that
+# costs a root prerequisite on a fresh host.
+#
+# ansible-core, not the `ansible` PyPI bundle: `uv tool install ansible` only
+# exposes the `ansible-community` console script, so `ansible-playbook` never
+# lands on PATH. ansible-core ships all ten binaries. The only collection this
+# repo uses beyond ansible.builtin is community.general, and only inside the
+# Darwin-guarded osx role, so the Linux host never resolves it. If it is ever
+# needed here: `ansible-galaxy collection install community.general` (installs
+# under ~/.ansible/collections, no root).
+"pipx:ansible-core" = "2.21.2"
+
+# apt's ansible-lint Depends on ansible-core, so leaving it in apt would pull
+# apt's ansible back in and undo the line above.
+"pipx:ansible-lint" = "26.6.0"
+
+# Ubuntu resolute ships gh 2.46.0, tagged upstream in March 2024. gh is a
+# credential-holding network client and a hard dependency of the planwright
+# pipeline; two years of missed releases is the less secure option here, not
+# the safer one. GitHub's own recommendation for Debian/Ubuntu is their apt
+# repo, which costs a root-added third-party source; mise gets there
+# user-level.
+gh = "2.96.0"

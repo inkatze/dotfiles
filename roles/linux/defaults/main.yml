@@ -7,6 +7,11 @@
 # here. mise, Tailscale, and the 1Password CLI have their own repo-backed
 # install task files; language runtimes come from mise
 # (roles/environments/files/mise.toml), not apt.
+#
+# apt is the default here and mise is the exception: apt packages are patched
+# by unattended-upgrades, mise-managed ones are not, which matters on a host
+# that is becoming always-on. The short list of tools that earned a move to
+# user-level mise lives in linux_mise_tools below.
 linux_apt_packages:
   # Core utilities
   - ack
@@ -34,7 +39,6 @@ linux_apt_packages:
   # Git
   - git
   - git-extras
-  - gh                 # also required by the planwright pipeline, not just parity
   - lazygit
 
   # Development dependencies
@@ -43,10 +47,6 @@ linux_apt_packages:
   - llvm
   - mkcert
   - xsltproc           # Linux equivalent of the libxslt CLI
-
-  # Linters / playbook tooling
-  - ansible
-  - ansible-lint
 
   # Misc tools
   - ddgr
@@ -58,6 +58,26 @@ linux_apt_packages:
 
   # Server baseline
   - openssh-server
+
+# User-level tools installed by mise instead of apt, declared in
+# roles/linux/files/mise/linux.toml (which carries the pinned versions and the
+# per-tool reasoning). Order matters: the pipx backend needs `uv` on PATH, so
+# uv is installed first.
+linux_mise_tools:
+  - uv
+  - pipx:ansible-core
+  - pipx:ansible-lint
+  - gh
+
+# Absolute path to the user-level mise binary. The tasks below shell out to it
+# directly rather than relying on PATH, because on a fresh host mise has just
+# been installed into ~/.local/bin and the ansible process' PATH predates it.
+linux_mise_bin: "{{ ansible_env.HOME }}/.local/bin/mise"
+
+# Where the Linux-only mise config is materialized. mise reads every *.toml
+# under ~/.config/mise/conf.d as global config, alongside ~/.config/mise.toml
+# (which the environments role owns), so the two do not collide.
+linux_mise_conf_d: "{{ ansible_env.HOME }}/.config/mise/conf.d"
 
 # Deliberately NOT in this list, so the omissions read as decisions rather than
 # oversights:
@@ -75,6 +95,31 @@ linux_apt_packages:
 #   is native here.
 # - stylua, lua-language-server: not packaged in Ubuntu. Install via mise if
 #   the Neovim Lua setup needs them on this host.
+#
+# Considered for the move to mise and deliberately KEPT in apt, with the
+# archive version measured on resolute against the current upstream release:
+#
+# - ripgrep (15.1.0 vs 15.2.0), jq (1.8.1 vs 1.8.2), mkcert (1.4.4, identical),
+#   direnv (2.37.1, identical): apt is already at or within a patch of
+#   upstream. Nothing to gain, and unattended-upgrades to lose.
+# - fd-find (10.3.0) and its ~/.local/bin/fd shim: mise would supply the real
+#   binary name and let the shim task go, but fd is exactly the small, stable,
+#   current utility apt handles well. The shim already works; it stays.
+# - fzf (0.67.0), lazygit (0.57.0): behind upstream but fully functional TUIs,
+#   with no feature this setup depends on. Not worth leaving the patch stream.
+# - starship (1.22.1), direnv: hard blocker on top of the above — config.fish
+#   runs `starship init` and `direnv hook` BEFORE `mise activate fish`, so
+#   neither can live behind mise activation without reordering that file
+#   (owned by another change).
+# - tmux (3.6a): the session host you reattach to over SSH on an always-on
+#   box. Its availability must not depend on a shell hook having run, and it
+#   is close enough to upstream 3.7b to make the trade pointless.
+# - silversearcher-ag: verified failure, not a judgement call — mise's only
+#   backend is vfox:mise-plugins/vfox-ag, which builds from source and dies at
+#   `./autogen.sh: aclocal: not found`. It would need autotools via apt to
+#   avoid apt.
+# - make: build-essential already depends on it, and mise's only backend is
+#   conda, an inappropriate dependency for a core build tool.
 
 # sshd hardening drop-in filename (REQ-E1.1: key-only auth, no root login).
 linux_ssh_hardening_dropin: 60-hardening.conf
