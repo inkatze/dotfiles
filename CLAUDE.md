@@ -146,20 +146,31 @@ that route to it over the LAN.
 | `work` | Served, bound to `0.0.0.0:11434` via `OLLAMA_HOST` in `~/Library/LaunchAgents/homebrew.mxcl.ollama.plist` | unset (the `ollama` CLI and HTTP consumers fall back to `localhost:11434`) |
 | `personal`, `alt` | Not managed by Ansible | `OLLAMA_HOST=192.168.1.20:11434` (for the `ollama` CLI) and `OLLAMA_BASE_URL=http://192.168.1.20:11434` (for HTTP consumers like `/panel-*` skills) |
 
+`ollama.fish` decides which box it is on by resolving the same inventory
+alias `scripts/playbook.sh` does — the `DOTFILES_HOST` env var, else the
+untracked `~/.config/dotfiles/host` file, plus the residual `alt` hostname
+pattern that script still carries. Any alias other than `work` is a client.
+An **unresolved** alias sets neither variable, so the host falls back to
+`localhost:11434`: correct on `work`, and on an unconfigured client a
+visible connection-refused rather than a silent call to a LAN address.
+`personal` therefore now needs its alias file (or `DOTFILES_HOST=personal`)
+to get Ollama routing — it used to be matched by hostname.
+
 The migrated Linux host (`server`, `specs/linux-migration`) joins this
 topology as a **client**, same posture as `personal`/`alt`: `work` stays
 the sole daemon, and `server` routes to it over the LAN. The `linux` role
-does not manage an Ollama daemon (Ollama is not in the Linux baseline);
-wiring `server`'s client env into `roles/fish/files/ollama.fish` (whose
-hostname patterns mirror `scripts/playbook.sh`) is part of the Task 7
-stabilization loop, not the platform split.
+does not manage an Ollama daemon (Ollama is not in the Linux baseline).
+`server` picks up its client env from the alias resolution above, since it
+already writes `~/.config/dotfiles/host` for `scripts/playbook.sh` — by
+declaration now, rather than by the accident of reusing the old Mac's
+hostname.
 
 The work host's IP is a DHCP reservation at `192.168.1.20`. Updates:
 
 - Change the IP: edit `roles/fish/files/ollama.fish`.
 - Move daemon to a different host: flip the `inventory_hostname == 'work'`
-  guards in `roles/osx/tasks/homebrew.yml` and adjust the fish snippet's
-  hostname patterns (which mirror `scripts/playbook.sh`).
+  guards in `roles/osx/tasks/homebrew.yml` and change which alias the fish
+  snippet treats as the daemon host (it compares against `work`).
 
 `OLLAMA_HOST=0.0.0.0:11434` is persisted by injecting it into the brew-
 generated LaunchAgent plist with `PlistBuddy` (additive: existing tuning
@@ -209,8 +220,22 @@ drop-in, REQ-E1.1: key-only auth, no root login).
 (macOS) and `server` (the migrated Linux host); all run the playbook
 locally (`ansible_connection=local`), so no LAN IP or real hostname is
 committed (REQ-F1.1). `scripts/playbook.sh` maps the running machine to an
-alias: the Mac hosts match on hostname patterns, while the Linux host
-names its alias through a machine-local indirection — the `DOTFILES_HOST`
-env var or a gitignored `~/.config/dotfiles/host` file — so its real
-hostname stays out of the repo. Mac hosts have neither and fall through
-to the existing pattern match, so their resolution is unchanged.
+alias through a machine-local indirection — the `DOTFILES_HOST` env var, or
+an untracked `~/.config/dotfiles/host` file naming the alias — so no real
+hostname is committed. `work` stays the fallback when nothing resolves (CI
+depends on it), but the fallback now warns on stderr so a machine that
+should have declared itself does not silently install another host's
+profile. One residual hostname pattern remains for `alt`; `personal` was
+matched that way until the REQ-F1.1 cleanup and must now name itself.
+
+### Machine-local files under `~/.config/dotfiles/`
+
+| File | Read by | Holds |
+|---|---|---|
+| `host` | `scripts/playbook.sh`, `roles/fish/files/ollama.fish` | This machine's inventory alias (`work`/`personal`/`alt`/`server`) |
+| `ssh-host` | the `sshc` function in `roles/fish/files/fish/config.fish` | `kitten ssh` target hostname |
+| `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
+
+None are created by Ansible and none live in the repo (`~/.config/kitty` is
+a symlink into it, which is why the kitty companion sits here instead).
+Each is optional; absence degrades visibly rather than silently.

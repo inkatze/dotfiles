@@ -19,6 +19,12 @@ committed artifacts, and `.gitleaks.toml` enforces it as a pre-commit
 backstop. So anything naming a machine on your LAN belongs in the `.local`
 files, which Ansible creates empty and never overwrites.
 
+The same rule applies outside `~/.ssh/`, where the untracked companions live
+under `~/.config/dotfiles/` instead: `host` (inventory alias), `ssh-host`
+(the `sshc` fish function's `kitten ssh` target) and `kitty-ssh.conf`
+(host-specific kitty `ssh.conf` sections — `~/.config/kitty` is a symlink
+into this repo, so its companion cannot sit beside it). See the repo README.
+
 The split also fixes a real footgun. `~/.ssh/known_hosts` is a *symlink into
 this repo*, and the config sets `StrictHostKeyChecking no`. Before the split,
 accepting any new host key appended it straight into the tracked file, silently
