@@ -1,0 +1,48 @@
+---
+
+# Lid and idle behaviour lives in a role-owned drop-in for the same reason the
+# sshd hardening does: the effective config is asserted by the repo rather than
+# hand-edited on the host.
+#
+# This replaces an undeclared manual change. sleep.target, suspend.target and
+# hibernate.target were symlinked to /dev/null on the host on 2026-07-24, which
+# does keep the machine up but is a blunt instrument -- it makes suspend
+# impossible rather than unrequested, so a deliberate `systemctl suspend` fails
+# too, and nothing in the repo explains why. Declaring the lid policy here means
+# the masks can be lifted; see roles/linux/README.md.
+# Unlike /etc/ssh/sshd_config.d/, this directory is not shipped by the Ubuntu
+# package -- systemd reads it if present but does not create it, so the copy
+# below would fail on a fresh host without this.
+- name: Ensure the logind drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/logind.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  tags: [linux, power]
+
+- name: Deploy systemd-logind lid and idle drop-in
+  ansible.builtin.copy:
+    src: "logind/{{ linux_logind_lid_dropin }}"
+    dest: "/etc/systemd/logind.conf.d/{{ linux_logind_lid_dropin }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  tags: [linux, power]
+
+# Deliberately no handler to restart systemd-logind. It has no ExecReload
+# (verified: `systemctl show systemd-logind -p ExecReload` is empty), so the
+# only way to apply this live is a restart, and restarting logind tears down
+# active sessions -- including the RDP or SSH session running the playbook.
+# Lid policy is read at logind start, so the drop-in takes effect at next boot.
+# To apply sooner, deliberately and from a console you are willing to lose:
+#   sudo systemctl restart systemd-logind
+- name: Report that the lid policy applies at next boot
+  ansible.builtin.debug:
+    msg: >-
+      logind lid drop-in is in place. It takes effect at next boot; restarting
+      systemd-logind now would end active login sessions.
+  tags: [linux, power]

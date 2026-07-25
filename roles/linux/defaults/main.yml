@@ -145,3 +145,8 @@ linux_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
 
 # sshd hardening drop-in filename (REQ-E1.1: key-only auth, no root login).
 linux_ssh_hardening_dropin: 60-hardening.conf
+
+# systemd-logind drop-in that stops a closed lid or an idle timeout from
+# suspending this host. It is a laptop serving as an always-on server, so the
+# steady state is lid shut and headless.
+linux_logind_lid_dropin: 60-lid.conf

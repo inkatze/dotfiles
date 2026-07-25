@@ -40,6 +40,10 @@
   ansible.builtin.include_tasks: ssh-server.yml
   tags: [linux, ssh]
 
+- name: Configure lid and idle power behaviour
+  ansible.builtin.include_tasks: power.yml
+  tags: [linux, power]
+
 - name: Install Tailscale
   ansible.builtin.include_tasks: tailscale.yml
   tags: [linux]
