@@ -40,6 +40,14 @@ Host *
 Match host * exec "sh -c 'test -z \"$SSH_TTY\" && uname | grep -q Darwin && test -S ~/Library/Group\ Containers/2BUA8C4S2C.com.1password/t/agent.sock && (test -z \"$SSH_AUTH_SOCK\" || echo \"$SSH_AUTH_SOCK\" | grep -q \"com.apple.launchd\")'"
     IdentityAgent "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
 
+# Same intent on Linux, where 1Password's agent socket lives at
+# ~/.1password/agent.sock. Without this the migrated host silently loses the
+# 1Password agent the moment Ansible symlinks this file over a hand-written
+# config, falling back to whatever SSH_AUTH_SOCK points at (gnome-keyring),
+# which does not hold the keys used for auth and commit signing.
+Match host * exec "sh -c 'test -z \"$SSH_TTY\" && uname | grep -q Linux && test -S ~/.1password/agent.sock'"
+    IdentityAgent ~/.1password/agent.sock
+
 # LAN host aliases live in ~/.ssh/config.local (see the Include above), not
 # here. See roles/ssh/README.md for the template.
 

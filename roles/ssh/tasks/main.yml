@@ -41,6 +41,40 @@
     - known_hosts.local
   tags: [ssh]
 
+# The LAN aliases live in 1Password, not in this public repo (REQ-F1.1), and
+# are rendered by `op inject` from the committed template. Detection is split
+# from the sync deliberately: a host without the 1Password CLI genuinely cannot
+# do this and is skipped, whereas a host that HAS op and still fails (locked
+# vault, missing item, unresolved field) is a real error and fails the play.
+# Hard-failing on a merely absent op would make linux-migration Task 7's
+# "two consecutive runs, zero failed tasks" convergence unreachable.
+- name: Detect the 1Password CLI
+  ansible.builtin.command: op --version
+  register: ssh_op_probe
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  tags: [ssh]
+
+- name: Sync LAN ssh aliases from 1Password
+  ansible.builtin.command:
+    cmd: "{{ ansible_env.PWD }}/scripts/ssh-lan-config-sync.sh"
+  register: ssh_lan_sync
+  changed_when: "'CHANGED:' in ssh_lan_sync.stdout"
+  when:
+    - ssh_op_probe.rc == 0
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
+  tags: [ssh]
+
+- name: Report skipped LAN alias sync
+  ansible.builtin.debug:
+    msg: >-
+      1Password CLI not found; ~/.ssh/config.local was left as-is. LAN host
+      aliases will be missing on this host until `op` is installed and signed
+      in. See roles/ssh/README.md.
+  when: ssh_op_probe.rc != 0
+  tags: [ssh]
+
 - name: Symlink allowed signers
   ansible.builtin.file:
     src: "{{ ansible_env.PWD }}/roles/ssh/files/allowed_signers"
