@@ -1,13 +1,34 @@
 Include ~/.colima/ssh_config
 
+# Machine-local host aliases: LAN hosts (internal hostnames, RFC1918 addresses,
+# per-host user/forwarding settings). Deliberately NOT tracked — this repo is
+# public and REQ-F1.1 keeps LAN topology out of committed artifacts. Included
+# first so machine-local host blocks win (ssh_config is first-value-wins).
+# A missing include file is not an error.
+Include ~/.ssh/config.local
+
 Host *
+    # UseKeychain is macOS-only and is an *unknown keyword* to Linux OpenSSH,
+    # which rejects it at parse time ("Bad configuration option: usekeychain",
+    # exit 255) — that kills every ssh and git-over-ssh call, and no Match
+    # guard prevents it, because parsing happens regardless of whether the
+    # block matches. IgnoreUnknown is the supported cross-platform mechanism
+    # and must appear before the keyword it covers.
+    IgnoreUnknown UseKeychain
+    UseKeychain yes
     ServerAliveInterval 60
     TCPKeepAlive yes
     StrictHostKeyChecking no
-    UseKeychain yes
     AddKeysToAgent yes
     ControlPath ~/.ssh/sockets/master-%r@%h:%p
     ControlPersist 12h
+    # Machine-local file FIRST: ssh appends newly accepted host keys to the
+    # first file in this list. That keeps LAN host identities and fingerprints
+    # out of the repo (REQ-F1.1) and stops StrictHostKeyChecking=no from
+    # silently dirtying the dotfiles checkout, which ~/.ssh/known_hosts
+    # symlinks into. The tracked file stays the read-only pin set for public
+    # hosts.
+    UserKnownHostsFile ~/.ssh/known_hosts.local ~/.ssh/known_hosts
 
 # Use 1Password agent socket when:
 # - Not in an interactive SSH session (SSH_TTY unset)
@@ -19,13 +40,8 @@ Host *
 Match host * exec "sh -c 'test -z \"$SSH_TTY\" && uname | grep -q Darwin && test -S ~/Library/Group\ Containers/2BUA8C4S2C.com.1password/t/agent.sock && (test -z \"$SSH_AUTH_SOCK\" || echo \"$SSH_AUTH_SOCK\" | grep -q \"com.apple.launchd\")'"
     IdentityAgent "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
 
-Host crojtini 192.168.1.100
-    User inkatze
-    ForwardAgent yes
-    SendEnv ANTHROPIC_API_KEY
-
-Host crojtini
-    Hostname crojtini.local
+# LAN host aliases live in ~/.ssh/config.local (see the Include above), not
+# here. See roles/ssh/README.md for the template.
 
 Host rfh.rsync.net
     Hostname usw-s004.rsync.net
