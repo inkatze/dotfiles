@@ -5,7 +5,20 @@ alt ansible_host=127.0.0.1 ansible_connection=local current_env=personal
 # the Mac hosts, so no LAN IP or real hostname is committed (REQ-F1.1); the
 # machine maps its real hostname to this `server` alias via a gitignored
 # machine-local file (see scripts/playbook.sh).
-server ansible_host=127.0.0.1 ansible_connection=local current_env=server
+#
+# ansible_become_exe pins become to classic sudo. Ubuntu 25.10+ ships sudo-rs
+# as the default `sudo`, and it decorates a `-p` prompt instead of using it
+# verbatim: given Ansible's `[sudo via ansible, key=...] password:` it emits
+# `[sudo: [sudo via ansible, key=...] password:] Password:`. Ansible's
+# check_password_prompt (plugins/become/__init__.py) matches with
+# `line.startswith(prompt)`, so the decorated line never matches, the password
+# is never sent, and every become task dies with "Timed out waiting for become
+# success or become password prompt" -- an UNREACHABLE host on the first apt
+# task. Both binaries are installed; /usr/bin/sudo.ws is the `sudo` package's
+# classic 1.9.x, a stable package-owned path (not an alternatives symlink), so
+# interactive sudo keeps using Ubuntu's sudo-rs default and only Ansible opts
+# out. Mac hosts are unaffected: this is a per-host var.
+server ansible_host=127.0.0.1 ansible_connection=local current_env=server ansible_become_exe=/usr/bin/sudo.ws
 
 [secrets]
 work
