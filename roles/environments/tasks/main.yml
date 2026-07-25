@@ -1,10 +1,23 @@
 ---
 
-- name: Get fish directory
+# Same unguarded `brew --prefix` as the fish role had, with the same
+# tags: [always], so this was a second hard stop for any Linux run. Resolved
+# independently here rather than reusing the fish role's fact: relying on
+# role ordering would make this role silently depend on another having run.
+- name: Get the Homebrew prefix (macOS only)
   ansible.builtin.command:
     cmd: brew --prefix
-  register: environments_fish_dir
+  register: environments_brew_prefix
   changed_when: false
+  when: ansible_os_family == "Darwin"
+  tags: [always]
+
+- name: Resolve the fish install prefix
+  ansible.builtin.set_fact:
+    environments_fish_prefix: >-
+      {{ environments_brew_prefix.stdout
+         if ansible_os_family == 'Darwin'
+         else '/usr' }}
   tags: [always]
 
 - name: Symlink mise configuration file
@@ -17,7 +30,7 @@
 - name: Trust mise's config file
   ansible.builtin.shell:
     cmd: mise trust
-    executable: "{{ environments_fish_dir.stdout }}/bin/fish"
+    executable: "{{ environments_fish_prefix }}/bin/fish"
   changed_when: false
   tags: [environments]
 
@@ -33,7 +46,7 @@
 - name: Install mise plugins
   ansible.builtin.shell:
     cmd: mise plugins install {{ item.name }} {{ item.plugin }}
-    executable: "{{ environments_fish_dir.stdout }}/bin/fish"
+    executable: "{{ environments_fish_prefix }}/bin/fish"
   register: environments_mise_installation_result
   changed_when: "'already installed' not in environments_mise_installation_result.stdout"
   with_items: "{{ environments_mise_tools }}"
@@ -63,7 +76,7 @@
 - name: Install default tool versions
   ansible.builtin.shell:
     cmd: mise install {{ item.name }}
-    executable: "{{ environments_fish_dir.stdout }}/bin/fish"
+    executable: "{{ environments_fish_prefix }}/bin/fish"
   register: environments_mise_installation_result
   changed_when: "'already installed' not in environments_mise_installation_result.stdout"
   with_items: "{{ environments_mise_tools }}"
@@ -76,6 +89,6 @@
 - name: Reshim mise tools
   ansible.builtin.shell:
     cmd: mise reshim
-    executable: "{{ environments_fish_dir.stdout }}/bin/fish"
+    executable: "{{ environments_fish_prefix }}/bin/fish"
   changed_when: false
   tags: [environments, upgrade]
