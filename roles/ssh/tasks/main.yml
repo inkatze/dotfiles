@@ -24,6 +24,23 @@
     mode: "0600"
   tags: [ssh]
 
+# Machine-local companions to the two tracked files. They hold LAN host
+# aliases and accepted LAN host keys, which REQ-F1.1 keeps out of this public
+# repo. Created empty if absent so the ssh config's Include resolves and
+# UserKnownHostsFile has a writable first entry; never overwritten, and the
+# timestamp preservation keeps re-runs idempotent (changed=0).
+- name: Ensure machine-local ssh files exist
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.ssh/{{ item }}"
+    state: touch
+    mode: "0600"
+    modification_time: preserve
+    access_time: preserve
+  loop:
+    - config.local
+    - known_hosts.local
+  tags: [ssh]
+
 - name: Symlink allowed signers
   ansible.builtin.file:
     src: "{{ ansible_env.PWD }}/roles/ssh/files/allowed_signers"
