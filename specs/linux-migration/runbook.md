@@ -198,9 +198,76 @@ as unrecovered rather than left implicitly satisfied:
 | Linux plus preserved EFI, no macOS volumes | `nvme0n1p1` vfat *EFI System* (1G, preserved) · `p2` ext4 `/boot` · `p3` `crypto_LUKS`; no Apple APFS/HFS+ partitions present |
 
 ### T2 hardware bring-up: kernel-update mechanism + recovery (Task 6)
-_To be completed by Task 6._ The kernel-update mechanism and its recovery
-path (previous-kernel boot entry, USB rescue), plus which boot path
-(GRUB vs rEFInd) works on this machine.
+_Task 6 is still open._ The kernel-update mechanism and its recovery path
+(previous-kernel boot entry, USB rescue), plus which boot path (GRUB vs
+rEFInd) works on this machine, are still to be written here. The two
+subsections below are measured results recorded as they were produced, so
+the numbers are not reconstructed later from memory.
+
+#### WiFi firmware — the offline fallback was the path that worked
+
+The macOS-less retrieval was not needed. The Task 2 export
+(`firmware.tar`, 11.7 MB, 2026-07-23) was recovered from the LAN network
+drive — a USB disk attached to the router and shared over SMB, browsable
+as guest — and installed directly.
+
+- The archive holds 163 files, of which 72 are the `brcmfmac4364b2-pcie.*`
+  set this machine's BCM4364 (rev 03) needs; the rest are the `4377b3`
+  set for Apple Silicon Macs. Nothing in it collided with the 118 files
+  already in `/lib/firmware/brcm`.
+- Firmware is selected at load time by Apple board codename via ACPI, not
+  by anything derivable from DMI, so the whole set is installed and the
+  driver picks. Install as **root-owned** (`install -o root -g root -m
+  0644`); a plain `cp -a` under sudo preserves the *source* ownership and
+  would leave kernel-loaded firmware writable by a normal user.
+- Result: `wlp3s0` appears, `brcmfmac` binds with `brcmfmac_wcc`, and the
+  interface scans and reports signal — presence alone is not the test.
+
+If this ever has to be redone (a wiped `/lib/firmware`, a fresh install),
+the export on the network drive is the fast path; the t2linux macOS-less
+retrieval is the fallback to the fallback.
+
+#### Fan control and the thermal baseline
+
+`t2fanrd` (t2linux repo, 0.1.0-3) is the correct daemon. **Do not use
+`mbpfan` or `macfanctld`**, which are also in the archive and look
+plausible: both drive fans through `applesmc`, and on this machine
+`applesmc` is loaded but exposes **no** hwmon fan inputs at all. They
+would install, start, and silently control nothing — the worst failure
+mode for a fan daemon on an always-on host.
+
+T2 fans are not under `/sys/class/hwmon`. They live on the ACPI device:
+
+    /sys/devices/.../APP0001:00/fan{1,2}_{input,min,max,manual,output,safe}
+
+Measured envelope: fan1 min 2160 / max 5927 RPM, fan2 min 2000 / max 5489.
+
+Load response, all 12 threads busy (baseline → sustained → release):
+
+| Point | fan1 | fan2 | Package temp |
+|---|---|---|---|
+| idle | 2702 | 2474 | 57 °C |
+| +15 s | 5927 | 5545 | 91 °C |
+| 30–90 s | ~5930 | ~5480 | **100 °C** |
+| +20 s after release | 5497 | 5094 | 71 °C |
+
+Fans reach their maximum within 15 seconds and back off after release, so
+fan control demonstrably works.
+
+**The thermal ceiling is the finding worth carrying forward.** `temp1_max`
+and `temp1_crit` are both 100 °C, and the package sat pinned at exactly
+that for 75 seconds *with fans already maxed*, logging 4891 package
+throttle events. This is the i9-8950HK in a 2018 15" chassis behaving as
+designed — Intel throttles at Tjunction to protect the part — not a fault
+and not a t2fanrd shortcoming. Nothing shut down.
+
+Consequence for **Task 10's ~30-minute thermal soak**: expect it to run at
+100 °C and throttling for its entire duration. That still satisfies the
+requirement, which is no thermal *shutdown*, not no throttling — but the
+soak should be scored against that expectation rather than treated as a
+surprise. More broadly: this host suits I/O-bound and bursty work, and
+will throttle hard under sustained all-core compute. Worth weighing when
+choosing which services land here.
 
 ### Day-2 remote LUKS unlock routine (Task 8)
 _To be completed by Task 8._ The router-VPN-in → dropbear SSH against the
