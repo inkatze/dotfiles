@@ -1,19 +1,80 @@
 ---
 
-# Baseline apt packages for the Linux platform (specs/linux-migration, D-5):
-# fish, tmux, core CLI tooling, and the OpenSSH server. mise, Tailscale, and
-# the 1Password CLI have their own repo-backed install task files.
+# Baseline apt packages for the Linux platform (specs/linux-migration, D-5).
+#
+# Goal: the shell on this host should feel like the `personal` Mac. The
+# grouping below mirrors Brewfile's, so a tool added there has an obvious home
+# here. mise, Tailscale, and the 1Password CLI have their own repo-backed
+# install task files; language runtimes come from mise
+# (roles/environments/files/mise.toml), not apt.
 linux_apt_packages:
-  - fish
-  - tmux
-  - git
-  - curl
-  - wget
-  - unzip
+  # Core utilities
+  - ack
   - ca-certificates
+  - curl
+  - fd-find
+  - fzf
   - gnupg
+  - htop
+  - make
+  - ripgrep
+  - silversearcher-ag  # ships /usr/bin/ag, used by FZF_DEFAULT_COMMAND
+  - tree
+  - unzip
+  - wget
+
+  # Shell
+  - fish
+  - starship
+
+  # Terminal
+  - tmux
+  - urlview
+
+  # Git
+  - git
+  - git-extras
+  - gh                 # also required by the planwright pipeline, not just parity
+  - lazygit
+
+  # Development dependencies
   - build-essential
+  - libsodium-dev
+  - llvm
+  - mkcert
+  - xsltproc           # Linux equivalent of the libxslt CLI
+
+  # Linters / playbook tooling
+  - ansible
+  - ansible-lint
+
+  # Misc tools
+  - ddgr
+  - direnv
+  - jq
+  - mosh
+  - nnn
+  - redis-tools
+
+  # Server baseline
   - openssh-server
+
+# Deliberately NOT in this list, so the omissions read as decisions rather than
+# oversights:
+#
+# - Containers (colima, docker, docker-compose from Brewfile.personal):
+#   specs/linux-migration lists container/service deployment as Out of scope;
+#   future specs own it. colima is macOS-specific anyway — a Lima VM standing
+#   in for the native Linux containers this host would use.
+# - Databases (mariadb, mysql, postgresql): long-running services, same
+#   Out-of-scope clause.
+# - GUI casks (chrome, steam, zoom, transmission, dbeaver, cyberduck): a
+#   separate call, and this host is heading toward headless server duty.
+# - macOS-only Brewfile entries with no Linux meaning: pinentry-mac, pngpaste,
+#   terminal-notifier, mas; plus gnu-tar and readline, since the GNU userland
+#   is native here.
+# - stylua, lua-language-server: not packaged in Ubuntu. Install via mise if
+#   the Neovim Lua setup needs them on this host.
 
 # sshd hardening drop-in filename (REQ-E1.1: key-only auth, no root login).
 linux_ssh_hardening_dropin: 60-hardening.conf
