@@ -1,0 +1,28 @@
+---
+
+# The Nerd Font that roles/kitty asks for by name. See the rationale block on
+# linux_nerd_font_version in defaults/main.yml for why this is fetched from an
+# upstream release rather than apt.
+- name: Ensure the user font directory exists
+  ansible.builtin.file:
+    path: "{{ linux_nerd_font_dir }}"
+    state: directory
+    mode: "0755"
+  tags: [linux, fonts]
+
+# `creates` is what keeps this from re-fetching 27 MB every run: unarchive with
+# remote_src re-downloads unconditionally without it, which would make the
+# playbook permanently `changed` and put the Task 7 convergence criterion out of
+# reach. linux_nerd_font_probe therefore has to name a file that really is in
+# the archive.
+- name: Install FiraCode Nerd Font
+  ansible.builtin.unarchive:
+    src: >-
+      https://github.com/ryanoasis/nerd-fonts/releases/download/{{
+      linux_nerd_font_version }}/{{ linux_nerd_font_archive }}
+    dest: "{{ linux_nerd_font_dir }}"
+    remote_src: true
+    creates: "{{ linux_nerd_font_dir }}/{{ linux_nerd_font_probe }}"
+    mode: "0644"
+  notify: Refresh the font cache
+  tags: [linux, fonts]

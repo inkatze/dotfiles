@@ -35,6 +35,14 @@ linux_apt_packages:
   # Terminal
   - tmux
   - urlview
+  # roles/kitty is cross-platform and already symlinks ~/.config/kitty here, so
+  # before this line the host carried config for a program it did not have.
+  # Only matters at the physical console: reached over `kitten ssh` from a Mac,
+  # the Mac renders and this is unused.
+  - kitty
+  # fc-cache, for the Nerd Font install in tasks/fonts.yml. kitty pulls it in
+  # transitively, but the font task must not depend on that ordering.
+  - fontconfig
 
   # Git
   - git
@@ -79,13 +87,17 @@ linux_apt_packages:
   #
   #   mesa-vulkan-drivers  RADV, Mesa's Vulkan driver. This is the actual
   #                        driver: without it the machine has no Vulkan at all
-  #                        (verified -- radeon_icd.x86_64.json was absent), even
-  #                        though amdgpu binds the card and drives a display.
+  #                        (verified -- radeon_icd.json was absent), even though
+  #                        amdgpu binds the card and drives a display.
   #   vulkan-tools         vulkaninfo, for enumeration and device attribution.
   #
-  # NOT installed: vulkan-validationlayers (developer tooling for people writing
-  # Vulkan code, not for running it) and the :i386 variants (needed only for
-  # Steam/wine, and this host is heading for headless duty).
+  # NOT installed: vulkan-validationlayers, developer tooling for people writing
+  # Vulkan code rather than running it.
+  #
+  # The :i386 variant IS installed, in the Gaming block below. This comment used
+  # to exclude it on the grounds that it was "needed only for Steam/wine, and
+  # this host is heading for headless duty" -- both halves of which stopped
+  # being true when Steam was added.
   - mesa-vulkan-drivers
   - vulkan-tools
 
@@ -97,9 +109,33 @@ linux_apt_packages:
   #
   # Polaris-safe, which the task explicitly calls for ("no FP16-dependent
   # backend"): GCN 4 has no fast FP16, and llama.cpp's Vulkan backend runs the
-  # FP32 paths on such devices rather than requiring shaderFloat16.
+  # FP32 paths on such devices rather than requiring shaderFloat16. Both claims
+  # are now measured rather than assumed -- ggml reports "fp16: 0" for both
+  # Polaris devices on this host and benchmarks to completion anyway, naming the
+  # eGPU in its own output. See the Task 9 section of
+  # specs/linux-migration/runbook.md.
   - libggml0-backend-vulkan
   - llama.cpp-tools
+
+  # Gaming
+  #
+  # Steam is a deliberate exception to the "GUI apps are a separate call"
+  # omission below, which it amends rather than contradicts: this host has an
+  # 8 GB RX 580 attached, and occasional gaming is a use the hardware is already
+  # paying for. It is not a service and starts nothing at boot, so it does not
+  # touch the Out-of-scope clause on long-running services.
+  #
+  #   steam-installer      the amd64 bootstrap; it pulls steam:i386 and
+  #                        steam-libs-i386:i386 in turn. Steam's runtime is
+  #                        still 32-bit, which is the whole reason the i386
+  #                        architecture has to be enabled in tasks/main.yml
+  #                        BEFORE the apt cache is refreshed.
+  #   mesa-vulkan-drivers:i386  RADV for 32-bit clients. Without it, Proton and
+  #                        native 32-bit titles fall back to software rendering
+  #                        or refuse to start, on a machine that demonstrably
+  #                        does Vulkan fine at 64-bit -- a confusing failure.
+  - steam-installer
+  - mesa-vulkan-drivers:i386
 
   # Misc tools
   - ddgr
@@ -121,6 +157,7 @@ linux_mise_tools:
   - pipx:ansible-core
   - pipx:ansible-lint
   - gh
+  - lua-language-server
 
 # Absolute path to the user-level mise binary. The tasks below shell out to it
 # directly rather than relying on PATH, because on a fresh host mise has just
@@ -141,13 +178,21 @@ linux_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
 #   in for the native Linux containers this host would use.
 # - Databases (mariadb, mysql, postgresql): long-running services, same
 #   Out-of-scope clause.
-# - GUI casks (chrome, steam, zoom, transmission, dbeaver, cyberduck): a
-#   separate call, and this host is heading toward headless server duty.
+# - GUI casks (chrome, zoom, transmission, dbeaver, cyberduck): a separate
+#   call, and this host is heading toward headless server duty. steam was on
+#   this list until the eGPU landed and made gaming a real use of hardware the
+#   host already has; it now sits in the Gaming block above. The rest stay out
+#   for the original reason, so this remains a decision rather than an
+#   oversight.
 # - macOS-only Brewfile entries with no Linux meaning: pinentry-mac, pngpaste,
 #   terminal-notifier, mas; plus gnu-tar and readline, since the GNU userland
 #   is native here.
-# - stylua, lua-language-server: not packaged in Ubuntu. Install via mise if
-#   the Neovim Lua setup needs them on this host.
+# - stylua: not packaged in Ubuntu, and not needed. It appears in the Neovim
+#   config only as a root-marker FILENAME (.stylua.toml in lspconfig/lua.lua's
+#   root_markers); nothing ever executes the binary, so its absence is inert.
+#   This line used to lump it together with lua-language-server under "install
+#   via mise if the Neovim Lua setup needs them" -- the two turned out to have
+#   opposite answers, which is why they are now separated.
 #
 # Considered for the move to mise and deliberately KEPT in apt, with the
 # archive version measured on resolute against the current upstream release:
@@ -181,3 +226,24 @@ linux_ssh_hardening_dropin: 60-hardening.conf
 # suspending this host. It is a laptop serving as an always-on server, so the
 # steady state is lid shut and headless.
 linux_logind_lid_dropin: 60-lid.conf
+
+# FiraCode Nerd Font, the face roles/kitty/files/kitty/kitty.conf asks for by
+# name ("FiraCode Nerd Font Mono"). The Macs get it from the Brewfile cask
+# font-fira-code-nerd-font; apt has no Nerd Font at all (fonts-firacode is
+# stock FiraCode with none of the patched glyphs), so this is one of the few
+# places the apt-first rule cannot be honoured and an upstream release is
+# fetched directly.
+#
+# Pinned, like the mise tools and for the same reason: a font fetched from a
+# GitHub release is invisible to unattended-upgrades, so moving it has to be a
+# reviewable commit rather than a silent change under the terminal.
+#
+# Installed user-level under ~/.local/share/fonts, so no root and no collision
+# with the distro's /usr/share/fonts tree.
+linux_nerd_font_version: v3.4.0
+linux_nerd_font_archive: FiraCode.zip
+linux_nerd_font_dir: "{{ ansible_facts.env.HOME }}/.local/share/fonts/FiraCodeNerdFont"
+# A file known to exist inside the archive, used as the idempotency guard. It
+# must stay correct: a wrong name here re-downloads 27 MB on every single run
+# and the playbook could never report changed=0.
+linux_nerd_font_probe: FiraCodeNerdFontMono-Regular.ttf

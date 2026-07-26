@@ -42,6 +42,16 @@ uv = "0.11.32"
 # apt's ansible back in and undo the line above.
 "pipx:ansible-lint" = "26.6.0"
 
+# roles/neovim's lspconfig/lua.lua runs `cmd = { 'lua-language-server' }`
+# outright, so without this the Lua LSP simply never starts -- and it fails
+# silently, presenting as "completion doesn't work in Lua" with nothing naming
+# the missing binary. The Macs get it from the Brewfile; Ubuntu does not
+# package it at all, so mise (aqua backend) is the only user-level route.
+#
+# Linux-only on purpose: adding it to roles/environments/files/mise.toml would
+# shadow the Macs' Homebrew copy for no gain.
+lua-language-server = "3.18.2"
+
 # Ubuntu resolute ships gh 2.46.0, tagged upstream in March 2024. gh is a
 # credential-holding network client and a hard dependency of the planwright
 # pipeline; two years of missed releases is the less secure option here, not

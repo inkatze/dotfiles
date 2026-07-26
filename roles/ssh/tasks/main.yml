@@ -83,3 +83,21 @@
     force: true
     mode: "0600"
   tags: [ssh]
+
+# Same path on macOS and Linux, so this is cross-platform like the rest of the
+# role. Harmless on a host without the 1Password desktop app: the file is read
+# by the agent, and nothing else looks at it.
+- name: Create the 1Password agent configuration directory
+  ansible.builtin.file:
+    path: "{{ ansible_facts.env.HOME }}/.config/1Password/ssh"
+    state: directory
+    mode: "0700"
+  tags: [ssh]
+
+# copy, not link -- see the header of the source file for why.
+- name: Deploy the 1Password SSH agent key list
+  ansible.builtin.copy:
+    src: 1password-agent.toml
+    dest: "{{ ansible_facts.env.HOME }}/.config/1Password/ssh/agent.toml"
+    mode: "0600"
+  tags: [ssh]
