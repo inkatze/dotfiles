@@ -91,9 +91,13 @@ linux_apt_packages:
   #                        amdgpu binds the card and drives a display.
   #   vulkan-tools         vulkaninfo, for enumeration and device attribution.
   #
-  # NOT installed: vulkan-validationlayers (developer tooling for people writing
-  # Vulkan code, not for running it) and the :i386 variants (needed only for
-  # Steam/wine, and this host is heading for headless duty).
+  # NOT installed: vulkan-validationlayers, developer tooling for people writing
+  # Vulkan code rather than running it.
+  #
+  # The :i386 variant IS installed, in the Gaming block below. This comment used
+  # to exclude it on the grounds that it was "needed only for Steam/wine, and
+  # this host is heading for headless duty" -- both halves of which stopped
+  # being true when Steam was added.
   - mesa-vulkan-drivers
   - vulkan-tools
 
@@ -112,6 +116,26 @@ linux_apt_packages:
   # specs/linux-migration/runbook.md.
   - libggml0-backend-vulkan
   - llama.cpp-tools
+
+  # Gaming
+  #
+  # Steam is a deliberate exception to the "GUI apps are a separate call"
+  # omission below, which it amends rather than contradicts: this host has an
+  # 8 GB RX 580 attached, and occasional gaming is a use the hardware is already
+  # paying for. It is not a service and starts nothing at boot, so it does not
+  # touch the Out-of-scope clause on long-running services.
+  #
+  #   steam-installer      the amd64 bootstrap; it pulls steam:i386 and
+  #                        steam-libs-i386:i386 in turn. Steam's runtime is
+  #                        still 32-bit, which is the whole reason the i386
+  #                        architecture has to be enabled in tasks/main.yml
+  #                        BEFORE the apt cache is refreshed.
+  #   mesa-vulkan-drivers:i386  RADV for 32-bit clients. Without it, Proton and
+  #                        native 32-bit titles fall back to software rendering
+  #                        or refuse to start, on a machine that demonstrably
+  #                        does Vulkan fine at 64-bit -- a confusing failure.
+  - steam-installer
+  - mesa-vulkan-drivers:i386
 
   # Misc tools
   - ddgr
@@ -154,8 +178,12 @@ linux_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
 #   in for the native Linux containers this host would use.
 # - Databases (mariadb, mysql, postgresql): long-running services, same
 #   Out-of-scope clause.
-# - GUI casks (chrome, steam, zoom, transmission, dbeaver, cyberduck): a
-#   separate call, and this host is heading toward headless server duty.
+# - GUI casks (chrome, zoom, transmission, dbeaver, cyberduck): a separate
+#   call, and this host is heading toward headless server duty. steam was on
+#   this list until the eGPU landed and made gaming a real use of hardware the
+#   host already has; it now sits in the Gaming block above. The rest stay out
+#   for the original reason, so this remains a decision rather than an
+#   oversight.
 # - macOS-only Brewfile entries with no Linux meaning: pinentry-mac, pngpaste,
 #   terminal-notifier, mas; plus gnu-tar and readline, since the GNU userland
 #   is native here.

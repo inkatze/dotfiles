@@ -1,9 +1,34 @@
 ---
 
+# Steam's runtime is still 32-bit, so i386 has to be enabled before the cache
+# refresh below. `dpkg --add-architecture` only records that the architecture
+# exists; the i386 package lists are not fetched until the next apt update, so
+# doing this in the other order leaves steam-installer's steam-libs-i386:i386
+# dependency unresolvable on a fresh host.
+- name: Check the enabled dpkg architectures
+  ansible.builtin.command:
+    cmd: dpkg --print-foreign-architectures
+  register: linux_foreign_arches
+  changed_when: false
+  tags: [linux]
+
+- name: Enable the i386 architecture for Steam
+  ansible.builtin.command:
+    cmd: dpkg --add-architecture i386
+  become: true
+  when: "'i386' not in linux_foreign_arches.stdout_lines"
+  register: linux_i386_enabled
+  changed_when: true
+  tags: [linux]
+
 - name: Update apt cache
   ansible.builtin.apt:
     update_cache: true
-    cache_valid_time: 3600
+    # Forced when i386 was just enabled: the cached lists predate the new
+    # architecture and contain no i386 package at all, so honouring the usual
+    # hour-long validity window here would defer every i386 install to the
+    # next run.
+    cache_valid_time: "{{ (0 if linux_i386_enabled.changed else 3600) | int }}"
   become: true
   tags: [linux]
 
