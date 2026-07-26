@@ -70,6 +70,37 @@ linux_apt_packages:
   - libffi-dev
   - libgmp-dev
 
+  # GPU / Vulkan (specs/linux-migration Task 9, the RX 580 eGPU)
+  #
+  # Baseline rather than a one-off install: this host has a discrete GPU, and a
+  # GPU box that silently cannot do Vulkan is a trap. Nothing here is a service
+  # or a daemon, so the Out-of-scope clause on long-running services does not
+  # apply.
+  #
+  #   mesa-vulkan-drivers  RADV, Mesa's Vulkan driver. This is the actual
+  #                        driver: without it the machine has no Vulkan at all
+  #                        (verified -- radeon_icd.x86_64.json was absent), even
+  #                        though amdgpu binds the card and drives a display.
+  #   vulkan-tools         vulkaninfo, for enumeration and device attribution.
+  #
+  # NOT installed: vulkan-validationlayers (developer tooling for people writing
+  # Vulkan code, not for running it) and the :i386 variants (needed only for
+  # Steam/wine, and this host is heading for headless duty).
+  - mesa-vulkan-drivers
+  - vulkan-tools
+
+  # Task 9 requires a Vulkan *compute* workload run to completion with the eGPU
+  # attributed in the tool's own output. llama.cpp is the chosen vehicle: it is
+  # packaged (so no vendored build), its ggml Vulkan backend prints the device
+  # it selected, and it exercises real compute rather than a graphics scene the
+  # way vkmark or vkcube would.
+  #
+  # Polaris-safe, which the task explicitly calls for ("no FP16-dependent
+  # backend"): GCN 4 has no fast FP16, and llama.cpp's Vulkan backend runs the
+  # FP32 paths on such devices rather than requiring shaderFloat16.
+  - libggml0-backend-vulkan
+  - llama.cpp-tools
+
   # Misc tools
   - ddgr
   - direnv
