@@ -35,6 +35,14 @@ linux_apt_packages:
   # Terminal
   - tmux
   - urlview
+  # roles/kitty is cross-platform and already symlinks ~/.config/kitty here, so
+  # before this line the host carried config for a program it did not have.
+  # Only matters at the physical console: reached over `kitten ssh` from a Mac,
+  # the Mac renders and this is unused.
+  - kitty
+  # fc-cache, for the Nerd Font install in tasks/fonts.yml. kitty pulls it in
+  # transitively, but the font task must not depend on that ordering.
+  - fontconfig
 
   # Git
   - git
@@ -125,6 +133,7 @@ linux_mise_tools:
   - pipx:ansible-core
   - pipx:ansible-lint
   - gh
+  - lua-language-server
 
 # Absolute path to the user-level mise binary. The tasks below shell out to it
 # directly rather than relying on PATH, because on a fresh host mise has just
@@ -150,8 +159,12 @@ linux_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
 # - macOS-only Brewfile entries with no Linux meaning: pinentry-mac, pngpaste,
 #   terminal-notifier, mas; plus gnu-tar and readline, since the GNU userland
 #   is native here.
-# - stylua, lua-language-server: not packaged in Ubuntu. Install via mise if
-#   the Neovim Lua setup needs them on this host.
+# - stylua: not packaged in Ubuntu, and not needed. It appears in the Neovim
+#   config only as a root-marker FILENAME (.stylua.toml in lspconfig/lua.lua's
+#   root_markers); nothing ever executes the binary, so its absence is inert.
+#   This line used to lump it together with lua-language-server under "install
+#   via mise if the Neovim Lua setup needs them" -- the two turned out to have
+#   opposite answers, which is why they are now separated.
 #
 # Considered for the move to mise and deliberately KEPT in apt, with the
 # archive version measured on resolute against the current upstream release:
@@ -185,3 +198,24 @@ linux_ssh_hardening_dropin: 60-hardening.conf
 # suspending this host. It is a laptop serving as an always-on server, so the
 # steady state is lid shut and headless.
 linux_logind_lid_dropin: 60-lid.conf
+
+# FiraCode Nerd Font, the face roles/kitty/files/kitty/kitty.conf asks for by
+# name ("FiraCode Nerd Font Mono"). The Macs get it from the Brewfile cask
+# font-fira-code-nerd-font; apt has no Nerd Font at all (fonts-firacode is
+# stock FiraCode with none of the patched glyphs), so this is one of the few
+# places the apt-first rule cannot be honoured and an upstream release is
+# fetched directly.
+#
+# Pinned, like the mise tools and for the same reason: a font fetched from a
+# GitHub release is invisible to unattended-upgrades, so moving it has to be a
+# reviewable commit rather than a silent change under the terminal.
+#
+# Installed user-level under ~/.local/share/fonts, so no root and no collision
+# with the distro's /usr/share/fonts tree.
+linux_nerd_font_version: v3.4.0
+linux_nerd_font_archive: FiraCode.zip
+linux_nerd_font_dir: "{{ ansible_facts.env.HOME }}/.local/share/fonts/FiraCodeNerdFont"
+# A file known to exist inside the archive, used as the idempotency guard. It
+# must stay correct: a wrong name here re-downloads 27 MB on every single run
+# and the playbook could never report changed=0.
+linux_nerd_font_probe: FiraCodeNerdFontMono-Regular.ttf

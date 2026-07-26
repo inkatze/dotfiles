@@ -32,6 +32,10 @@
     state: link
   tags: [linux]
 
+- name: Install terminal fonts
+  ansible.builtin.include_tasks: fonts.yml
+  tags: [linux, fonts]
+
 - name: Install mise runtime manager
   ansible.builtin.include_tasks: mise.yml
   tags: [linux]

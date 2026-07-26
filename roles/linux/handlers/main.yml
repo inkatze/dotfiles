@@ -5,3 +5,10 @@
     name: ssh
     state: restarted
   become: true
+
+# User-scoped: fontconfig keeps a per-user cache under ~/.cache/fontconfig, and
+# the fonts themselves live under ~/.local/share/fonts, so no become.
+- name: Refresh the font cache
+  ansible.builtin.command:
+    cmd: fc-cache -f {{ linux_nerd_font_dir | quote }}
+  changed_when: true
