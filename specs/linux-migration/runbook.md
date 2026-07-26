@@ -275,9 +275,182 @@ pinned host-key fingerprint → `cryptroot-unlock` → console-fallback
 routine. (Fingerprints are pinned on clients, not committed here.)
 
 ### eGPU attach/detach procedure (Task 9)
-_To be completed by Task 9._ Thunderbolt authorization, hotplug vs
-boot-attached posture, required kernel parameters, and known Polaris
-limitations.
+
+Everything below is measured on this host, recorded as produced.
+
+#### Device inventory
+
+Three GPUs. Bus addresses are **not** stable — they changed wholesale when
+the Thunderbolt cable moved to a different port (the eGPU was `0000:0a:00.0`,
+then `0000:80:00.0`), and `/sys/class/drm/cardN` numbering moved with them
+(the eGPU was `card3`, then `card0`). Key everything to the PCI device ID:
+
+| Device ID | Device | Drives |
+|---|---|---|
+| `1002:67df` | Ellesmere / Polaris10 — **RX 580 8 GB, in the Razer Core** | the external monitor, via the card's own DisplayPort |
+| `1002:67ef` | Baffin / Polaris11 — internal Radeon Pro | the built-in laptop panel (`eDP-1`) |
+| `8086:3e9b` | CoffeeLake-H UHD 630 — Intel iGPU | nothing attached |
+
+**Vulkan device indices are not stable either**, for the same reason. Confirm
+with `llama-bench --list-devices` before pinning anything to `Vulkan1`; the
+name in the output is the reliable identifier, not the index.
+
+#### Thunderbolt authorization and topology
+
+    boltctl list
+
+Both nodes `status: authorized`, `policy: auto`, `authflags: boot` — so
+authorization survives reboots with no per-boot action. Stored since
+2026-07-24.
+
+One physical enclosure presents **two** Thunderbolt nodes (`Razer Core` and
+`Razer Core #2`, at route depth 1 and 2). The depth-2 node is internal to the
+enclosure; there is only one cable in the system, and the keyboard (USB) and
+monitor (DisplayPort) are not Thunderbolt devices.
+
+The two hops train at different rates, and this is the diagnostic:
+
+| Hop | Rate |
+|---|---|
+| `N-1` — host → enclosure, **over the cable** | 20 Gb/s = 2 lanes × 10 Gb/s |
+| `N-101` — internal to the enclosure | 40 Gb/s = 2 lanes × 20 Gb/s |
+
+The internal PCB link runs at full TB3 rate while the cabled hop runs at
+half. **Moving the cable to a Thunderbolt port on the other side of the
+machine did not change this** (the domain went from 0 to 1 and every PCI bus
+number changed, confirming a genuinely different controller; the lane rate did
+not budge). That isolates the cable itself, not the port.
+
+#### The half-rate cable does not matter, and this is why
+
+It is tempting to buy a certified 40 Gb/s cable. **Do not — it would change
+nothing.** The PCIe tunnel is the narrower constraint, by a wide margin.
+
+Chain walk from the root port down to `1002:67df`:
+
+| Device | current | max |
+|---|---|---|
+| root port | 8.0 GT/s ×4 | 8.0 GT/s ×4 |
+| DSL6540 bridge | 8.0 GT/s ×4 | 8.0 GT/s ×4 |
+| JHL7540 bridge | 2.5 GT/s ×4 | **2.5 GT/s** ×4 |
+| DSL6540 bridge | 2.5 GT/s ×4 | **2.5 GT/s** ×4 |
+| DSL6540 bridge | 2.5 GT/s ×4 | 8.0 GT/s ×4 |
+| RX 580 | 2.5 GT/s ×4 | 8.0 GT/s ×16 |
+
+Two tunnel bridges advertise Gen1 as their *maximum*, so nothing downstream
+can exceed it. The driver agrees — `pp_dpm_pcie` on the eGPU offers no Gen3
+level at all, where the internal dGPU has one and uses it:
+
+    eGPU RX 580     0: 2.5GT/s, x8 *      internal dGPU   0: 2.5GT/s, x8
+                    1: 2.5GT/s, x8                        1: 8.0GT/s, x16 *
+
+The arithmetic that settles the cable question:
+
+| Ceiling | Bandwidth |
+|---|---|
+| PCIe Gen1 ×4 (8b/10b → 250 MB/s per lane) | **~1.0 GB/s** |
+| Thunderbolt at the current 20 Gb/s | ~2.5 GB/s |
+| Thunderbolt with a 40 Gb/s cable | ~5.0 GB/s |
+
+The Thunderbolt link is already 2.5× wider than the PCIe tunnel it carries.
+Doubling it widens the part that was never full. The Gen1 cap is structural to
+this TB3 PCIe tunnel, not a cabling fault, and no cable changes it.
+
+Two earlier claims are corrected by the above, deliberately recorded rather
+than quietly dropped: that the advertised Gen1 rate did not establish a real
+bandwidth deficit (it does — the deficit is real, just not the cable's fault),
+and that a 40 Gb/s cable was the cheap fix (it is not a fix at all).
+
+#### Resizable BAR does not work here
+
+`pci=realloc` is on the kernel command line to try to map the full 8 GB
+aperture. It fails:
+
+    amdgpu 0000:80:00.0: BAR 0 [mem size 0x200000000 64bit pref]: failed to assign
+    amdgpu 0000:80:00.0: [drm] Detected VRAM RAM=8192M, BAR=256M
+
+The card supports it — `resource0_resize` reads `0x3f00`, i.e. 256M through
+8G — and the kernel attempts 8G and is refused for want of MMIO space below
+the tunnel. It falls back to the legacy 256 MB window, the same size the
+internal dGPU uses. These four `failed to assign` lines are the **only**
+amdgpu or thunderbolt errors in the boot log.
+
+This is a performance characteristic, not a fault: all 8192 MB of VRAM is
+usable and Vulkan reports it. Host writes to VRAM are just paged through a
+256 MB window. Combined with Gen1 ×4, it is why upload throughput is modest.
+
+#### The compute run
+
+Model kept deliberately **outside the repo**, in a regenerable location:
+
+    mkdir -p ~/.cache/llama.cpp/models
+    curl -L --output-dir ~/.cache/llama.cpp/models -O \
+      https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q8_0.gguf
+
+    llama-bench -m ~/.cache/llama.cpp/models/qwen2.5-0.5b-instruct-q8_0.gguf \
+      -dev Vulkan1 -ngl 99 -r 2
+
+Device attribution in the tool's own output — the Task 9 bar:
+
+    Vulkan1: AMD Radeon RX 580 Series (RADV POLARIS10) (8192 MiB, 8003 MiB free)
+
+Measured, Qwen2.5-0.5B Q8_0 (639 MiB), two repetitions:
+
+| Device | pp512 (t/s) | tg128 (t/s) |
+|---|---|---|
+| **RX 580 eGPU** | **1196.48 ± 0.08** | **33.96 ± 0.45** |
+| internal Radeon Pro | 335.03 ± 0.06 | 24.04 ± 0.00 |
+| CPU (i9-8950HK) | 65.18 ± 1.44 | 26.71 ± 0.27 |
+
+**The slow link costs far less than it looks like it should.** PCIe is paid
+once, uploading weights; steady-state inference runs out of VRAM. So the eGPU
+is 3.6× the internal dGPU and 18× the CPU on prompt processing despite the
+Gen1 tunnel. The one-off cost is roughly a second of extra load time for a
+639 MiB model (measured with the page cache warm, so disk is out of the path).
+
+Note `tg128`: the eGPU beats the CPU by only 1.3×, and the internal dGPU is
+*slower* than the CPU. Token generation is memory-bandwidth bound and barely
+parallel at batch 1 — it does not reward a GPU the way prompt processing
+does. Judge this host's GPU acceleration on `pp512`, not `tg128`.
+
+#### Polaris limitations
+
+Both AMD cards report, via ggml:
+
+    uma: 0 | fp16: 0 | bf16: 0 | warp size: 64 | int dot: 0 | matrix cores: none
+
+GCN 4 has no fast FP16, no bf16, no integer dot product, no matrix cores. So
+FP16-dependent and matrix-core-dependent backends are out; the FP32 paths are
+what runs. llama.cpp's Vulkan backend handles this correctly — it reports
+`fp16: 0` and benchmarks to completion anyway. This is the reason the baseline
+picks the Vulkan backend rather than anything ROCm- or tensor-core-oriented.
+
+#### Posture: boot-attached; hotplug not exercised
+
+Chosen posture is **boot-attached**, powered on before the host and left
+connected. Supported by `authflags: boot` plus a clean amdgpu init at every
+boot.
+
+**Live hotplug was deliberately not tested**, and this is a gap rather than a
+finding: the eGPU drives the only external display, so detaching blacks out
+the monitor and risks wedging the driver. Any re-cabling here has been done
+powered off. If live detach is ever needed, test it with the monitor moved to
+the internal panel first.
+
+#### Kernel parameters — undeclared host state
+
+    intel_iommu=on iommu=pt pm_async=off pci=realloc
+
+These are hand-edited into `/etc/default/grub` and are **not declared in this
+repo**, so a rebuilt host would not have them. Left that way on purpose: a bad
+`GRUB_CMDLINE_LINUX_DEFAULT` means an unbootable machine, this host already
+carries the GRUB-vs-Startup-Manager caveat above, and Task 8's remote-unlock
+recovery path does not exist yet. Declaring them via a
+`/etc/default/grub.d/` drop-in plus an `update-grub` handler is a follow-up
+sequenced **after** Task 8.
+
+`pci=realloc` is worth keeping despite the BAR failure above; it is the
+mechanism that would work if MMIO space ever allows it.
 
 ### Server readiness: access paths + health signal (Task 10)
 _To be completed by Task 10._ The off-LAN access paths (router VPN,
