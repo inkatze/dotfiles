@@ -129,7 +129,7 @@ osx_defaults:
   - domain: com.apple.finder
     key: NewWindowTargetPath
     type: string
-    value: file://{{ ansible_env.HOME }}/
+    value: file://{{ ansible_facts.env.HOME }}/
   - domain: com.apple.finder
     key: ShowRecentTags
     type: int

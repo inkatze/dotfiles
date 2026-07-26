@@ -11,14 +11,14 @@
 # sudo prompt is avoided.
 - name: Install missing packages from Brewfile
   ansible.builtin.command:
-    cmd: brew bundle install --no-upgrade --file={{ ansible_env.PWD }}/Brewfile
+    cmd: brew bundle install --no-upgrade --file={{ ansible_facts.env.PWD }}/Brewfile
   register: osx_brew_bundle_common_install
   changed_when: "'Installing' in osx_brew_bundle_common_install.stdout"
   tags: [upgrade]
 
 - name: Install missing host-specific packages from Brewfile
   ansible.builtin.command:
-    cmd: brew bundle install --no-upgrade --file={{ ansible_env.PWD }}/Brewfile.{{ inventory_hostname }}
+    cmd: brew bundle install --no-upgrade --file={{ ansible_facts.env.PWD }}/Brewfile.{{ inventory_hostname }}
   register: osx_brew_bundle_host_install
   changed_when: "'Installing' in osx_brew_bundle_host_install.stdout"
   tags: [upgrade]
@@ -31,7 +31,7 @@
   ansible.builtin.shell:
     cmd: >-
       set -o pipefail;
-      cat {{ ansible_env.PWD }}/Brewfile {{ ansible_env.PWD }}/Brewfile.{{ inventory_hostname }}
+      cat {{ ansible_facts.env.PWD }}/Brewfile {{ ansible_facts.env.PWD }}/Brewfile.{{ inventory_hostname }}
       | { grep -oE 'id:[[:space:]]*[0-9]+'
       | grep -oE '[0-9]+' || true; }
       | tr '\n' ' '
@@ -42,7 +42,7 @@
 
 - name: Upgrade common packages from Brewfile
   ansible.builtin.command:
-    cmd: brew bundle --file={{ ansible_env.PWD }}/Brewfile
+    cmd: brew bundle --file={{ ansible_facts.env.PWD }}/Brewfile
   environment:
     HOMEBREW_BUNDLE_MAS_SKIP: "{{ osx_brewfile_mas_ids.stdout }}"
   register: osx_brew_bundle_common
@@ -51,7 +51,7 @@
 
 - name: Upgrade host-specific packages from Brewfile
   ansible.builtin.command:
-    cmd: brew bundle --file={{ ansible_env.PWD }}/Brewfile.{{ inventory_hostname }}
+    cmd: brew bundle --file={{ ansible_facts.env.PWD }}/Brewfile.{{ inventory_hostname }}
   environment:
     HOMEBREW_BUNDLE_MAS_SKIP: "{{ osx_brewfile_mas_ids.stdout }}"
   register: osx_brew_bundle_host
@@ -69,7 +69,7 @@
 
 - name: Sync GitHub MCP server registration with Claude Code
   ansible.builtin.command:
-    cmd: "{{ ansible_env.PWD }}/scripts/claude-mcp-sync-github.sh"
+    cmd: "{{ ansible_facts.env.PWD }}/scripts/claude-mcp-sync-github.sh"
   register: osx_claude_mcp_github_upgrade
   changed_when: "'CHANGED' in osx_claude_mcp_github_upgrade.stdout"
   when: lookup('ansible.builtin.env', 'CI', default='') == ''
@@ -84,14 +84,14 @@
 # `claude` CLI in the matrix.
 - name: Update planwright plugin marketplace
   ansible.builtin.command:
-    cmd: "{{ ansible_env.HOME }}/.local/bin/claude plugin marketplace update planwright"
+    cmd: "{{ ansible_facts.env.HOME }}/.local/bin/claude plugin marketplace update planwright"
   changed_when: false
   when: lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [upgrade]
 
 - name: Update planwright plugin
   ansible.builtin.command:
-    cmd: "{{ ansible_env.HOME }}/.local/bin/claude plugin update planwright@planwright"
+    cmd: "{{ ansible_facts.env.HOME }}/.local/bin/claude plugin update planwright@planwright"
   register: osx_planwright_update
   changed_when: "'already at the latest' not in osx_planwright_update.stdout"
   when: lookup('ansible.builtin.env', 'CI', default='') == ''

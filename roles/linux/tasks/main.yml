@@ -20,7 +20,7 @@
 # User-scoped, so no become required.
 - name: Ensure ~/.local/bin exists
   ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.local/bin"
+    path: "{{ ansible_facts.env.HOME }}/.local/bin"
     state: directory
     mode: "0755"
   tags: [linux]
@@ -28,7 +28,7 @@
 - name: Shim fd to fdfind
   ansible.builtin.file:
     src: /usr/bin/fdfind
-    dest: "{{ ansible_env.HOME }}/.local/bin/fd"
+    dest: "{{ ansible_facts.env.HOME }}/.local/bin/fd"
     state: link
   tags: [linux]
 
@@ -39,6 +39,10 @@
 - name: Configure OpenSSH server
   ansible.builtin.include_tasks: ssh-server.yml
   tags: [linux, ssh]
+
+- name: Configure lid and idle power behaviour
+  ansible.builtin.include_tasks: power.yml
+  tags: [linux, power]
 
 - name: Install Tailscale
   ansible.builtin.include_tasks: tailscale.yml

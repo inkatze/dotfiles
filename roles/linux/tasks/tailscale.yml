@@ -4,7 +4,7 @@
 # and MFA/identity are operator steps at Task 10, not repo automation.
 - name: Add the Tailscale apt signing key
   ansible.builtin.get_url:
-    url: "https://pkgs.tailscale.com/stable/ubuntu/{{ ansible_distribution_release }}.noarmor.gpg"
+    url: "https://pkgs.tailscale.com/stable/ubuntu/{{ ansible_facts.distribution_release }}.noarmor.gpg"
     dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
     owner: root
     group: root
@@ -17,7 +17,7 @@
     name: tailscale
     types: [deb]
     uris: https://pkgs.tailscale.com/stable/ubuntu
-    suites: "{{ ansible_distribution_release }}"
+    suites: "{{ ansible_facts.distribution_release }}"
     components: [main]
     signed_by: /usr/share/keyrings/tailscale-archive-keyring.gpg
   become: true

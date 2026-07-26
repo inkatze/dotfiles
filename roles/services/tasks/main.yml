@@ -2,8 +2,8 @@
 
 - name: Symlink my.cnf
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/services/files/my.cnf"
-    dest: "{{ ansible_env.HOME }}/.my.cnf"
+    src: "{{ ansible_facts.env.PWD }}/roles/services/files/my.cnf"
+    dest: "{{ ansible_facts.env.HOME }}/.my.cnf"
     state: link
   tags: [services]
 
@@ -34,14 +34,14 @@
 # container needs in-VM inotify for hot-reload.
 - name: Check for colima config file
   ansible.builtin.stat:
-    path: "{{ ansible_env.HOME }}/.colima/default/colima.yaml"
+    path: "{{ ansible_facts.env.HOME }}/.colima/default/colima.yaml"
   register: services_colima_config
   when: inventory_hostname == 'personal'
   tags: [services, colima]
 
 - name: Disable colima mountInotify to avoid Gatekeeper verify churn
   ansible.builtin.lineinfile:
-    path: "{{ ansible_env.HOME }}/.colima/default/colima.yaml"
+    path: "{{ ansible_facts.env.HOME }}/.colima/default/colima.yaml"
     regexp: "^mountInotify:.*$"
     line: "mountInotify: false"
   register: services_colima_inotify

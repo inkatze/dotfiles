@@ -8,21 +8,21 @@
 
 - name: Update Claude Code CLI
   ansible.builtin.command:
-    cmd: "{{ ansible_env.HOME }}/.local/bin/claude update"
+    cmd: "{{ ansible_facts.env.HOME }}/.local/bin/claude update"
   changed_when: false
   tags: [osx, update]
 
 - name: Create Claude configuration directory
   ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.claude"
+    path: "{{ ansible_facts.env.HOME }}/.claude"
     state: directory
     mode: '0755'
   tags: [osx]
 
 - name: Symlink Claude environment documentation
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/osx/files/CLAUDE.md"
-    dest: "{{ ansible_env.HOME }}/.claude/CLAUDE.md"
+    src: "{{ ansible_facts.env.PWD }}/roles/osx/files/CLAUDE.md"
+    dest: "{{ ansible_facts.env.HOME }}/.claude/CLAUDE.md"
     state: link
   tags: [osx]
 
@@ -30,8 +30,8 @@
   ansible.builtin.shell:
     cmd: |
       set -e
-      file="{{ ansible_env.HOME }}/.claude/settings.json"
-      managed="{{ ansible_env.PWD }}/roles/osx/files/claude/settings.json"
+      file="{{ ansible_facts.env.HOME }}/.claude/settings.json"
+      managed="{{ ansible_facts.env.PWD }}/roles/osx/files/claude/settings.json"
       [ ! -f "$file" ] && echo '{}' > "$file"
       current=$(cat "$file")
       updated=$(jq -s '.[0] * .[1]' "$file" "$managed")
@@ -47,15 +47,15 @@
 
 - name: Symlink Claude custom commands
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/osx/files/claude/commands"
-    dest: "{{ ansible_env.HOME }}/.claude/commands"
+    src: "{{ ansible_facts.env.PWD }}/roles/osx/files/claude/commands"
+    dest: "{{ ansible_facts.env.HOME }}/.claude/commands"
     state: link
   tags: [osx]
 
 - name: Symlink Claude hook scripts
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/osx/files/claude/scripts"
-    dest: "{{ ansible_env.HOME }}/.claude/scripts"
+    src: "{{ ansible_facts.env.PWD }}/roles/osx/files/claude/scripts"
+    dest: "{{ ansible_facts.env.HOME }}/.claude/scripts"
     state: link
   tags: [osx]
 
@@ -67,7 +67,7 @@
 # safe on a fresh machine too.
 - name: Remove dangling pair-flow.yml symlink (repo-class retirement cleanup)
   ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.claude/pair-flow.yml"
+    path: "{{ ansible_facts.env.HOME }}/.claude/pair-flow.yml"
     state: absent
   tags: [osx]
 
@@ -78,7 +78,7 @@
 # entries here with nothing left to sweep them.
 - name: Remove orphaned inbox directory (cross-session inbox retirement cleanup)
   ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.claude/inbox"
+    path: "{{ ansible_facts.env.HOME }}/.claude/inbox"
     state: absent
   tags: [osx]
 
@@ -100,7 +100,9 @@
 # `claude` CLI.
 - name: Add planwright plugin marketplace
   ansible.builtin.command:
-    cmd: "{{ ansible_env.HOME }}/.local/bin/claude plugin marketplace add https://github.com/inkatze/planwright.git"
+    cmd: >-
+      {{ ansible_facts.env.HOME }}/.local/bin/claude plugin marketplace add
+      https://github.com/inkatze/planwright.git
   register: osx_planwright_marketplace
   changed_when: "'already' not in osx_planwright_marketplace.stdout"
   when: lookup('ansible.builtin.env', 'CI', default='') == ''
@@ -108,7 +110,7 @@
 
 - name: Install planwright plugin
   ansible.builtin.command:
-    cmd: "{{ ansible_env.HOME }}/.local/bin/claude plugin install planwright@planwright --scope user"
+    cmd: "{{ ansible_facts.env.HOME }}/.local/bin/claude plugin install planwright@planwright --scope user"
   register: osx_planwright_install
   changed_when: "'already' not in osx_planwright_install.stdout"
   when: lookup('ansible.builtin.env', 'CI', default='') == ''
@@ -116,15 +118,15 @@
 
 - name: Create Cursor rules directory
   ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.cursor/rules"
+    path: "{{ ansible_facts.env.HOME }}/.cursor/rules"
     state: directory
     mode: '0755'
   tags: [osx]
 
 - name: Symlink Cursor MDC rules file
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/osx/files/environment.mdc"
-    dest: "{{ ansible_env.HOME }}/.cursor/rules/environment.mdc"
+    src: "{{ ansible_facts.env.PWD }}/roles/osx/files/environment.mdc"
+    dest: "{{ ansible_facts.env.HOME }}/.cursor/rules/environment.mdc"
     state: link
   tags: [osx]
 

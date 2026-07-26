@@ -6,5 +6,5 @@
 # wins. commit.gpgsign is on, so a wrong path here means every commit fails.
 git_onepassword_ssh_sign_path: >-
   {{ '/Applications/1Password.app/Contents/MacOS/op-ssh-sign'
-     if ansible_os_family == 'Darwin'
+     if ansible_facts.os_family == 'Darwin'
      else '/opt/1Password/op-ssh-sign' }}

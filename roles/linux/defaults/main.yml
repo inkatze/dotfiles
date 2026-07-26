@@ -70,6 +70,37 @@ linux_apt_packages:
   - libffi-dev
   - libgmp-dev
 
+  # GPU / Vulkan (specs/linux-migration Task 9, the RX 580 eGPU)
+  #
+  # Baseline rather than a one-off install: this host has a discrete GPU, and a
+  # GPU box that silently cannot do Vulkan is a trap. Nothing here is a service
+  # or a daemon, so the Out-of-scope clause on long-running services does not
+  # apply.
+  #
+  #   mesa-vulkan-drivers  RADV, Mesa's Vulkan driver. This is the actual
+  #                        driver: without it the machine has no Vulkan at all
+  #                        (verified -- radeon_icd.x86_64.json was absent), even
+  #                        though amdgpu binds the card and drives a display.
+  #   vulkan-tools         vulkaninfo, for enumeration and device attribution.
+  #
+  # NOT installed: vulkan-validationlayers (developer tooling for people writing
+  # Vulkan code, not for running it) and the :i386 variants (needed only for
+  # Steam/wine, and this host is heading for headless duty).
+  - mesa-vulkan-drivers
+  - vulkan-tools
+
+  # Task 9 requires a Vulkan *compute* workload run to completion with the eGPU
+  # attributed in the tool's own output. llama.cpp is the chosen vehicle: it is
+  # packaged (so no vendored build), its ggml Vulkan backend prints the device
+  # it selected, and it exercises real compute rather than a graphics scene the
+  # way vkmark or vkcube would.
+  #
+  # Polaris-safe, which the task explicitly calls for ("no FP16-dependent
+  # backend"): GCN 4 has no fast FP16, and llama.cpp's Vulkan backend runs the
+  # FP32 paths on such devices rather than requiring shaderFloat16.
+  - libggml0-backend-vulkan
+  - llama.cpp-tools
+
   # Misc tools
   - ddgr
   - direnv
@@ -94,12 +125,12 @@ linux_mise_tools:
 # Absolute path to the user-level mise binary. The tasks below shell out to it
 # directly rather than relying on PATH, because on a fresh host mise has just
 # been installed into ~/.local/bin and the ansible process' PATH predates it.
-linux_mise_bin: "{{ ansible_env.HOME }}/.local/bin/mise"
+linux_mise_bin: "{{ ansible_facts.env.HOME }}/.local/bin/mise"
 
 # Where the Linux-only mise config is materialized. mise reads every *.toml
 # under ~/.config/mise/conf.d as global config, alongside ~/.config/mise.toml
 # (which the environments role owns), so the two do not collide.
-linux_mise_conf_d: "{{ ansible_env.HOME }}/.config/mise/conf.d"
+linux_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
 
 # Deliberately NOT in this list, so the omissions read as decisions rather than
 # oversights:
@@ -145,3 +176,8 @@ linux_mise_conf_d: "{{ ansible_env.HOME }}/.config/mise/conf.d"
 
 # sshd hardening drop-in filename (REQ-E1.1: key-only auth, no root login).
 linux_ssh_hardening_dropin: 60-hardening.conf
+
+# systemd-logind drop-in that stops a closed lid or an idle timeout from
+# suspending this host. It is a laptop serving as an always-on server, so the
+# steady state is lid shut and headless.
+linux_logind_lid_dropin: 60-lid.conf

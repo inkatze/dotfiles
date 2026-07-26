@@ -9,3 +9,11 @@ environments_mise_tools:
   - {name: elixir, defaults: default-mix-commands}
   - {name: terraform}
   - {name: terraform-ls}
+  # lua and rust are declared in files/mise.toml but were never added here, so
+  # the playbook has never installed them -- an oversight, not a decision:
+  # ea82788 ("Add lua to default tooling") and e2df83b ("Add rust stable to
+  # default tooling") each touched only mise.toml. They must be listed for the
+  # `mise ls --missing` gate in tasks/main.yml to converge: an undeclared but
+  # missing tool would keep the gate open forever without ever being installed.
+  - {name: lua}
+  - {name: rust}

@@ -1,16 +1,51 @@
 ---
 
+# /etc/shells is world-readable, so the check costs no privilege while the write
+# does. Splitting them means a host where fish is already registered needs no
+# sudo for this role at all -- which is what lets the whole playbook run
+# unattended on a host without NOPASSWD. Previously this task always escalated,
+# so a run with no become password died here with "sudo: interactive
+# authentication is required" even when there was nothing to write. On Ubuntu
+# the apt fish package registers /usr/bin/fish itself, so that is the normal case.
+- name: Check whether fish is already a registered login shell
+  ansible.builtin.command:
+    cmd: grep -qxF {{ (fish_prefix + '/bin/fish') | quote }} /etc/shells
+  register: fish_in_etc_shells
+  changed_when: false
+  failed_when: false
+  tags: [shell]
+
 - name: Add fish to shells
   ansible.builtin.lineinfile:
     path: /etc/shells
     regexp: "^{{ fish_prefix }}/bin/fish"
     line: "{{ fish_prefix }}/bin/fish"
   become: true
+  when: fish_in_etc_shells.rc != 0
   tags: [shell]
 
+# The guard used to read $SHELL, which is the shell that invoked ansible, not the
+# account's login shell. Those differ constantly: run the playbook from a fish
+# pane and it skips even when the passwd entry is bash; run it from bash on a
+# host already converged to fish and it re-runs chsh needlessly. Read the passwd
+# database, which is what chsh actually writes.
+- name: Get the current login shell from the passwd database
+  ansible.builtin.command:
+    cmd: getent passwd {{ ansible_facts.user_id }}
+  register: fish_passwd_entry
+  changed_when: false
+  tags: [shell]
+
+# become plus an explicit username, rather than chsh on the invoking user:
+# /etc/pam.d/chsh puts `pam_rootok.so sufficient` ahead of @include common-auth,
+# so chsh is passwordless as root but prompts for the account password as the
+# user -- and Ansible has no channel to answer that prompt, so the unprivileged
+# form just fails under a non-tty. Escalating means the one become password the
+# run already needs covers this too.
 - name: Changing login shell to fish
   ansible.builtin.command:
-    cmd: chsh -s {{ fish_prefix }}/bin/fish
-  changed_when: false
-  when: lookup('ansible.builtin.env','SHELL') != (fish_prefix + "/bin/fish" | string)
+    cmd: chsh -s {{ fish_prefix }}/bin/fish {{ ansible_facts.user_id }}
+  become: true
+  when: fish_passwd_entry.stdout | trim | split(':') | last != fish_prefix + '/bin/fish'
+  changed_when: true
   tags: [shell]

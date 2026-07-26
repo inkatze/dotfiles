@@ -1,12 +1,12 @@
 ---
 
 # Neovim publishes release assets as nvim-<os>-<arch>.tar.gz. The arch token
-# already matches ansible_architecture on both platforms (arm64 on Apple
+# already matches ansible_facts.architecture on both platforms (arm64 on Apple
 # silicon, x86_64 on the Linux host); only the OS token differed, and it was
 # hardcoded to macos — so the download 404'd on Linux and failed the run.
-neovim_os_token: "{{ 'macos' if ansible_os_family == 'Darwin' else 'linux' }}"
-neovim_archive: "nvim-{{ neovim_os_token }}-{{ ansible_architecture }}"
-neovim_install_dir: "{{ ansible_env.HOME }}/.local/{{ neovim_archive }}"
+neovim_os_token: "{{ 'macos' if ansible_facts.os_family == 'Darwin' else 'linux' }}"
+neovim_archive: "nvim-{{ neovim_os_token }}-{{ ansible_facts.architecture }}"
+neovim_install_dir: "{{ ansible_facts.env.HOME }}/.local/{{ neovim_archive }}"
 neovim_release_base: "https://github.com/neovim/neovim/releases/download/stable"
 neovim_download_url: "{{ neovim_release_base }}/{{ neovim_archive }}.tar.gz"
 
@@ -16,5 +16,5 @@ neovim_download_url: "{{ neovim_release_base }}/{{ neovim_archive }}.tar.gz"
 # ~/.local/bin is already on PATH via config.fish and holds the fd shim too.
 neovim_bin_link: >-
   {{ '/usr/local/bin/nvim'
-     if ansible_os_family == 'Darwin'
-     else ansible_env.HOME ~ '/.local/bin/nvim' }}
+     if ansible_facts.os_family == 'Darwin'
+     else ansible_facts.env.HOME ~ '/.local/bin/nvim' }}

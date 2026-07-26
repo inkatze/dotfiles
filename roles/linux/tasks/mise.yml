@@ -31,7 +31,7 @@
 
 - name: Symlink the Linux mise configuration
   ansible.builtin.file:
-    src: "{{ ansible_env.PWD }}/roles/linux/files/mise/linux.toml"
+    src: "{{ ansible_facts.env.PWD }}/roles/linux/files/mise/linux.toml"
     dest: "{{ linux_mise_conf_d }}/linux.toml"
     state: link
   tags: [linux]
