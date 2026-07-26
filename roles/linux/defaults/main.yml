@@ -79,8 +79,8 @@ linux_apt_packages:
   #
   #   mesa-vulkan-drivers  RADV, Mesa's Vulkan driver. This is the actual
   #                        driver: without it the machine has no Vulkan at all
-  #                        (verified -- radeon_icd.x86_64.json was absent), even
-  #                        though amdgpu binds the card and drives a display.
+  #                        (verified -- radeon_icd.json was absent), even though
+  #                        amdgpu binds the card and drives a display.
   #   vulkan-tools         vulkaninfo, for enumeration and device attribution.
   #
   # NOT installed: vulkan-validationlayers (developer tooling for people writing
@@ -97,7 +97,11 @@ linux_apt_packages:
   #
   # Polaris-safe, which the task explicitly calls for ("no FP16-dependent
   # backend"): GCN 4 has no fast FP16, and llama.cpp's Vulkan backend runs the
-  # FP32 paths on such devices rather than requiring shaderFloat16.
+  # FP32 paths on such devices rather than requiring shaderFloat16. Both claims
+  # are now measured rather than assumed -- ggml reports "fp16: 0" for both
+  # Polaris devices on this host and benchmarks to completion anyway, naming the
+  # eGPU in its own output. See the Task 9 section of
+  # specs/linux-migration/runbook.md.
   - libggml0-backend-vulkan
   - llama.cpp-tools
 
