@@ -10,11 +10,36 @@ Documentation=man:dropbear(8)
 # would pull in basic.target, which does not exist this early.
 DefaultDependencies=no
 
-# After the network is actually up. dracut applies ip=dhcp from its initqueue
-# hooks, so ordering after that service is what makes dropbear bind to a real
-# address instead of starting on a host with no route.
-After=dracut-initqueue.service
-Wants=dracut-initqueue.service
+# Ordering is the whole game here, and the obvious guess is WRONG.
+#
+# `After=dracut-initqueue.service` looks right -- wait for the network, then
+# start. But dracut-initqueue does not FINISH until the root device appears,
+# which on this host means until the LUKS volume has been unlocked. Ordering
+# after it started dropbear 102 seconds too late, immediately after the
+# passphrase had already been typed at the console, and systemd then killed it
+# as the initrd tore down:
+#
+#   17:49:56  Starting dracut-initqueue.service
+#   17:51:38  dracut-initqueue: Scanning dm-0 ...   <- disk already unlocked
+#   17:51:38  Started dropbear-unlock.service       <- far too late
+#   17:51:38  dropbear: Early exit: Terminated by signal
+#
+# So order against the NETWORK stack, not the queue that waits on the disk.
+# nm-initrd.service is what dracut's network module runs here; naming
+# systemd-networkd.service too keeps this correct if the backend ever changes,
+# since an After= on an absent unit is simply ignored.
+#
+# Starting before the address exists is fine and deliberate: dropbear binds the
+# wildcard address, so it accepts connections as soon as DHCP completes. Waiting
+# for a lease would only re-introduce a dependency on something that can fail.
+After=nm-initrd.service systemd-networkd.service dracut-cmdline.service
+Wants=nm-initrd.service
+
+# Up BEFORE the queue that blocks on the encrypted root, so the SSH server is
+# listening for the entire window in which the passphrase is being waited for.
+# Type=simple counts as active as soon as it forks, so this orders the start
+# without making the queue wait for dropbear to exit.
+Before=dracut-initqueue.service
 
 # Must not survive the handover to the real root. Without this, dropbear keeps
 # the initrd's /root and host key alive past switch-root and blocks the
