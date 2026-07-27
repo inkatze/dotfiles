@@ -262,6 +262,24 @@ linux_dracut_unlock_conf: 60-remote-unlock.conf
 # too; the reasoning and the measured cost are in the source file's header.
 linux_amdgpu_pm_rule: 30-amdgpu-pm.rules
 
+# Sleep targets that were masked to /dev/null by hand on 2026-07-24, and are
+# unmasked again now that the logind drop-in below declares lid and idle policy
+# properly. Masking is a blunt instrument: it makes suspend IMPOSSIBLE rather
+# than unrequested, so a deliberate `systemctl suspend` fails too, and nothing in
+# the repo explained why.
+#
+# Safe because nothing on this host asks to suspend any more, verified live
+# rather than assumed:
+#   logind  HandleLidSwitch / ExternalPower / Docked / IdleAction  = ignore
+#           (read from the org.freedesktop.login1 Manager interface, not from
+#            `systemctl show`, which does not expose logind's config as unit
+#            properties and returns blanks that look like unset values)
+#   GNOME   sleep-inactive-ac-type = 'nothing'
+linux_unmask_sleep_targets:
+  - sleep.target
+  - suspend.target
+  - hibernate.target
+
 # systemd-logind drop-in that stops a closed lid or an idle timeout from
 # suspending this host. It is a laptop serving as an always-on server, so the
 # steady state is lid shut and headless.
