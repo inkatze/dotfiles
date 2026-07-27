@@ -1,10 +1,77 @@
 ---
 
-# 1Password ships its SSH signing helper at a different path per platform. The
-# tracked gitconfig hardcodes the macOS one; the git role writes the resolved
-# value into ~/.gitconfig.local, which the tracked file includes last so this
-# wins. commit.gpgsign is on, so a wrong path here means every commit fails.
-git_onepassword_ssh_sign_path: >-
-  {{ '/Applications/1Password.app/Contents/MacOS/op-ssh-sign'
-     if ansible_facts.os_family == 'Darwin'
-     else '/opt/1Password/op-ssh-sign' }}
+# Which hosts sign commits with their own on-disk key instead of routing through
+# the 1Password desktop app.
+#
+# THE PROBLEM. Every USE of a 1Password-held SSH key needs the desktop app to
+# authorize it interactively. Listing is free; using is not. Measured on the
+# Linux host, not assumed:
+#
+#   ssh-add -l                     lists the key immediately, no approval
+#   op-ssh-sign (via git commit)   fails: "1Password: failed to fill whole
+#                                  buffer"
+#   ssh-keygen -Y sign via agent   blocks until killed, waiting for a click
+#
+# On a laptop you are sitting at, that approval is a shrug. On an always-on
+# headless host that commits unattended it is fatal: after every reboot, commits
+# fail until somebody unlocks a GUI that may not even be running. It is also
+# simply friction anywhere you commit often.
+#
+# THE FIX. Listed hosts sign with an on-disk ed25519 key that `ssh-keygen` uses
+# directly -- no daemon, no GUI, no network, no approval.
+#
+# Keyed on the inventory alias rather than os_family on purpose: `work` is a Mac
+# and is on this list, so the platform is not the distinguishing axis. The alias
+# is resolved by scripts/playbook.sh and passed as -l, so inventory_hostname is
+# authoritative here.
+#
+# `personal` and `alt` are deliberately NOT listed. They keep using 1Password,
+# because switching a host over means registering its new public key on GitHub
+# before its commits read as Verified, and that is not a change to make to a
+# machine nobody asked about. Adding either later is one line here plus the two
+# registration steps described below.
+git_unattended_signing_hosts:
+  - server
+  - work
+
+git_signs_unattended: "{{ inventory_hostname in git_unattended_signing_hosts }}"
+
+# CONSIDERED AND REJECTED: fetching the key at commit time with the 1Password
+# SERVICE-ACCOUNT token, which does authenticate non-interactively. Three
+# reasons it is worse rather than better:
+#
+#   1. It makes `git commit` depend on network reachability to 1Password. A
+#      commit that fails on a network blip is a worse failure mode than the one
+#      being fixed.
+#   2. The private key still reaches the filesystem, because `ssh-keygen -Y
+#      sign` signs from a file. That makes the exposure intermittent and harder
+#      to reason about rather than removing it.
+#   3. It trades a narrow credential for a broad one. The token is a bearer
+#      credential granting READ over a whole vault; a signing key can only
+#      produce signatures. Service accounts also cannot read the Private vault
+#      at all, so a new key would be needed regardless -- all of the work, none
+#      of the benefit.
+#
+# On the Linux host the key sits on a LUKS-encrypted root, so at-rest exposure
+# already requires the disk passphrase. REQ-F1.2's exemption for "operational key
+# material that must exist as files by mechanism" is written for exactly this
+# shape of problem and this key belongs on that list, but it is NOT there yet --
+# that amendment is called out in the commit that introduced this.
+git_signing_program: >-
+  {{ 'ssh-keygen' if git_signs_unattended
+     else ('/Applications/1Password.app/Contents/MacOS/op-ssh-sign'
+           if ansible_facts.os_family == 'Darwin'
+           else '/opt/1Password/op-ssh-sign') }}
+
+# The on-disk signing key, generated PER HOST by the role so it is never copied
+# between machines and never leaves the one that made it.
+#
+# Consequence worth knowing before adding a host to the list above: it mints its
+# own key, whose public half then has to be added to
+# roles/ssh/files/allowed_signers (for local `git log --show-signature`) and to
+# GitHub as a SIGNING key (for the Verified badge). Until both are done its
+# commits sign fine but read as unverified. Deliberate -- the alternative is
+# copying one private key between machines.
+#
+# No hostname in the filename, per linux-migration REQ-F1.1.
+git_unattended_signing_key: "{{ ansible_facts.env.HOME }}/.ssh/id_signing"
