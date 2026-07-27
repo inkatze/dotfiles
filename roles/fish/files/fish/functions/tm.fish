@@ -68,13 +68,13 @@ end
 function tmdot
   if not test -d $DOT_DIR
     set -xl clone_command "git clone git@github.com:inkatze/dotfiles.git $DOT_DIR"
-    notify 'Dotfiles' 'Dotfiles project not installed' 'https://github.com/inkatze/dotfiles' -sound Sosumi -group tm -execute $clone_command
+    echo 'Dotfiles: Dotfiles project not installed'
     echo $clone_command
     return 1
   end
 
   if not windowavailable $DOT_SESSION $WORKSPACE_WINDOW
-    notify 'Dotfiles' 'Dotfiles workspace already created' -sound Purr -group tm -execute tm
+    echo 'Dotfiles: Dotfiles workspace already created'
     return 1
   end
 
@@ -93,19 +93,19 @@ function tmdot
   tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random -t "(ง •̀_•́)ง"' Enter
   tmux select-pane -t $target'.left'
 
-  notify 'Dotfiles' 'Workspace created' -sound Blow -group tm -execute tm
+  echo 'Dotfiles: Workspace created'
 end
 
 function tmzp
   if not test -d $ZP_DIR
     set -xl clone_command "git clone git@github.com:Gusto/zenpayroll $ZP_DIR"
-    notify 'Zenpayroll' 'Project not installed' 'https://github.com/Gusto/zenpayroll' -sound Sosumi -group tm -execute $clone_command
+    echo 'Zenpayroll: Project not installed'
     echo $clone_command
     return 1
   end
 
   if not windowavailable $ZP_SESSION $WORKSPACE_WINDOW
-    notify 'Zenpayroll' 'Workspace already created' -sound Purr -group tm -execute tm
+    echo 'Zenpayroll: Workspace already created'
     return 1
   end
 
@@ -126,27 +126,27 @@ function tmzp
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 
-  notify 'Zenpayroll' 'Workspace created' -sound Blow -group tm -execute tm
+  echo 'Zenpayroll: Workspace created'
 end
 
 function tmpbb
   if not test -d $PBB_DIR
     set -xl clone_command "git clone git@github.com:Gusto/payroll_building_blocks $PBB_DIR"
-    notify 'PBB' 'Project not installed' 'https://github.com/Gusto/payroll_building_blocks' -sound Sosumi -group tm -execute $clone_command
+    echo 'PBB: Project not installed'
     echo $clone_command
     return 1
   end
 
   if not windowavailable $PBB_SESSION $PBB_WINDOW
-    notify 'PBB' 'Workspace already created' -sound Purr -group tm -execute tm
+    echo 'PBB: Workspace already created'
     return 1
   end
 
   if sessionavailable $PBB_SESSION
-    notify 'PBB' 'Creating session and attaching window' -sound Purr -group tm -execute tm
+    echo 'PBB: Creating session and attaching window'
     tmux new-session -d -s $PBB_SESSION -n $PBB_WINDOW
   else
-    notify 'PBB' 'Attaching window to existing session' -sound Purr -group tm -execute tm
+    echo 'PBB: Attaching window to existing session'
     tmux new-window -t $PBB_SESSION -n $PBB_WINDOW
   end
 
@@ -160,7 +160,7 @@ function tmpbb
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 
-  notify 'PBB' 'Workspace created' -sound Blow -group tm -execute tm
+  echo 'PBB: Workspace created'
 end
 
 function stopservices
@@ -168,7 +168,7 @@ function stopservices
   tmux setw synchronize-panes on
   tmux send-keys -t $target C-c Enter C-l
   tmux setw synchronize-panes off
-  notify 'Zenpayroll' 'Backend stopped' -sound Purr
+  echo 'Zenpayroll: Backend stopped'
 end
 
 function startsrvr
@@ -183,19 +183,19 @@ function startsrvr
   tmux send-keys -t $target'.bottom-left' 'bin/sidekiq' C-l Enter
   tmux send-keys -t $target'.bottom-right' 'bin/run-hapii' C-l Enter
   tmux select-pane -t $target'.top-left'
-  notify 'Zenpayroll' 'Backend started' -sound Blow -execute tm
+  echo 'Zenpayroll: Backend started'
 end
 
 function tmzpsrvr
   if not test -d $ZP_DIR
     set -xl clone_command "git clone git@github.com:Gusto/zenpayroll $ZP_DIR"
-    notify 'Zenpayroll' 'Project not installed' 'https://github.com/Gusto/zenpayroll' -sound Sosumi -group tm -execute $clone_command
+    echo 'Zenpayroll: Project not installed'
     echo $clone_command
     return 1
   end
 
   if not windowavailable $ZP_BACKEND_SESSION $ZP_SERVER_WINDOW
-    notify 'Zenpayroll' 'Backend already started' -sound Purr -group tm -execute tm
+    echo 'Zenpayroll: Backend already started'
     return 1
   end
 
@@ -215,7 +215,7 @@ end
 
 function tmrssrvr
   if not panecount $ZP_BACKEND_SESSION $ZP_SERVER_WINDOW 4
-    notify 'Zenpayroll' 'Backend not started' -sound Sosumi
+    echo 'Zenpayroll: Backend not started'
     return 1
   end
 
@@ -226,13 +226,13 @@ end
 function tmpaycheckcity
   if not test -d $PCC_DIR
     set -xl clone_command "git clone git@github.com:SymmetrySoftware/paycheckcity.com $PCC_DIR"
-    notify 'Paycheckcity.com' 'Project not installed' 'https://github.com/SymmetrySoftware/paycheckcity.com' -sound Sosumi -group tm -execute $clone_command
+    echo 'Paycheckcity.com: Project not installed'
     echo $clone_command
     return 1
   end
 
   if not windowavailable $PCC_SESSION $PCC_WINDOW
-    notify 'Paycheckcity.com' 'Workspace already created' -sound Purr -group tm -execute tm
+    echo 'Paycheckcity.com: Workspace already created'
     return 1
   end
 
@@ -254,19 +254,19 @@ function tmpaycheckcity
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 
-  notify 'Paycheckcity.com' 'Workspace created' -sound Blow -group tm -execute tm
+  echo 'Paycheckcity.com: Workspace created'
 end
 
 function tmpccpf
   if not test -d $PCCP_FE_DIR
     set -xl clone_command "git clone git@github.com:SymmetrySoftware/pcc-profiles-client-app $PCC_FE_DIR"
-    notify 'Paycheckcity Payroll' 'Project not installed' 'https://github.com/SymmetrySoftware/paycheckcity.com' -sound Sosumi -group tm -execute $clone_command
+    echo 'Paycheckcity Payroll: Project not installed'
     echo $clone_command
     return 1
   end
 
   if not windowavailable $PCCP_FE_SESSION $PCCP_FE_WINDOW
-    notify 'Paycheckcity Payroll' 'Workspace already created' -sound Purr -group tm -execute tm
+    echo 'Paycheckcity Payroll: Workspace already created'
     return 1
   end
 
@@ -288,19 +288,19 @@ function tmpccpf
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 
-  notify 'Paycheckcity Payroll' 'Workspace created' -sound Blow -group tm -execute tm
+  echo 'Paycheckcity Payroll: Workspace created'
 end
 
 function tmpccpb
   if not test -d $PCCP_BE_DIR
     set -xl clone_command "git clone git@github.com:SymmetrySoftware/pcc-profiles-resource-server $PCCP_BE_DIR"
-    notify 'Paycheckcity Payroll Server' 'Project not installed' 'https://github.com/SymmetrySoftware/pcc-profiles-resource-server' -sound Sosumi -group tm -execute $clone_command
+    echo 'Paycheckcity Payroll Server: Project not installed'
     echo $clone_command
     return 1
   end
 
   if not windowavailable $PCCP_BE_SESSION $PCCP_BE_WINDOW
-    notify 'Paycheckcity Payroll Server' 'Workspace already created' -sound Purr -group tm -execute tm
+    echo 'Paycheckcity Payroll Server: Workspace already created'
     return 1
   end
 
@@ -321,19 +321,19 @@ function tmpccpb
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 
-  notify 'Paycheckcity Payroll Server' 'Workspace created' -sound Blow -group tm -execute tm
+  echo 'Paycheckcity Payroll Server: Workspace created'
 end
 
 function tmwbsf
   if not test -d $WBS_FE_DIR
     set -xl clone_command "git clone git@github.com:SymmetrySoftware/notification-service-ui $WBS_FE_DIR"
-    notify 'WBS' 'Project not installed' 'https://github.com/SymmetrySoftware/notification-service-ui' -sound Sosumi -group tm -execute $clone_command
+    echo 'WBS: Project not installed'
     echo $clone_command
     return 1
   end
 
   if not windowavailable $WBS_FE_SESSION $WBS_FE_WINDOW
-    notify 'WBS' 'Workspace already created' -sound Purr -group tm -execute tm
+    echo 'WBS: Workspace already created'
     return 1
   end
 
@@ -355,19 +355,19 @@ function tmwbsf
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 
-  notify 'WBS' 'Workspace created' -sound Blow -group tm -execute tm
+  echo 'WBS: Workspace created'
 end
 
 function tmwbsb
   if not test -d $WBS_BE_DIR
     set -xl clone_command "git clone git@github.com:SymmetrySoftware/notification-service $WBS_BE_DIR"
-    notify 'WBS' 'Project not installed' 'https://github.com/SymmetrySoftware/notification-service' -sound Sosumi -group tm -execute $clone_command
+    echo 'WBS: Project not installed'
     echo $clone_command
     return 1
   end
 
   if not windowavailable $WBS_BE_SESSION $WBS_BE_WINDOW
-    notify 'WBS' 'Workspace already created' -sound Purr -group tm -execute tm
+    echo 'WBS: Workspace already created'
     return 1
   end
 
@@ -388,19 +388,19 @@ function tmwbsb
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 
-  notify 'WBS' 'Workspace created' -sound Blow -group tm -execute tm
+  echo 'WBS: Workspace created'
 end
 
 function cms
   if not test -d $CMS_DIR
     set -xl clone_command "git clone git@github.com:SymmetrySoftware/symmetry_content_manager $CMS_DIR"
-    notify 'CMS' 'Project not installed' 'https://github.com/SymmetrySoftware/symmetry_content_manager' -sound Sosumi -group tm -execute $clone_command
+    echo 'CMS: Project not installed'
     echo $clone_command
     return 1
   end
 
   if not windowavailable $CMS_SESSION $CMS_WINDOW
-    notify 'CMS' 'Workspace already created' -sound Purr -group tm -execute tm
+    echo 'CMS: Workspace already created'
     return 1
   end
 
@@ -421,7 +421,7 @@ function cms
   tmux send-keys -t $target'.left' 'nv' Enter
   tmux select-pane -t $target'.left'
 
-  notify 'CMS' 'Workspace created' -sound Blow -group tm -execute tm
+  echo 'CMS: Workspace created'
 end
 
 function tm
@@ -453,10 +453,10 @@ function tm
     cms
   else
     if sessionavailable $session_name
-      notify 'tmux' "Attaching session $session_name" -sound Blow
+      echo "tmux: Attaching session $session_name"
       tmux attach -t $session_name
     else
-      notify 'tmux' "Creating session $session_name" -sound Blow
+      echo "tmux: Creating session $session_name"
       tmux new -s $session_name
     end
   end
