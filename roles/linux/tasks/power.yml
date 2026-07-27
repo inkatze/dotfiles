@@ -8,8 +8,9 @@
 # hibernate.target were symlinked to /dev/null on the host on 2026-07-24, which
 # does keep the machine up but is a blunt instrument -- it makes suspend
 # impossible rather than unrequested, so a deliberate `systemctl suspend` fails
-# too, and nothing in the repo explains why. Declaring the lid policy here means
-# the masks can be lifted; see roles/linux/README.md.
+# too, and nothing in the repo explained why. Declaring the lid policy here is
+# what allows those masks to go, and the last task in this file now removes
+# them.
 # Unlike /etc/ssh/sshd_config.d/, this directory is not shipped by the Ubuntu
 # package -- systemd reads it if present but does not create it, so the copy
 # below would fail on a fresh host without this.
@@ -45,6 +46,21 @@
     msg: >-
       logind lid drop-in is in place. It takes effect at next boot; restarting
       systemd-logind now would end active login sessions.
+  tags: [linux, power]
+
+# Completes the swap the drop-in above was written to enable: the manual
+# /dev/null masks recorded at the top of this file can go, because lid and idle
+# policy is now declared rather than enforced by amputation.
+#
+# systemd_service with masked:false rather than removing the symlinks by hand --
+# it is idempotent, and it will not delete a real unit file that happens to sit
+# at that path, which a blind `state: absent` would.
+- name: Unmask the sleep targets
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    masked: false
+  become: true
+  loop: "{{ linux_unmask_sleep_targets }}"
   tags: [linux, power]
 
 # Takes ownership of another undeclared manual change, and fixes a real bug in

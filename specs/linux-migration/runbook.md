@@ -557,24 +557,69 @@ Device attribution in the tool's own output — the Task 9 bar:
 
     Vulkan1: AMD Radeon RX 580 Series (RADV POLARIS10) (8192 MiB, 8003 MiB free)
 
-Measured, Qwen2.5-0.5B Q8_0 (639 MiB), two repetitions:
+Measured, Qwen2.5-0.5B Q8_0 (639 MiB), three repetitions, idle machine:
 
 | Device | pp512 (t/s) | tg128 (t/s) |
 |---|---|---|
-| **RX 580 eGPU** | **1196.48 ± 0.08** | **33.96 ± 0.45** |
-| internal Radeon Pro | 335.03 ± 0.06 | 24.04 ± 0.00 |
-| CPU (i9-8950HK) | 65.18 ± 1.44 | 26.71 ± 0.27 |
+| **RX 580 eGPU** | **3219.85 ± 23.33** | **119.43 ± 0.50** |
+| internal Radeon Pro *(clamped, see below)* | 334.85 ± 0.00 | 24.30 ± 0.09 |
+| CPU (i9-8950HK) | 231.03 ± 42.71 | 39.27 ± 0.31 |
 
-**The slow link costs far less than it looks like it should.** PCIe is paid
-once, uploading weights; steady-state inference runs out of VRAM. So the eGPU
-is 3.6× the internal dGPU and 18× the CPU on prompt processing despite the
-Gen1 tunnel. The one-off cost is roughly a second of extra load time for a
-639 MiB model (measured with the page cache warm, so disk is out of the path).
+So the eGPU is **9.6×** the internal dGPU and **13.9×** the CPU on prompt
+processing, and **3.0×** the CPU on token generation.
 
-Note `tg128`: the eGPU beats the CPU by only 1.3×, and the internal dGPU is
-*slower* than the CPU. Token generation is memory-bandwidth bound and barely
-parallel at batch 1 — it does not reward a GPU the way prompt processing
-does. Judge this host's GPU acceleration on `pp512`, not `tg128`.
+**These numbers replace an earlier set that was measured on a crippled card,
+and the correction matters more than the numbers.** The first pass recorded
+1196.48 pp512 / 33.96 tg128 for the eGPU — 2.7× and 3.5× low — because a udev
+rule was pinning it to DPM level 0 (300 MHz core against 1360 MHz, 300 MHz
+memory against 2000 MHz). See the amdgpu power-management note below.
+
+Two consequences worth carrying:
+
+- **A conclusion recorded here previously was wrong.** The earlier text said
+  token generation "does not reward a GPU the way prompt processing does" and
+  advised judging this host on `pp512` rather than `tg128`, because the eGPU
+  then beat the CPU by only 1.3× and the internal dGPU came in *slower* than
+  the CPU. That was an artifact of the clamp. Unclamped, the eGPU is 3.0× the
+  CPU on `tg128` and 4.9× the internal dGPU. `tg128` is still the
+  bandwidth-bound, weakly-parallel case and still the less impressive number,
+  but it is not the wash it appeared to be.
+- **The internal Radeon Pro's figures are policy, not capability.** It is
+  deliberately held at DPM level 0 for thermal headroom (that clamp is
+  correct and retained), so its row measures the configured state of a card
+  that is idle-by-design, not what Polaris11 can do.
+
+**The slow PCIe link costs far less than it looks like it should.** PCIe is
+paid once, uploading weights; steady-state inference runs out of VRAM. The
+eGPU wins by ~10-14× despite the Gen1 ×4 tunnel. The one-off cost is roughly a
+second of extra load time for a 639 MiB model (measured page-cache-warm, so
+disk is out of the path).
+
+Note the CPU row's ±42.71 spread on `pp512`. That is thermal throttling
+inside a single benchmark, consistent with the Task 6 finding that this chassis
+pins the package at 100 °C under sustained all-core load. Treat CPU figures on
+this host as a band, not a point.
+
+#### The amdgpu power-management clamp
+
+`/etc/udev/rules.d/30-amdgpu-pm.rules` holds the **internal** dGPU at its
+lowest power state for thermal headroom, which is a sound trade on this
+chassis. It is now repo-owned (`roles/linux/files/udev/`) and matches on **PCI
+vendor+device**, not card number.
+
+It previously matched `KERNEL=="card[012]"`, and that is the finding worth
+remembering: because card numbering is not stable here, the rule clamped
+*whichever* GPUs happened to land on those numbers. The eGPU's performance was
+therefore **non-deterministic across boots** — it measured ~9.6× the internal
+dGPU on one boot and ~3.6× on another, with no configuration change between
+them, purely from enumeration order. A card-number match in any rule on this
+host should be treated as a bug.
+
+The symptom is deliberately confusing and worth recognising: a workload can be
+correctly placed on the eGPU (device attribution in the tool's own output,
+`DRI_PRIME` honoured, 8 GB VRAM reported) and still run several times slower
+than it should. Check `power_dpm_force_performance_level` and `pp_dpm_sclk`
+before concluding that device selection is wrong.
 
 #### Polaris limitations
 
