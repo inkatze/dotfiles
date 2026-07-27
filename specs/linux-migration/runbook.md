@@ -851,6 +851,76 @@ which if anything makes the settling behaviour more convincing rather than less.
 
 Reproduce with `~/.cache/thermal-soak.sh 1800` (no root, installs nothing).
 
+#### Off-host health signal (REQ-E1.6)
+
+**Home:** the `work` Mac runs it. Polling is one machine's job — two runners
+would double every alert, which is how people learn to ignore them.
+
+**Shape:** `work` polls, `work` pushes. The server is entirely **passive** — it
+exposes a script and one restricted key and runs nothing on its own, which is
+what keeps the spec's no-services scope intact. Nothing new listens anywhere and
+no WAN exposure is added; the check rides the SSH path that already exists.
+
+| Piece | Where |
+|---|---|
+| `dotfiles-health-report` | server, `/usr/local/bin/`; prints one line of capacity and liveness |
+| `authorized_keys.monitoring` | server, `~/.ssh/`; the key wrapped in `command="…",restrict` |
+| `61-monitoring.conf` | server, `/etc/ssh/sshd_config.d/`; adds a **second** authorized-keys file |
+| `dotfiles-health-check` | `work`, `~/.local/bin/`; the poller |
+| LaunchAgent | `work`, `com.inkatze.dotfiles.health-signal`, `StartInterval` 900 s |
+| Pushover credentials | `work`, `~/.config/dotfiles/pushover-credentials`, mode 0600, rendered from 1Password at playbook time |
+| Poll target | `work`, `~/.config/dotfiles/health-target` — machine-local, so no host identity is committed (REQ-F1.1) |
+
+The monitoring key never touches `~/.ssh/authorized_keys`. That file is the login
+lifeline into a headless server and is deliberately not repo-managed, so a
+template bug must not be able to lock you out; a separate repo-owned file fails
+safe instead. Note the `AuthorizedKeysFile` directive **replaces** the default
+rather than extending it, so `.ssh/authorized_keys` is restated explicitly.
+
+Credentials are read from 1Password at **playbook** time rather than poll time.
+1Password's desktop integration authorizes per calling process, so `op read`
+from a LaunchAgent every 15 minutes would prompt forever and the check would
+never fire unattended — the same limitation that put the commit-signing key on
+disk.
+
+#### Verified — both alert conditions, on unstaged failures
+
+The outage test did not need inducing. The host half of the feature had not been
+applied yet while the `work` half had, which produced a genuine failure and a
+genuine alert:
+
+    13:21:48  state: none -> unreachable — No response over SSH (rc=255)
+    13:51:52  state: unreachable -> ok   — Reachable, disk 6% (821G free)
+    13:51:52  ok disk=6% avail=821G
+
+Server-side confirmation of the same poll:
+
+    Accepted publickey for <user> from <work> ED25519 SHA256:gubyF…
+    session opened … session closed
+
+Both pushes arrived on the phone. So the full chain is proven: SSH poll → forced
+command → parse → state transition → Pushover → device.
+
+**Transition-only alerting is confirmed by the same log.** Two transition lines
+across a ~30-minute outage spanning many polls, not one alert per interval. The
+recovery edge fires too, which matters: an alert you never see cleared is an
+alert you stop trusting.
+
+**Still to exercise:** the disk-threshold condition. The root filesystem sits at
+6% of 914 GB, so a real breach means allocating ~730 GB.
+
+#### Known blind spot
+
+A LaunchAgent on a laptop does not run while the lid is shut. If `work` is
+asleep, closed, or off-LAN when the server dies, the check does not run — so "no
+alert" and "all healthy" are indistinguishable exactly when it matters most.
+REQ-E1.6 permits an external uptime monitor instead for this reason; the laptop
+was chosen deliberately and this limitation is the price.
+
+Pointing `health-target` at the **Tailscale** name rather than a LAN address
+removes the off-LAN half of the problem, and is the recommended configuration
+once Tailscale is up.
+
 #### Still to do
 
 - **Tailscale is not logged in.** `tailscaled` runs but the host is
