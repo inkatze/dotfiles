@@ -326,13 +326,20 @@ throttle events. This is the i9-8950HK in a 2018 15" chassis behaving as
 designed — Intel throttles at Tjunction to protect the part — not a fault
 and not a t2fanrd shortcoming. Nothing shut down.
 
-Consequence for **Task 10's ~30-minute thermal soak**: expect it to run at
-100 °C and throttling for its entire duration. That still satisfies the
-requirement, which is no thermal *shutdown*, not no throttling — but the
-soak should be scored against that expectation rather than treated as a
-surprise. More broadly: this host suits I/O-bound and bursty work, and
-will throttle hard under sustained all-core compute. Worth weighing when
-choosing which services land here.
+Consequence for **Task 10's ~30-minute thermal soak**: throttling for the
+whole duration, which still satisfies the requirement — the bar is no
+thermal *shutdown*, not no throttling. More broadly: this host suits
+I/O-bound and bursty work, and will throttle hard under sustained
+all-core compute. Worth weighing when choosing which services land here.
+
+**Amended after the Task 10 soak actually ran.** This section originally
+predicted the soak would sit *at 100 °C* for its entire duration. It does
+not. Over 30 minutes the package spikes to 100 °C in the first minute and
+then settles to **70–78 °C**, with fans backing off from 5930 to 5001 as
+clocks drop to a sustainable point. The measurements above are a
+90-second burst, and a steady state cannot be extrapolated from one — the
+equilibrium sits ~25 °C below the ceiling. See the Task 10 thermal-soak
+subsection for the full table.
 
 ### Day-2 remote LUKS unlock routine (Task 8)
 
@@ -799,6 +806,50 @@ key-only auth and not have it.
 
 Host-key fingerprints for pinning are in 1Password, not here — see "Where the
 fingerprints live" in the Task 8 section.
+
+#### Thermal soak — passed, and it corrects the Task 6 prediction
+
+30 minutes of all-12-thread CPU spin, sampled every 30 s, same stressor shape as
+the Task 6 load-response measurement so the numbers are comparable.
+
+| Elapsed | Package | fan1 | fan2 | Throttle events (cumulative) |
+|---|---|---|---|---|
+| peak (early) | **100 °C** | 5933 | 5541 | — |
+| 300 s | 78 °C | 5930 | 5458 | 5,682 |
+| 600 s | 75 °C | 5906 | 5438 | 8,857 |
+| 900 s | 74 °C | 5860 | 5359 | 11,414 |
+| 1200 s | 75 °C | 5883 | 5399 | 13,811 |
+| 1500 s | 74 °C | 5571 | 5115 | 15,957 |
+| 1800 s | 70 °C | 5001 | 4644 | 17,922 |
+
+**Result: no thermal shutdown.** The requirement is met — 17,922 throttle events
+across the soak, and the machine stayed up throughout.
+
+**The interesting part contradicts what this runbook previously predicted.** The
+Task 6 section said to expect the soak to "run at 100 °C and throttling for its
+entire duration". Throttling for the entire duration is right. Running at 100 °C
+is not: the package spikes to 100 °C in the first minute, then **settles to
+70–78 °C and stays there**, with the fans *backing off* from 5930 to 5001 as it
+does.
+
+That is the thermal governor working as designed rather than anything anomalous —
+sustained load cannot hold 100 °C, so clocks drop until heat generation matches
+what the chassis can dissipate, and the equilibrium is ~25 °C below the ceiling.
+The Task 6 figure was a 90-second burst measurement, and extrapolating a
+steady state from it was wrong. Fans tracking temperature down also confirms
+`t2fanrd` is responding to real readings rather than pinning to maximum.
+
+Consequence worth carrying: this host's sustained all-core throughput is set by
+the throttled equilibrium, not by its boost clocks, and the CPU benchmark spread
+recorded in the Task 9 section (±42.71 on `pp512`) is the same effect seen inside
+a single short run. Sizing anything CPU-bound here should assume the throttled
+figure.
+
+Caveat on the numbers: the baseline row reads 75 °C with fans already at 5935,
+because a 60-second smoke test had just run. The machine started this soak warm,
+which if anything makes the settling behaviour more convincing rather than less.
+
+Reproduce with `~/.cache/thermal-soak.sh 1800` (no root, installs nothing).
 
 #### Still to do
 
