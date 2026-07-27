@@ -1,0 +1,17 @@
+---
+
+# bootout before bootstrap, because bootstrap on an already-loaded label errors
+# rather than reloading. The bootout is allowed to fail on the first run, when
+# there is nothing loaded yet.
+#
+# `gui/$(id -u)` rather than the deprecated `launchctl load`: the modern domain
+# form is what works reliably under a GUI session, and it is the same
+# bootout/bootstrap pair the Ollama LaunchAgent reload in homebrew.yml uses.
+- name: Reload the health-signal LaunchAgent
+  ansible.builtin.shell:
+    cmd: |
+      launchctl bootout "gui/$(id -u)/{{ osx_health_launch_label }}" 2>/dev/null || true
+      launchctl bootstrap "gui/$(id -u)" \
+        {{ (ansible_facts.env.HOME ~ '/Library/LaunchAgents/' ~ osx_health_launch_label ~ '.plist') | quote }}
+    executable: /bin/bash
+  changed_when: true

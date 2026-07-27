@@ -237,3 +237,32 @@ osx_list_defaults:
       - '{enabled = 0;name = SPREADSHEETS;}'
       - '{enabled = 0;name = "MENU_OTHER";}'
       - '{enabled = 0;name = "MENU_SPOTLIGHT_SUGGESTIONS";}'
+
+# Health signal (specs/linux-migration Task 10, REQ-E1.6).
+#
+# Scoped by inventory alias, not platform: polling the server is one machine's
+# job. Two Macs running this would double every alert, which trains you to
+# ignore them. `work` was chosen because it is the machine that is actually open
+# most of the day.
+#
+# The blind spot is inherent and worth remembering before trusting this: a
+# LaunchAgent on a laptop does not run while the lid is shut, so "no alert" and
+# "all healthy" are indistinguishable exactly when the server dies overnight.
+# REQ-E1.6 permits an external uptime monitor instead for precisely this reason.
+osx_health_signal_hosts:
+  - work
+
+osx_health_check_bin: "{{ ansible_facts.env.HOME }}/.local/bin/dotfiles-health-check"
+osx_health_credentials_file: "{{ ansible_facts.env.HOME }}/.config/dotfiles/pushover-credentials"
+osx_health_launch_label: com.inkatze.dotfiles.health-signal
+
+# 15 minutes. Short enough that an outage is noticed within a coffee break,
+# long enough that a flaky LAN moment does not generate noise -- and the check
+# alerts on state TRANSITIONS, so even a long outage produces one notification
+# rather than one per interval.
+osx_health_interval_seconds: 900
+
+# Percent used on the server's root filesystem. 85 leaves real headroom on a
+# 914 GB disk (roughly 137 GB free at the trigger) while still firing long
+# before anything breaks.
+osx_health_disk_threshold: 85
