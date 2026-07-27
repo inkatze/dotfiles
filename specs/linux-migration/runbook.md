@@ -491,16 +491,32 @@ client's terminal as it is typed.
 It is listed in `roles/ssh/files/1password-agent.toml`, so any machine with
 1Password unlocked can unlock this host.
 
-#### Not verified
+#### Console fallback — verified
 
-- **Console unlock has not been re-tested since the dracut module landed.**
-  Nothing in this work touches that path and earlier boots used it successfully,
-  but untested is untested. Worth one deliberate console unlock at the next
-  reboot.
-- The initramfs-regeneration re-check is satisfied only in the weaker order: the
-  initrd was regenerated (19:06), and the *subsequent* boot unlocked remotely
-  (19:57). A remote unlock was not demonstrated both before and after a
-  regeneration.
+Console unlock works with the dracut module and the rebuilt initrd in place. It
+was demonstrated by the *failed* remote-unlock boot, which is the cleanest
+possible evidence: dropbear was present but mis-ordered, so it could not serve
+the passphrase, and the machine booted anyway.
+
+| Evidence, boot of 17:49:45 | |
+|---|---|
+| Kernel cmdline | carried `rd.neednet=1 ip=dhcp` — the dracut config was active |
+| `dropbear-unlock.service` | started (once) |
+| dropbear connections | **0** — no remote client at all |
+| 17:51:35 | `systemd-cryptsetup: Set cipher aes ...` — volume unlocked |
+
+So the passphrase came from the console with everything in place. Both halves of
+REQ-B1.7 are satisfied by measurement rather than by assumption.
+
+#### Verified after an initramfs regeneration
+
+The initrd was regenerated at 19:06 and the next boot (19:57) unlocked remotely,
+so a regeneration does not break the unlock path. Worth stating precisely what
+that covers: remote unlock is demonstrated *after* a regeneration, not both
+before and after one. The regeneration in question was a `dracut --force` run
+via the role's handler; a kernel-update-driven regeneration has not yet occurred
+on this host, and dracut picks the configuration up through its
+`/usr/lib/kernel/install.d/` hook rather than anything task-specific.
 
 ### eGPU attach/detach procedure (Task 9)
 
