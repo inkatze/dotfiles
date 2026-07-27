@@ -227,6 +227,71 @@ If this ever has to be redone (a wiped `/lib/firmware`, a fresh install),
 the export on the network drive is the fast path; the t2linux macOS-less
 retrieval is the fallback to the fallback.
 
+#### Bluetooth — no firmware needed, and two real causes behind one misleading symptom
+
+Bluetooth works (REQ-B1.4). An MX Master 2S pairs over Bluetooth LE and reports
+`Paired: yes  Bonded: yes  Trusted: yes  Connected: yes`, with battery level
+through the GATT Battery Service and both `MX Master Mouse` and `MX Master
+Keyboard` input devices present.
+
+It took a long time to get there because the symptom pointed at three things
+that were all innocent. Recorded in full, because each one is individually
+convincing:
+
+**No Bluetooth firmware is needed on this model, and the log says otherwise.**
+At every boot the kernel prints:
+
+    Bluetooth: hci0: BCM4364B0 Maui Olympic GEN (MFG)
+    Bluetooth: hci0: BCM: firmware Patch file not found, tried:
+    Bluetooth: hci0: BCM: 'brcm/BCM.hcd'
+
+There are no `.hcd` files in `/lib/firmware/brcm` and there should not be.
+t2linux's own `firmware.sh` states that Bluetooth firmware is needed **only for
+MacBookPro15,4, MacBookPro16,3 and MacBookAir9,1** — this machine is
+MacBookPro15,1. `(MFG)` and the missing patch file are **normal here**. Do not
+chase this: it leads to `firmware.sh` Method 5, which downloads a macOS Recovery
+image and, on the way, offers to install `apfs-dkms`, `dmg2img` and Homebrew.
+None of the three community firmware repos carries an Apple BCM4364 `.hcd`
+anyway (`AdityaGarg8/Apple-Firmware` has 168 files and zero `.hcd`).
+
+**`unknown advertising packet type` is noise.** The kernel logs a stream of
+`Bluetooth: hci0: unknown advertising packet type: 0x10/0x12/0x14/0x20/0x24`.
+The receive path is fine regardless — a scan sees eight other LE devices.
+
+**ERTM is irrelevant.** `bluetooth.disable_ertm=1` is the standard internet
+advice for Logitech pairing trouble. ERTM is a BR/EDR mechanism and this mouse
+is LE-only (`AdvertisingFlags: 0x05` = LE Limited Discoverable + BR/EDR Not
+Supported), so the setting cannot matter.
+
+The two causes that were real:
+
+1. **RF distance.** At roughly −69 dBm the LE connection would establish and
+   then die ~330 ms in, during the first `LE Read Remote Used Features`, with
+   `Connection Failed to be Established (0x3e)` — the peripheral simply stopped
+   answering. SMP never began, which is why every theory about pairing methods
+   was aimed at the wrong layer. Moving the mouse against the machine fixed the
+   link outright.
+2. **Pairing-agent capability.** With the link healthy, SMP negotiated and then
+   failed: the host requested MITM protection, the mouse offered `No MITM,
+   Legacy` (a mouse has no keypad, so Just Works is the only mode available to
+   it), BlueZ raised a `User Confirmation Request`, nothing answered it, and
+   BlueZ sent a **`User Confirmation Negative Reply`** — declining the pairing
+   on our own behalf. The resulting `Pairing Failed: Passkey entry failed` reads
+   as a rejection *by* the mouse and is the opposite.
+
+**Pair from the desktop Bluetooth panel, not a scripted `bluetoothctl`.** The
+desktop agent handles Just Works with a keypad-less peripheral correctly and
+requests bonding; driving `bluetoothctl` through a pipe produced an agent that
+either never answered the confirmation or requested `No bonding` plus MITM it
+could not satisfy. Three captures were lost to fighting the harness rather than
+the hardware.
+
+**The diagnostic that actually worked** was `btmon`, because `bluetoothctl` only
+ever reports generic D-Bus errors (`AuthenticationRejected`,
+`ConnectionAttemptFailed`) that cover a dozen distinct causes. `btmon` shows the
+SMP exchange and the HCI disconnect reason, which is what separated "the link
+died before pairing" from "pairing was declined".
+
 #### Fan control and the thermal baseline
 
 `t2fanrd` (t2linux repo, 0.1.0-3) is the correct daemon. **Do not use
