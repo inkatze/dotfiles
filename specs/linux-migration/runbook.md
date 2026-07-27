@@ -768,6 +768,55 @@ sequenced **after** Task 8.
 mechanism that would work if MMIO space ever allows it.
 
 ### Server readiness: access paths + health signal (Task 10)
-_To be completed by Task 10._ The off-LAN access paths (router VPN,
-Tailscale), power-loss-recovery behavior, and the off-host health signal
-home (which machine runs it, restricted-key setup).
+
+_Task 10 is still open._ Following the Task 6 pattern, verified results are
+recorded here as they are produced rather than reconstructed at the end. What
+remains is listed at the bottom.
+
+#### SSH hardening — verified in effect (REQ-E1.1)
+
+Read back from the **running daemon**, not from the drop-in on disk. That
+distinction is the point of the check: `roles/linux/files/sshd/60-hardening.conf`
+being correct proves only that Ansible wrote a file, whereas `sshd -T` renders
+the config sshd actually loaded, after every `Include` and default has been
+resolved.
+
+    sudo sshd -T | grep -iE '^(passwordauthentication|permitrootlogin|pubkeyauthentication|kbdinteractiveauthentication|permitemptypasswords)'
+
+| Setting | Value |
+|---|---|
+| `permitrootlogin` | `no` |
+| `pubkeyauthentication` | `yes` |
+| `passwordauthentication` | `no` |
+| `kbdinteractiveauthentication` | `no` |
+| `permitemptypasswords` | `no` |
+
+`kbdinteractiveauthentication no` is worth naming separately rather than assuming
+it follows from `passwordauthentication no`. It does not: keyboard-interactive is
+a distinct method that can reach PAM and accept a password even when password
+authentication is off, so leaving it on is a known way to think you have
+key-only auth and not have it.
+
+Host-key fingerprints for pinning are in 1Password, not here — see "Where the
+fingerprints live" in the Task 8 section.
+
+#### Still to do
+
+- **Tailscale is not logged in.** `tailscaled` runs but the host is
+  unauthenticated (`tailscale status` → `Logged out`), so the mesh access path
+  does not exist yet. Needs `tailscale up` and a browser login.
+- Router VPN configured and verified **from off-LAN** to reach dropbear during
+  early boot, at the REQ-E1.2 protocol floor — or the D-8 fallback if the router
+  cannot meet it.
+- Legacy WAN port-forward confirmed permanently retired, by external scan from
+  off-LAN.
+- Headless boot test with no display or keyboard attached.
+- Power-loss recovery, battery-aware: outage sustained until the battery drains
+  to power-off, then wall power restored.
+- Bounded thermal soak (~30 minutes sustained load) with no thermal shutdown.
+  Expect the package pinned at 100 °C with fans maxed throughout and throttling
+  logged — that is this chassis behaving as designed (see the Task 6 thermal
+  baseline), and the requirement is no thermal *shutdown*, not no throttling.
+- Minimal off-host health signal: which machine runs it, the restricted
+  forced-command key setup, and detection of both an induced outage and an
+  induced disk-threshold breach.
