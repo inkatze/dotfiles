@@ -1,0 +1,127 @@
+---
+
+# The `work` side of the Task 10 health signal (REQ-E1.6): poll the Linux
+# server over the existing SSH path and push an alert when it is unreachable or
+# short on disk. The server itself stays passive -- see
+# roles/linux/tasks/ssh-server.yml -- which is what keeps the spec's
+# no-services scope intact.
+#
+# Scoped by inventory alias rather than platform: this is one machine's job, not
+# every Mac's. Two monitors pushing the same alerts would be worse than one.
+
+- name: Install the health-check poller
+  ansible.builtin.copy:
+    src: health/health-check.sh
+    dest: "{{ osx_health_check_bin }}"
+    mode: "0755"
+  tags: [osx, health]
+
+# Read at PLAYBOOK time into a machine-local file, not at poll time.
+#
+# 1Password's desktop integration authorizes per calling process, so `op read`
+# from a LaunchAgent every 15 minutes would prompt forever and the check would
+# never fire unattended. This is the same limitation that forced the on-disk
+# commit-signing key, and the same shape as the op-service-account-token file
+# already documented in CLAUDE.md.
+#
+# Detection is split from the read for the reason roles/ssh uses: a host without
+# `op` genuinely cannot do this and is skipped, whereas a host that HAS op and
+# still fails (locked vault, missing item, renamed field) is a real error and
+# should fail the play rather than silently leave a monitor that can never alert.
+- name: Detect the 1Password CLI
+  ansible.builtin.command: op --version
+  register: osx_health_op_probe
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  tags: [osx, health]
+
+- name: Read the Pushover credentials from 1Password
+  ansible.builtin.command:
+    cmd: op read {{ item.ref | quote }} --no-newline
+  register: osx_health_pushover
+  changed_when: false
+  no_log: true
+  loop:
+    - { name: PUSHOVER_API_TOKEN, ref: "op://Private/Pushover/api token" }
+    - { name: PUSHOVER_USER_KEY, ref: "op://Private/Pushover/user key" }
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - osx_health_op_probe.rc == 0
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
+  tags: [osx, health]
+
+# no_log on the task above keeps the values out of playbook output; 0600 keeps
+# them off other users' reach. They are application credentials rather than
+# account credentials -- the api token identifies this sending application and
+# the user key identifies the recipient, so the blast radius of a leak is
+# "someone can send you notifications", not account access.
+- name: Deploy the Pushover credentials file
+  ansible.builtin.copy:
+    dest: "{{ osx_health_credentials_file }}"
+    mode: "0600"
+    content: |
+      # Managed by the dotfiles osx role — do not edit by hand; the next
+      # playbook run overwrites this file. Values come from 1Password item
+      # `Pushover` in the Private vault.
+      {% for r in osx_health_pushover.results %}
+      {{ r.item.name }}={{ r.stdout }}
+      {% endfor %}
+  no_log: true
+  when:
+    - osx_health_op_probe.rc == 0
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
+    - osx_health_pushover.results is defined
+  tags: [osx, health]
+
+- name: Report a skipped Pushover credential sync
+  ansible.builtin.debug:
+    msg: >-
+      1Password CLI not found; {{ osx_health_credentials_file }} was left as-is.
+      The health check will log failures but cannot push alerts until this runs
+      with `op` installed and signed in.
+  when: osx_health_op_probe.rc != 0
+  tags: [osx, health]
+
+# StartInterval rather than a calendar schedule: the question is "has it been 15
+# minutes since the last check", not "is it quarter past". launchd also fires a
+# missed StartInterval once on wake, which is the behaviour wanted here -- a lid
+# opened after an outage should check immediately rather than wait.
+#
+# Written with `content` rather than shipped as a file because a plist cannot
+# expand $HOME, so the absolute paths have to be resolved per host. Same reason
+# the git role writes its machine-local include file instead of symlinking it.
+#
+# (That file's name is spelled out in roles/git/tasks/main.yml rather than here:
+# written literally, it trips the repo's `internal-hostname` gitleaks rule, which
+# reads a trailing `.local` as an mDNS hostname. The rule is correct to be blunt
+# about REQ-F1.1 -- easier to reword a comment than to carve an exception into a
+# guard that exists to stop real hostnames leaking.)
+- name: Deploy the health-signal LaunchAgent
+  ansible.builtin.copy:
+    dest: "{{ ansible_facts.env.HOME }}/Library/LaunchAgents/{{ osx_health_launch_label }}.plist"
+    mode: "0644"
+    content: |
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+        "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <plist version="1.0">
+      <dict>
+        <key>Label</key>              <string>{{ osx_health_launch_label }}</string>
+        <key>ProgramArguments</key>
+        <array>
+          <string>{{ osx_health_check_bin }}</string>
+        </array>
+        <key>EnvironmentVariables</key>
+        <dict>
+          <key>DISK_THRESHOLD</key>   <string>{{ osx_health_disk_threshold }}</string>
+        </dict>
+        <key>StartInterval</key>      <integer>{{ osx_health_interval_seconds }}</integer>
+        <key>RunAtLoad</key>          <true/>
+        <key>StandardOutPath</key>    <string>{{ ansible_facts.env.HOME }}/.cache/dotfiles-health.out</string>
+        <key>StandardErrorPath</key>  <string>{{ ansible_facts.env.HOME }}/.cache/dotfiles-health.err</string>
+      </dict>
+      </plist>
+  notify: Reload the health-signal LaunchAgent
+  tags: [osx, health]

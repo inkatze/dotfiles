@@ -1,0 +1,34 @@
+# The health-signal monitoring key (specs/linux-migration Task 10, REQ-E1.6).
+# Managed by roles/linux; deployed to ~/.ssh/authorized_keys.monitoring, which
+# sshd reads because of the 61-monitoring.conf drop-in.
+#
+# Kept OUT of ~/.ssh/authorized_keys on purpose. That file is the login lifeline
+# into a headless server and is not repo-managed; a bug in a template here must
+# not be able to lock you out. Failure is contained to the monitor.
+#
+# This is a PUBLIC key, so committing it is safe -- same reasoning as
+# roles/ssh/files/allowed_signers. The private half lives only on `work`, the
+# runner machine, and is deliberately NOT in 1Password: REQ-F1.2 exempts "the
+# dedicated forced-command monitoring key on its runner machine" precisely
+# because it has to be usable unattended, with no human to approve a vault
+# prompt. Its safety comes from the restriction below, not from where it is
+# stored.
+#
+# WHAT THIS KEY CAN DO, exhaustively: run
+# /usr/local/bin/dotfiles-health-report, which prints one line of capacity and
+# liveness numbers and exits.
+#
+#   command="..."  sshd runs exactly this and ignores whatever the client asks
+#                  for, so the key cannot be repurposed into a shell even by
+#                  someone holding it.
+#   restrict       denies everything else in one word -- no pty, no port or
+#                  agent or X11 forwarding, no user rc file. Preferred over
+#                  spelling out no-port-forwarding,no-agent-forwarding,... because
+#                  `restrict` is deny-by-default: options added by future OpenSSH
+#                  versions are denied automatically rather than silently allowed
+#                  until someone remembers to add them here.
+#
+# Rotating: generate a new pair on `work`
+# (`ssh-keygen -t ed25519 -f ~/.ssh/id_monitoring -N ''`), replace the line
+# below, and re-run the playbook. Nothing else references it.
+command="/usr/local/bin/dotfiles-health-report",restrict ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL1bPWwqLwAAHLj1FLdGhZqMzF1PPM4xDX1wog05xk2M dotfiles health monitor

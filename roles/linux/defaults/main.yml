@@ -240,6 +240,17 @@ linux_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
 # sshd hardening drop-in filename (REQ-E1.1: key-only auth, no root login).
 linux_ssh_hardening_dropin: 60-hardening.conf
 
+# Health signal (Task 10, REQ-E1.6). The runner is the `work` Mac, which polls
+# over SSH and pushes alerts; this host contributes only the two things below and
+# nothing that runs on its own, which is what preserves the spec's no-services
+# scope.
+#
+# The sshd drop-in adds a SECOND authorized-keys file so the monitoring key never
+# touches ~/.ssh/authorized_keys -- that file is the login lifeline into a
+# headless server and is deliberately not repo-managed. See the drop-in's header.
+linux_ssh_monitoring_dropin: 61-monitoring.conf
+linux_health_report_bin: /usr/local/bin/dotfiles-health-report
+
 # Remote LUKS unlock (Task 8, REQ-B1.7).
 #
 # The /etc/dropbear/initramfs/ path mirrors the layout the packaged

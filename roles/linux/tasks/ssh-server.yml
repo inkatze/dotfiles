@@ -21,3 +21,38 @@
     state: started
   become: true
   tags: [linux, ssh]
+
+# Health signal (Task 10, REQ-E1.6). The host stays entirely PASSIVE: it gains a
+# script and one restricted key, and nothing that runs on its own. `work` polls
+# over the existing SSH path, which is what keeps both the no-services scope and
+# the no-new-WAN-exposure constraint intact.
+- name: Deploy the monitoring authorized-keys drop-in for sshd
+  ansible.builtin.copy:
+    src: "sshd/{{ linux_ssh_monitoring_dropin }}"
+    dest: "/etc/ssh/sshd_config.d/{{ linux_ssh_monitoring_dropin }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Restart sshd
+  tags: [linux, ssh, health]
+
+- name: Install the health-report script
+  ansible.builtin.copy:
+    src: health/health-report.sh
+    dest: "{{ linux_health_report_bin }}"
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  tags: [linux, ssh, health]
+
+# User-scoped, and 0600 is functional rather than decorative: sshd ignores an
+# authorized-keys file that is group- or world-writable, and does so silently
+# from the client's point of view.
+- name: Deploy the monitoring authorized_keys
+  ansible.builtin.copy:
+    src: health/authorized_keys.monitoring
+    dest: "{{ ansible_facts.env.HOME }}/.ssh/authorized_keys.monitoring"
+    mode: "0600"
+  tags: [linux, ssh, health]

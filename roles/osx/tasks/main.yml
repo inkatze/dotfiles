@@ -11,3 +11,11 @@
 - name: Import upgrade tasks
   ansible.builtin.include_tasks: upgrade.yml
   tags: [upgrade]
+
+# Only on the host that owns the job. Guarding the include rather than every
+# task inside it keeps the skip legible in playbook output: one skipped line on
+# `personal`/`alt` instead of a dozen.
+- name: Import health-signal tasks
+  ansible.builtin.include_tasks: health-signal.yml
+  when: inventory_hostname in osx_health_signal_hosts
+  tags: [osx, health]
