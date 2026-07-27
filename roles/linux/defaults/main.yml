@@ -148,6 +148,24 @@ linux_apt_packages:
   # Server baseline
   - openssh-server
 
+  # Remote LUKS unlock (Task 8, REQ-B1.7)
+  #
+  # NOT dropbear-initramfs, which is the package every guide names. That is an
+  # initramfs-tools package and this host builds its initrd with dracut, so its
+  # hooks would never be read: it installs cleanly, reports success, and does
+  # nothing at boot. The dracut glue is hand-written instead, under
+  # roles/linux/files/dracut/dropbear-unlock/, and pulls in only these two:
+  #
+  #   dropbear-bin    The SSH server binary and dropbearkey. Taken from apt on
+  #                   purpose -- it is the network-facing half, so it belongs on
+  #                   the unattended-upgrades patch stream. Only the ~60 lines
+  #                   of dracut glue are ours.
+  #   dracut-network  Supplies dracut's `network` module, without which the
+  #                   initrd has no ip= handling and dropbear would start on a
+  #                   host with no address.
+  - dropbear-bin
+  - dracut-network
+
 # User-level tools installed by mise instead of apt, declared in
 # roles/linux/files/mise/linux.toml (which carries the pinned versions and the
 # per-tool reasoning). Order matters: the pipx backend needs `uv` on PATH, so
@@ -221,6 +239,22 @@ linux_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
 
 # sshd hardening drop-in filename (REQ-E1.1: key-only auth, no root login).
 linux_ssh_hardening_dropin: 60-hardening.conf
+
+# Remote LUKS unlock (Task 8, REQ-B1.7).
+#
+# The /etc/dropbear/initramfs/ path mirrors the layout the packaged
+# dropbear-initramfs would have used. Kept on purpose even though that package
+# is not installed here: it is the path every piece of documentation on the
+# subject refers to, so matching it costs nothing and saves a future reader from
+# wondering whether this host is doing something exotic.
+linux_dropbear_dir: /etc/dropbear/initramfs
+linux_dropbear_host_key: "{{ linux_dropbear_dir }}/dropbear_ed25519_host_key"
+
+# The numeric prefix is dracut's module ordering. 60 puts this ahead of 70crypt,
+# so the module is set up before the crypt module that will be waiting on the
+# passphrase it exists to deliver.
+linux_dracut_module_dir: /usr/lib/dracut/modules.d/60dropbear-unlock
+linux_dracut_unlock_conf: 60-remote-unlock.conf
 
 # systemd-logind drop-in that stops a closed lid or an idle timeout from
 # suspending this host. It is a laptop serving as an always-on server, so the

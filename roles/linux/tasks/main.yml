@@ -69,6 +69,10 @@
   ansible.builtin.include_tasks: ssh-server.yml
   tags: [linux, ssh]
 
+- name: Configure remote LUKS unlock
+  ansible.builtin.include_tasks: remote-unlock.yml
+  tags: [linux, unlock]
+
 - name: Configure lid and idle power behaviour
   ansible.builtin.include_tasks: power.yml
   tags: [linux, power]

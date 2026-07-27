@@ -1,0 +1,96 @@
+---
+
+# Remote LUKS unlock over SSH during early boot (specs/linux-migration Task 8,
+# REQ-B1.7). Everything here is root-owned host state; the reasoning for each
+# file lives in the file itself under roles/linux/files/.
+#
+# Ordering note: the dracut module and its config are deployed BEFORE the
+# initrd is regenerated, and the regeneration is a handler so it runs once at
+# the end of the play no matter how many of these tasks changed.
+
+- name: Create the dropbear initramfs key directory
+  ansible.builtin.file:
+    path: "{{ linux_dropbear_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  become: true
+  tags: [linux, unlock]
+
+# Generated on the host rather than committed: this is a PRIVATE key, and the
+# vault-only rule exempts it precisely because it must exist as a file by
+# mechanism (REQ-F1.2). Its integrity is covered by pinning the fingerprint on
+# unlock clients instead.
+#
+# `creates` is what keeps this idempotent. Without it, every run would mint a
+# fresh host key, which would change the fingerprint under the clients that
+# pinned it -- turning REQ-B1.7's protection into an alarm that cries wolf on
+# every playbook run.
+- name: Generate the dropbear host key
+  ansible.builtin.command:
+    cmd: dropbearkey -t ed25519 -f {{ linux_dropbear_host_key | quote }}
+    creates: "{{ linux_dropbear_host_key }}"
+  become: true
+  notify: Regenerate the initramfs
+  tags: [linux, unlock]
+
+- name: Restrict the dropbear host key
+  ansible.builtin.file:
+    path: "{{ linux_dropbear_host_key }}"
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+  tags: [linux, unlock]
+
+# dropbear refuses an authorized_keys file that is group- or world-writable, so
+# the mode here is functional rather than decorative.
+- name: Deploy the unlock authorized_keys
+  ansible.builtin.copy:
+    src: dropbear/authorized_keys
+    dest: "{{ linux_dropbear_dir }}/authorized_keys"
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+  notify: Regenerate the initramfs
+  tags: [linux, unlock]
+
+- name: Create the dracut module directory
+  ansible.builtin.file:
+    path: "{{ linux_dracut_module_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  tags: [linux, unlock]
+
+# module-setup.sh is executed by dracut at initrd build time, hence 0755.
+- name: Deploy the dropbear-unlock dracut module
+  ansible.builtin.copy:
+    src: "dracut/dropbear-unlock/{{ item.name }}"
+    dest: "{{ linux_dracut_module_dir }}/{{ item.name }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  become: true
+  loop:
+    - { name: module-setup.sh, mode: "0755" }
+    - { name: dropbear-unlock.service, mode: "0644" }
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Regenerate the initramfs
+  tags: [linux, unlock]
+
+- name: Deploy the dracut remote-unlock configuration
+  ansible.builtin.copy:
+    src: dracut/60-remote-unlock.conf
+    dest: "/etc/dracut.conf.d/{{ linux_dracut_unlock_conf }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Regenerate the initramfs
+  tags: [linux, unlock]

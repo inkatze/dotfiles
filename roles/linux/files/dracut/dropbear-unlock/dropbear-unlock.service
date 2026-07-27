@@ -1,0 +1,51 @@
+# dropbear inside the initrd, for remote LUKS unlock. Managed by roles/linux;
+# installed into the initrd by the 60dropbear-unlock dracut module beside this
+# file, not onto the running system.
+
+[Unit]
+Description=dropbear SSH server for remote LUKS unlock
+Documentation=man:dropbear(8)
+
+# Initrd units have to opt out of the normal dependency web; DefaultDependencies
+# would pull in basic.target, which does not exist this early.
+DefaultDependencies=no
+
+# After the network is actually up. dracut applies ip=dhcp from its initqueue
+# hooks, so ordering after that service is what makes dropbear bind to a real
+# address instead of starting on a host with no route.
+After=dracut-initqueue.service
+Wants=dracut-initqueue.service
+
+# Must not survive the handover to the real root. Without this, dropbear keeps
+# the initrd's /root and host key alive past switch-root and blocks the
+# transition, which presents as a boot that hangs AFTER a successful unlock --
+# the most confusing possible symptom.
+Conflicts=shutdown.target initrd-switch-root.target
+Before=shutdown.target initrd-switch-root.target
+
+[Service]
+# -F  Foreground. Lets systemd supervise the real process, so no PID file and
+#     no fork race.
+# -E  Log to stderr, which journald captures. The initrd journal is flushed to
+#     disk after unlock, so a failed unlock attempt is still readable later
+#     with `journalctl -b 0 -u dropbear-unlock`.
+# -r  Host key. One key, ed25519, generated on this host.
+# -p  Port 2222, deliberately NOT 22. dropbear has its own host key, so sharing
+#     22 with sshd would make every unlock print a host-key-mismatch warning --
+#     training you to click through exactly the warning that REQ-B1.7's
+#     fingerprint pinning depends on.
+# -s  No password logins. Key only, matching the sshd hardening drop-in.
+# -j  No local port forwarding.
+# -k  No remote port forwarding. This server exists to accept a passphrase, not
+#     to be a jump host into a half-booted machine with an unlocked disk.
+# -I  Idle timeout, 300s. A forgotten session should not sit open on a box whose
+#     root is still encrypted.
+ExecStart=/usr/sbin/dropbear -F -E -r /etc/dropbear/dropbear_ed25519_host_key -p 2222 -s -j -k -I 300
+
+# A crashed dropbear must not leave the host unreachable for the rest of the
+# initrd's life, but restarting forever would spin if the host key is bad.
+Restart=on-failure
+RestartSec=2s
+
+[Install]
+WantedBy=initrd.target
