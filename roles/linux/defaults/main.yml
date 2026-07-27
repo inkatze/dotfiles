@@ -256,6 +256,12 @@ linux_dropbear_host_key: "{{ linux_dropbear_dir }}/dropbear_ed25519_host_key"
 linux_dracut_module_dir: /usr/lib/dracut/modules.d/60dropbear-unlock
 linux_dracut_unlock_conf: 60-remote-unlock.conf
 
+# udev rule that pins the INTERNAL Radeon Pro to its lowest power state for
+# thermal headroom, while deliberately leaving the RX 580 eGPU alone. Replaces a
+# hand-written rule that matched by card NUMBER and therefore clamped the eGPU
+# too; the reasoning and the measured cost are in the source file's header.
+linux_amdgpu_pm_rule: 30-amdgpu-pm.rules
+
 # systemd-logind drop-in that stops a closed lid or an idle timeout from
 # suspending this host. It is a laptop serving as an always-on server, so the
 # steady state is lid shut and headless.

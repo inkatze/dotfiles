@@ -27,6 +27,16 @@
 # The new image replaces the one in /boot immediately, but only takes effect at
 # the next boot -- so verify with `lsinitrd` BEFORE rebooting. See the Task 8
 # section of specs/linux-migration/runbook.md.
+# Re-reads the rules for devices that appear LATER. It deliberately does not
+# `udevadm trigger`, which would re-run rules against the GPU currently driving
+# the display; the already-wrong value on an existing device is corrected
+# directly in power.yml instead.
+- name: Reload udev rules
+  ansible.builtin.command:
+    cmd: udevadm control --reload
+  become: true
+  changed_when: true
+
 - name: Regenerate the initramfs
   ansible.builtin.command:
     cmd: dracut --force
