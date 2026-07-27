@@ -1,0 +1,76 @@
+# dropbear inside the initrd, for remote LUKS unlock. Managed by roles/linux;
+# installed into the initrd by the 60dropbear-unlock dracut module beside this
+# file, not onto the running system.
+
+[Unit]
+Description=dropbear SSH server for remote LUKS unlock
+Documentation=man:dropbear(8)
+
+# Initrd units have to opt out of the normal dependency web; DefaultDependencies
+# would pull in basic.target, which does not exist this early.
+DefaultDependencies=no
+
+# Ordering is the whole game here, and the obvious guess is WRONG.
+#
+# `After=dracut-initqueue.service` looks right -- wait for the network, then
+# start. But dracut-initqueue does not FINISH until the root device appears,
+# which on this host means until the LUKS volume has been unlocked. Ordering
+# after it started dropbear 102 seconds too late, immediately after the
+# passphrase had already been typed at the console, and systemd then killed it
+# as the initrd tore down:
+#
+#   17:49:56  Starting dracut-initqueue.service
+#   17:51:38  dracut-initqueue: Scanning dm-0 ...   <- disk already unlocked
+#   17:51:38  Started dropbear-unlock.service       <- far too late
+#   17:51:38  dropbear: Early exit: Terminated by signal
+#
+# So order against the NETWORK stack, not the queue that waits on the disk.
+# nm-initrd.service is what dracut's network module runs here; naming
+# systemd-networkd.service too keeps this correct if the backend ever changes,
+# since an After= on an absent unit is simply ignored.
+#
+# Starting before the address exists is fine and deliberate: dropbear binds the
+# wildcard address, so it accepts connections as soon as DHCP completes. Waiting
+# for a lease would only re-introduce a dependency on something that can fail.
+After=nm-initrd.service systemd-networkd.service dracut-cmdline.service
+Wants=nm-initrd.service
+
+# Up BEFORE the queue that blocks on the encrypted root, so the SSH server is
+# listening for the entire window in which the passphrase is being waited for.
+# Type=simple counts as active as soon as it forks, so this orders the start
+# without making the queue wait for dropbear to exit.
+Before=dracut-initqueue.service
+
+# Must not survive the handover to the real root. Without this, dropbear keeps
+# the initrd's /root and host key alive past switch-root and blocks the
+# transition, which presents as a boot that hangs AFTER a successful unlock --
+# the most confusing possible symptom.
+Conflicts=shutdown.target initrd-switch-root.target
+Before=shutdown.target initrd-switch-root.target
+
+[Service]
+# -F  Foreground. Lets systemd supervise the real process, so no PID file and
+#     no fork race.
+# -E  Log to stderr, which journald captures. The initrd journal is flushed to
+#     disk after unlock, so a failed unlock attempt is still readable later
+#     with `journalctl -b 0 -u dropbear-unlock`.
+# -r  Host key. One key, ed25519, generated on this host.
+# -p  Port 2222, deliberately NOT 22. dropbear has its own host key, so sharing
+#     22 with sshd would make every unlock print a host-key-mismatch warning --
+#     training you to click through exactly the warning that REQ-B1.7's
+#     fingerprint pinning depends on.
+# -s  No password logins. Key only, matching the sshd hardening drop-in.
+# -j  No local port forwarding.
+# -k  No remote port forwarding. This server exists to accept a passphrase, not
+#     to be a jump host into a half-booted machine with an unlocked disk.
+# -I  Idle timeout, 300s. A forgotten session should not sit open on a box whose
+#     root is still encrypted.
+ExecStart=/usr/sbin/dropbear -F -E -r /etc/dropbear/dropbear_ed25519_host_key -p 2222 -s -j -k -I 300
+
+# A crashed dropbear must not leave the host unreachable for the rest of the
+# initrd's life, but restarting forever would spin if the host key is bad.
+Restart=on-failure
+RestartSec=2s
+
+[Install]
+WantedBy=initrd.target

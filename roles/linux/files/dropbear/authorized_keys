@@ -1,0 +1,26 @@
+# Keys allowed to unlock this host's encrypted root over SSH during early boot
+# (specs/linux-migration Task 8, REQ-B1.7). Managed by roles/linux; deployed to
+# /etc/dropbear/initramfs/authorized_keys and copied into the initrd by the
+# 60dropbear-unlock dracut module.
+#
+# Committed on purpose. This is a PUBLIC key, so it is not a secret -- same
+# reasoning as roles/ssh/files/allowed_signers. The private half lives in
+# 1Password item `dotfiles-luks-unlock` (vault Private) and is offered by the
+# 1Password SSH agent on client machines; see roles/ssh/files/1password-agent.toml.
+#
+# DEDICATED to unlocking and distinct from day-to-day SSH keys, which REQ-B1.7
+# requires and which is worth understanding rather than just complying with: the
+# initrd lives on the UNENCRYPTED /boot partition. Anyone who can read the disk
+# can read this file and the dropbear host key next to it. That is fine for a
+# public key, and it is exactly why the matching private key must not be the one
+# that also signs your commits and reaches your GitHub account.
+#
+# The forced command is what bounds the blast radius. This key cannot open a
+# shell, forward a port, or run anything else -- only the systemd password agent,
+# which does nothing except hand a passphrase to a waiting
+# systemd-cryptsetup@.service. Note this is NOT cryptroot-unlock: that belongs to
+# cryptsetup-initramfs, which this dracut host does not use and does not have.
+#
+# no-pty is deliberately ABSENT. The agent prompts interactively, and without a
+# PTY the passphrase would be echoed in the client's terminal as it is typed.
+command="/usr/bin/systemd-tty-ask-password-agent --query",no-port-forwarding,no-agent-forwarding,no-X11-forwarding ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMB83GzacXW3JpFRKNgY/5yxlCdB609PJLmTsFh+3mPE dotfiles-luks-unlock

@@ -1,0 +1,38 @@
+# Pin the INTERNAL Radeon Pro to its lowest power state. Never the eGPU.
+# Managed by roles/linux; installed to /etc/udev/rules.d/30-amdgpu-pm.rules.
+#
+# This REPLACES a hand-written rule at the same path (dated 2026-05-20, owned by
+# no package, undeclared anywhere in this repo) which read:
+#
+#   KERNEL=="card[012]", SUBSYSTEM=="drm", DRIVERS=="amdgpu", \
+#     ATTR{device/power_dpm_force_performance_level}="low"
+#
+# The intent was thermal, and it is a reasonable intent on this machine: the
+# 2018 15" chassis already pins the CPU package at 100 C with fans maxed under
+# sustained load (see the Task 6 thermal baseline in
+# specs/linux-migration/runbook.md), so holding the internal dGPU down is a
+# sensible way to buy headroom on a host that mostly runs headless with the lid
+# shut.
+#
+# The BUG was `card[012]`, which matches by /sys/class/drm card NUMBER. Those
+# numbers are not stable here: the RX 580 eGPU has been card3 and is now card0,
+# because dracut/amdgpu enumeration order changes when the Thunderbolt topology
+# changes. So a rule written for the internal GPU silently clamped the eGPU too.
+#
+# The cost was not subtle. The eGPU sat locked at DPM level 0 -- 300 MHz core
+# against a 1360 MHz maximum, and 300 MHz memory against 2000 MHz -- roughly
+# 4.5x down on core and 6.7x down on bandwidth. Portal ran ON the RX 580 and was
+# still slow, which is a genuinely confusing symptom: device selection was
+# correct and the hardware was crippled anyway.
+#
+# The thermal argument also does not apply to the eGPU: it lives in a Razer Core
+# with its own fan and its own power supply, outside the chassis whose heat this
+# rule exists to manage.
+#
+# Matched on PCI vendor+device instead of card number, so it stays correct
+# through any re-cabling or re-enumeration:
+#   0x1002:0x67ef  Baffin / Polaris11  -- the internal Radeon Pro   -> clamped
+#   0x1002:0x67df  Ellesmere / Polaris10 -- the RX 580 in the Core  -> untouched
+ACTION=="add|change", SUBSYSTEM=="drm", KERNEL=="card*", \
+  ATTRS{vendor}=="0x1002", ATTRS{device}=="0x67ef", \
+  ATTR{device/power_dpm_force_performance_level}="low"

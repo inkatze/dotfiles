@@ -270,9 +270,172 @@ will throttle hard under sustained all-core compute. Worth weighing when
 choosing which services land here.
 
 ### Day-2 remote LUKS unlock routine (Task 8)
-_To be completed by Task 8._ The router-VPN-in → dropbear SSH against the
-pinned host-key fingerprint → `cryptroot-unlock` → console-fallback
-routine. (Fingerprints are pinned on clients, not committed here.)
+
+Verified working on this host. The routine is at the end; read the mechanism
+note first, because the standard recipe for this does not apply here.
+
+#### The mechanism is NOT dropbear-initramfs, and cannot be
+
+D-3 names `dropbear-initramfs`, and every guide on the subject does too. **That
+package is inert on this host.** It is an initramfs-tools package: it ships its
+hooks under `/usr/share/initramfs-tools/hooks/`, and this machine builds its
+initrd with **dracut**. `/usr/sbin/update-initramfs` here is only a
+compatibility shim owned by the dracut package; initramfs-tools proper is not
+installed, and dracut declares `Conflicts: initramfs-tools`.
+
+Installing it would succeed, report success, and do nothing at boot — the worst
+failure mode available, since you would discover it while locked out.
+
+dracut ships no SSH module of its own (all ~100 enumerated) and Ubuntu packages
+no dropbear-for-dracut, so the glue is repo-owned:
+`roles/linux/files/dracut/dropbear-unlock/`, about 60 lines. Only the glue —
+the server binary comes from apt's `dropbear-bin` so the network-facing half
+stays on the patch stream, and networking from `dracut-network`.
+
+Two further consequences of dracut that contradict the usual instructions:
+
+- **The initrd runs systemd** (`systemd[1]: Running in initrd`), so the
+  passphrase is delivered through the systemd password-agent protocol. The
+  unlock command is `systemd-tty-ask-password-agent`, **not**
+  `cryptroot-unlock` — the latter belongs to `cryptsetup-initramfs`, which this
+  host does not have and never did.
+- **`cryptsetup-initramfs` being absent is not a fault.** dracut's built-in
+  `crypt` and `systemd-cryptsetup` modules handle LUKS natively. This was
+  briefly mistaken for a latent brick risk during Task 8; it is not one.
+
+Rejected alternatives, recorded so they are not re-tried: vendoring the
+third-party `dracut-crypt-ssh` (last upstream push 2024-12, predating dracut
+110); and migrating the host to initramfs-tools, which is the more dangerous
+option — the T2 modules (`t2bce_core`, `t2bce_vhci`, `hid_appletb_kbd`) are what
+provide a **keyboard at the LUKS prompt**, dracut supplies them by host-only
+detection today, and getting them wrong under a different generator leaves no
+keyboard to type the recovery with.
+
+#### Networking needs no GRUB edit
+
+`rd.neednet=1 ip=dhcp` is embedded **into the initrd** by dracut's
+`kernel_cmdline+=` in `/etc/dracut.conf.d/60-remote-unlock.conf`, landing as
+`/etc/cmdline.d/10-default.conf` inside the image. Confirmed at boot:
+
+    dracut-cmdline: Using kernel command line parameters:
+      rd.neednet=1 ip=dhcp rd.luks.uuid=... rd.lvm.lv=...
+
+This matters for sequencing, not just tidiness: declaring
+`GRUB_CMDLINE_LINUX_DEFAULT` in the repo is a follow-up meant to land *after*
+this task, so remote unlock exists as a recovery path before the bootloader is
+touched. Routing these two parameters through dracut keeps that order intact.
+
+The address comes from a DHCP reservation, so no LAN address is committed
+(REQ-F1.1). No interface is named either: the adapter's predictable name is
+`enx<MAC>`, so naming it would commit this host's MAC. dracut probes each
+interface instead. The **drivers** are named explicitly (`add_drivers+=" xhci_pci
+r8152 "`) rather than left to host-only detection, so a rebuild performed with
+the adapter unplugged cannot silently produce an initrd that can never reach the
+network.
+
+Note the unlock NIC is the USB adapter plugged **directly into the Mac**, served
+by the Thunderbolt chip's integrated xHCI. The host's other gigabit adapter
+lives inside the Razer Core behind the PCIe tunnel and is deliberately not the
+unlock path: using it would make booting depend on the eGPU enclosure being
+powered on.
+
+#### The ordering trap — the one thing that will bite a future reader
+
+The unit must be ordered against the **network stack**, never against
+`dracut-initqueue.service`. Ordering `After=dracut-initqueue.service` looks
+correct ("wait for the network, then start") and is wrong: that service does not
+*finish* until the root device appears, which here means until the LUKS volume
+has been unlocked. The first attempt did exactly this, and dropbear started 102
+seconds too late — immediately after the passphrase had already been typed at
+the console:
+
+| Time | Event |
+|---|---|
+| 17:49:56 | Starting `dracut-initqueue.service` |
+| 17:51:38 | `dracut-initqueue: Scanning dm-0 for LVM` — already unlocked |
+| 17:51:38 | Started `dropbear-unlock.service` — too late |
+| 17:51:38 | `dropbear: Early exit: Terminated by signal` |
+
+Correct ordering is `After=nm-initrd.service systemd-networkd.service
+dracut-cmdline.service` and `Before=dracut-initqueue.service`. Starting before
+an address exists is fine and deliberate — dropbear binds the wildcard address
+and accepts as soon as DHCP completes; gating on a lease would add a dependency
+that can fail. `Conflicts=initrd-switch-root.target` is also load-bearing:
+without it dropbear survives the handover to the real root and hangs the
+transition, presenting as a boot that stalls *after* a successful unlock.
+
+#### Verified boot
+
+| Time | Event |
+|---|---|
+| 19:56:57 | Started `dropbear-unlock.service` — 3s **before** carrier |
+| 19:57:00 | `r8152 ...: carrier on` |
+| 19:57:07 | `dhcp4: state changed new lease` |
+| 19:57:08 | Starting `dracut-initqueue.service` — passphrase window opens |
+| 19:57:10 | `Child connection from <client>` |
+| 19:57:19 | `Pubkey auth succeeded for 'root' with ssh-ed25519 key` |
+| 19:57:27 | `Exit (root): Disconnect received` |
+| 19:57:30 | `Scanning devices dm-0 ... Finished` — unlocked |
+
+The initrd journal survives into the booted system, which is what made both the
+failure and the success a five-minute diagnosis rather than guesswork:
+
+    journalctl -b 0 -u dropbear-unlock
+
+#### The routine
+
+1. Reach the LAN — physically, or via the router VPN, or Tailscale. (Tailscale
+   is **not** available at this point: it lives on the encrypted root. Router
+   VPN or local LAN only.)
+2. SSH to the host on **port 2222**, as `root`:
+
+       ssh -p 2222 root@<host>
+
+   Port 2222 rather than 22 on purpose: dropbear has its own host key, so
+   sharing 22 with sshd makes every unlock print a host-key-mismatch warning —
+   training you to click through exactly the warning REQ-B1.7 depends on. The
+   separate port lets both be pinned side by side, keyed as `[host]:2222`.
+3. **Verify the host-key fingerprint before typing anything.** This is the
+   substance of REQ-B1.7, not a formality: it is the only thing between you and
+   typing your disk passphrase into an impostor.
+
+       SHA256:BNaHq0LftTJoWiebmKtH4JpqzGmraZOa+6dck5yaz1o
+
+4. The unlock key's forced command drops you straight into
+   `systemd-tty-ask-password-agent --query`. There is no shell. Type the
+   passphrase at the prompt.
+5. The session ends and boot continues. The disk unlocked ~3 seconds after
+   disconnect in the verified run.
+
+**Console fallback** is unaffected — nothing in this work touches the console
+password agent. See the caveat below.
+
+#### Keys
+
+| Key | Where | Notes |
+|---|---|---|
+| dropbear **host** key | `/etc/dropbear/initramfs/dropbear_ed25519_host_key`, generated on the host | Exists as a file by mechanism; REQ-F1.2 exempts it. Integrity comes from the pinned fingerprint above. Generated under a `creates` guard — without it, every playbook run would mint a new key and change the fingerprint under the clients that pinned it |
+| **unlock** key (client side) | private half in 1Password `dotfiles-luks-unlock`, public half in `roles/linux/files/dropbear/authorized_keys` | Dedicated and distinct from day-to-day keys per REQ-B1.7. The initrd sits on the **unencrypted** `/boot`, so anyone with disk access can read the public key and host key there — which is exactly why the matching private key must not be the one that also signs commits |
+
+The unlock key is restricted by a forced command plus
+`no-port-forwarding,no-agent-forwarding,no-X11-forwarding`, so it cannot open a
+shell or forward anything. `no-pty` is deliberately **absent**: the agent
+prompts interactively, and without a PTY the passphrase would be echoed in the
+client's terminal as it is typed.
+
+It is listed in `roles/ssh/files/1password-agent.toml`, so any machine with
+1Password unlocked can unlock this host.
+
+#### Not verified
+
+- **Console unlock has not been re-tested since the dracut module landed.**
+  Nothing in this work touches that path and earlier boots used it successfully,
+  but untested is untested. Worth one deliberate console unlock at the next
+  reboot.
+- The initramfs-regeneration re-check is satisfied only in the weaker order: the
+  initrd was regenerated (19:06), and the *subsequent* boot unlocked remotely
+  (19:57). A remote unlock was not demonstrated both before and after a
+  regeneration.
 
 ### eGPU attach/detach procedure (Task 9)
 

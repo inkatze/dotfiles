@@ -26,6 +26,16 @@ run = "./scripts/playbook.sh -t upgrade"
 description = "Run OSX configuration"
 run = "./scripts/playbook.sh -t osx"
 
+# The Linux counterpart to `osx`, missing since the os_family role split added
+# roles/linux. -K is baked in rather than left to the caller, following the
+# `shell` task below: this role installs apt packages, writes an sshd_config.d
+# drop-in, and regenerates the initrd, so it cannot do anything useful without
+# a become password. Leaving it off just produced a confusing
+# "sudo: a password is required" partway through.
+[tasks.linux]
+description = "Run Linux configuration (requires sudo)"
+run = "./scripts/playbook.sh -t linux -K"
+
 [tasks.ssh]
 description = "Configure SSH"
 run = "./scripts/playbook.sh -t ssh"

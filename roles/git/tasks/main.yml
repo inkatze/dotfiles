@@ -8,9 +8,31 @@
     force: true
   tags: [git]
 
-# The tracked gitconfig includes this file last, so it overrides the macOS
-# signer path baked in above it. Written rather than symlinked because the
-# value is host-resolved, not repo content.
+# Generated per host, never copied between machines. `creates` is what keeps
+# this idempotent -- without it every run would mint a new key, changing the
+# signing identity under GitHub and allowed_signers on every playbook run.
+#
+# -N '' (empty passphrase) is the entire point: a passphrase would reintroduce
+# the interactive prompt this exists to remove.
+- name: Generate the unattended commit-signing key
+  ansible.builtin.command:
+    cmd: >-
+      ssh-keygen -t ed25519 -N '' -C 'dotfiles unattended commit signing'
+      -f {{ git_unattended_signing_key | quote }}
+    creates: "{{ git_unattended_signing_key }}"
+  when: git_signs_unattended | bool
+  tags: [git]
+
+- name: Restrict the signing key
+  ansible.builtin.file:
+    path: "{{ git_unattended_signing_key }}"
+    mode: "0600"
+  when: git_signs_unattended | bool
+  tags: [git]
+
+# The tracked gitconfig includes this file last, so it overrides both the signer
+# path and the signing key baked in above it. Written rather than symlinked
+# because the values are host-resolved, not repo content.
 - name: Write machine-local git overrides
   ansible.builtin.copy:
     dest: "{{ ansible_facts.env.HOME }}/.gitconfig.local"
@@ -19,7 +41,14 @@
       # Managed by the dotfiles git role — do not edit by hand; the next
       # playbook run overwrites this file. Source: roles/git/defaults/main.yml.
       [gpg "ssh"]
-          program = {{ git_onepassword_ssh_sign_path }}
+          program = {{ git_signing_program }}
+      {% if git_signs_unattended | bool %}
+      # This host signs with its own on-disk key rather than through 1Password,
+      # so it can commit with no GUI and no approval prompt. Overrides the
+      # 1Password-held key named in the tracked gitconfig.
+      [user]
+          signingkey = {{ git_unattended_signing_key }}
+      {% endif %}
   tags: [git]
 
 - name: Symlink gitignore

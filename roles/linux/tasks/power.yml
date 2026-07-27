@@ -46,3 +46,57 @@
       logind lid drop-in is in place. It takes effect at next boot; restarting
       systemd-logind now would end active login sessions.
   tags: [linux, power]
+
+# Takes ownership of another undeclared manual change, and fixes a real bug in
+# it: the hand-written rule matched GPUs by card NUMBER, which is unstable here,
+# so it clamped the RX 580 eGPU to 300 MHz alongside the internal dGPU it was
+# meant for. See the header of the source file for the full reasoning.
+- name: Deploy the amdgpu power-management udev rule
+  ansible.builtin.copy:
+    src: "udev/{{ linux_amdgpu_pm_rule }}"
+    dest: "/etc/udev/rules.d/{{ linux_amdgpu_pm_rule }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  become_user: root
+  notify: Reload udev rules
+  tags: [linux, power]
+
+# Reloading udev re-reads the rules but does not re-run them against devices
+# that already exist, and nothing writes `auto` back, so a GPU already clamped
+# this boot stays clamped. Rather than re-trigger drm devices (which pokes the
+# GPU driving the display), the currently-wrong value is corrected directly.
+#
+# Scoped to the eGPU by device ID and guarded on the current value, so it is a
+# no-op on every subsequent run -- which is what keeps `changed=0` reachable.
+- name: Find amdgpu cards clamped against the corrected policy
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      for c in /sys/class/drm/card*/device; do
+        [ -e "$c/device" ] || continue
+        [ "$(cat "$c/device")" = "0x67df" ] || continue
+        lvl="$c/power_dpm_force_performance_level"
+        [ -e "$lvl" ] || continue
+        [ "$(cat "$lvl")" = "auto" ] && continue
+        echo "$lvl"
+      done
+    executable: /bin/bash
+  register: linux_amdgpu_clamped
+  changed_when: false
+  check_mode: false
+  tags: [linux, power]
+
+# A shell redirect rather than ansible.builtin.copy: this is a sysfs attribute,
+# not a file. copy would try to manage ownership and mode on something that has
+# neither in any meaningful sense, and writing via a temp file plus rename does
+# not work on sysfs at all.
+- name: Release the eGPU from the internal dGPU's power clamp
+  ansible.builtin.shell:
+    cmd: printf 'auto' > {{ item | quote }}
+    executable: /bin/bash
+  become: true
+  loop: "{{ linux_amdgpu_clamped.stdout_lines }}"
+  changed_when: true
+  tags: [linux, power]

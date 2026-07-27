@@ -12,3 +12,33 @@
   ansible.builtin.command:
     cmd: fc-cache -f {{ linux_nerd_font_dir | quote }}
   changed_when: true
+
+# This host builds its initrd with dracut, NOT initramfs-tools -- see
+# roles/linux/files/dracut/dropbear-unlock/module-setup.sh for why that
+# distinction matters. `update-initramfs` here is only a compatibility shim
+# owned by the dracut package, so dracut is called directly to keep the
+# mechanism visible in the playbook output.
+#
+# Current kernel only, deliberately. `--regenerate-all` would also rebuild the
+# stock 7.0.0-generic image, which cannot boot this T2 Mac anyway, and a failure
+# there would fail the play for no gain. New kernels pick this configuration up
+# on their own through dracut's /usr/lib/kernel/install.d/ hook.
+#
+# The new image replaces the one in /boot immediately, but only takes effect at
+# the next boot -- so verify with `lsinitrd` BEFORE rebooting. See the Task 8
+# section of specs/linux-migration/runbook.md.
+# Re-reads the rules for devices that appear LATER. It deliberately does not
+# `udevadm trigger`, which would re-run rules against the GPU currently driving
+# the display; the already-wrong value on an existing device is corrected
+# directly in power.yml instead.
+- name: Reload udev rules
+  ansible.builtin.command:
+    cmd: udevadm control --reload
+  become: true
+  changed_when: true
+
+- name: Regenerate the initramfs
+  ansible.builtin.command:
+    cmd: dracut --force
+  become: true
+  changed_when: true
