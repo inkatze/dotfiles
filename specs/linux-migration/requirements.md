@@ -242,6 +242,19 @@ stacks arrive as their own future specs. *(Cites: the invocation
 
 ## Changelog
 
+- 2026-07-26 — REQ-F1.1 hygiene enforced over conflicting deliverable
+  wording: Task 8 and Task 10 both said the dropbear and sshd host-key
+  fingerprints should be "recorded in the runbook", which contradicts
+  the runbook's own hygiene header ("must never contain ... SSH
+  host-key fingerprints") and Task 8's original placeholder
+  ("fingerprints are pinned on clients, not committed here"). Both
+  deliverables now read "recorded in 1Password", consistent with
+  REQ-F1.2 making the vault the record of choice. Rationale: a
+  fingerprint is a public hash and not secret, but recording one in a
+  PUBLIC repo links the repo to a specific scannable host, and that
+  linkability is what REQ-F1.1 protects. The dropbear fingerprint
+  committed to runbook.md during Task 8 execution has been removed.
+
 - 2026-07-26 — Task 8 execution amendments: D-3's named mechanism
   corrected from `dropbear-initramfs` to a repo-owned **dracut** module
   (this host builds its initrd with dracut, so the initramfs-tools
