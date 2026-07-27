@@ -160,7 +160,7 @@ Task 10's final verification runs last (it depends on 7, 8, and 9).
 - **Deliverables:** dropbear-initramfs installed and configured with a
   dedicated unlock key pair (distinct from day-to-day SSH keys,
   private half in 1Password); the dropbear host-key fingerprint
-  recorded in the runbook and pinned on unlock clients; the wired
+  recorded in 1Password and pinned on unlock clients; the wired
   gigabit-class ethernet adapter confirmed usable from the initramfs;
   unlock exercised over the LAN from another machine; the unlock path
   re-verified after an initramfs regeneration (kernel update or
@@ -197,7 +197,7 @@ Task 10's final verification runs last (it depends on 7, 8, and 9).
 
 - **Deliverables:** SSH hardening applied through the repo role
   (key-only, password authentication and root login disabled), with
-  the sshd host-key fingerprint recorded in the runbook and pinned on
+  the sshd host-key fingerprint recorded in 1Password and pinned on
   client machines; Tailscale up with the host reachable from off-LAN;
   the home router's VPN server (modern protocol per REQ-E1.2)
   configured and verified from off-LAN to reach dropbear during early

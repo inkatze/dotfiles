@@ -464,7 +464,16 @@ failure and the success a five-minute diagnosis rather than guesswork:
    substance of REQ-B1.7, not a formality: it is the only thing between you and
    typing your disk passphrase into an impostor.
 
-       SHA256:BNaHq0LftTJoWiebmKtH4JpqzGmraZOa+6dck5yaz1o
+   The fingerprint is **deliberately not recorded here** — see "Where the
+   fingerprints live" below. Compare against the 1Password note, or against the
+   `[host]:2222` entry already in your client's `known_hosts` from a previous
+   verified connection.
+
+   To read it on the host itself (useful after a rebuild, when the fingerprint
+   has legitimately changed):
+
+       sudo dropbearkey -y -f /etc/dropbear/initramfs/dropbear_ed25519_host_key \
+         | grep -i Fingerprint
 
 4. The unlock key's forced command drops you straight into
    `systemd-tty-ask-password-agent --query`. There is no shell. Type the
@@ -472,8 +481,25 @@ failure and the success a five-minute diagnosis rather than guesswork:
 5. The session ends and boot continues. The disk unlocked ~3 seconds after
    disconnect in the verified run.
 
-**Console fallback** is unaffected — nothing in this work touches the console
-password agent. See the caveat below.
+**Console fallback** is verified — see below.
+
+#### Where the fingerprints live
+
+Host-key fingerprints for this machine — dropbear's and sshd's — are recorded in
+**1Password**, not in this file, and pinned in each client's `known_hosts`.
+
+This is the hygiene rule at the top of this runbook (REQ-F1.1) being applied
+rather than waived, and it is worth understanding why the rule exists. A
+fingerprint is only a public hash, so it is not a secret in the usual sense. But
+this repo is public, and a fingerprint recorded here links the repo to a
+specific, scannable machine: anyone who can reach the host can confirm they have
+found *this* one. That linkability is the thing REQ-F1.1 is protecting, and it is
+not undone by the hash being public.
+
+The Task 8 and Task 10 deliverables originally said "recorded in the runbook",
+which contradicted this rule; that wording was amended rather than the rule (see
+the requirements changelog). Task 8's own placeholder had it right from the
+start: *"Fingerprints are pinned on clients, not committed here."*
 
 #### Keys
 
