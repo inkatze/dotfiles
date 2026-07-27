@@ -222,11 +222,40 @@ stacks arrive as their own future specs. *(Cites: the invocation
   exempt from the vault-only rule: host-key integrity is covered by
   fingerprint pinning (dropbear per REQ-B1.7; sshd per the fingerprint
   recorded and pinned at Task 10), and the monitoring key by its
-  forced-command restriction.
+  forced-command restriction. The exemption additionally covers **an
+  unattended host's own commit-signing key**, for hosts listed in
+  `git_unattended_signing_hosts`: every USE of a 1Password-held key
+  requires the desktop app to authorize it interactively (measured —
+  `ssh-add -l` lists keys freely, but `op-ssh-sign` fails and
+  `ssh-keygen -Y sign` via the agent blocks indefinitely), so a headless
+  host cannot sign at all until a human unlocks a GUI that may not be
+  running. The key is generated per host and never copied between
+  machines; integrity comes from registering its public half in
+  `roles/ssh/files/allowed_signers` and as a GitHub signing key.
+  Retrieving a key at commit time with the 1Password service-account
+  token was considered and rejected: it would make `git commit` depend on
+  network reachability, the private key would still reach the filesystem
+  because `ssh-keygen -Y sign` signs from a file, and it trades a narrow
+  credential (signs only) for a broad one (reads a whole vault).
   *(Cites: kickoff §3 REQ-F (2026-07-22), security-posture doctrine
   (Sources), kickoff lens pass (2026-07-23).)*
 
 ## Changelog
+
+- 2026-07-26 — Task 8 execution amendments: D-3's named mechanism
+  corrected from `dropbear-initramfs` to a repo-owned **dracut** module
+  (this host builds its initrd with dracut, so the initramfs-tools
+  package would install cleanly and do nothing at boot); the unlock
+  command corrected to `systemd-tty-ask-password-agent` because the
+  initrd runs systemd; initrd networking routed through dracut's
+  embedded `kernel_cmdline` rather than a GRUB edit, preserving Task 8's
+  precedence over the `GRUB_CMDLINE_LINUX_DEFAULT` follow-up. REQ-F1.2's
+  file-by-mechanism exemption extended to an unattended host's
+  commit-signing key (every use of a 1Password-held key needs
+  interactive approval, so a headless host cannot sign at all), with the
+  service-account-token alternative recorded as rejected. Task 8
+  verified working; routine and the `dracut-initqueue` ordering trap
+  written into runbook.md.
 
 - 2026-07-22 — Initial draft authored via `/spec-draft` (goal, scope,
   REQ groups A–F, D-1 through D-9, tasks 1–10, test-spec coverage).

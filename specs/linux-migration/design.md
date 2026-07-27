@@ -89,6 +89,30 @@ it remotely or at the console.
 working on Ubuntu 24.04+ (keys under `/etc/dropbear/initramfs/`), and is
 the standard headless-server answer to the LUKS-vs-remote tension.
 
+*(Amended at Task 8 execution 2026-07-26: the decision holds — LUKS with
+dropbear-over-SSH early unlock and console fallback — but the named
+MECHANISM was wrong for this host and is replaced. `dropbear-initramfs`
+is an initramfs-tools package; this machine builds its initrd with
+**dracut** (`update-initramfs` is a dracut-owned compatibility shim,
+initramfs-tools proper is not installed, and dracut declares `Conflicts:
+initramfs-tools`). Its hooks under `/usr/share/initramfs-tools/hooks/`
+would never be read, so it would install cleanly, report success, and do
+nothing at boot. dracut ships no SSH module and Ubuntu packages no
+dropbear-for-dracut, so the glue is repo-owned under
+`roles/linux/files/dracut/dropbear-unlock/` with the server binary from
+apt's `dropbear-bin` and networking from `dracut-network`. Two knock-on
+corrections: the initrd runs systemd, so the passphrase goes through
+`systemd-tty-ask-password-agent`, NOT `cryptroot-unlock` (which belongs
+to the absent `cryptsetup-initramfs`); and networking is configured by
+dracut-embedded `rd.neednet=1 ip=dhcp` rather than a GRUB edit, which
+preserves this task's precedence over the `GRUB_CMDLINE_LINUX_DEFAULT`
+follow-up. Vendoring third-party `dracut-crypt-ssh` and migrating the
+host to initramfs-tools were both considered and rejected — the latter
+because the T2 modules that provide a keyboard at the LUKS prompt come
+from dracut's host-only detection, and getting them wrong under a
+different generator leaves no keyboard to recover with. Verified working;
+see the Task 8 section of runbook.md.)*
+
 ### D-4: eGPU via native amdgpu; compute via Vulkan  (N)
 
 **Decision:** The RX 580 eGPU runs on the in-kernel amdgpu driver with
