@@ -144,7 +144,14 @@ ulimit -Sn 65535
 
 starship init fish | source
 
-status --is-interactive; and source $HOME/.config/op/plugins.sh
+# op shell plugins let the 1Password CLI stand in for a tool's own credential
+# storage (`op plugin init <tool>`). The file it writes is generated per-machine
+# and deliberately untracked, so it is absent on every host where no plugin has
+# been set up -- which was every host but the one this line was written on.
+# Sourcing it unguarded printed "source: No such file or directory" on each
+# interactive shell. Guarded rather than removed, because the indirection is
+# still wanted wherever a plugin HAS been initialised.
+status --is-interactive; and test -f $HOME/.config/op/plugins.sh; and source $HOME/.config/op/plugins.sh
 status --is-interactive; and direnv hook fish | source
 
 status --is-interactive; mise activate fish | source
