@@ -921,6 +921,93 @@ Pointing `health-target` at the **Tailscale** name rather than a LAN address
 removes the off-LAN half of the problem, and is the recommended configuration
 once Tailscale is up.
 
+#### Router VPN — the into-the-LAN door (REQ-E1.2, D-8)
+
+The router is a NETGEAR Nighthawk BE19000 (RS700S). It ships a **built-in
+OpenVPN server**; it has no WireGuard support, and adding WireGuard would mean
+another device between the router and the modem.
+
+**WAN reachability confirmed first**, because it invalidates everything else if
+absent: the WAN address is publicly routable, not CGNAT (`100.64/10`) and not a
+double-NAT private address. Under CGNAT no inbound VPN can work at all and D-8's
+fallback would have been mandatory rather than optional. Worth re-checking after
+any ISP change.
+
+**REQ-E1.2 interpretation, recorded rather than assumed.** The requirement asks
+for a "modern protocol (WireGuard- or IKEv2-class; PPTP or L2TP/PSK are not
+acceptable)". OpenVPN is not named. It is treated as **meeting** the floor: the
+requirement names a class and excludes two specific weak protocols, and OpenVPN
+is TLS-based with certificate authentication — the same class as IKEv2, nowhere
+near PPTP or L2TP/PSK. It is chattier and slower than WireGuard, which is
+irrelevant for typing a passphrase once per boot. See the caveat below, which
+qualifies this without overturning it.
+
+##### The stock exports do not work as issued
+
+The router emits three client bundles (Windows, non-Windows, smartphone). Both
+the non-Windows and smartphone exports **fail as generated**, and the fix is the
+same one line:
+
+    proto udp   ->   proto udp4
+
+That is the only change the smartphone config needed. Forcing IPv4 avoids
+OpenVPN resolving the endpoint to an unusable IPv6 address on a dual-stack
+client — the failure looks like a connection that hangs rather than one that is
+refused, which is why it is not obvious.
+
+The non-Windows/desktop export needed three more, none of them required to
+connect:
+
+| Change | Why |
+|---|---|
+| dropped `redirect-gateway` | Stock is a **full tunnel** — all traffic over the VPN. Split tunnel is what this is for: reach the LAN, leave internet traffic local |
+| inlined `<ca>` / `<cert>` / `<key>` instead of `ca ca.crt` etc. | One portable file with no path dependencies. The smartphone export already does this, which is why it needed less work |
+| `verb 5` → `verb 3` | Stock logging is very noisy |
+
+**Where they live.** Working and stock configs are both in 1Password, under
+items named for this host with a `-mobile` variant and two `-stock-*` items kept
+for provenance (REQ-F1.2: VPN credentials belong in the vault, and the stock
+exports include the client private key). The exact item names and the endpoint
+are not recorded here, per REQ-F1.1.
+
+##### Caveat: two dated settings inherited from the router
+
+Both working configs retain, unchanged from stock:
+
+    cipher AES-128-CBC
+    comp-lzo
+
+- **`comp-lzo`** enables compression *before* encryption, which is the VORACLE
+  weakness; OpenVPN's own guidance is to disable compression outright.
+- **`cipher`** is deprecated in OpenVPN 2.5+ in favour of `data-ciphers`, and
+  CBC is legacy next to AES-GCM.
+
+Neither can be changed client-side alone — they have to match what the router's
+server offers, and the RS700S generates these. Exposure for the unlock use case
+is low: VORACLE needs an attacker able to inject known plaintext and observe
+compressed sizes, which fits web browsing far better than an SSH session where
+someone types a passphrase. It is a genuine weakness for general LAN browsing
+over this tunnel, though, so it is worth checking whether the router's firmware
+exposes stronger settings — and worth revisiting if it ever does.
+
+This qualifies the REQ-E1.2 interpretation above rather than reversing it: the
+protocol is modern; two of its parameters are dated.
+
+##### Not yet verified
+
+**Reaching dropbear during early boot** — the entire reason this path exists,
+and the one thing Tailscale structurally cannot do (Tailscale lives on the
+encrypted root, so it does not exist at the passphrase prompt).
+
+The test needs a genuinely off-LAN client (a phone hotspot is enough), the VPN
+connected, then a reboot and `ssh -p 2222` to the host's **LAN address** — not a
+Tailscale name, which will not resolve at that point. Fingerprint verified
+before the passphrase is typed, per REQ-B1.7.
+
+The running-system half of the path is already known to work: the VPN has been
+connected and used before. What is untested is specifically the early-boot
+window.
+
 #### Still to do
 
 - **Tailscale is not logged in.** `tailscaled` runs but the host is
