@@ -993,38 +993,66 @@ exposes stronger settings — and worth revisiting if it ever does.
 This qualifies the REQ-E1.2 interpretation above rather than reversing it: the
 protocol is modern; two of its parameters are dated.
 
-##### Not yet verified
+##### Verified — remote unlock from off-LAN over the router VPN
 
-**Reaching dropbear during early boot** — the entire reason this path exists,
-and the one thing Tailscale structurally cannot do (Tailscale lives on the
-encrypted root, so it does not exist at the passphrase prompt).
+This is the whole reason the path exists, and the one thing Tailscale
+structurally cannot do: Tailscale lives on the encrypted root, so it does not
+exist at the passphrase prompt.
 
-The test needs a genuinely off-LAN client (a phone hotspot is enough), the VPN
-connected, then a reboot and `ssh -p 2222` to the host's **LAN address** — not a
-Tailscale name, which will not resolve at that point. Fingerprint verified
-before the passphrase is typed, per REQ-B1.7.
+Performed from a genuinely off-LAN client (phone hotspot), VPN connected, using
+the **desktop** `.ovpn` config, then `ssh -p 2222` to the host's **LAN address**
+— not a Tailscale name, which does not resolve at that point in boot.
 
-The running-system half of the path is already known to work: the VPN has been
-connected and used before. What is untested is specifically the early-boot
-window.
+| Time | Event |
+|---|---|
+| 14:06:11 | `Started dropbear-unlock.service` |
+| 14:06:22 | `dhcp4: new lease` · `Starting dracut-initqueue.service` — passphrase window opens |
+| 14:08:04 | `Child connection from <client>` |
+| 14:08:09 | `Pubkey auth succeeded for 'root' with ssh-ed25519 key` |
+| 14:08:15 | `systemd-cryptsetup: Set cipher aes ...` — volume unlocked |
+| 14:08:17 | `Finished dracut-initqueue.service` |
+
+**The evidence that it genuinely traversed the tunnel**, rather than arriving
+some other way: dropbear logged the client's source address in the router's
+**OpenVPN tunnel pool**, a different subnet from the LAN. A connection that had
+somehow arrived locally would have shown a LAN address. (The address itself is
+not recorded here, per REQ-F1.1.)
+
+**Fingerprint verified before the passphrase was typed, and it matched.** That
+ordering is the substance of REQ-B1.7 rather than ceremony — it is the only
+thing standing between the operator and typing a disk passphrase into an
+impostor, and it is the step that gets skipped when it is treated as a
+formality.
+
+Note the ~113 s between the passphrase window opening and the client connecting:
+that is the human getting onto the hotspot and up the VPN, not a system delay.
+The host waits indefinitely, so the interval does not matter — but it is worth
+knowing the window is not tight when planning a real recovery.
+
+**Both halves of D-8 are now proven**: Tailscale for the running system (Task 10
+above), the router VPN for early boot (here). Neither substitutes for the other,
+which is exactly why the decision specified both.
 
 #### Still to do
 
-- **Tailscale is not logged in.** `tailscaled` runs but the host is
-  unauthenticated (`tailscale status` → `Logged out`), so the mesh access path
-  does not exist yet. Needs `tailscale up` and a browser login.
-- Router VPN configured and verified **from off-LAN** to reach dropbear during
-  early boot, at the REQ-E1.2 protocol floor — or the D-8 fallback if the router
-  cannot meet it.
-- Legacy WAN port-forward confirmed permanently retired, by external scan from
-  off-LAN.
-- Headless boot test with no display or keyboard attached.
-- Power-loss recovery, battery-aware: outage sustained until the battery drains
-  to power-off, then wall power restored.
-- Bounded thermal soak (~30 minutes sustained load) with no thermal shutdown.
-  Expect the package pinned at 100 °C with fans maxed throughout and throttling
-  logged — that is this chassis behaving as designed (see the Task 6 thermal
-  baseline), and the requirement is no thermal *shutdown*, not no throttling.
-- Minimal off-host health signal: which machine runs it, the restricted
-  forced-command key setup, and detection of both an induced outage and an
-  induced disk-threshold breach.
+Done and recorded above: SSH hardening, the thermal soak, the off-host health
+signal (outage and recovery), Tailscale, and remote unlock from off-LAN over the
+router VPN.
+
+Remaining:
+
+- **Legacy WAN port-forward confirmed permanently retired**, by external scan
+  from off-LAN. REQ-E1.5 deliberately sequences this *after* both access paths
+  verify — which they now have, so this is unblocked.
+- **Headless boot test** with no display or keyboard attached.
+- **Power-loss recovery, battery-aware**: outage sustained until the battery
+  drains to power-off, then wall power restored. Hours, mostly waiting.
+- **Health signal — the disk-threshold condition.** Outage and recovery are
+  proven; a breach is not. Root sits at 6% of 914 GB, so a real breach means
+  allocating ~730 GB. Running the poller once with a lowered `DISK_THRESHOLD`
+  exercises the identical comparison → transition → push path at no risk, and is
+  the sensible test unless a genuine full-disk rehearsal is wanted.
+- **MFA on the identity account behind Tailscale.** The second half of REQ-E1.2,
+  easy to miss because the first half (protocol floor) dominates the sentence.
+  Tailscale authenticates through an identity provider; whichever account was
+  used needs MFA enabled. Not checkable from this host.
