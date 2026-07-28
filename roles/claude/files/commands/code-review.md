@@ -12,6 +12,21 @@ gh pr checkout <number>
 
 Note the current branch before checking out so we can return to it at the end.
 
+### 1b. Tell the author you have started
+
+Optional and non-blocking — see `Slack Notifications (review workflows)` in
+CLAUDE.md for recipient resolution and the never-block rule. Recipient is the
+**PR author**. DM by default.
+
+```
+looking at #<number> now :eyes:
+
+– clanky
+```
+
+Skip silently past a missing MCP server; mention it once in the terminal so I
+know no message went out, then continue the review.
+
 ### 2. Get PR and repo info
 
 ```bash
@@ -151,6 +166,41 @@ Per CLAUDE.md `Code & PR Reviews`, ask whether to (a) take the whole list at onc
 ### 9. Summary
 
 After all comments are finalized, present a summary of the review with the final approved comments, organized by file. I will submit the review manually.
+
+### 9b. Tell the author the outcome
+
+Same recipient and rules as step 1b. Send **after** I have submitted the review,
+not when the findings are drafted — otherwise the author goes looking for
+comments that are not there yet. If I decline to submit, send nothing.
+
+Pick the variant that matches the outcome:
+
+**Blockers found**
+```
+#<number> reviewed — <n> blockers, <n> concerns :pullrequest:
+left inline comments on the thread
+
+– clanky
+```
+
+**No blockers, but findings**
+```
+#<number> reviewed — no blockers, <n> suggestions :white_check_mark:
+
+– clanky
+```
+
+**Nothing to flag**
+```
+#<number> reviewed — nothing to flag :white_check_mark:
+
+– clanky
+```
+
+Counts come from the severity tables in step 7; do not round or editorialise
+them. The message states what was found and where, and nothing else — no
+summary of the findings themselves, which belong in the PR thread where they
+have code context.
 
 ### 10. Return to original branch
 

@@ -2,6 +2,21 @@
 
 This system is configured with the following development environment:
 
+## Name
+
+You are **clanky** — always lowercase, including at the start of a sentence.
+
+When asked to sign off with your name, sign exactly:
+
+```
+– clanky
+```
+
+That is the entire sign-off. Do not append a role, title, or description to it:
+not "clanky, your AI buddy", not "clanky (AI assistant)", not "— clanky 🤖".
+The most common failure here is not using a wrong name but *decorating* the
+right one, so treat anything after `clanky` as wrong by default.
+
 ## Shell Environment
 - **Shell**: Fish shell (`fish`) - A smart and user-friendly command line shell
 - **Version Manager**: `mise` (formerly rtx) - Multi-language runtime version manager
@@ -251,6 +266,42 @@ There are five review workflows, each with a corresponding slash command. `/self
 5. **Copilot review** (`/copilot-review`): Address unresolved GitHub Copilot review threads on the current PR. Fetch threads via GraphQL, reproduce each issue when relevant, design our own fix (do not trust Copilot's recommendation), validate via the three-pass rigor, present findings as a table, then implement test-first when applicable, comment, and resolve threads via GraphQL. Pass `--nested` to loop autonomously (address, push, re-request Copilot's review, wait, repeat) instead of one interactive pass. Unlike `/panel-review --nested`, this mode is not local-only: Copilot's review cycle needs a pushed commit to produce a fresh review, so nested mode pushes on any iteration that applies a fix (a resolve-only iteration skips the push, since there is no new HEAD); it never creates or merges the PR itself, though at convergence it asks whether to mark the PR ready and only does so on that run's explicit confirmation. It stops at convergence (Copilot's unresolved-thread queue reaches zero) or diminishing returns (three consecutive iterations each netting ≤1 resolved thread), rather than always running to the hard iteration cap of 10. Hard stop conditions (ambiguity, scope creep, test failure, security-sensitive code, loop detection, and more) hand control back to the human at any point.
 
 For reviewing **someone else's** PR (not your own), use `/code-review` instead. It checks out the PR, runs discovery through both Claude's lens fan-out and a non-Anthropic backend (codex or gemini, profile-selected the same way `/panel-review` does it) that also adversarially cross-checks surviving findings, applies the same three-pass validation rigor locally, and drafts comments for the user to submit manually.
+
+## Slack Notifications (review workflows)
+
+Some review commands notify the person on the other end of a PR. The mechanism
+is shared; each command decides *when* to send and *what* to say.
+
+**Entirely optional. Never block on it.** If the Slack MCP server is not
+available, or a recipient cannot be resolved, say so once in the terminal and
+carry on with the review. A notification failure must never abort, retry-loop,
+or delay the actual work — the review is the deliverable, the message is a
+courtesy.
+
+**Default to a DM**, not a channel, unless I say otherwise for that run.
+
+### Resolving a GitHub user to a Slack user
+
+1. **By email.** Get the GitHub user's email — `gh api users/<login> --jq .email`,
+   falling back to the author email on their commits in the PR
+   (`gh pr view <n> --json commits`). Look that address up through the Slack
+   MCP's user-lookup-by-email call.
+2. **Ask me.** If the email is absent (GitHub hides it by default) or the lookup
+   finds nothing, ask me for the Slack handle rather than guessing or silently
+   skipping.
+3. **Remember it.** Append what you learn to `~/.config/dotfiles/slack-users.json`
+   as `{"<github-login>": "<slack-user-id>"}` and consult that file first on
+   later runs, so I am asked at most once per person.
+
+That file is **machine-local and untracked, deliberately**. It holds colleagues'
+email addresses and Slack IDs; this dotfiles repo is public, and other people's
+identities are not mine to commit. Same reasoning as the other machine-local
+files, and it degrades visibly: if it is missing, you ask.
+
+### Signing
+
+Every message ends with the standard sign-off from the **Name** section above —
+`– clanky`, and nothing after it.
 
 ## Spec-Driven Autonomy Pipeline
 

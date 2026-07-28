@@ -239,10 +239,17 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 | `ssh-host` | the `sshc` function in `roles/fish/files/fish/config.fish` | `kitten ssh` target hostname |
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
 | `op-service-account-token` | `scripts/ssh-lan-config-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
+| `slack-users.json` | the `/code-review` and `/peer-review` commands | GitHub login → Slack user ID, so review notifications can find a person |
 
 None are created by Ansible and none live in the repo (`~/.config/kitty` is
 a symlink into it, which is why the kitty companion sits here instead).
 Each is optional; absence degrades visibly rather than silently.
+
+`slack-users.json` is untracked for a different reason than the others: it is
+not a secret, but it holds *other people's* email-derived identities. This repo
+is public, and colleagues' Slack IDs are not mine to publish. It is built up as
+review workflows resolve people (email lookup first, asking me second), so a
+missing entry costs one question rather than a failure.
 
 `op-service-account-token` is the only one that is a *secret*. It exists
 because the 1Password desktop-app integration authorizes per calling process
