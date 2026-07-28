@@ -18,3 +18,8 @@
     - tmux
     - ssh
     - git
+    # Cross-platform, and deliberately NOT inside `osx`. Claude Code runs on
+    # both platforms, but this config lived in the Darwin-guarded role, so the
+    # Linux host had no ~/.claude/CLAUDE.md, no managed settings.json, and no
+    # commands/ or scripts/ at all.
+    - claude

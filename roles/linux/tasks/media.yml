@@ -1,0 +1,73 @@
+---
+
+# mpv configuration, symlinked whole rather than copied file-by-file -- the same
+# shape roles/kitty uses, so adding input.conf or a script-opts/ directory later
+# is a repo edit with no matching Ansible change.
+#
+# The packages themselves (mpv, ffmpeg, vainfo) are in linux_apt_packages, not
+# here. This file owns only the configuration.
+
+- name: Ensure the user configuration directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_facts.env.HOME }}/.config"
+    state: directory
+    mode: "0755"
+  tags: [linux, media]
+
+- name: Symlink the mpv configuration directory
+  ansible.builtin.file:
+    src: "{{ ansible_facts.env.PWD }}/roles/linux/files/mpv"
+    dest: "{{ linux_mpv_config_dir }}"
+    state: link
+  tags: [linux, media]
+
+# mpv creates neither of these and fails the screenshot rather than falling back
+# when the configured directory is missing, so screenshot-directory in mpv.conf
+# only works if this exists first.
+- name: Ensure the mpv screenshot directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_facts.env.HOME }}/Pictures/mpv"
+    state: directory
+    mode: "0755"
+  tags: [linux, media]
+
+# Celluloid keeps its settings in dconf, so the symlink above does not reach it:
+# without these two keys it runs libmpv with stock defaults and none of the
+# scaling, dithering or debanding work applies. Declared here rather than left as
+# a Preferences click, for the same reason the logind and sshd policy is
+# declared -- the effective config should be asserted by the repo.
+#
+# gsettings via command rather than community.general.dconf, which is present
+# (13.2.0) but depends on the psutil Python library. Ansible runs here under the
+# mise-managed interpreter, which does not have it (verified: ModuleNotFoundError
+# for psutil under .local/share/mise/installs/python/3.13.3). Shelling out to
+# gsettings needs nothing that is not already on the host.
+- name: Read the current Celluloid mpv-config settings
+  ansible.builtin.command:
+    cmd: gsettings get {{ linux_celluloid_schema }} {{ item.key }}
+  loop: "{{ linux_celluloid_mpv_settings }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: linux_celluloid_current
+  changed_when: false
+  # A missing schema is the expected state when this file is run on its own with
+  # --tags media before the apt task has installed celluloid. Tolerated here and
+  # filtered in the next task, so a tag-scoped run degrades to a skip instead of
+  # a failure. Also covers a run with no D-Bus session, where gsettings cannot
+  # reach dconf at all.
+  failed_when: false
+  tags: [linux, media]
+
+- name: Point Celluloid at the repo-managed mpv configuration
+  ansible.builtin.command:
+    cmd: >-
+      gsettings set {{ linux_celluloid_schema }}
+      {{ item.item.key }} {{ item.item.set | quote }}
+  loop: "{{ linux_celluloid_current.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+  when:
+    - item.rc == 0
+    - item.stdout | trim != item.item.expect
+  changed_when: true
+  tags: [linux, media]

@@ -13,8 +13,8 @@ pre-commit:
     gitleaks:
       run: gitleaks git --staged --no-banner --redact --config .gitleaks.toml
     skill-contracts:
-      glob: "roles/osx/files/claude/commands/*.md"
-      run: roles/osx/files/claude/scripts/skill-contracts.sh
+      glob: "roles/claude/files/commands/*.md"
+      run: roles/claude/files/scripts/skill-contracts.sh
     baseline-plaintext-guard:
       glob: "specs/metrics-baseline/snapshots/baseline-*"
       run: |

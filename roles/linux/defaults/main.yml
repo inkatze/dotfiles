@@ -166,6 +166,16 @@ linux_apt_packages:
   - dropbear-bin
   - dracut-network
 
+# apt packages that must NOT be present, because a user-level install owns the
+# tool instead. Declared rather than left to chance: apt's gh was installed on
+# this host manually, so both it and the mise one existed at once — and since
+# git runs credential helpers through `sh`, which may not carry mise's PATH, the
+# bare name resolved to apt's OLDER binary. linux.toml moved gh to mise
+# precisely because apt's is two years stale and gh is "a credential-holding
+# network client"; leaving the apt copy installed quietly undid that.
+linux_apt_packages_absent:
+  - gh
+
 # User-level tools installed by mise instead of apt, declared in
 # roles/linux/files/mise/linux.toml (which carries the pinned versions and the
 # per-tool reasoning). Order matters: the pipx backend needs `uv` on PATH, so

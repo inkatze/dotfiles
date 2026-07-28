@@ -104,7 +104,7 @@ Findings that fail any of these three should be dropped, not softened.
   `string match`, `function`, `set -l` are intentional.
 - **`mise` runs everything.** `fish -c "<cmd>"` wrappers in scripts are
   deliberate so mise-managed runtimes are picked up.
-- **Ansible materialization model.** Files under `roles/osx/files/claude/` are
+- **Ansible materialization model.** Files under `roles/claude/files/` are
   the source of truth. The runtime path `~/.claude/...` is materialized via
   symlink (most files) or `jq` merge (`settings.json`). Do not suggest editing
   the runtime path.

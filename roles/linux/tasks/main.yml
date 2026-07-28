@@ -32,6 +32,15 @@
   become: true
   tags: [linux]
 
+# Removed rather than merely un-declared: an apt package that is present but
+# unwanted still wins on a minimal PATH. See linux_apt_packages_absent.
+- name: Remove apt packages superseded by user-level installs
+  ansible.builtin.apt:
+    name: "{{ linux_apt_packages_absent }}"
+    state: absent
+  become: true
+  tags: [linux]
+
 - name: Install baseline apt packages
   ansible.builtin.apt:
     name: "{{ linux_apt_packages }}"
