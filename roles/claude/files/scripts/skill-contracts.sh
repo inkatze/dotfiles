@@ -4,7 +4,7 @@
 # invariants that must stay aligned: the three-bucket presentation contract,
 # the panel-pairing/copilot-pairing retirement into --nested, and
 # copilot-review's mark-ready confirmation gate. Runs as a lefthook
-# pre-commit job filtered to roles/osx/files/claude/commands/*.md.
+# pre-commit job filtered to roles/claude/files/commands/*.md.
 #
 # The spec-driven pipeline skills (orchestrate, execute-task, spec-draft,
 # spec-kickoff, polish, self-review, resume) moved to the planwright plugin,
@@ -12,7 +12,7 @@
 # this repo are checked here.
 set -euo pipefail
 
-CMDS="roles/osx/files/claude/commands"
+CMDS="roles/claude/files/commands"
 errors=0
 
 err() { echo "ERROR: $1"; errors=$((errors + 1)); }

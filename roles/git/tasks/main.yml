@@ -30,6 +30,21 @@
   when: git_signs_unattended | bool
   tags: [git]
 
+# Resolved rather than hardcoded, because gh lives in a different place per
+# platform (Homebrew on macOS, mise on Linux) and because the ABSOLUTE path is
+# what makes the credential helper safe -- see the comment on it below.
+# ansible.builtin.shell, not command: `command -v` is a shell builtin, so the
+# command module cannot run it and the probe silently reports failure — which
+# renders the credential helper block below into nothing at all.
+- name: Resolve the gh binary
+  ansible.builtin.shell:
+    cmd: command -v gh
+  register: git_gh_probe
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  tags: [git]
+
 # The tracked gitconfig includes this file last, so it overrides both the signer
 # path and the signing key baked in above it. Written rather than symlinked
 # because the values are host-resolved, not repo content.
@@ -48,6 +63,23 @@
       # 1Password-held key named in the tracked gitconfig.
       [user]
           signingkey = {{ git_unattended_signing_key }}
+      {% endif %}
+      {% if git_gh_probe.rc == 0 %}
+      # HTTPS pushes to GitHub authenticate with gh's stored token instead of
+      # the 1Password SSH agent, which is what lets a headless host push with no
+      # GUI and no approval prompt.
+      #
+      # ABSOLUTE path, deliberately. git runs credential helpers through `sh`,
+      # which does not necessarily carry mise's PATH, so a bare `gh` can resolve
+      # to a different binary than the one on your shell's PATH — and on a host
+      # with both an apt gh and a mise gh, the bare form silently picks the older
+      # apt one. That is precisely the stale, credential-holding client that
+      # roles/linux/files/mise/linux.toml moved to mise to avoid.
+      #
+      # Scoped to github.com because gh only speaks GitHub; other hosts fall
+      # through to git's normal credential handling.
+      [credential "https://github.com"]
+          helper = !{{ git_gh_probe.stdout | trim }} auth git-credential
       {% endif %}
   tags: [git]
 

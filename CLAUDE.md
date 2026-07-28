@@ -12,10 +12,10 @@ runtime:
 
 | Runtime path | Tracked source | Mechanism |
 |---|---|---|
-| `~/.claude/CLAUDE.md` | `roles/osx/files/CLAUDE.md` | Symlink (outside `claude/` subdirectory) |
-| `~/.claude/commands/*` | `roles/osx/files/claude/commands/` | Symlink |
-| `~/.claude/scripts/*` | `roles/osx/files/claude/scripts/` | Symlink (hook scripts invoked from `settings.json`) |
-| `~/.claude/settings.json` | `roles/osx/files/claude/settings.json` | jq merge (not symlink) |
+| `~/.claude/CLAUDE.md` | `roles/claude/files/CLAUDE.md` | Symlink |
+| `~/.claude/commands/*` | `roles/claude/files/commands/` | Symlink |
+| `~/.claude/scripts/*` | `roles/claude/files/scripts/` | Symlink (hook scripts invoked from `settings.json`) |
+| `~/.claude/settings.json` | `roles/claude/files/settings.json` | jq merge (not symlink) |
 
 Always edit the tracked source. The materialized file in `~/.claude/` is
 overwritten on the next Ansible run. Run `readlink` on any `~/.claude/` file
@@ -35,26 +35,26 @@ near-empty.
 
 ## Adding a new Claude command
 
-1. Drop the file under `roles/osx/files/claude/commands/`.
+1. Drop the file under `roles/claude/files/commands/`.
 2. Include command front-matter (required for discovery).
 3. Commit and run Ansible (or wait for the next symlink task run).
 4. Verify in a fresh Claude session.
 
-Hook logic lives in `roles/osx/files/claude/scripts/` and is wired from
+Hook logic lives in `roles/claude/files/scripts/` and is wired from
 `settings.json`. Skills are not managed by Ansible yet. Adding a new tracked
-directory requires a matching symlink task in `roles/osx/tasks/osx.yml`.
+directory requires a matching symlink task in `roles/claude/tasks/main.yml`.
 
 ## Adding a new hook
 
-1. Write the script under `roles/osx/files/claude/scripts/` and `chmod +x` it.
-2. Reference it from `roles/osx/files/claude/settings.json` under `hooks.<Event>`
+1. Write the script under `roles/claude/files/scripts/` and `chmod +x` it.
+2. Reference it from `roles/claude/files/settings.json` under `hooks.<Event>`
    via `$HOME/.claude/scripts/<name>.sh`.
 3. To remove an existing hook event, set its array to `[]` in the tracked
    `settings.json` so the jq merge overwrites the materialized entry.
 
 ### Per-repo worktree bootstrap hook
 
-`roles/osx/files/claude/scripts/worktree-bootstrap.sh` runs on `SessionStart`.
+`roles/claude/files/scripts/worktree-bootstrap.sh` runs on `SessionStart`.
 In a git worktree it trusts mise, then kicks off lockfile+project-file-detected
 dep installs in the background (both a lockfile and its matching project file
 must sit at the worktree root; a stray root-level lockfile in a monorepo will
@@ -78,7 +78,7 @@ script before opening a repo you did not author.
 
 The SessionStart `tool-discovery` hook is supplied by the planwright plugin,
 not this repo. planwright installs as a Claude Code plugin (marketplace flow,
-see the planwright install task in `roles/osx/tasks/osx.yml`), and the plugin
+see the planwright install task in `roles/claude/tasks/main.yml`), and the plugin
 wires its own hooks via its `hooks/hooks.json` resolved against
 `CLAUDE_PLUGIN_ROOT`: `tool-discovery` on SessionStart and `tasks-pr-sync` on
 PostToolUse(Bash). The tracked `settings.json` therefore no longer wires
@@ -200,19 +200,22 @@ The repo is split by platform via `os_family` guards in `main.yml`:
 
 | Role | Guard | Covers |
 |---|---|---|
-| `roles/osx/` | `ansible_os_family == "Darwin"` | Homebrew, macOS defaults, Claude/Cursor config, MCP + Ollama plumbing |
+| `roles/osx/` | `ansible_os_family == "Darwin"` | Homebrew, macOS defaults, MCP + Ollama plumbing |
 | `roles/linux/` | `ansible_os_family == "Debian"` | apt baseline (fish, tmux, core CLI, `openssh-server`), mise, sshd hardening drop-in, Tailscale, 1Password CLI (`op`) |
 
 Only one platform baseline runs on a given host; the other role is skipped
 whole by its `when:` guard, so adding `roles/linux/` left the Mac hosts'
 runs unchanged. The remaining roles (`kitty`, `fish`, `services`,
-`environments`, `neovim`, `tmux`, `ssh`, `git`) are cross-platform config
+`environments`, `neovim`, `tmux`, `ssh`, `git`, `claude`) are cross-platform config
 and run on every host; driving their first Linux run clean is the
 `specs/linux-migration` Task 7 stabilization loop, not the platform split
 itself.
 
-Claude-related files live under `roles/osx/files/claude/`; symlink tasks
-are in `roles/osx/tasks/`. The `linux` role's sshd hardening lives at
+Claude-related files live under `roles/claude/files/`; the tasks are in
+`roles/claude/tasks/`. That role is **cross-platform and unguarded**: Claude
+Code runs on macOS and Linux alike, and keeping this config inside the
+Darwin-guarded `osx` role meant the Linux host silently had no global
+`CLAUDE.md`, no managed `settings.json`, and no commands or hook scripts. The `linux` role's sshd hardening lives at
 `roles/linux/files/sshd/60-hardening.conf` (a role-owned `sshd_config.d/`
 drop-in, REQ-E1.1: key-only auth, no root login).
 
