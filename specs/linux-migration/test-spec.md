@@ -183,18 +183,26 @@ check repeatable after auth expiries.
 With no display or keyboard attached: power on, unlock over SSH via
 wired ethernet, and reach a full multi-user system over SSH.
 
-### REQ-E1.4 — Auto power-on after power loss [manual]
+### REQ-E1.4 — Outage survival on battery [manual]
 
-Battery-aware: sustain an AC outage until the battery drains to
-power-off, then restore wall power promptly (no deep-discharge dwell);
-the machine boots to the LUKS prompt unattended (and is then remotely
-unlockable per REQ-E1.3). Two invalid passes: a wall-cut with a
-charged battery (the battery bridges it; nothing is exercised) and a
-user-initiated hard power-off with AC present (no power-loss event
-occurs, so autorestart never fires). Escape hatch: if battery health
-contraindicates the drain (swelling, failing health readout), verify
-the autorestart setting's persistence only and record the untested
-drain path as an accepted residual in the runbook.
+Wall power removed while running: the host stays up on battery and stays
+reachable. Sustained to battery exhaustion, it shuts down cleanly, shown
+by a clean shutdown in the journal rather than an unclean-mount replay on
+the next boot.
+
+**Unattended power-on is not tested, because the hardware does not offer
+it.** Verified at Task 10 (2026-07-29) by draining the battery to
+power-off and restoring wall power: the machine stayed dark until the
+power button was pressed. MacBooks have no "start up automatically after
+a power failure" mechanism, that setting being desktop-only, so this is a
+hardware property and not a configuration defect. Recovery from an outage
+longer than battery runtime is a manual power-on, recorded as an accepted
+residual in the runbook.
+
+Measured on this host: ~17 W idle draw against ~61 Wh usable, so roughly
+3.5 h of idle runtime. Note the CPU is clamped to 800 MHz on battery (see
+the Task 10 runbook section), so the host is degraded, not merely
+time-limited, for the duration of an outage.
 
 ### REQ-E1.5 — No WAN-exposed forward [manual]
 

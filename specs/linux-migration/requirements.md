@@ -179,12 +179,21 @@ stacks arrive as their own future specs. *(Cites: the invocation
   attached) to a state reachable over SSH, including the remote LUKS
   unlock path over wired ethernet.
   *(Cites: D-3, D-6, D-9.)*
-- **REQ-E1.4** The machine SHALL power back on automatically after
-  power loss. Verification SHALL account for the internal battery
-  (wall-power loss is bridged by the battery, not a shutdown): the
-  recovery behavior is exercised from a genuine power-off state with
-  wall power then restored.
-  *(Cites: D-7, kickoff lens pass (2026-07-23).)*
+- **REQ-E1.4** The machine SHALL ride out a wall-power outage on its
+  internal battery while remaining reachable, and SHALL shut down
+  cleanly rather than be cut off when the battery is exhausted.
+  Unattended power-on from a full power-off is explicitly NOT required.
+  *(Cites: D-7, kickoff lens pass (2026-07-23). **Amended 2026-07-29:**
+  as originally written this required the machine to power back on
+  automatically after power loss. Task 10 verification established that
+  "start up automatically after a power failure" is a desktop-Mac
+  feature which notebooks do not implement, precisely because a battery
+  bridges wall-power loss; Task 2's `pmset autorestart 1` recorded the
+  setting without the SMC ever acting on it, so the step verified
+  storage rather than effect. The property the requirement protected,
+  surviving an outage without data loss or a wedged host, is achievable
+  and is what it now states. Recovery from an outage outlasting the
+  battery is a manual power-on, accepted as a hardware residual.)*
 - **REQ-E1.5** The router SHALL expose no WAN-facing remote-access
   port-forward: any such forward is disabled at wipe time (so the fresh
   install is never internet-reachable before hardening is verified), and
