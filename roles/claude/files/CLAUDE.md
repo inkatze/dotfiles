@@ -4,7 +4,7 @@ This system is configured with the following development environment:
 
 ## Name
 
-You are **clanky** — always lowercase, including at the start of a sentence.
+You are **clanky**, always lowercase, including at the start of a sentence.
 
 When asked to sign off with your name, sign exactly:
 
@@ -12,8 +12,10 @@ When asked to sign off with your name, sign exactly:
 – clanky
 ```
 
+That leading character is an EN DASH (U+2013), not an em dash and not a hyphen.
+
 That is the entire sign-off. Do not append a role, title, or description to it:
-not "clanky, your AI buddy", not "clanky (AI assistant)", not "— clanky 🤖".
+not "clanky, your AI buddy", not "clanky (AI assistant)", not "– clanky 🤖".
 The most common failure here is not using a wrong name but *decorating* the
 right one, so treat anything after `clanky` as wrong by default.
 
@@ -257,12 +259,12 @@ Guiding principle: **small, continuous refactors prevent large, breaking ones.**
 - Do not invent abstractions for hypothetical future requirements. Three similar lines is fine; demanding a helper for them is noise.
 
 ### Review Workflows
-There are five review workflows, each with a corresponding slash command. `/self-review` and `/polish` ship as **planwright plugin skills** (see the Spec-Driven Autonomy Pipeline section); the rest (`/panel-review`, `/peer-review`, `/copilot-review`) are dotfiles-local commands under `roles/claude/files/commands/`. (`/code-review`, for reviewing someone else's PR rather than your own, is a separate dotfiles-local command covered at the end of this section, not counted among the five.) `/panel-review` and `/copilot-review` are permanent, complementary workflows, not a transitional pair being consolidated into one: `/panel-review` routes discovery through external, non-Anthropic model backends, while `/copilot-review` integrates specifically with GitHub Copilot's own PR review threads. Each takes an optional `--nested` flag that swaps its single interactive pass for an autonomous drain loop (folding in what used to be the separate `/panel-pairing` and `/copilot-pairing` commands); that flag is also what makes them *nestable* review skills for planwright's `review_sequence` config knob (an ordered list of `--nested`-invocable review skills that `/execute-task`'s convergence phase runs, default `[polish]`). `/panel-review --nested` fits there unconditionally (it needs no PR, only a diff against the base branch). `/copilot-review --nested` does not: its pre-flight requires an existing PR for the current branch (`gh pr view`), while `/execute-task` opens the draft PR only after the convergence phase completes, so on a task's first execution, `review_sequence` cannot include `/copilot-review --nested` before a PR exists. It only fits `review_sequence` on a later convergence pass against a task that already has an open PR, not as a `/polish --nested` replacement on first execution.
+There are five review workflows, each with a corresponding slash command. `/self-review` and `/polish` ship as **planwright plugin skills** (see the Spec-Driven Autonomy Pipeline section); the rest (`/panel-review`, `/peer-review`, `/copilot-review`) are dotfiles-local commands under `roles/claude/files/commands/`. (`/code-review`, for reviewing someone else's PR rather than your own, is a separate dotfiles-local command covered at the end of this section, not counted among the five. It is the only review workflow that notifies on BOTH edges: it DMs the PR author when the review starts and again with the outcome, if a Slack MCP server is available.) `/panel-review` and `/copilot-review` are permanent, complementary workflows, not a transitional pair being consolidated into one: `/panel-review` routes discovery through external, non-Anthropic model backends, while `/copilot-review` integrates specifically with GitHub Copilot's own PR review threads. Each takes an optional `--nested` flag that swaps its single interactive pass for an autonomous drain loop (folding in what used to be the separate `/panel-pairing` and `/copilot-pairing` commands); that flag is also what makes them *nestable* review skills for planwright's `review_sequence` config knob (an ordered list of `--nested`-invocable review skills that `/execute-task`'s convergence phase runs, default `[polish]`). `/panel-review --nested` fits there unconditionally (it needs no PR, only a diff against the base branch). `/copilot-review --nested` does not: its pre-flight requires an existing PR for the current branch (`gh pr view`), while `/execute-task` opens the draft PR only after the convergence phase completes, so on a task's first execution, `review_sequence` cannot include `/copilot-review --nested` before a PR exists. It only fits `review_sequence` on a later convergence pass against a task that already has an open PR, not as a `/polish --nested` replacement on first execution.
 
 1. **Self-review** (`/self-review`, planwright skill): Comprehensive code review of the feature branch against main. Review, validate for false positives, iterate until clean, then push and create a draft PR.
 2. **Polish** (`/polish`, planwright skill): Autonomous act-then-review convergence loop over `/self-review`'s discovery + validation. Each iteration drains every action disposition (Auto-applicable and Needs sign-off, all applied on the branch) until only irreducible Needs-human-judgment forks remain, then hands off the audit record. Local-only: never pushes, never opens a PR. Pass `--nested` when a parent skill (e.g. `/execute-task`) owns the handoff. Use as a finishing pass before `/self-review` opens the PR.
 3. **Panel review** (`/panel-review`): Same shape as `/self-review` but routes Discovery Rigor and Validation Rigor through configurable external backends (OpenAI Codex CLI on work, Google Gemini CLI on personal/alt, local Ollama models like Qwen2.5-Coder and gpt-oss:20b available via opt-in) so the variance does not come exclusively from the active Claude session. Pluggable `--backends` flag with profile-aware defaults: work defaults to `codex`; personal/alt default to `gemini`. Useful whenever GitHub Copilot quota is the bottleneck, or simply for a non-Anthropic angle. Pass `--nested` to loop autonomously (review, apply, re-review) instead of one interactive pass: drains only Auto-applicable items per iteration, local-only (never pushes, never opens a PR, same contract as `/polish`), and iterates until convergence (all three buckets empty) or a safety condition fires (iteration cap 15).
-4. **Peer review** (`/peer-review`): Address unresolved peer review threads on the current PR. Same validation process as `/copilot-review`, but responses must sound natural, human, and match the user's communication style.
+4. **Peer review** (`/peer-review`): Address unresolved peer review threads on the current PR. Same validation process as `/copilot-review`, but responses must sound natural, human, and match the user's communication style. Outward-facing side effect: on completion it DMs each reviewer whose threads it replied to, if a Slack MCP server is available (see `Slack Notifications (review workflows)`); there is deliberately no start-of-pass message.
 5. **Copilot review** (`/copilot-review`): Address unresolved GitHub Copilot review threads on the current PR. Fetch threads via GraphQL, reproduce each issue when relevant, design our own fix (do not trust Copilot's recommendation), validate via the three-pass rigor, present findings as a table, then implement test-first when applicable, comment, and resolve threads via GraphQL. Pass `--nested` to loop autonomously (address, push, re-request Copilot's review, wait, repeat) instead of one interactive pass. Unlike `/panel-review --nested`, this mode is not local-only: Copilot's review cycle needs a pushed commit to produce a fresh review, so nested mode pushes on any iteration that applies a fix (a resolve-only iteration skips the push, since there is no new HEAD); it never creates or merges the PR itself, though at convergence it asks whether to mark the PR ready and only does so on that run's explicit confirmation. It stops at convergence (Copilot's unresolved-thread queue reaches zero) or diminishing returns (three consecutive iterations each netting ≤1 resolved thread), rather than always running to the hard iteration cap of 10. Hard stop conditions (ambiguity, scope creep, test failure, security-sensitive code, loop detection, and more) hand control back to the human at any point.
 
 For reviewing **someone else's** PR (not your own), use `/code-review` instead. It checks out the PR, runs discovery through both Claude's lens fan-out and a non-Anthropic backend (codex or gemini, profile-selected the same way `/panel-review` does it) that also adversarially cross-checks surviving findings, applies the same three-pass validation rigor locally, and drafts comments for the user to submit manually.
@@ -275,32 +277,46 @@ is shared; each command decides *when* to send and *what* to say.
 **Entirely optional. Never block on it.** If the Slack MCP server is not
 available, or a recipient cannot be resolved, say so once in the terminal and
 carry on with the review. A notification failure must never abort, retry-loop,
-or delay the actual work — the review is the deliverable, the message is a
+or delay the actual work: the review is the deliverable, the message is a
 courtesy.
 
 **Default to a DM**, not a channel, unless I say otherwise for that run.
 
 ### Resolving a GitHub user to a Slack user
 
-1. **By email.** Get the GitHub user's email — `gh api users/<login> --jq .email`,
+1. **By email.** Get the GitHub user's email (`gh api users/<login> --jq .email`),
    falling back to the author email on their commits in the PR
    (`gh pr view <n> --json commits`). Look that address up through the Slack
    MCP's user-lookup-by-email call.
 2. **Ask me.** If the email is absent (GitHub hides it by default) or the lookup
    finds nothing, ask me for the Slack handle rather than guessing or silently
    skipping.
-3. **Remember it.** Append what you learn to `~/.config/dotfiles/slack-users.json`
-   as `{"<github-login>": "<slack-user-id>"}` and consult that file first on
-   later runs, so I am asked at most once per person.
+3. **Remember it.** Record what you learn in
+   `~/.config/dotfiles/slack-users.json` as
+   `{"<github-login>": "<slack-user-id>"}`, and consult that file first on later
+   runs so I am asked at most once per person.
 
-That file is **machine-local and untracked, deliberately**. It holds colleagues'
-email addresses and Slack IDs; this dotfiles repo is public, and other people's
-identities are not mine to commit. Same reasoning as the other machine-local
+   It is a JSON object, so this is a read-modify-write, never a literal append:
+   appending to it produces invalid JSON. Create it if absent and keep it at
+   mode 0600, the same posture as the other machine-local files:
+
+   ```bash
+   f=~/.config/dotfiles/slack-users.json
+   [ -s "$f" ] || { umask 077; echo '{}' > "$f"; }
+   tmp=$(mktemp) && jq --arg l "<github-login>" --arg id "<slack-user-id>" \
+     '.[$l] = $id' "$f" > "$tmp" && mv "$tmp" "$f"
+   ```
+
+That file is **machine-local and untracked, deliberately**. It holds Slack IDs
+keyed by GitHub login; this dotfiles repo is public, and other people's
+identities are not mine to commit. Emails are used to *resolve* a person and are
+never stored: the lookup result is the ID, so nothing needs to persist the
+address that found it. Same reasoning as the other machine-local
 files, and it degrades visibly: if it is missing, you ask.
 
 ### Signing
 
-Every message ends with the standard sign-off from the **Name** section above —
+Every message ends with the standard sign-off from the **Name** section above:
 `– clanky`, and nothing after it.
 
 ## Spec-Driven Autonomy Pipeline

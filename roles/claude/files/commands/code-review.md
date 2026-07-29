@@ -14,7 +14,7 @@ Note the current branch before checking out so we can return to it at the end.
 
 ### 1b. Tell the author you have started
 
-Optional and non-blocking — see `Slack Notifications (review workflows)` in
+Optional and non-blocking. See `Slack Notifications (review workflows)` in
 CLAUDE.md for recipient resolution and the never-block rule. Recipient is the
 **PR author**. DM by default.
 
@@ -24,8 +24,8 @@ looking at #<number> now :eyes:
 – clanky
 ```
 
-Skip silently past a missing MCP server; mention it once in the terminal so I
-know no message went out, then continue the review.
+Skip past a missing MCP server without erroring; mention it once in the terminal
+so I know no message went out, then continue the review.
 
 ### 2. Get PR and repo info
 
@@ -170,35 +170,41 @@ After all comments are finalized, present a summary of the review with the final
 ### 9b. Tell the author the outcome
 
 Same recipient and rules as step 1b. Send **after** I have submitted the review,
-not when the findings are drafted — otherwise the author goes looking for
+not when the findings are drafted, otherwise the author goes looking for
 comments that are not there yet. If I decline to submit, send nothing.
 
 Pick the variant that matches the outcome:
 
 **Blockers found**
 ```
-#<number> reviewed — <n> blockers, <n> concerns :pullrequest:
+#<number> reviewed: <n> blockers, <n> concerns
 left inline comments on the thread
 
 – clanky
 ```
 
-**No blockers, but findings**
+**No blockers, but something to address**
 ```
-#<number> reviewed — no blockers, <n> suggestions :white_check_mark:
+#<number> reviewed: no blockers, <n> concerns, <n> suggestions
 
 – clanky
 ```
 
 **Nothing to flag**
 ```
-#<number> reviewed — nothing to flag :white_check_mark:
+#<number> reviewed: nothing to flag
 
 – clanky
 ```
 
+Step 7 defines four severity tiers; these variants report three. **Nits are
+deliberately never pinged**: a Slack DM about a typo costs more attention than
+the typo does. They still appear in the PR comments, where they are free to
+ignore. Drop any count that is zero rather than sending `0 concerns`; if that
+empties the line, the outcome is "nothing to flag".
+
 Counts come from the severity tables in step 7; do not round or editorialise
-them. The message states what was found and where, and nothing else — no
+them. The message states what was found and where, and nothing else: no
 summary of the findings themselves, which belong in the PR thread where they
 have code context.
 

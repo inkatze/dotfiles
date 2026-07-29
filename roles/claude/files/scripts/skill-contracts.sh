@@ -110,6 +110,60 @@ else
   err "copilot-review.md referenced by mark_ready_checks but does not exist at $CMDS/copilot-review.md"
 fi
 
+# Severity-tier contract for code-review.md. It is checked against its OWN
+# anchors rather than being added to bucket_checks: per CLAUDE.md, commands that
+# only draft output for elsewhere skip the finding categorization and present
+# severity-grouped instead, so both the bucket-count sentence and the
+# Agent-resolvable guard would be wrong for it. Before this, code-review.md was
+# globbed by the lefthook job but matched by no check at all.
+severity_checks=(
+  "**Blockers**"
+  "**Concerns**"
+  "**Suggestions**"
+  "**Nits**"
+)
+if [ -f "$CMDS/code-review.md" ]; then
+  for phrase in "${severity_checks[@]}"; do
+    if ! grep -qF "$phrase" "$CMDS/code-review.md"; then
+      err "code-review.md missing expected severity tier: \"$phrase\""
+    fi
+  done
+else
+  err "code-review.md referenced by severity_checks but does not exist at $CMDS/code-review.md"
+fi
+
+# Slack notification contract. Any command citing the shared mechanism must cite
+# a heading that actually resolves, and must carry the exact sign-off, because
+# both reach a colleague rather than staying in the repo.
+#
+# The sign-off's leading character is an EN DASH (U+2013). A hyphen or em dash
+# there is invisible in review and lands in someone's DMs.
+SIGNOFF='– clanky'
+SLACK_SECTION='Slack Notifications (review workflows)'
+GLOBAL_MD="roles/claude/files/CLAUDE.md"
+slack_citers=""
+for path in "$CMDS"/*.md; do
+  [ -f "$path" ] || continue
+  if grep -qF "$SLACK_SECTION" "$path"; then
+    slack_citers="$slack_citers $(basename "$path")"
+  fi
+done
+if [ -n "$slack_citers" ]; then
+  if [ ! -f "$GLOBAL_MD" ]; then
+    err "commands cite \"$SLACK_SECTION\" but $GLOBAL_MD does not exist"
+  elif ! grep -qF "## $SLACK_SECTION" "$GLOBAL_MD"; then
+    err "commands cite \"$SLACK_SECTION\" but no such heading exists in $GLOBAL_MD"
+  fi
+  for f in $slack_citers; do
+    if ! grep -qF "$SIGNOFF" "$CMDS/$f"; then
+      err "$f cites the Slack section but carries no \"$SIGNOFF\" sign-off literal"
+    fi
+    if grep -qE '^[-—] clanky *$' "$CMDS/$f"; then
+      err "$f signs off with a hyphen or em dash; the sign-off uses an EN DASH (U+2013)"
+    fi
+  done
+fi
+
 if [ "$errors" -gt 0 ]; then
   echo ""
   echo "skill-contracts: $errors invariant(s) broken"

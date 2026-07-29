@@ -224,7 +224,7 @@ gh api graphql -f query='
 
 ### 9. Tell each reviewer their comments are addressed
 
-Optional and non-blocking — see `Slack Notifications (review workflows)` in
+Optional and non-blocking. See `Slack Notifications (review workflows)` in
 CLAUDE.md for recipient resolution and the never-block rule. DM by default.
 
 **One message per reviewer**, addressed to the person whose threads you replied
@@ -232,8 +232,8 @@ to, sent **after** their replies are posted and resolved. A reviewer with no
 threads in this run gets nothing.
 
 There is deliberately no "starting" message here, unlike `/code-review`. Nobody
-is waiting on you to begin addressing their comments — they are waiting on the
-result — and a ping per reviewer at the start of every pass is noise.
+is waiting on you to begin addressing their comments; they are waiting on the
+result, and a ping per reviewer at the start of every pass is noise.
 
 **All threads handled**
 ```
@@ -252,7 +252,7 @@ addressed your comments on #<number> :white_check_mark:
 ```
 
 Use the second variant whenever anything landed in *Needs human judgment* and is
-still unresolved for that reviewer — saying "addressed" while leaving their
+still unresolved for that reviewer. Saying "addressed" while leaving their
 thread open unanswered is worse than sending nothing, because it invites them to
 re-review something that is not ready.
 
