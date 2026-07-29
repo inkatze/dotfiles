@@ -222,6 +222,46 @@ gh api graphql -f query='
 ' -f threadId='THREAD_ID'
 ```
 
+### 9. Tell each reviewer their comments are addressed
+
+Optional and non-blocking. See `Slack Notifications (review workflows)` in
+CLAUDE.md for recipient resolution and the never-block rule. DM by default.
+
+**One message per reviewer**, addressed to the person whose threads you replied
+to, sent **after** their replies are posted and resolved. A reviewer with no
+threads in this run gets nothing.
+
+There is deliberately no "starting" message here, unlike `/code-review`. Nobody
+is waiting on you to begin addressing their comments; they are waiting on the
+result, and a ping per reviewer at the start of every pass is noise.
+
+**All threads handled**
+```
+addressed your comments on #<number> :white_check_mark:
+<n> replied · <n> with fixes in <sha>
+
+– clanky
+```
+
+**Some left open**
+```
+went through your comments on #<number> :warning:
+<n> replied · <n> left open, they need a call from you
+
+– clanky
+```
+
+Use the second variant whenever anything landed in *Needs human judgment* and is
+still unresolved for that reviewer. Note that it neither says "addressed" nor
+leads with a checkmark: claiming done-ness while leaving their thread open
+unanswered is worse than sending nothing, because it invites them to re-review
+something that is not ready.
+
+Confirm each recipient before sending, per the shared section. One confirmation
+per reviewer, since each is a separate message to a separate person.
+
+Drop the `<sha>` clause when no code changed; do not invent a commit to cite.
+
 ## Maintenance
 
 After completing the workflow, check if any part of these instructions seem outdated, incorrect, or misaligned with the current project's tooling or workflow (e.g., GraphQL schema changes, deprecated fields, new `gh` CLI capabilities, tone mismatches). If something looks off, flag it and offer a ready-to-use prompt I can paste into a new dotfiles session to update this command.

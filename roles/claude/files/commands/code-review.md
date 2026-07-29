@@ -12,6 +12,24 @@ gh pr checkout <number>
 
 Note the current branch before checking out so we can return to it at the end.
 
+### 1b. Tell the author you have started
+
+Optional and non-blocking. See `Slack Notifications (review workflows)` in
+CLAUDE.md for recipient resolution and the never-block rule. Recipient is the
+**PR author**. DM by default.
+
+```
+looking at #<number> now :eyes:
+
+– clanky
+```
+
+Confirm the recipient before sending, per the shared section. Skip past a
+missing MCP server, an unresolvable recipient, or a declined confirmation
+without erroring; mention it once in the terminal so I know no message went out,
+then continue the review. Nothing at this step asks me for a Slack handle: that
+question waits until the review is done.
+
 ### 2. Get PR and repo info
 
 ```bash
@@ -151,6 +169,61 @@ Per CLAUDE.md `Code & PR Reviews`, ask whether to (a) take the whole list at onc
 ### 9. Summary
 
 After all comments are finalized, present a summary of the review with the final approved comments, organized by file. I will submit the review manually.
+
+### 9b. Tell the author the outcome
+
+Same recipient and rules as step 1b. This message must land **after** I have
+submitted the review, not when the findings are drafted, otherwise the author
+goes looking for comments that are not there yet.
+
+Nothing here can observe that submission on its own. Do not try to detect it:
+`gh pr view <n> --json reviews` would be checked at step 9b, and I submit on
+GitHub after reading the drafts, usually once this command has already ended, so
+the check would find nothing and report "not sent" almost every time. Ask
+instead, folding the recipient confirmation from the shared section into the
+same question so there is one gate rather than two:
+
+```
+notify <name> (@<handle>) once you have submitted? [y/N]
+```
+
+Send on a yes. Anything else, including "not yet", sends nothing and ends the
+step; I will say so if I want it sent later.
+
+Pick the variant that matches the outcome:
+
+**Blockers found**
+```
+#<number> reviewed: <n> blockers, <n> concerns
+left inline comments on the thread
+
+– clanky
+```
+
+**No blockers, but something to address**
+```
+#<number> reviewed: no blockers, <n> concerns, <n> suggestions
+
+– clanky
+```
+
+**Nothing to flag**
+```
+#<number> reviewed: nothing to flag
+
+– clanky
+```
+
+Step 7 defines four severity tiers; these variants report three. **Nits are
+deliberately never pinged**: a Slack DM about a typo costs more attention than
+the typo does. They still appear in the PR comments, where they are free to
+ignore. Drop any count that is zero rather than sending `0 concerns`; if that
+empties the line, the outcome is "nothing to flag".
+
+Counts come from the severity tables in step 7; do not round or editorialise
+them. The message states what was found and where, and nothing else: no
+summary of the findings themselves, which belong in the PR thread where they
+have code context.
 
 ### 10. Return to original branch
 
