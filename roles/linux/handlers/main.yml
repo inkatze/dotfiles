@@ -37,6 +37,17 @@
   become: true
   changed_when: true
 
+# A restart, not a reload: `systemctl show upower -p ExecReload` is empty, so
+# there is no reload path and the daemon re-reads its configuration only at
+# start. Safe to restart here, unlike systemd-logind (see the comment in
+# power.yml): upower serves power state over D-Bus and owns no login sessions,
+# so nothing running on the host is torn down with it.
+- name: Restart upower
+  ansible.builtin.service:
+    name: upower
+    state: restarted
+  become: true
+
 - name: Regenerate the initramfs
   ansible.builtin.command:
     cmd: dracut --force

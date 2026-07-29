@@ -63,6 +63,28 @@
   loop: "{{ linux_unmask_sleep_targets }}"
   tags: [linux, power]
 
+# The other half of the sleep-target story above. hybrid-sleep.target stays
+# masked because hibernation cannot work here, and UPower's shipped
+# CriticalPowerAction is HybridSleep -- so its low-battery action always failed
+# and the host ran to hardware cutoff, taking an unclean shutdown on every
+# outage that outlasted the battery. The drop-in switches it to PowerOff so the
+# machine shuts down cleanly instead. Full reasoning in the file.
+#
+# No directory-creation task, unlike the logind drop-in above: this conf.d is
+# shipped by the upower package itself (verified: `dpkg -S
+# /etc/UPower/UPower.conf.d/README.md` reports upower), so it exists on a fresh
+# host.
+- name: Deploy the UPower critical-power drop-in
+  ansible.builtin.copy:
+    src: "upower/{{ linux_upower_critical_dropin }}"
+    dest: "/etc/UPower/UPower.conf.d/{{ linux_upower_critical_dropin }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Restart upower
+  tags: [linux, power]
+
 # Takes ownership of another undeclared manual change, and fixes a real bug in
 # it: the hand-written rule matched GPUs by card NUMBER, which is unstable here,
 # so it clamped the RX 580 eGPU to 300 MHz alongside the internal dGPU it was
