@@ -196,12 +196,20 @@ contraindicates the drain (swelling, failing health readout), verify
 the autorestart setting's persistence only and record the untested
 drain path as an accepted residual in the runbook.
 
-### REQ-E1.5 — Legacy WAN forward retired [manual]
+### REQ-E1.5 — No WAN-exposed forward [manual]
 
-The router's legacy WAN-exposed port-forward is disabled at Task 5
-(before the fresh install first boots) and its absence confirmed at
-Task 10: the router configuration no longer contains the forward, and
-an external port scan of the previous port shows it closed.
+The router's port-forwarding configuration contains no remote-access
+forward, confirmed at Task 10 once both access paths verify. Where such
+a forward exists it is disabled at Task 5, before the fresh install
+first boots.
+
+**On this machine none was ever configured**, so Task 5 had nothing to
+disable and the Task 10 configuration check is the whole verification.
+The external port scan the original wording called for is dropped rather
+than deferred: it named "the previous port", and with no forward ever
+present there is no such port to scan. Scanning an arbitrary set of
+common ports would be a different test (a general exposure sweep) and is
+not what this requirement asks for.
 
 ### REQ-E1.6 — Minimal host-health signal [manual]
 

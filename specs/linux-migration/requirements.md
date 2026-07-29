@@ -185,12 +185,19 @@ stacks arrive as their own future specs. *(Cites: the invocation
   recovery behavior is exercised from a genuine power-off state with
   wall power then restored.
   *(Cites: D-7, kickoff lens pass (2026-07-23).)*
-- **REQ-E1.5** The router's legacy WAN-exposed remote-access
-  port-forward SHALL be disabled at wipe time (so the fresh install is
-  never internet-reachable before hardening is verified) and its
-  permanent retirement confirmed once the hybrid remote-access path is
+- **REQ-E1.5** The router SHALL expose no WAN-facing remote-access
+  port-forward: any such forward is disabled at wipe time (so the fresh
+  install is never internet-reachable before hardening is verified), and
+  the absence of one is confirmed once the hybrid remote-access path is
   verified.
-  *(Cites: D-8, kickoff lens pass (2026-07-23).)*
+  *(Cites: D-8, kickoff lens pass (2026-07-23). **Amended 2026-07-29:**
+  as originally written this asserted that a legacy forward existed and
+  required its retirement. Task 10 verification found none had ever been
+  configured, so the original premise was false and could not be
+  satisfied as stated: there was nothing to disable at Task 5 and no
+  "previous port" to scan. The protected property is unchanged and is
+  what the requirement now states; only the assumption that a forward
+  existed is withdrawn.)*
 - **REQ-E1.6** A minimal host-health signal SHALL exist for the
   service-free window: a periodic reachability and disk-space check run
   from another machine (e.g. over SSH) or an external uptime monitor —
