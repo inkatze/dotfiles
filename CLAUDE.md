@@ -135,6 +135,26 @@ unnoticed. To add another secret-bearing MCP server, mirror this
 layout: new script under `scripts/`, new task in both files, same CI
 guard.
 
+### Slack: a deliberate manual prerequisite
+
+The `/code-review` and `/peer-review` commands DM the person on the other
+end of a PR through a Slack MCP server. **Nothing in this repo provisions
+it.** There is no sync script, no Ansible task, and no `mcpServers.slack`
+entry; a fresh machine has the commands but not the transport.
+
+That is a choice, not an oversight. The notification is a courtesy the
+commands are explicitly built to do without: the shared `Slack
+Notifications (review workflows)` rule in the user-global `CLAUDE.md`
+says a missing server means "say so once in the terminal and carry on",
+so the review, which is the actual deliverable, is unaffected. Automating
+a registration for a server used by two commands on one machine buys
+little and adds another 1Password item and CI-guarded task pair to keep
+working.
+
+Register it by hand when you want it, on the machine that wants it. If
+that ever becomes more than one machine, promote it: mirror the layout
+above rather than copying the registration around.
+
 ## Cross-host Ollama topology
 
 The `/panel-*` skills hit Ollama over HTTP. Only the `work` inventory host

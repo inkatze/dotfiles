@@ -288,9 +288,16 @@ courtesy.
    falling back to the author email on their commits in the PR
    (`gh pr view <n> --json commits`). Look that address up through the Slack
    MCP's user-lookup-by-email call.
-2. **Ask me.** If the email is absent (GitHub hides it by default) or the lookup
-   finds nothing, ask me for the Slack handle rather than guessing or silently
-   skipping.
+2. **Ask me, but not mid-run.** If the email is absent (GitHub hides it by
+   default) or the lookup finds nothing, do not guess and do not ask on the
+   spot. Say in the terminal that this person will get no message, finish the
+   review, and ask me for their Slack handle once the work is done.
+
+   Asking at the point of resolution puts a prompt in front of the review
+   itself, which is the delay the never-block rule above exists to prevent.
+   `/code-review` resolves its recipient at step 1b, before it has read a single
+   line of the diff. The cost of deferring is that the first run for a new
+   person sends nothing; every run after it does.
 3. **Remember it.** Record what you learn in
    `~/.config/dotfiles/slack-users.json` as
    `{"<github-login>": "<slack-user-id>"}`, and consult that file first on later
@@ -313,6 +320,20 @@ identities are not mine to commit. Emails are used to *resolve* a person and are
 never stored: the lookup result is the ID, so nothing needs to persist the
 address that found it. Same reasoning as the other machine-local
 files, and it degrades visibly: if it is missing, you ask.
+
+### Confirming the recipient
+
+Name the resolved recipient and wait for a yes before anything goes out:
+
+```
+notify <name> (@<handle>)? [y/N]
+```
+
+The body does not need confirming: it is a fixed template the command supplies,
+and re-reading the same three lines every run is ceremony. The recipient does,
+because it is derived (a GitHub login through up to two lookups) and the failure
+that actually costs something is a message reaching the wrong person. Anything
+other than a yes is a clean no-op: send nothing, say nothing further, carry on.
 
 ### Signing
 

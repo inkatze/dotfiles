@@ -24,8 +24,11 @@ looking at #<number> now :eyes:
 – clanky
 ```
 
-Skip past a missing MCP server without erroring; mention it once in the terminal
-so I know no message went out, then continue the review.
+Confirm the recipient before sending, per the shared section. Skip past a
+missing MCP server, an unresolvable recipient, or a declined confirmation
+without erroring; mention it once in the terminal so I know no message went out,
+then continue the review. Nothing at this step asks me for a Slack handle: that
+question waits until the review is done.
 
 ### 2. Get PR and repo info
 
@@ -169,9 +172,23 @@ After all comments are finalized, present a summary of the review with the final
 
 ### 9b. Tell the author the outcome
 
-Same recipient and rules as step 1b. Send **after** I have submitted the review,
-not when the findings are drafted, otherwise the author goes looking for
-comments that are not there yet. If I decline to submit, send nothing.
+Same recipient and rules as step 1b. This message must land **after** I have
+submitted the review, not when the findings are drafted, otherwise the author
+goes looking for comments that are not there yet.
+
+Nothing here can observe that submission on its own. Do not try to detect it:
+`gh pr view <n> --json reviews` would be checked at step 9b, and I submit on
+GitHub after reading the drafts, usually once this command has already ended, so
+the check would find nothing and report "not sent" almost every time. Ask
+instead, folding the recipient confirmation from the shared section into the
+same question so there is one gate rather than two:
+
+```
+notify <name> (@<handle>) once you have submitted? [y/N]
+```
+
+Send on a yes. Anything else, including "not yet", sends nothing and ends the
+step; I will say so if I want it sent later.
 
 Pick the variant that matches the outcome:
 

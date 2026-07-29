@@ -245,16 +245,20 @@ addressed your comments on #<number> :white_check_mark:
 
 **Some left open**
 ```
-addressed your comments on #<number> :white_check_mark:
+went through your comments on #<number> :warning:
 <n> replied · <n> left open, they need a call from you
 
 – clanky
 ```
 
 Use the second variant whenever anything landed in *Needs human judgment* and is
-still unresolved for that reviewer. Saying "addressed" while leaving their
-thread open unanswered is worse than sending nothing, because it invites them to
-re-review something that is not ready.
+still unresolved for that reviewer. Note that it neither says "addressed" nor
+leads with a checkmark: claiming done-ness while leaving their thread open
+unanswered is worse than sending nothing, because it invites them to re-review
+something that is not ready.
+
+Confirm each recipient before sending, per the shared section. One confirmation
+per reviewer, since each is a separate message to a separate person.
 
 Drop the `<sha>` clause when no code changed; do not invent a commit to cite.
 
