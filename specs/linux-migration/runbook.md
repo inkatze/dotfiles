@@ -1033,11 +1033,40 @@ knowing the window is not tight when planning a real recovery.
 above), the router VPN for early boot (here). Neither substitutes for the other,
 which is exactly why the decision specified both.
 
+#### MFA on the identity behind Tailscale (REQ-E1.2, second half)
+
+Confirmed enabled, 2026-07-29, by inspection of the account's GitHub security
+settings.
+
+**There is nothing to configure in Tailscale.** This tailnet authenticates
+through GitHub (`tailscale status --json` reports the login as
+`<user>@github`) on the default control plane, and Tailscale delegates
+authentication wholesale to the identity provider rather than layering its own
+second factor. So the requirement lands on GitHub's 2FA setting, which is why
+REQ-E1.2 says "the identity account behind the Tailscale mesh" rather than
+naming a Tailscale option. Checking the Tailscale admin console for an MFA
+toggle is a dead end.
+
+**It is not checkable from this host.** `gh api user --jq
+.two_factor_authentication` returns `null` rather than a boolean, because the
+field is only populated for tokens carrying user scope and this host's token
+holds `gist`, `read:org`, `repo`. That `null` reads like "disabled" and is not:
+it means "not visible". Verifying it here would mean running `gh auth refresh -s
+read:user`, which permanently widens a server's token to answer a question the
+settings page answers for free. Browser check preferred, deliberately.
+
+**Consequence worth carrying forward.** GitHub is now the sole identity behind
+one of the two access paths into this machine, so losing the second factor costs
+Tailscale access to the host, not just GitHub. The recovery codes belong in
+1Password for that reason. The router VPN path is unaffected, since it
+authenticates against the router and knows nothing about GitHub. The two doors
+fail independently, which is the property D-8 was chosen for.
+
 #### Still to do
 
 Done and recorded above: SSH hardening, the thermal soak, the off-host health
-signal (outage and recovery), Tailscale, and remote unlock from off-LAN over the
-router VPN.
+signal (outage and recovery), Tailscale, remote unlock from off-LAN over the
+router VPN, and MFA on the identity behind Tailscale.
 
 Remaining:
 
@@ -1052,7 +1081,3 @@ Remaining:
   allocating ~730 GB. Running the poller once with a lowered `DISK_THRESHOLD`
   exercises the identical comparison → transition → push path at no risk, and is
   the sensible test unless a genuine full-disk rehearsal is wanted.
-- **MFA on the identity account behind Tailscale.** The second half of REQ-E1.2,
-  easy to miss because the first half (protocol floor) dominates the sentence.
-  Tailscale authenticates through an identity provider; whichever account was
-  used needs MFA enabled. Not checkable from this host.
