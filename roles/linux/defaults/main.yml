@@ -137,6 +137,30 @@ linux_apt_packages:
   - steam-installer
   - mesa-vulkan-drivers:i386
 
+  # Media
+  #
+  # Takes ownership of three undeclared manual installs: mpv, ffmpeg and vainfo
+  # were all present on this host and marked manual by apt, while
+  # roles/linux/tasks/media.yml claimed in a comment that they lived here. They
+  # did not. That file also went unwired, so the mpv configuration it symlinks
+  # was in place only because the symlink had been made by hand.
+  #
+  #   mpv        The player the repo-managed config in files/mpv/ is written
+  #              for.
+  #   celluloid  GTK frontend over libmpv, so the same tuning applies with a GUI.
+  #              NOT previously installed, despite media.yml existing to
+  #              configure it, which is the gap that made the whole file dead.
+  #   ffmpeg     Not needed by mpv itself (it links the libav* libraries, not the
+  #              CLI), but the CLI is what inspects a file when playback looks
+  #              wrong, which is the situation the config's comments send you to.
+  #   vainfo     Named directly by files/mpv/mpv.conf as the way to verify
+  #              hardware decode ("Verify with `vainfo`"). A troubleshooting
+  #              instruction that assumes an undeclared package is a trap.
+  - mpv
+  - celluloid
+  - ffmpeg
+  - vainfo
+
   # Misc tools
   - ddgr
   - direnv
@@ -320,6 +344,40 @@ linux_logind_lid_dropin: 60-lid.conf
 # the host to run to hardware cutoff on any outage outlasting the battery. The
 # file itself carries the full reasoning.
 linux_upower_critical_dropin: 60-critical-power.conf
+
+# Variables for tasks/media.yml. Absent until now, which is why that file had
+# never run: nothing included it, and it would have failed on its first task if
+# anything had.
+linux_mpv_config_dir: "{{ ansible_facts.env.HOME }}/.config/mpv"
+
+# Celluloid runs libmpv with stock defaults unless told otherwise, so pointing
+# it at the repo-managed mpv.conf is what makes the scaling, dithering and
+# debanding work there as well as in bare mpv.
+#
+# Schema id read out of the package rather than guessed (`dpkg-deb -x` on
+# celluloid 0.29-3, then the gschema in usr/share/glib-2.0/schemas): note the
+# capital C in Celluloid against the lowercase hyphenated celluloid-player, an
+# asymmetry that is easy to get wrong and fails silently, because media.yml
+# tolerates a failed `gsettings get` and then skips the set.
+linux_celluloid_schema: io.github.celluloid-player.Celluloid
+
+# A URI, NOT a path. Celluloid feeds this key to g_file_new_for_uri, and before
+# 0.26 a plain path there crashed the app on startup rather than being ignored
+# (celluloid-player/celluloid#1093). 0.29 no longer crashes, but a path is still
+# not honoured, so the file:// prefix is load-bearing.
+linux_mpv_config_uri: "file://{{ linux_mpv_config_dir }}/mpv.conf"
+
+# expect carries the surrounding single quotes because `gsettings get` prints
+# string values quoted, while `gsettings set` takes them bare. Comparing the raw
+# stdout against an unquoted value would report a difference on every run and
+# never converge to changed=0.
+linux_celluloid_mpv_settings:
+  - key: mpv-config-enable
+    set: "true"
+    expect: "true"
+  - key: mpv-config-file
+    set: "{{ linux_mpv_config_uri }}"
+    expect: "'{{ linux_mpv_config_uri }}'"
 
 # FiraCode Nerd Font, the face roles/kitty/files/kitty/kitty.conf asks for by
 # name ("FiraCode Nerd Font Mono"). The Macs get it from the Brewfile cask

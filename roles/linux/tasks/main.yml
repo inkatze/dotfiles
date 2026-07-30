@@ -86,6 +86,13 @@
   ansible.builtin.include_tasks: power.yml
   tags: [linux, power]
 
+# After power.yml on purpose: the mpv configuration this deploys is written
+# around the amdgpu power clamp that file applies, choosing which GPU decodes
+# and leaving interpolation off for the clamped internal panel.
+- name: Configure media playback
+  ansible.builtin.include_tasks: media.yml
+  tags: [linux, media]
+
 - name: Install Tailscale
   ansible.builtin.include_tasks: tailscale.yml
   tags: [linux]
