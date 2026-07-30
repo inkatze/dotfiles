@@ -345,6 +345,38 @@ clocks drop to a sustainable point. The measurements above are a
 equilibrium sits ~25 °C below the ceiling. See the Task 10 thermal-soak
 subsection for the full table.
 
+### Playbook convergence on the Linux host (Task 7)
+
+**Converged 2026-07-30**, confirmed by the operator running the playbook twice
+in succession and reporting the second run idempotent, which is Task 7's
+Done-when: two consecutive runs with zero failed tasks, the second reporting
+zero changed tasks.
+
+**Recorded as operator confirmation rather than a captured recap.** The
+`PLAY RECAP` counts from those two runs were not pasted into this session, so
+this section states what was reported, not a line this file can quote. If the
+distinction ever matters, re-running the pair takes minutes and produces the
+quotable evidence.
+
+**Deliberately re-run at the end rather than counted from an earlier pass.**
+Convergence had been claimed for this task before, but three changes landed on
+the `linux` role afterwards, each adding tasks that a run has to reach a
+steady state on:
+
+| Change | What it added |
+|---|---|
+| UPower critical-power drop-in | a `copy` plus a handler that restarts `upower` |
+| media.yml wiring | four apt packages, a symlink, and two `gsettings` commands |
+| NetworkManager device policy | a `copy`, a file removal, and a reload handler |
+
+Two of those had never been applied to the host at all, so the convergence run
+was also their first application. That ordering matters: a task file that has
+never executed is exactly where a non-idempotent step hides, and the
+`gsettings` pair in media.yml was the specific risk, since it reads a value
+back and compares it against an `expect` string that carries `gsettings get`'s
+surrounding quotes. A mismatch there would report `changed` on every run
+forever and never converge.
+
 ### Day-2 remote LUKS unlock routine (Task 8)
 
 Verified working on this host. The routine is at the end; read the mechanism
