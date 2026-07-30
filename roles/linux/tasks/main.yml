@@ -93,6 +93,10 @@
   ansible.builtin.include_tasks: media.yml
   tags: [linux, media]
 
+- name: Configure NetworkManager device policy
+  ansible.builtin.include_tasks: network.yml
+  tags: [linux, network]
+
 - name: Install Tailscale
   ansible.builtin.include_tasks: tailscale.yml
   tags: [linux]

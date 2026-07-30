@@ -48,6 +48,20 @@
     state: restarted
   become: true
 
+# Reload, NOT restart. NetworkManager does have an ExecReload (it calls the
+# Reload method over D-Bus), and reloading re-reads conf.d without tearing down
+# active devices -- which matters because this host is headless and reached over
+# the network, so a restart would drop the session applying the change.
+#
+# Marking a device unmanaged does deactivate that device specifically, but
+# t2_ncm carries no working connection to lose; that is the entire problem being
+# fixed.
+- name: Reload NetworkManager
+  ansible.builtin.service:
+    name: NetworkManager
+    state: reloaded
+  become: true
+
 - name: Regenerate the initramfs
   ansible.builtin.command:
     cmd: dracut --force

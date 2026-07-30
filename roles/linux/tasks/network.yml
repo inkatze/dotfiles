@@ -1,0 +1,39 @@
+---
+
+# NetworkManager policy in a role-owned drop-in, the same shape as the sshd
+# hardening and the logind lid policy: the effective config is asserted by the
+# repo rather than hand-edited on the host.
+#
+# No directory-creation task. /etc/NetworkManager/conf.d is shipped by the
+# network-manager package (verified: `dpkg -S /etc/NetworkManager/conf.d`
+# reports network-manager), unlike /etc/systemd/logind.conf.d which systemd
+# reads but does not create.
+
+- name: Deploy the NetworkManager unmanaged-devices drop-in
+  ansible.builtin.copy:
+    src: "networkmanager/{{ linux_nm_unmanaged_dropin }}"
+    dest: "/etc/NetworkManager/conf.d/{{ linux_nm_unmanaged_dropin }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Reload NetworkManager
+  tags: [linux, network]
+
+# Takes ownership of an undeclared manual change AND corrects it. The file set
+# `[main] no-auto-default=t2_ncm`, which was an attempt at this same problem
+# aimed at the wrong setting: no-auto-default suppresses only the default wired
+# profile NM would generate itself, and says nothing about an existing profile
+# matching the device, which is what actually activates there. It never worked,
+# and the drop-in above is what does.
+#
+# Removed rather than left in place: it sorts AFTER the file above (99 vs 60),
+# and leaving a stale hand-written file that appears to address this problem is
+# how the next person concludes it is already handled.
+- name: Remove the ineffective hand-written t2_ncm drop-in
+  ansible.builtin.file:
+    path: /etc/NetworkManager/conf.d/99-network-t2-ncm.conf
+    state: absent
+  become: true
+  notify: Reload NetworkManager
+  tags: [linux, network]
