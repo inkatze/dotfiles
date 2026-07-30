@@ -330,6 +330,11 @@ linux_unmask_sleep_targets:
 # steady state is lid shut and headless.
 linux_logind_lid_dropin: 60-lid.conf
 
+# NetworkManager drop-in marking the Apple T2 coprocessor's NCM link unmanaged.
+# Without it that link looks like a live wire, so NM runs DHCP on it forever:
+# 27 failed activations in one boot, every 6 m 30 s. The file carries the full
+# reasoning, including why this is fixed at the device and not the profile.
+linux_nm_unmanaged_dropin: 60-unmanaged-devices.conf
 # Variables for tasks/media.yml. Absent until now, which is why that file had
 # never run: nothing included it, and it would have failed on its first task if
 # anything had.
