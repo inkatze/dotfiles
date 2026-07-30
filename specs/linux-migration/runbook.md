@@ -184,10 +184,14 @@ as unrecovered rather than left implicitly satisfied:
 - **Backup delta-sweep since Task 1:** not recorded; unrecoverable from
   this host. Any state created on macOS between Task 1 and the wipe that
   was not in the Task 1 backup is gone.
-- **Router legacy WAN port-forward disabled:** not recorded at wipe
-  time. Task 10 independently requires an external scan showing the old
-  port closed; that scan is the verification of record for REQ-E1.5, so
-  this item is deferred to Task 10 rather than reconstructed.
+- **Router legacy WAN port-forward disabled:** nothing was recorded at
+  wipe time, and it turns out there was nothing to record. No such
+  forward had ever been configured on the router, so this step was a
+  no-op rather than a missed one. REQ-E1.5 was amended accordingly
+  (2026-07-29) to state the property instead of the assumption, and its
+  external port scan was dropped: it named "the previous port", and
+  there is no such port. What remains is a one-time check that the
+  router's port-forwarding table holds no remote-access entry.
 
 #### Install verification (Done-when, verified post-install)
 
@@ -1062,22 +1066,102 @@ Tailscale access to the host, not just GitHub. The recovery codes belong in
 authenticates against the router and knows nothing about GitHub. The two doors
 fail independently, which is the property D-8 was chosen for.
 
+#### Headless boot and power-loss recovery (REQ-E1.3, REQ-E1.4)
+
+Both exercised in a single reboot on 2026-07-29: the battery was drained to
+power-off with no display or keyboard attached, then wall power restored.
+
+**REQ-E1.3 passes.** The host booted headless and its LUKS volume was unlocked
+remotely over dropbear. No display, no keyboard, no console involvement at any
+point.
+
+**REQ-E1.4 does not pass, and cannot on this hardware.** With wall power
+restored the machine stayed dark until the power button was pressed. "Start up
+automatically after a power failure" is a desktop-Mac feature; notebooks do not
+implement it, precisely because a battery bridges wall-power loss rather than
+letting it reach the machine as a power-off. REQ-E1.4 was amended the same day
+to state what the hardware can deliver.
+
+**Accepted residual, which is the record REQ-E1.4's verification asks for:**
+recovery from an outage outlasting the battery requires a manual power-on. No
+software setting changes this. If unattended recovery is ever wanted it needs
+external hardware, either a switched outlet that power-cycles or something
+driving the power button, and that is out of scope here.
+
+**What Task 2 actually verified.** Task 2 ran `pmset autorestart 1` and
+confirmed `pmset -g` reported it enabled. That established the value was
+*stored*, not that the SMC would act on it, and `pmset` accepts the key on
+notebooks regardless. Worth naming because a done-when that reads a value back
+looks like verification and is not.
+
+**The battery is a UPS, and an outage degrades the host rather than merely
+timing it.** Measured during the drain:
+
+| Metric | Value |
+|---|---|
+| Idle draw | ~17 W |
+| Usable energy | ~61 Wh |
+| Idle runtime | ~3.5 h |
+| CPU clock on battery | **800 MHz** (of 4800 max) |
+| CPU clock on AC | 4400 MHz |
+| `package_throttle_count` during the drain | 15832 |
+
+The clock figure is not a governor artifact: it held at 800 MHz with the
+governor forced to `performance`, `scaling_max_freq` untouched at 4800, RAPL
+limits at 100/125 W, and the package at 59 °C. That is BD PROCHOT asserted by
+the SMC because AC is absent. **So for the duration of any outage this server
+runs at roughly a sixth of its speed**, which matters for planning what it is
+allowed to be doing when the power goes. It also means the Task 10 thermal soak
+describes the on-AC machine only.
+
+**Do not trust `capacity` on this host.** `/sys/class/power_supply/BAT0/capacity`
+is derived from voltage, so it sags under load and rebounds when load eases; it
+was observed dropping to 7% and later reading 15% again with no charging. Use
+`charge_now` against `charge_full`, which is a coulomb count and decreases
+monotonically. Any monitoring keyed to the percentage will fire early, late, or
+both.
+
+**The discharge recalibrated the gauge.** `charge_full` moved from 5898 to
+5374 mAh across the cycle, so reported health went from 80% to 73% of the
+7336 mAh design. Most likely the gauge learning a real full-to-empty reference
+rather than damage, since a full discharge is how these calibrate, but it means
+percentages computed before the drain were against an inflated denominator.
+
+**A pre-existing bug this surfaced.** UPower's `CriticalPowerAction` was
+`HybridSleep`, which could never run here: `hybrid-sleep.target` is masked, the
+kernel cmdline has no `resume=`, and the 8 GB swap file is smaller than 32 GB of
+RAM. Every outage outlasting the battery therefore ended in an unclean shutdown.
+Fixed to `PowerOff` via a role-owned drop-in; see
+`roles/linux/files/upower/60-critical-power.conf`.
+
 #### Still to do
 
 Done and recorded above: SSH hardening, the thermal soak, the off-host health
 signal (outage and recovery), Tailscale, remote unlock from off-LAN over the
-router VPN, and MFA on the identity behind Tailscale.
+router VPN, MFA on the identity behind Tailscale, and the headless boot plus
+power-loss behaviour (REQ-E1.3 and REQ-E1.4, the latter closed as a hardware
+residual rather than a pass).
 
 Remaining:
 
-- **Legacy WAN port-forward confirmed permanently retired**, by external scan
-  from off-LAN. REQ-E1.5 deliberately sequences this *after* both access paths
-  verify — which they now have, so this is unblocked.
-- **Headless boot test** with no display or keyboard attached.
-- **Power-loss recovery, battery-aware**: outage sustained until the battery
-  drains to power-off, then wall power restored. Hours, mostly waiting.
-- **Health signal — the disk-threshold condition.** Outage and recovery are
+- **Router port-forwarding table confirmed free of remote-access entries.**
+  This is now the whole of REQ-E1.5, the external scan having been dropped with
+  the amendment: there was never a forward, so there is no previous port to
+  scan. Needs router credentials, and the stored ones returned HTTP 401.
+- **Health signal, the disk-threshold condition.** Outage and recovery are
   proven; a breach is not. Root sits at 6% of 914 GB, so a real breach means
   allocating ~730 GB. Running the poller once with a lowered `DISK_THRESHOLD`
-  exercises the identical comparison → transition → push path at no risk, and is
-  the sensible test unless a genuine full-disk rehearsal is wanted.
+  exercises the identical comparison, transition and push path at no risk, and
+  is the sensible test unless a genuine full-disk rehearsal is wanted.
+
+Carried out of this task rather than blocking it:
+
+- **This host cannot push to GitHub after an unattended reboot.** `gh` keeps its
+  token in the GNOME keyring, which an interactive login unlocks and a headless
+  boot does not, so `gh auth token` returns empty and the gh credential helper
+  fails. That helper, written into the machine-local git override by
+  `roles/git/tasks/main.yml`, carries a comment claiming it is "what lets a
+  headless host push with no GUI", which is the opposite of what happens. First observed 2026-07-29, the first unattended
+  reboot to exercise it. Worked around with `gh auth login`, which restores the
+  keyring entry until the next headless boot. A durable fix means an on-disk SSH
+  auth key or a token file, and belongs with REQ-D rather than here.
