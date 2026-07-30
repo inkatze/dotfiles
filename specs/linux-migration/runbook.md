@@ -910,8 +910,24 @@ across a ~30-minute outage spanning many polls, not one alert per interval. The
 recovery edge fires too, which matters: an alert you never see cleared is an
 alert you stop trusting.
 
-**Still to exercise:** the disk-threshold condition. The root filesystem sits at
-6% of 914 GB, so a real breach means allocating ~730 GB.
+**Disk-threshold condition verified 2026-07-29, so REQ-E1.6 is complete on both
+induced conditions.** Exercised by running the poller once on `work` with the
+threshold lowered under it:
+
+```sh
+DISK_THRESHOLD=5 ~/.local/bin/dotfiles-health-check
+```
+
+Two notifications arrived: the breach, then the recovery once the threshold was
+back to normal. Both edges, which is the property the outage test also checked.
+
+**Lowering the threshold rather than filling the disk is deliberate, and it is a
+real test rather than a shortcut.** The comparison, the transition bookkeeping
+and the push path are identical whichever side of the inequality moves; only the
+operand differs. Allocating ~730 GB on the root filesystem to move the other
+operand would exercise the same three lines of logic while risking a genuine
+out-of-space event on the host being monitored. What this does *not* cover is
+`df` itself misreporting, which no threshold test reaches.
 
 #### Known blind spot
 
@@ -1134,25 +1150,46 @@ RAM. Every outage outlasting the battery therefore ended in an unclean shutdown.
 Fixed to `PowerOff` via a role-owned drop-in; see
 `roles/linux/files/upower/60-critical-power.conf`.
 
+#### No WAN-facing port-forward (REQ-E1.5)
+
+Verified 2026-07-29. The router's port-forwarding table was inspected in the
+router's own web UI (ADVANCED, then Advanced Setup, then Port Forwarding /
+Port Triggering) with Port Forwarding selected, and the service table is
+**empty**. Together with the amendment recording that no such forward had ever
+been configured, that closes REQ-E1.5.
+
+**Checked by hand, because the programmatic route does not exist here.** Probed
+from this host: the gateway answers and ports 80 and 443 are open, but port 5000
+is closed, so the Netgear SOAP API that would expose `GetPortMappingInfo` is not
+listening and `/soap/server_sa/` does not connect. That part is settled. Even
+with an authenticated session the forwarding table is rendered by the UI's
+JavaScript rather than served at a stable endpoint, so scraping it would be
+fragile for a one-time observation.
+
+**Unresolved, and recorded so it is not re-diagnosed wrongly:** a plain HTTP
+request to the UI from this host returns 401, yet the stored credentials work
+fine in a browser. So the credentials are not the problem and should not be
+treated as stale. The failure is in how the request was made, and the cause was
+not chased down: Netgear firmware does not necessarily accept a bare
+Basic-auth request on that path, and a session may have to be established first.
+Anyone automating this should start there rather than at the credential store.
+
+**Remote Management is the other WAN-facing door**, two entries below Port
+Forwarding in the same menu. REQ-E1.5 names port-forwards specifically, so its
+state is not part of this verification, but it is the same class of exposure and
+costs nothing to glance at while the page is open.
+
 #### Still to do
 
 Done and recorded above: SSH hardening, the thermal soak, the off-host health
-signal (outage and recovery), Tailscale, remote unlock from off-LAN over the
-router VPN, MFA on the identity behind Tailscale, and the headless boot plus
-power-loss behaviour (REQ-E1.3 and REQ-E1.4, the latter closed as a hardware
-residual rather than a pass).
+signal on both induced conditions (outage and recovery, plus the disk-threshold
+breach and its recovery), Tailscale, remote unlock from off-LAN over the router
+VPN, MFA on the identity behind Tailscale, the headless boot plus power-loss
+behaviour (REQ-E1.3 and REQ-E1.4, the latter closed as a hardware residual rather
+than a pass), and the absence of a WAN-facing port-forward (REQ-E1.5).
 
-Remaining:
-
-- **Router port-forwarding table confirmed free of remote-access entries.**
-  This is now the whole of REQ-E1.5, the external scan having been dropped with
-  the amendment: there was never a forward, so there is no previous port to
-  scan. Needs router credentials, and the stored ones returned HTTP 401.
-- **Health signal, the disk-threshold condition.** Outage and recovery are
-  proven; a breach is not. Root sits at 6% of 914 GB, so a real breach means
-  allocating ~730 GB. Running the poller once with a lowered `DISK_THRESHOLD`
-  exercises the identical comparison, transition and push path at no risk, and
-  is the sensible test unless a genuine full-disk rehearsal is wanted.
+Nothing remaining. Every REQ-E requirement now verifies, REQ-E1.4 as a recorded
+hardware residual rather than a pass, so Task 10's Done-when conditions are met.
 
 Carried out of this task rather than blocking it:
 
