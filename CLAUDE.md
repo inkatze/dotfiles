@@ -284,6 +284,7 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
 | `op-service-account-token` | `scripts/ssh-lan-config-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
 | `slack-users.json` | the `/code-review` and `/peer-review` commands | GitHub login → Slack user ID, so review notifications can find a person |
+| `gh-token` | `roles/fish/files/github-token.fish` | Fine-grained GitHub PAT exported as `GH_TOKEN` (bearer credential, mode 0600) |
 
 None are created by Ansible and none live in the repo (`~/.config/kitty` is
 a symlink into it, which is why the kitty companion sits here instead).
@@ -295,7 +296,27 @@ is public, and colleagues' Slack IDs are not mine to publish. It is built up as
 review workflows resolve people (email lookup first, asking me second), so a
 missing entry costs one question rather than a failure.
 
-`op-service-account-token` is the only one that is a *secret*. It exists
+`gh-token` and `op-service-account-token` are the two that are *secrets*.
+
+`gh-token` exists because the gh CLI keeps its OAuth token in the system
+keyring, which an interactive login unlocks and a headless boot does not.
+After an unattended reboot `gh auth token` returns empty and gh reports
+"the token in default is invalid", which reads like a revoked credential
+and is not: every API call and every HTTPS push fails until a human logs
+in. `GH_TOKEN` outranks the keyring in gh's resolution order, so the file
+sidesteps the lock rather than trying to unlock it.
+
+Fetching it from 1Password at shell start was considered and rejected for
+the same reason `roles/git/defaults/main.yml` rejects that path for
+signing: it presents a broad credential (read over a whole vault) to
+retrieve a narrow one (a PAT scoped to a few repos), on every shell start.
+Scope the PAT to the repos this host actually pushes.
+
+Note this covers only the gh CLI. `git push` itself is handled separately
+by the on-disk SSH auth key in `roles/git`, because the REST and GraphQL
+APIs authenticate with a token while ssh does not.
+
+`op-service-account-token` exists
 because the 1Password desktop-app integration authorizes per calling process
 and re-prompts for each new one — fine in a long-lived terminal, useless under
 Ansible (a fresh process per task), and impossible during a headless boot where
