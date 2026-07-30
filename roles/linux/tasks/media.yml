@@ -4,8 +4,14 @@
 # shape roles/kitty uses, so adding input.conf or a script-opts/ directory later
 # is a repo edit with no matching Ansible change.
 #
-# The packages themselves (mpv, ffmpeg, vainfo) are in linux_apt_packages, not
-# here. This file owns only the configuration.
+# The packages themselves (mpv, celluloid, ffmpeg, vainfo) are in
+# linux_apt_packages, not here. This file owns only the configuration.
+#
+# That sentence was untrue until 2026-07-29: none of those packages were
+# declared, this file was never included from main.yml, and the variables it
+# reads were never defined -- so it was dead code that would have failed on its
+# first task. mpv, ffmpeg and vainfo were present only as manual installs, and
+# celluloid was not installed at all despite this file existing to configure it.
 
 - name: Ensure the user configuration directory exists
   ansible.builtin.file:
