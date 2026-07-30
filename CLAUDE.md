@@ -33,6 +33,30 @@ For this dotfiles repo, the tracked `.claude/settings.json` holds
 dotfiles-specific durable rules. Keep `.claude/settings.local.json`
 near-empty.
 
+The default permission mode is part of the global tracked layer:
+`permissions.defaultMode` in `roles/claude/files/settings.json`.
+
+**The jq merge is a one-way mirror, and that hides drift.** It asserts the
+keys this repo declares and deliberately leaves everything else alone, so
+Claude Code keeps ownership of what it writes itself (theme, onboarding
+state, per-project trust). The cost is that a key set by hand on one
+machine, or persisted there by the app when you toggle something, works
+perfectly on that machine and is invisible to every other one. Nothing
+reports the difference.
+
+`defaultMode` was exactly that for months: set on the Macs, absent from
+this repo, so the Linux host never got it. The repo's own observations log
+even recorded behaviour caused by it
+(`specs/_observations/entries/2026-07-22-fleet-guard-seam-cb14c90f.md`
+refers to "user settings pin defaultMode auto") without anyone noticing it
+was undeclared. Moving the Claude role cross-platform did not fix this,
+because that only propagates keys the repo already carries.
+
+So when a Claude Code behaviour is meant to be shared, declare it here
+rather than setting it in the app. To audit: diff `~/.claude/settings.json`
+on a Mac against `roles/claude/files/settings.json` and look for keys the
+repo does not mention.
+
 ## Adding a new Claude command
 
 1. Drop the file under `roles/claude/files/commands/`.
