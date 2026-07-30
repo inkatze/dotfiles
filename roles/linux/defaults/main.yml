@@ -320,6 +320,15 @@ linux_amdgpu_pm_rule: 30-amdgpu-pm.rules
 #            `systemctl show`, which does not expose logind's config as unit
 #            properties and returns blanks that look like unset values)
 #   GNOME   sleep-inactive-ac-type = 'nothing'
+#
+# hybrid-sleep.target is deliberately NOT in this list, and its absence used to
+# look like an oversight. Hibernation is not functional on this host -- the
+# kernel cmdline carries no resume=, and the 8 GB swap file could not hold an
+# image of 32 GB of RAM -- so unmasking it would only convert a fast, honest
+# failure into a slow one that writes an unresumable image first. Leaving it
+# masked is the accurate statement of what the machine can do. That is also why
+# UPower's default CriticalPowerAction had to change; see
+# linux_upower_critical_dropin below.
 linux_unmask_sleep_targets:
   - sleep.target
   - suspend.target
@@ -329,6 +338,12 @@ linux_unmask_sleep_targets:
 # suspending this host. It is a laptop serving as an always-on server, so the
 # steady state is lid shut and headless.
 linux_logind_lid_dropin: 60-lid.conf
+
+# UPower drop-in replacing the shipped CriticalPowerAction=HybridSleep, which
+# targets the one sleep target still masked above and so always failed, leaving
+# the host to run to hardware cutoff on any outage outlasting the battery. The
+# file itself carries the full reasoning.
+linux_upower_critical_dropin: 60-critical-power.conf
 
 # Variables for tasks/media.yml. Absent until now, which is why that file had
 # never run: nothing included it, and it would have failed on its first task if
