@@ -910,8 +910,24 @@ across a ~30-minute outage spanning many polls, not one alert per interval. The
 recovery edge fires too, which matters: an alert you never see cleared is an
 alert you stop trusting.
 
-**Still to exercise:** the disk-threshold condition. The root filesystem sits at
-6% of 914 GB, so a real breach means allocating ~730 GB.
+**Disk-threshold condition verified 2026-07-29, so REQ-E1.6 is complete on both
+induced conditions.** Exercised by running the poller once on `work` with the
+threshold lowered under it:
+
+```sh
+DISK_THRESHOLD=5 ~/.local/bin/dotfiles-health-check
+```
+
+Two notifications arrived: the breach, then the recovery once the threshold was
+back to normal. Both edges, which is the property the outage test also checked.
+
+**Lowering the threshold rather than filling the disk is deliberate, and it is a
+real test rather than a shortcut.** The comparison, the transition bookkeeping
+and the push path are identical whichever side of the inequality moves; only the
+operand differs. Allocating ~730 GB on the root filesystem to move the other
+operand would exercise the same three lines of logic while risking a genuine
+out-of-space event on the host being monitored. What this does *not* cover is
+`df` itself misreporting, which no threshold test reaches.
 
 #### Known blind spot
 
@@ -1166,19 +1182,14 @@ costs nothing to glance at while the page is open.
 #### Still to do
 
 Done and recorded above: SSH hardening, the thermal soak, the off-host health
-signal (outage and recovery), Tailscale, remote unlock from off-LAN over the
-router VPN, MFA on the identity behind Tailscale, the headless boot plus
-power-loss behaviour (REQ-E1.3 and REQ-E1.4, the latter closed as a hardware
-residual rather than a pass), and the absence of a WAN-facing port-forward
-(REQ-E1.5).
+signal on both induced conditions (outage and recovery, plus the disk-threshold
+breach and its recovery), Tailscale, remote unlock from off-LAN over the router
+VPN, MFA on the identity behind Tailscale, the headless boot plus power-loss
+behaviour (REQ-E1.3 and REQ-E1.4, the latter closed as a hardware residual rather
+than a pass), and the absence of a WAN-facing port-forward (REQ-E1.5).
 
-Remaining:
-
-- **Health signal, the disk-threshold condition.** Outage and recovery are
-  proven; a breach is not. Root sits at 6% of 914 GB, so a real breach means
-  allocating ~730 GB. Running the poller once with a lowered `DISK_THRESHOLD`
-  exercises the identical comparison, transition and push path at no risk, and
-  is the sensible test unless a genuine full-disk rehearsal is wanted.
+Nothing remaining. Every REQ-E requirement now verifies, REQ-E1.4 as a recorded
+hardware residual rather than a pass, so Task 10's Done-when conditions are met.
 
 Carried out of this task rather than blocking it:
 
