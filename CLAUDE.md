@@ -284,7 +284,6 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
 | `op-service-account-token` | `scripts/ssh-lan-config-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
 | `slack-users.json` | the `/code-review` and `/peer-review` commands | GitHub login → Slack user ID, so review notifications can find a person |
-| `gh-token` | `roles/fish/files/github-token.fish` | Fine-grained GitHub PAT exported as `GH_TOKEN` (bearer credential, mode 0600) |
 
 None are created by Ansible and none live in the repo (`~/.config/kitty` is
 a symlink into it, which is why the kitty companion sits here instead).
@@ -296,27 +295,7 @@ is public, and colleagues' Slack IDs are not mine to publish. It is built up as
 review workflows resolve people (email lookup first, asking me second), so a
 missing entry costs one question rather than a failure.
 
-`gh-token` and `op-service-account-token` are the two that are *secrets*.
-
-`gh-token` exists because the gh CLI keeps its OAuth token in the system
-keyring, which an interactive login unlocks and a headless boot does not.
-After an unattended reboot `gh auth token` returns empty and gh reports
-"the token in default is invalid", which reads like a revoked credential
-and is not: every API call and every HTTPS push fails until a human logs
-in. `GH_TOKEN` outranks the keyring in gh's resolution order, so the file
-sidesteps the lock rather than trying to unlock it.
-
-Fetching it from 1Password at shell start was considered and rejected for
-the same reason `roles/git/defaults/main.yml` rejects that path for
-signing: it presents a broad credential (read over a whole vault) to
-retrieve a narrow one (a PAT scoped to a few repos), on every shell start.
-Scope the PAT to the repos this host actually pushes.
-
-Note this covers only the gh CLI. `git push` itself is handled separately
-by the on-disk SSH auth key in `roles/git`, because the REST and GraphQL
-APIs authenticate with a token while ssh does not.
-
-`op-service-account-token` exists
+`op-service-account-token` is the only one that is a *secret*. It exists
 because the 1Password desktop-app integration authorizes per calling process
 and re-prompts for each new one — fine in a long-lived terminal, useless under
 Ansible (a fresh process per task), and impossible during a headless boot where
@@ -336,3 +315,49 @@ Two consequences worth knowing before moving items around:
 To rotate: `op service-account create <name> --vault 'Dotfiles Service
 Account':read_items`, write the returned token to the file with `umask 077`,
 and never let it reach a terminal — it is printed exactly once.
+
+## GitHub auth on a headless host
+
+Two different credentials, because ssh and the API do not share one.
+
+**`git push`** uses the on-disk ed25519 key `roles/git` generates for hosts in
+`git_unattended_auth_hosts`. Register its public half on GitHub as an
+**Authentication** key (a separate entry type from the signing key), and make
+sure the remote is `ssh://`, since `core.sshCommand` does nothing for an `https://`
+remote.
+
+**The gh CLI** needs a token, and there is no repo artifact for it: run
+
+```sh
+gh auth login --insecure-storage
+```
+
+on the host, once. That writes the token to `~/.config/gh/hosts.yml` (0600)
+instead of the system keyring, and gh's resolution order is `GH_TOKEN` →
+`GITHUB_TOKEN` → that file → keyring **last**. Verified on this host against
+gh 2.96.0 with a scratch `GH_CONFIG_DIR`: a token in the file is returned and
+the keyring is never consulted.
+
+**Why this matters.** The keyring is unlocked by an interactive PAM or
+graphical login and stays locked through an unattended boot, so a
+keyring-stored token leaves `gh auth token` returning EMPTY after every
+headless reboot. gh then reports "the token in default is invalid", which
+reads like a revoked credential and is not: every API call and every HTTPS
+push fails until a human logs in.
+
+**Rejected alternatives, so they are not re-litigated.** Exporting `GH_TOKEN`
+from a machine-local file works, but puts a live bearer token in the
+environment of every process the shell spawns, which on a host running
+autonomous agents is a real accident surface (`env` in a log, a bug report, an
+MCP subprocess). It is also unnecessary, since gh's own file tier already sits
+above the keyring. Fetching the token from 1Password at shell start presents a
+broad credential (read over a whole vault) to retrieve a narrow one, per the
+same reasoning `roles/git/defaults/main.yml` records for the signing key. A
+GitHub App with short-lived installation tokens is the textbook machine-auth
+answer and the wrong one here: gh has no native App auth, and App tokens act as
+the app rather than as you, which would misattribute PR comments and review
+replies.
+
+**Caveat on fine-grained PATs.** One is bound to a single resource owner, so it
+cannot reach repos under a second owner. If this host ever works across owners,
+use a classic-scoped token from `gh auth login` instead.

@@ -58,16 +58,6 @@
     state: link
   tags: [fish]
 
-# Cross-platform on purpose, unlike the host-scoped SSH auth key in roles/git.
-# The snippet is a no-op wherever ~/.config/dotfiles/gh-token is absent, which is
-# every machine with a human to unlock a keyring, so it costs those hosts
-# nothing and needs no inventory condition to stay correct.
-- name: Symlink github-token.fish into fish conf.d
-  ansible.builtin.file:
-    src: "{{ ansible_facts.env.PWD }}/roles/fish/files/github-token.fish"
-    dest: "{{ ansible_facts.env.HOME }}/.config/fish/conf.d/github-token.fish"
-    state: link
-  tags: [fish]
 
 - name: Symlink ssh-auth.fish into fish conf.d
   ansible.builtin.file:

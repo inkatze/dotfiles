@@ -113,9 +113,11 @@ git_authenticates_unattended: "{{ inventory_hostname in git_unattended_auth_host
 # remote.
 #
 # What this does NOT fix: the gh CLI itself. `gh api`, `gh pr view` and friends
-# authenticate to the REST/GraphQL API with a token, not with an SSH key, so they
-# stay broken on a headless boot until GH_TOKEN is set. See
-# roles/fish/files/github-token.fish, which is the other half of this.
+# authenticate to the REST/GraphQL API with a token, not with an SSH key, so an
+# ssh key does nothing for them. That half needs no repo artifact at all: gh
+# reads a token from its own config file and consults the keyring only as a last
+# resort, so `gh auth login --insecure-storage` fixes it permanently in one
+# human step. See the MCP/credentials section of CLAUDE.md.
 #
 # No hostname in the filename, per linux-migration REQ-F1.1.
 git_unattended_auth_key: "{{ ansible_facts.env.HOME }}/.ssh/id_github_auth"
