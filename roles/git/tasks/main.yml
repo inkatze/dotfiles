@@ -29,6 +29,27 @@
 # absent, which is exactly the state a --check run leaves behind (the generate
 # task above reports `changed` without creating anything). A dry run against a
 # fresh host would fail here for no real reason.
+# Same shape as the signing key above and idempotent for the same reason: without
+# `creates` every run would mint a new key, and since the public half is
+# registered on GitHub by hand, a regenerated key means pushes start failing with
+# Permission denied until someone notices and re-registers it.
+#
+# -N '' for the same reason too. A passphrase reintroduces the interactive prompt
+# this exists to remove.
+- name: Generate the unattended GitHub authentication key
+  ansible.builtin.command:
+    cmd: >-
+      ssh-keygen -t ed25519 -N '' -C 'dotfiles unattended github auth'
+      -f {{ git_unattended_auth_key | quote }}
+    creates: "{{ git_unattended_auth_key }}"
+  when: git_authenticates_unattended | bool
+  tags: [git]
+
+# AFTER both generate tasks, deliberately. Stat'ing before them reads the state
+# of a file that is about to be created, so the guards below skip on the exact
+# run that mints a key -- observed: the first real run generated the auth key and
+# then skipped its own chmod. It went unnoticed because ssh-keygen already writes
+# 0600, which is precisely what makes the ordering bug survive review.
 - name: Check whether the key files exist
   ansible.builtin.stat:
     path: "{{ item }}"
@@ -46,22 +67,6 @@
   when:
     - git_signs_unattended | bool
     - git_key_stat.results[0].stat.exists
-  tags: [git]
-
-# Same shape as the signing key above and idempotent for the same reason: without
-# `creates` every run would mint a new key, and since the public half is
-# registered on GitHub by hand, a regenerated key means pushes start failing with
-# Permission denied until someone notices and re-registers it.
-#
-# -N '' for the same reason too. A passphrase reintroduces the interactive prompt
-# this exists to remove.
-- name: Generate the unattended GitHub authentication key
-  ansible.builtin.command:
-    cmd: >-
-      ssh-keygen -t ed25519 -N '' -C 'dotfiles unattended github auth'
-      -f {{ git_unattended_auth_key | quote }}
-    creates: "{{ git_unattended_auth_key }}"
-  when: git_authenticates_unattended | bool
   tags: [git]
 
 - name: Restrict the authentication key
