@@ -75,3 +75,49 @@ git_signing_program: >-
 #
 # No hostname in the filename, per linux-migration REQ-F1.1.
 git_unattended_signing_key: "{{ ansible_facts.env.HOME }}/.ssh/id_signing"
+
+# Which hosts authenticate to GitHub with their own on-disk key rather than
+# through an SSH agent.
+#
+# A NARROWER LIST THAN SIGNING ABOVE, deliberately. Signing through 1Password is
+# friction anywhere you commit often, which is why `work` is on that list.
+# Authentication is different: it only breaks where no agent is running at all.
+# `work` has a human and a working 1Password agent, so putting it here would
+# force it onto a key whose public half is not registered yet and break its
+# pushes for no gain. Adding a host here is one line plus the registration step
+# below.
+git_unattended_auth_hosts:
+  - server
+
+git_authenticates_unattended: "{{ inventory_hostname in git_unattended_auth_hosts }}"
+
+# THE PROBLEM, measured on the Linux host after its first unattended reboot.
+# Pushes over HTTPS go through the gh credential helper configured below, and gh
+# keeps its token in the GNOME keyring, which an interactive login unlocks and a
+# headless boot does not. `gh auth token` returns EMPTY, GitHub rejects the empty
+# string, and gh reports "the token in default is invalid" -- which reads like a
+# revoked credential and is not. The helper's own comment below claimed this path
+# was "what lets a headless host push with no GUI"; it is the opposite.
+#
+# THE FIX. The same shape the signing key already uses, for the same reason: an
+# on-disk ed25519 key that ssh offers directly, with no daemon, no GUI and no
+# approval. Kept SEPARATE from id_signing rather than reused, matching how the
+# dropbear unlock key is kept distinct from day-to-day keys -- GitHub registers
+# authentication and signing keys as different entries, and revoking one should
+# not cost the other.
+#
+# Consequence, same as the signing key: a host added to the list above mints its
+# own key, whose public half must be registered on GitHub as an AUTHENTICATION
+# key before pushes work. Until then `git push` fails with Permission denied
+# (publickey). The remote must also be SSH; this does nothing for an HTTPS
+# remote.
+#
+# What this does NOT fix: the gh CLI itself. `gh api`, `gh pr view` and friends
+# authenticate to the REST/GraphQL API with a token, not with an SSH key, so an
+# ssh key does nothing for them. That half needs no repo artifact at all: gh
+# reads a token from its own config file and consults the keyring only as a last
+# resort, so `gh auth login --insecure-storage` fixes it permanently in one
+# human step. See the MCP/credentials section of CLAUDE.md.
+#
+# No hostname in the filename, per linux-migration REQ-F1.1.
+git_unattended_auth_key: "{{ ansible_facts.env.HOME }}/.ssh/id_github_auth"

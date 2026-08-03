@@ -315,3 +315,49 @@ Two consequences worth knowing before moving items around:
 To rotate: `op service-account create <name> --vault 'Dotfiles Service
 Account':read_items`, write the returned token to the file with `umask 077`,
 and never let it reach a terminal — it is printed exactly once.
+
+## GitHub auth on a headless host
+
+Two different credentials, because ssh and the API do not share one.
+
+**`git push`** uses the on-disk ed25519 key `roles/git` generates for hosts in
+`git_unattended_auth_hosts`. Register its public half on GitHub as an
+**Authentication** key (a separate entry type from the signing key), and make
+sure the remote is `ssh://`, since `core.sshCommand` does nothing for an `https://`
+remote.
+
+**The gh CLI** needs a token, and there is no repo artifact for it: run
+
+```sh
+gh auth login --insecure-storage
+```
+
+on the host, once. That writes the token to `~/.config/gh/hosts.yml` (0600)
+instead of the system keyring, and gh's resolution order is `GH_TOKEN` →
+`GITHUB_TOKEN` → that file → keyring **last**. Verified on this host against
+gh 2.96.0 with a scratch `GH_CONFIG_DIR`: a token in the file is returned and
+the keyring is never consulted.
+
+**Why this matters.** The keyring is unlocked by an interactive PAM or
+graphical login and stays locked through an unattended boot, so a
+keyring-stored token leaves `gh auth token` returning EMPTY after every
+headless reboot. gh then reports "the token in default is invalid", which
+reads like a revoked credential and is not: every API call and every HTTPS
+push fails until a human logs in.
+
+**Rejected alternatives, so they are not re-litigated.** Exporting `GH_TOKEN`
+from a machine-local file works, but puts a live bearer token in the
+environment of every process the shell spawns, which on a host running
+autonomous agents is a real accident surface (`env` in a log, a bug report, an
+MCP subprocess). It is also unnecessary, since gh's own file tier already sits
+above the keyring. Fetching the token from 1Password at shell start presents a
+broad credential (read over a whole vault) to retrieve a narrow one, per the
+same reasoning `roles/git/defaults/main.yml` records for the signing key. A
+GitHub App with short-lived installation tokens is the textbook machine-auth
+answer and the wrong one here: gh has no native App auth, and App tokens act as
+the app rather than as you, which would misattribute PR comments and review
+replies.
+
+**Caveat on fine-grained PATs.** One is bound to a single resource owner, so it
+cannot reach repos under a second owner. If this host ever works across owners,
+use a classic-scoped token from `gh auth login` instead.

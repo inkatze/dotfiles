@@ -23,11 +23,80 @@
   when: git_signs_unattended | bool
   tags: [git]
 
+# Guarded on existence rather than run unconditionally. ssh-keygen already
+# writes 0600, so this exists only to correct a key that predates the role or
+# got loosened -- and an unguarded `file` task fails outright when the path is
+# absent, which is exactly the state a --check run leaves behind (the generate
+# task above reports `changed` without creating anything). A dry run against a
+# fresh host would fail here for no real reason.
+- name: Check whether the key files exist
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: git_key_stat
+  loop:
+    - "{{ git_unattended_signing_key }}"
+    - "{{ git_unattended_auth_key }}"
+  check_mode: false
+  tags: [git]
+
 - name: Restrict the signing key
   ansible.builtin.file:
     path: "{{ git_unattended_signing_key }}"
     mode: "0600"
-  when: git_signs_unattended | bool
+  when:
+    - git_signs_unattended | bool
+    - git_key_stat.results[0].stat.exists
+  tags: [git]
+
+# Same shape as the signing key above and idempotent for the same reason: without
+# `creates` every run would mint a new key, and since the public half is
+# registered on GitHub by hand, a regenerated key means pushes start failing with
+# Permission denied until someone notices and re-registers it.
+#
+# -N '' for the same reason too. A passphrase reintroduces the interactive prompt
+# this exists to remove.
+- name: Generate the unattended GitHub authentication key
+  ansible.builtin.command:
+    cmd: >-
+      ssh-keygen -t ed25519 -N '' -C 'dotfiles unattended github auth'
+      -f {{ git_unattended_auth_key | quote }}
+    creates: "{{ git_unattended_auth_key }}"
+  when: git_authenticates_unattended | bool
+  tags: [git]
+
+- name: Restrict the authentication key
+  ansible.builtin.file:
+    path: "{{ git_unattended_auth_key }}"
+    mode: "0600"
+  when:
+    - git_authenticates_unattended | bool
+    - git_key_stat.results[1].stat.exists
+  tags: [git]
+
+# Surfaced rather than left to be discovered by a failing push: the key is
+# useless until its public half is registered on GitHub, and nothing in this
+# playbook can do that (registering it needs an authenticated API call, which is
+# the very thing being fixed).
+- name: Report the public key that needs registering
+  ansible.builtin.command:
+    cmd: cat {{ (git_unattended_auth_key ~ '.pub') | quote }}
+  register: git_auth_pubkey
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: git_authenticates_unattended | bool
+  tags: [git]
+
+- name: Explain how to finish enabling unattended pushes
+  ansible.builtin.debug:
+    msg: >-
+      Register this public key on GitHub as an AUTHENTICATION key (Settings,
+      SSH and GPG keys, New SSH key, type Authentication), then switch the
+      remote to SSH. Until both are done, pushes from this host still use
+      HTTPS and the gh keyring. Key: {{ git_auth_pubkey.stdout | default('') }}
+  when:
+    - git_authenticates_unattended | bool
+    - git_auth_pubkey.rc | default(1) == 0
   tags: [git]
 
 # Resolved rather than hardcoded, because gh lives in a different place per
@@ -64,10 +133,31 @@
       [user]
           signingkey = {{ git_unattended_signing_key }}
       {% endif %}
+      {% if git_authenticates_unattended | bool %}
+      # SSH pushes offer this host's own on-disk key rather than reaching for an
+      # agent that is not running on a headless boot. See
+      # roles/git/defaults/main.yml for why the agent path fails here.
+      #
+      # IdentitiesOnly is deliberately NOT set. An agent, where one exists, is
+      # still tried first; this only adds an identity rather than replacing the
+      # set, so enabling a host that does have a working agent cannot break it.
+      #
+      # Only affects SSH remotes. An https:// remote ignores this entirely and
+      # falls through to the credential helper below.
+      [core]
+          sshCommand = ssh -i {{ git_unattended_auth_key }}
+      {% endif %}
       {% if git_gh_probe.rc == 0 %}
-      # HTTPS pushes to GitHub authenticate with gh's stored token instead of
-      # the 1Password SSH agent, which is what lets a headless host push with no
-      # GUI and no approval prompt.
+      # Credential helper for HTTPS remotes, and a fallback rather than the
+      # unattended path it was once described as.
+      #
+      # CORRECTED 2026-07-30: this comment previously claimed the helper is
+      # "what lets a headless host push with no GUI and no approval prompt".
+      # It is not. gh keeps its token in the GNOME keyring, which an interactive
+      # login unlocks and a headless boot does not, so after an unattended reboot
+      # `gh auth token` returns empty and every push over HTTPS fails. Measured
+      # on this host. Unattended pushing is handled by the SSH key above; this
+      # helper covers attended sessions and HTTPS remotes.
       #
       # ABSOLUTE path, deliberately. git runs credential helpers through `sh`,
       # which does not necessarily carry mise's PATH, so a bare `gh` can resolve

@@ -58,6 +58,7 @@
     state: link
   tags: [fish]
 
+
 - name: Symlink ssh-auth.fish into fish conf.d
   ansible.builtin.file:
     src: "{{ ansible_facts.env.PWD }}/roles/fish/files/ssh-auth.fish"
