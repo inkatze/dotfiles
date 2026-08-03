@@ -1223,14 +1223,29 @@ than a pass), and the absence of a WAN-facing port-forward (REQ-E1.5).
 Nothing remaining. Every REQ-E requirement now verifies, REQ-E1.4 as a recorded
 hardware residual rather than a pass, so Task 10's Done-when conditions are met.
 
-Carried out of this task rather than blocking it:
+Carried out of this task rather than blocking it, and since resolved:
 
-- **This host cannot push to GitHub after an unattended reboot.** `gh` keeps its
-  token in the GNOME keyring, which an interactive login unlocks and a headless
-  boot does not, so `gh auth token` returns empty and the gh credential helper
-  fails. That helper, written into the machine-local git override by
-  `roles/git/tasks/main.yml`, carries a comment claiming it is "what lets a
-  headless host push with no GUI", which is the opposite of what happens. First observed 2026-07-29, the first unattended
-  reboot to exercise it. Worked around with `gh auth login`, which restores the
-  keyring entry until the next headless boot. A durable fix means an on-disk SSH
-  auth key or a token file, and belongs with REQ-D rather than here.
+- **This host could not reach GitHub at all after an unattended reboot.
+  Fixed 2026-08-03 and verified on a headless boot.** `gh` kept its token in the
+  GNOME keyring, which an interactive login unlocks and a headless boot does not,
+  so `gh auth token` returned empty and every API call and HTTPS push failed. The
+  credential helper in `roles/git/tasks/main.yml` carried a comment claiming it
+  was "what lets a headless host push with no GUI", which was the opposite of
+  what happened; that comment is now corrected in place. First observed
+  2026-07-29, on the first unattended reboot to exercise it.
+
+  The fix is two halves, because ssh and the API do not share a credential.
+  `git push` uses an on-disk ed25519 key the git role generates for hosts in
+  `git_unattended_auth_hosts`, wired through `core.sshCommand`. The gh CLI reads
+  its token from `~/.config/gh/hosts.yml` (written by `gh auth login
+  --insecure-storage`), which sits above the keyring in gh's resolution order.
+  Full reasoning, including the rejected alternatives, is in the `GitHub auth on
+  a headless host` section of the repo's `CLAUDE.md`.
+
+  **Verified on a genuine headless boot**, one minute of uptime, no ssh-agent
+  reachable and nobody logged in past the greeter: ssh authenticated with the
+  on-disk key (`explicit`, not agent-held), `git fetch` succeeded, and `gh api
+  user` returned. Worth recording that the attended path masks this: with an
+  agent running, ssh offers `id_personal` first and the new key is never
+  exercised, so a successful push in an interactive session proves nothing about
+  the headless case.
