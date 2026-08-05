@@ -1,6 +1,6 @@
 # Remote Shell — Test Spec
 
-**Status:** Draft
+**Status:** Ready
 **Last reviewed:** 2026-08-05
 **Format-version:** 2
 **Execution:** derived — see the status render
@@ -32,8 +32,10 @@ process, not by the socket unit. Run after the role has converged the host.
 Run the Linux role against a host in the current both-units-enabled state:
 it reports changed for the posture tasks and the host reaches REQ-A1.1's
 state. Run it again immediately: zero changed tasks for
-`roles/linux/tasks/ssh-server.yml`. The second run is the real assertion —
-a first run that converges but never settles is a defect, not a pass.
+`roles/linux/tasks/ssh-server.yml` **and for every other sshd-related task
+this bundle adds**, Task 8's key-file installation included. The second run
+is the real assertion — a first run that converges but never settles is a
+defect, not a pass.
 
 ### REQ-A1.3 — Key-only authentication survives the posture change [manual]
 
@@ -134,6 +136,14 @@ than reporting a failure to connect to the agent. This is the exact failure
 the standing doctrine was recorded from, so it is checked directly rather
 than inferred from the symlink existing.
 
+Two things this entry must record rather than assume, per D-7. First, *which*
+agent answered: `readlink ~/.ssh/auth_sock` resolving to
+`~/.1password/agent.sock` means the host's own agent, not a forwarded one, so
+the check proves the indirection holds but not that forwarding survived.
+Second, the negative case: with `~/.1password/agent.sock` absent, record what
+the shell actually does rather than reasoning about it, since that is the
+dangling-symlink risk the register carries.
+
 ### REQ-D1.2 — macOS behaviour unchanged [manual]
 
 On a Mac: shell startup produces no new output or error, and
@@ -152,8 +162,13 @@ indirection actually reaches the signer, not just an agent.
 
 After a run, `mosh-server` is not present on the host and the package is
 gone. An immediately following run reports no change. `git grep` for mosh
-across the repo returns only the design record of the rejection, not any
-live configuration.
+across the **Linux** surfaces — `roles/linux/`, and any Linux-side docs —
+returns only the design record of the rejection, not live configuration.
+
+Scoped deliberately, not sloppily: `Brewfile` still carries `brew "mosh"`,
+and this bundle's Out of scope excludes any macOS host change, so a repo-wide
+grep returning that line is the expected result rather than a failure. A
+result that shows mosh gone from the Brewfile means someone exceeded scope.
 
 ### REQ-E1.2 — Tailscale SSH stays disabled [manual]
 
@@ -181,3 +196,48 @@ The recorded results for REQ-C1.1 and REQ-C1.3 describe an actual network
 transition and an actual client suspend, naming what was done. A result
 describing a killed connection or a simulated stall does not satisfy this
 requirement and is recorded as unverified instead.
+
+### REQ-G1.1 — Phone reaches the host on both paths [manual]
+
+From the phone: connect over the tailnet path, and separately over the LAN
+floor with Tailscale stopped on the phone. Both succeed. Confirm from the
+server side which address each arrived on, the same way REQ-B1.1 does, rather
+than trusting the client's own display of what it dialled.
+
+### REQ-G1.2 — Phone key is declared, and the lifeline is untouched [test + manual]
+
+After a run: `~/.ssh/authorized_keys.phone` exists and holds the phone's key,
+and `~/.ssh/authorized_keys` is byte-for-byte identical to its pre-run state
+(hash it before and after — the point is that Ansible never wrote it). The
+repo's secret-scan hook passes on the change (automated, already wired).
+
+### REQ-G1.3 — No key material in tracked files [test + manual]
+
+`git grep` for the phone's public key, its comment field, and the device name
+across tracked files returns nothing; the committed artifact is a template
+holding only an `op://` reference. As with REQ-B1.4, the scanner does not
+match every shape of this, so the manual sweep is the load-bearing half.
+
+### REQ-G1.4 — The directive was extended, not shadowed [manual]
+
+`sudo sshd -T | grep -i authorizedkeysfile` returns **one** value listing all
+three files. This is the entry that catches the silent failure mode: a second
+drop-in redeclaring the keyword is ignored because sshd takes the first value
+it obtains, and the only symptom is a key that never authenticates, with no
+error logged anywhere. Checking the file on disk is not sufficient — only the
+effective value from `sshd -T` proves it.
+
+### REQ-G1.5 — Phone path does not depend on agent forwarding [manual]
+
+From a phone session with no agent forwarded, confirm a git commit on the
+host is signed. Record which agent answered (`readlink ~/.ssh/auth_sock`), so
+the result distinguishes "forwarding was not needed" from "forwarding
+happened to be present".
+
+### REQ-G1.6 — Revocation is one file plus one run [manual]
+
+Empty the phone key file, re-run the playbook, and confirm: the phone can no
+longer authenticate; a normal login still works; and the monitoring poll from
+`work` still succeeds. Then restore it. Verifying only the first of those
+three would not distinguish revocation from a broken `AuthorizedKeysFile`
+value that locked out everything.

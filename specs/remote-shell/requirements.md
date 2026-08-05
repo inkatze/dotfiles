@@ -1,6 +1,6 @@
 # Remote Shell — Requirements
 
-**Status:** Draft
+**Status:** Ready
 **Last reviewed:** 2026-08-05
 **Format-version:** 2
 **Execution:** derived — see the status render
@@ -18,8 +18,8 @@ deliberately left unconsumed.
 The field was evaluated rather than assumed. The conclusion is that the
 stack already on this host — OpenSSH 10.2 reached through kitty's `kitten
 ssh`, over a Tailscale network layer, with tmux for durability — is the
-right one, and that the work is to **declare it, close its two real gaps,
-and record what was rejected**. No new transport is adopted. *(Cites: D-1,
+right one, and that the work is to **declare it, close its real gaps, and
+record what was rejected**. No new transport is adopted. *(Cites: D-1,
 D-2, the invocation (Sources), specs/dev-services (Sources), altitude seed
 claim (Sources).)*
 
@@ -39,9 +39,13 @@ deliverable belongs at a higher altitude. *(Cites: D-1.)*
 - Routing the default client path over the tailnet, while keeping plain
   OpenSSH on the LAN as an unconditional fallback floor.
 - A tmux session-durability layer with attach-or-create on connect.
-- A stable `SSH_AUTH_SOCK` indirection on the host, so a forwarded agent
-  keeps working in shells that outlive the connection that created them.
+- The stable `SSH_AUTH_SOCK` indirection on the host declared and verified,
+  so shells that outlive the connection that created them keep reaching a
+  live agent. The mechanism already exists; this bundle asserts and checks
+  it rather than building it (D-7).
 - Client keepalive tuned for roaming rather than for fast failure detection.
+- Declared phone-client access to the host, reusing the tailnet route and the
+  repo's existing separate-authorized-keys-file pattern.
 - Removal of `mosh` from the Linux apt baseline, asserted absent.
 - Recorded rejections for mosh, Eternal Terminal, and Tailscale SSH, with
   the reasoning and sources, so the field is not re-evaluated from scratch.
@@ -63,6 +67,13 @@ deliverable belongs at a higher altitude. *(Cites: D-1.)*
 - **Closing the `linux` role's CI execution gap.** That role has lint and
   syntax coverage only. The observation recording the gap stays live and
   unconsumed, matching the neighbouring bundle's disposition of it.
+- **Bringing `~/.ssh/authorized_keys` under Ansible.** It is the login
+  lifeline into a headless host and is deliberately unmanaged per
+  `specs/linux-migration` REQ-E1.6. REQ-G adds a *separate* role-owned file
+  rather than touching it.
+- **Phone-side client configuration.** Which client app is used, and its
+  keepalive, key storage, and terminal settings, are the operator's and are
+  not assertable from this repo. REQ-G covers only the host side.
 - **Any change to macOS host behaviour.** The Macs are clients on this path.
   The cross-platform restructure of the shell config's macOS-only
   `SSH_AUTH_SOCK` block is `specs/linux-migration` Task 7 territory and is
@@ -116,7 +127,12 @@ deliverable belongs at a higher altitude. *(Cites: D-1.)*
   configured is the operator's call and is not specified here.
   *(Cites: D-2, REQ-D1.1.)*
 - **REQ-B1.4** The tailnet address SHALL be carried in the existing
-  machine-local indirection rather than committed to this repo.
+  machine-local indirection rather than committed to this repo —
+  specifically the 1Password item's `server_host` field, rendered into
+  `~/.ssh/config.local` from the committed `roles/ssh/files/config.lan.tpl`.
+  The address SHALL take its MagicDNS form, so resolution goes through the
+  local `tailscaled` resolver rather than requiring the control plane at
+  connect time.
   *(Cites: D-4, specs/linux-migration REQ-F1.1 (Sources).)*
 
 ## REQ-C — Session durability
@@ -149,8 +165,11 @@ deliverable belongs at a higher altitude. *(Cites: D-1.)*
   a later one.
   *(Cites: D-7, engineering doctrine: machine-local environment layer
   (Sources).)*
-- **REQ-D1.2** The indirection SHALL be asserted host-side by the `linux`
-  role and SHALL NOT alter macOS host behaviour.
+- **REQ-D1.2** The indirection SHALL be asserted by the cross-platform `fish`
+  role, whose Linux arm already provides it, and SHALL NOT alter macOS host
+  behaviour. It SHALL NOT be relocated into the `linux` role: splitting one
+  working cross-platform block across two roles buys nothing on this route and
+  would put the macOS-unchanged guarantee at risk.
   *(Cites: D-7, obs:bd8cc9f0.)*
 - **REQ-D1.3** Git commit signing invoked inside a reattached session SHALL
   succeed after the connection that originally created that session has been
@@ -181,8 +200,46 @@ deliverable belongs at a higher altitude. *(Cites: D-1.)*
   against a real network transition, not simulated by killing a connection.
   *(Cites: D-9, REQ-B1.1, REQ-C1.3.)*
 
+## REQ-G — Phone client access
+
+- **REQ-G1.1** The host SHALL accept SSH from a phone client over both the
+  tailnet path and the LAN floor, with no phone-specific server-side
+  transport and no change to the sshd authentication posture.
+  *(Cites: D-10, REQ-A1.3, REQ-B1.1, REQ-B1.2.)*
+- **REQ-G1.2** The phone's authorization SHALL be declared by the `linux`
+  role in its own repo-owned authorized-keys file. `~/.ssh/authorized_keys`
+  SHALL remain unmanaged by this repo, so a defect in a role-owned template
+  cannot lock the operator out of a headless host.
+  *(Cites: D-10, specs/linux-migration REQ-E1.6 (Sources).)*
+- **REQ-G1.3** The phone's public key SHALL be carried in 1Password and
+  injected at playbook time rather than committed, following the pattern
+  `roles/ssh/files/config.lan.tpl` already establishes.
+  *(Cites: D-10, REQ-B1.4.)*
+- **REQ-G1.4** The phone's key file SHALL be added by extending the single
+  effective `AuthorizedKeysFile` directive, never by a second drop-in
+  declaring that keyword again, and the effective value SHALL be verified
+  with `sshd -T` rather than assumed.
+  *(Cites: D-10, REQ-A1.3.)*
+- **REQ-G1.5** The phone path SHALL NOT depend on SSH agent forwarding from
+  the phone. Signing on the host resolves through the host's own agent per
+  REQ-D1.1; the availability of that agent is a recorded risk, not a
+  guarantee this requirement makes.
+  *(Cites: D-10, REQ-D1.1.)*
+- **REQ-G1.6** Revoking phone access SHALL be a single-file change plus one
+  playbook run, and SHALL NOT disturb the login lifeline or the monitoring
+  key.
+  *(Cites: D-10.)*
+
 ## Changelog
 
+- 2026-08-05 — Kickoff walkthrough. Added REQ-G (phone client access) and D-10
+  on operator request mid-walk. Pinned REQ-B1.4 to the 1Password `server_host`
+  field in its MagicDNS form. Re-scoped REQ-D1.2 from the `linux` role to the
+  `fish` role after verifying the indirection already exists (commit
+  `8990a23`); corrected the obs:bd8cc9f0 Sources entry accordingly. Narrowed
+  Task 6 and its test-spec entry to the Linux apt baseline, resolving a
+  contradiction with the macOS Out-of-scope exclusion. Added two Out-of-scope
+  entries (the unmanaged login lifeline, phone-side client configuration).
 - 2026-08-05 — Bundle drafted. Fold-detection run against all bundles under
   `specs/`; spin-new confirmed from both sides, the neighbouring
   `specs/dev-services` having already declared this bundle as its access-path
@@ -210,10 +267,17 @@ deliverable belongs at a higher altitude. *(Cites: D-1.)*
 - **obs:cee356fa.** The recorded observation that Ubuntu 26.04 ships OpenSSH
   socket-activated while the role asserts a classic service, flagged as a
   posture to decide deliberately. Consumed by this bundle.
-- **obs:bd8cc9f0.** The recorded observation that the shell config's
-  `SSH_AUTH_SOCK` stabilization block is macOS-only with no host-side arm.
-  Referenced, not consumed: its full remedy is `specs/linux-migration`
-  Task 7's cross-platform restructure.
+- **obs:bd8cc9f0.** The recorded observation (2026-07-24) that the shell
+  config's `SSH_AUTH_SOCK` stabilization block was macOS-only with no
+  host-side arm. **Already remedied for this block** by commit `8990a23`
+  ("chore(fish): make config.fish cross-platform"), which added the Linux arm
+  resolving `~/.1password/agent.sock`; verified on the host, where
+  `~/.ssh/auth_sock` exists and `SSH_AUTH_SOCK` resolves through it. The
+  observation stays live for the *rest* of what it names (the `brew --prefix`
+  and `DYLD_FALLBACK_LIBRARY_PATH` assumptions), which remain
+  `specs/linux-migration` Task 7's cross-platform restructure. REQ-D is
+  therefore scoped to declaring and verifying the existing mechanism, not
+  building one.
 - **Research: 2026 remote-shell transport field review.** Commissioned
   during drafting; covered mosh, Eternal Terminal, Tailscale SSH, OpenSSH
   with connection multiplexing, wezterm's multiplexer, zellij remote

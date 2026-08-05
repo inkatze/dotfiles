@@ -1,6 +1,6 @@
 # Remote Shell — Design
 
-**Status:** Draft
+**Status:** Ready
 **Last reviewed:** 2026-08-05
 **Format-version:** 2
 **Execution:** derived — see the status render
@@ -29,10 +29,11 @@ altitude.
   the altitude ladder exists to prevent, and would leave this bundle with no
   concrete deliverable.
 - Treat it as a capability deliverable, building a general seam other hosts
-  plug into. Rejected because: there is one Linux host and one client
-  platform. A seam with a single implementation is speculation, and the
-  cross-platform generalization that would justify it is already owned
-  elsewhere (see D-7).
+  plug into. Rejected because: there is one Linux host, and the clients
+  (Macs, and a phone per D-10) consume the same route rather than needing
+  their own seam. A seam with a single implementation is speculation, and the
+  one piece of cross-platform generalization this route depends on already
+  exists in the `fish` role (see D-7).
 - Skip the altitude call and design straight to mechanism. Rejected because:
   an altitude trigger fired during seed gathering, and resolving altitude
   after the design exists is how a doctrine deliverable ends up specced as a
@@ -41,8 +42,8 @@ altitude.
 **Chosen because:** the honest reading of the seed claim is about stake, and
 separating the two readings changes the task list materially. At doctrine
 altitude this bundle would produce rules and no host changes; at mechanism
-altitude it produces a declared posture, two closed gaps, and a verification
-record — which is what the invocation actually asked for. Recording the call
+altitude it produces a declared posture, its real gaps closed, and a
+verification record — which is what the invocation actually asked for. Recording the call
 as an early D-ID cited from the goal keeps the reasoning checkable rather
 than conversational.
 
@@ -55,14 +56,19 @@ declare this stack, close its gaps, and record the rejections.
 
 **Alternatives considered:**
 - **mosh.** Rejected because: it supports neither SSH agent forwarding nor
-  port forwarding, both by design and both still absent in 1.4.0. Agent
-  forwarding is load-bearing on this route (commit signing on the host runs
-  against a forwarded agent), so mosh can never be the primary path. Its
-  release history compounds this — 1.4.0 shipped October 2022 and was itself
-  the first release in five years — and no maintained fork supplies the
-  missing forwarding. Its server-side terminal emulator also silently drops
-  sequences it does not understand, and `kitten ssh` cannot wrap it, so
-  terminfo would need hand-installation.
+  port forwarding, both by design and both still absent in 1.4.0. Port
+  forwarding is the disqualifier — REQ-B1.3 requires a working local *and*
+  remote forward, and mosh provides neither, so it can never be the primary
+  path. Its release history compounds this — 1.4.0 shipped October 2022 and
+  was itself the first release in five years — and no maintained fork
+  supplies the missing forwarding. Its server-side terminal emulator also
+  silently drops sequences it does not understand, and `kitten ssh` cannot
+  wrap it, so terminfo would need hand-installation.
+  *(Amended at kickoff 2026-08-05: this bullet previously led with agent
+  forwarding, on the claim that commit signing on the host runs against a
+  forwarded agent. D-7 established that signing runs against the host's own
+  1Password agent, so that claim was false and the rejection now rests on
+  port forwarding, which was independently verified.)*
 - **Eternal Terminal.** Rejected because: it is the only single transport
   offering roaming, agent forwarding, and port forwarding together, but it is
   not packaged for this distribution, requires a root daemon with a new TCP
@@ -81,11 +87,14 @@ declare this stack, close its gaps, and record the rejections.
   a possible future refinement rather than a transport; SSH3 self-describes
   as a proof of concept awaiting cryptographic review; dtach and abduco have
   been frozen for a decade and do nothing tmux does not.
-- **Do nothing.** Rejected because: the host is in an undeclared sshd
-  posture, the forwarded agent socket goes stale on reconnect, and the
-  keepalive is tuned to tear down sessions during exactly the network
-  transitions the requirement says must survive. Those are real defects, not
-  cosmetic ones.
+- **Do nothing.** Rejected because: the host is in an undeclared sshd posture
+  — both `ssh.service` and `ssh.socket` enabled and active, confirmed on the
+  host — and the keepalive is tuned to tear down sessions after roughly 180
+  seconds of stall, during exactly the network transitions the requirement
+  says must survive. Those are real defects, not cosmetic ones.
+  *(Amended at kickoff 2026-08-05: a third defect, "the forwarded agent
+  socket goes stale on reconnect", was removed. D-7 established the stable
+  indirection already exists and the failure does not occur on this route.)*
 
 **Chosen because:** every hard requirement on this route — agent forwarding,
 environment passing, local and remote port forwarding, kitty terminfo and
@@ -207,33 +216,57 @@ macOS-unchanged constraint: the current values live in the shared `Host *`
 block that every destination inherits, so retuning them there would silently
 change how the Macs talk to everything else.
 
-### D-7: The agent-socket indirection lands host-side, guarded to Linux  (N)
+### D-7: The agent-socket indirection already exists; declare and verify it rather than build one  (N)
 
-**Decision:** The stable `SSH_AUTH_SOCK` indirection is asserted by the
-`linux` role on the host being connected *to*, guarded so macOS host
-behaviour is unchanged.
+**Decision:** The stable `SSH_AUTH_SOCK` indirection is the existing
+`~/.ssh/auth_sock` symlink asserted by the cross-platform `fish` role
+(`roles/fish/files/fish/config.fish`), whose Linux arm resolves
+`~/.1password/agent.sock`. This bundle declares and verifies it; it builds
+nothing new and relocates nothing.
+
+*(Amended at kickoff 2026-08-05: the original decision specced a new
+`linux`-role mechanism on the premise, taken from obs:bd8cc9f0, that the
+shell block was macOS-only. The kickoff walkthrough falsified that premise
+against the repo, the git history, and the live host — see Chosen because.)*
 
 **Alternatives considered:**
-- **One cross-platform mechanism covering both platforms.** Rejected
-  because: it means restructuring live macOS shell configuration, which needs
-  a macOS regression run to prove the no-change constraint holds — and that
-  restructure is already recorded as the largest remaining shell-parity item,
-  owned by the platform bundle's stabilization task. Taking it here would
-  pull that bundle's work into this one and put the no-change guarantee at
-  risk for no gain on this route.
+- **Build the mechanism in the `linux` role, as originally drafted.**
+  Rejected because: it duplicates working code. The Linux arm was added by
+  commit `8990a23` ("chore(fish): make config.fish cross-platform"), after
+  obs:bd8cc9f0 was recorded, and the host confirms it: `~/.ssh/auth_sock`
+  exists and `SSH_AUTH_SOCK` resolves through it.
+- **Relocate the existing Linux arm out of `fish` into `linux`.** Rejected
+  because: it splits one working cross-platform block across two roles and
+  would need a macOS regression run to prove the no-change constraint still
+  holds, for no functional gain on this route.
+- **Spec the residual gaps as new work** — a tmux session created outside an
+  SSH connection never runs the block (`SSH_CONNECTION` unset), and
+  `~/.ssh/auth_sock` dangles if 1Password is not running. Rejected because:
+  both are real but unobserved, so specced work would be aimed at a failure
+  neither the operator nor this walkthrough has seen. They are recorded as
+  risks instead.
+- **Drop REQ-D and its task entirely as already met.** Rejected because: the
+  property would then be asserted nowhere, and a later edit to `config.fish`
+  could silently undo it. This bundle already accepts having no mechanical
+  regression guard (D-9), which makes the recorded verification the only
+  thing standing between the property and silent loss.
 - **Handle it client-side from the Mac's ssh configuration.** Rejected
   because: the lifetime of a forwarded agent socket is owned by the server
   end, so a client-side fix addresses the symptom from the weaker end while
   still modifying configuration every host reads.
 
-**Chosen because:** the failure only occurs on the machine being connected
-to — the Macs are clients on this route — so a host-side, os-guarded fix
-satisfies the macOS-unchanged constraint by construction rather than by
-testing. It is also the direct application of the standing doctrine about
-stable indirections, which is what D-1 places this bundle as doing. The
-accepted cost is that a Mac becoming an ssh target later would not be
-covered, and the existing macOS-only stabilization block keeps its own
-separate logic until the platform bundle unifies them.
+**Chosen because:** three independent checks agree the mechanism is present
+and working — the repo (the Linux arm in `config.fish`), the git history
+(`8990a23`, dated after the observation), and the live host (`SSH_AUTH_SOCK`
+resolving through `~/.ssh/auth_sock`). Worth recording precisely, because it
+changes what the requirement means: the symlink resolves to the host's *own*
+1Password agent, not a forwarded one, and the block prefers the local agent
+and never falls through to the forwarded socket while
+`~/.1password/agent.sock` exists. So the stale-forwarded-agent failure this
+decision was originally written against does not arise on this route at all.
+The accepted cost is a dependency this bundle does not control: signing on
+the host needs that local agent available, which is a recorded risk rather
+than something the design guarantees.
 
 ### D-8: Tailscale SSH evaluated and rejected; the SSH server stays disabled  (N)
 
@@ -293,7 +326,67 @@ bundle's posture. Recording each verification as an exact command with an
 expected observation is the mitigation — it makes re-running the check cheap
 and unambiguous, which is what a guard would otherwise have provided.
 
+### D-10: Phone access reuses the tailnet route and the separate-key-file pattern  (N)
+
+**Decision:** A phone is a first-class client on this route. It reaches the
+host over the same tailnet path and LAN floor as the Macs, with no
+phone-specific server-side transport. Its key is declared in its own
+role-owned authorized-keys file, carried in 1Password and injected at
+playbook time, added by extending the single effective `AuthorizedKeysFile`
+directive.
+
+**Alternatives considered:**
+- **Add the phone key to `~/.ssh/authorized_keys` under Ansible.** Rejected
+  because: that file is the login lifeline into a headless host and is
+  deliberately unmanaged (`specs/linux-migration` REQ-E1.6, recorded at
+  length in `roles/linux/files/sshd/61-monitoring.conf`). Bringing it under a
+  template so a bug could lock the operator out inverts the failure mode the
+  neighbouring bundle chose. A separate file fails safe: malformed, the phone
+  stops authenticating and normal access is untouched.
+- **Commit the phone's public key,** following the dropbear-unlock and
+  monitoring precedent. Rejected because: those two lean on a forced command
+  and `restrict` for their safety argument and this key has neither — it is an
+  unrestricted interactive shell key. A public key is not a secret, but
+  committing this one to a public repo advertises that a device holds shell
+  here, for no gain the injection pattern does not already provide.
+- **Commit it with an explicit restriction set.** Rejected because: the
+  restrictions would have to be guessed up front, and a phone session that
+  later needs an excluded capability fails in a way that reads as a broken
+  key rather than as policy.
+- **A second sshd drop-in declaring `AuthorizedKeysFile` again.** Rejected
+  because: it does not work. The directive replaces rather than extends, and
+  sshd takes the first value it obtains, so a later-sorting drop-in is
+  silently ignored and the key never authenticates — with no error anywhere.
+- **Spec terminfo handling for non-kitty clients.** Rejected because: it is
+  not a problem. The host carries `xterm-256color`, `screen-256color`,
+  `tmux-256color`, `vt100`, and `xterm`; `kitten ssh` ships terminfo only
+  because `xterm-kitty` is non-standard. A phone client sending a standard
+  `TERM` needs nothing.
+- **Spec the phone in its own bundle, or defer it.** Rejected on the
+  operator's call during the kickoff walkthrough: the transport work is
+  already being done here, the incremental host-side surface is one templated
+  file and one amended directive, and deferring leaves the phone key
+  hand-added — the undeclared condition this bundle removes everywhere else.
+
+**Chosen because:** the phone needs nothing new from the transport. The
+tailnet route and tmux durability it depends on are already this bundle's
+deliverables, and a flaky mobile link is the case attach-or-create was
+specced for. That leaves authorization as the only real addition, and the
+repo already answers it twice over: a separate role-owned key file for the
+trust boundary, and `op inject` for a value that should not sit in a public
+repo. Giving the phone its own file rather than sharing the monitoring one
+also makes revocation a single-file change plus one playbook run, which
+matters more for a device that is easier to lose than a laptop.
+
 ## Cross-cutting concerns
+
+**One cross-bundle file touch.** Task 8 extends the `AuthorizedKeysFile`
+directive in `roles/linux/files/sshd/61-monitoring.conf`, a file
+`specs/linux-migration` Task 10 owns. The touch is deliberate and additive:
+sshd takes the first value it obtains for that keyword, so a separate drop-in
+would be silently ignored, and keeping one declaration is what makes "which
+keys can log in here" answerable by reading one line. The monitoring key's own
+entry and reasoning are left intact.
 
 **The neighbouring bundles.** Three bundles touch this host concurrently.
 `specs/dev-services` owns what runs on it and has already declared this

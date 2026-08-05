@@ -1,15 +1,16 @@
 # Remote Shell — Tasks
 
-**Status:** Draft
+**Status:** Ready
 **Last reviewed:** 2026-08-05
 **Format-version:** 2
 **Execution:** derived — see the status render
 
 Every task here is an Ansible-managed configuration change: edit the tracked
 source under `roles/`, never the materialized file on the host. Tasks 1
-through 6 are independent of each other except where a `Dependencies:` line
-says otherwise; Task 7 consolidates their verification and therefore depends
-on all of them.
+through 6 and Task 8 are independent of each other except where a
+`Dependencies:` line says otherwise; Task 7 consolidates their verification
+and therefore depends on all of them. Task 8 is listed before Task 7 because
+this section is ordered by dependency, not by id.
 
 ## Tasks
 
@@ -66,36 +67,41 @@ on all of them.
 - **Citations:** D-6 · REQ-C1.3
 - **Estimated effort:** half day
 
-### Task 4 — Give the forwarded agent a stable indirection on the host
+### Task 4 — Declare and verify the existing agent-socket indirection
 
-- **Deliverables:** A host-side, Linux-guarded mechanism resolving
-  `SSH_AUTH_SOCK` through a fixed path that survives reconnection, asserted
-  by the `linux` role. The existing macOS-only stabilization block in the
-  shell configuration is left untouched.
+- **Deliverables:** No new mechanism. The existing `~/.ssh/auth_sock`
+  indirection in `roles/fish/files/fish/config.fish` gains a comment
+  recording that it is load-bearing for this route, that it resolves to the
+  host's *own* 1Password agent rather than a forwarded one, and that
+  REQ-D1.2 forbids relocating it into the `linux` role. Plus the recorded
+  verification that the property actually holds.
 - **Done when:** A shell started under one connection still reaches a live
   agent after that connection has been replaced by a later one; `ssh-add -l`
   inside such a shell lists keys rather than failing to connect; git commit
   signing succeeds in that shell; a macOS host's shell startup and
-  `SSH_AUTH_SOCK` value are unchanged by the change, verified on a Mac; and
-  a connection made with agent forwarding disabled degrades visibly rather
-  than silently pointing at a dead path.
+  `SSH_AUTH_SOCK` value are confirmed unchanged, verified on a Mac; the
+  comment is in place; and the behaviour when `~/.1password/agent.sock` is
+  absent has been observed and recorded, rather than reasoned about, so the
+  dangling-symlink risk is characterized.
 - **Dependencies:** none
 - **Citations:** D-7 · REQ-D1.1, REQ-D1.2, REQ-D1.3 · obs:bd8cc9f0
-- **Estimated effort:** 1 day
+- **Estimated effort:** half day
 
 ### Task 5 — Make tmux the durability layer, attaching or creating on connect
 
 - **Deliverables:** tmux configuration and connection-path changes so that
   connecting attaches to the existing session or creates one, with the
-  session inheriting the stable agent-socket indirection from Task 4 rather
-  than a captured per-connection value.
+  session resolving the agent through the existing `~/.ssh/auth_sock`
+  indirection (D-7) rather than a captured per-connection value. That
+  indirection already exists, so this task consumes it rather than waiting
+  on Task 4, which only verifies and documents it.
 - **Done when:** Work left running survives client disconnect, laptop
   suspend, and transport loss, and is present on reattach; connecting twice
   in a row lands in the same session rather than nesting or creating a
   second; a session created before a reconnect can still sign a git commit
   after it; and the operator can still get a plain shell without tmux when
   they want one.
-- **Dependencies:** 4
+- **Dependencies:** none
 - **Citations:** D-5 · REQ-C1.1, REQ-C1.2, REQ-D1.1
 - **Estimated effort:** 1 day
 
@@ -106,11 +112,37 @@ on all of them.
   un-declared, following the existing pattern in that role.
 - **Done when:** A run removes the package from the host; an immediately
   following run reports no change; `mosh-server` is absent from the host;
-  nothing else in the repo references mosh; and no firewall rule or
-  configuration was added for it that now dangles.
+  nothing in the *Linux* baseline references mosh outside the design record
+  of the rejection; and no firewall rule or configuration was added for it
+  that now dangles. The `brew "mosh"` line in the `Brewfile` is deliberately
+  left in place: it is macOS territory, which this bundle's Out of scope
+  excludes, so a repo-wide `git grep` still returns it.
 - **Dependencies:** none
 - **Citations:** D-2 · REQ-E1.1, REQ-E1.3
 - **Estimated effort:** half day
+
+### Task 8 — Declare phone client access
+
+- **Deliverables:** A committed template rendering the phone's public key
+  from 1Password (the `roles/ssh/files/config.lan.tpl` +
+  `scripts/ssh-lan-config-sync.sh` pattern), a `linux`-role task installing
+  the rendered result to a dedicated `~/.ssh/authorized_keys.phone`, and the
+  **existing** `AuthorizedKeysFile` directive in
+  `roles/linux/files/sshd/61-monitoring.conf` extended to list it. No second
+  drop-in declaring that keyword, and no change to `~/.ssh/authorized_keys`.
+- **Done when:** The phone connects over the tailnet path and, separately,
+  over the LAN floor; `sudo sshd -T | grep -i authorizedkeysfile` lists all
+  three files in one value, confirming the directive was extended rather than
+  shadowed; `~/.ssh/authorized_keys` is byte-for-byte unchanged by the run;
+  no public key, device name, or address appears in any tracked file and the
+  secret-scan hook passes; emptying the phone file and re-running the
+  playbook revokes phone access while login and the monitoring poll both
+  still work; and a session opened from the phone attaches the existing tmux
+  session and survives the link dropping.
+- **Dependencies:** 2, 5
+- **Citations:** D-10 · REQ-G1.1, REQ-G1.2, REQ-G1.3, REQ-G1.4, REQ-G1.5,
+  REQ-G1.6
+- **Estimated effort:** 1 day
 
 ### Task 7 — Record the verification
 
@@ -126,7 +158,7 @@ on all of them.
   check was performed by actually suspending the client; and any requirement
   that could not be verified is recorded as such with the reason, rather than
   being marked passed by inference.
-- **Dependencies:** 1, 2, 3, 4, 5, 6
+- **Dependencies:** 1, 2, 3, 4, 5, 6, 8
 - **Citations:** D-9 · REQ-F1.1, REQ-F1.2
 - **Estimated effort:** 1 day
 
