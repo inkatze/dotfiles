@@ -450,6 +450,31 @@ findings across two passes, all dispositioned, altitude check not applicable.
 Anchor: `fecce5e40273806bfd25dc3f23b3e192e79de088` — computed as
 `spec-anchor.sh specs/dev-services`
 
+### Terminal ready-flip — recorded deviation
+
+The spec PR was marked ready **on operator instruction, over an incomplete CI
+gate**. Recorded here rather than smoothed over, because the gate exists
+precisely to prevent this and a later reader is entitled to know it did not
+pass.
+
+State at the moment of the flip: the configured CI wait bound elapsed with the
+head commit's check rollup showing the majority of checks completed and
+successful, none failed, and three still in progress. The head had not moved.
+The gate's own condition — every check completed with overall success — was
+therefore **not met**, and the refusal arm had correctly fired, which would
+have left the PR draft and recorded a pending flip.
+
+The operator was shown that state, the gate's purpose, and the specific
+residual risk (one of the outstanding checks could still fail after the PR is
+marked ready), and directed the flip anyway. That is the operator's call to
+make; the deviation is recorded, not overridden silently.
+
+Note that the alternative was not free: pushing the refusal note would itself
+have moved the head and discarded the in-flight run, so the strict arm carried
+its own cost here. Nothing about the sign-off above depends on this step — the
+Draft→Ready flip, the lens dispositions, and the anchor all stand on their own,
+and the merge remains the human's second key regardless.
+
 ---
 
 ## 9. Amendment log
