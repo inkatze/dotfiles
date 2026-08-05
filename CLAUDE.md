@@ -284,10 +284,28 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
 | `op-service-account-token` | `scripts/ssh-lan-config-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
 | `slack-users.json` | the `/code-review` and `/peer-review` commands | GitHub login → Slack user ID, so review notifications can find a person |
+| `private-identifiers` | `scripts/gitleaks-identifier-rules.sh` | Private project identifiers the secret scanner's `private-project-identifier` rule is generated from, one per line (mode 0600) |
 
 None are created by Ansible and none live in the repo (`~/.config/kitty` is
 a symlink into it, which is why the kitty companion sits here instead).
 Each is optional; absence degrades visibly rather than silently.
+
+`private-identifiers` is the input to a *generator*, not to the hook. It is
+untracked for the same reason as `slack-users.json`: this repo is public and
+the identifiers name a private project, which `specs/dev-services` REQ-D1.1
+keeps out of every committed artifact but the scanner configuration. The
+generated rule block is committed, so the guard still works on a fresh
+checkout and in CI; the file is only needed to *regenerate* it:
+
+```sh
+scripts/gitleaks-identifier-rules.sh --write   # after changing the set
+scripts/gitleaks-identifier-rules.sh --check   # assert the block is current
+```
+
+Absence degrades visibly in the strong sense here: the generator refuses with
+a non-zero exit for an absent, empty, or unparseable file rather than emitting
+a rule set covering fewer identifiers (REQ-D1.4). A hygiene guard that quietly
+matches less than intended is worse than one that refuses to run.
 
 `slack-users.json` is untracked for a different reason than the others: it is
 not a secret, but it holds *other people's* email-derived identities. This repo
