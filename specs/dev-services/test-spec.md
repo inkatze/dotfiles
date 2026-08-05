@@ -1,11 +1,11 @@
 # Dev Services — Test Spec
 
-**Status:** Draft
-**Last reviewed:** 2026-08-04
+**Status:** Ready
+**Last reviewed:** 2026-08-05
 **Format-version:** 2
 **Execution:** derived — see the status render
 
-Coverage mix: of twenty requirements, thirteen verify as `[test]`, three as
+Coverage mix: of twenty-two requirements, fifteen verify as `[test]`, three as
 `[design-level]`, one as `[manual]`, and three carry mixed tags (two
 `[test + design-level]`, one `[test + manual]`). That ratio
 is a direct consequence of Task 6 — without a Linux CI job, every requirement
@@ -68,12 +68,21 @@ Reviewed: each service whose setup exceeds the shared lifecycle is traceable
 from its declaration entry to that setup. The requirement is about
 discoverability, which is a property of the artifact rather than of a run.
 
-### REQ-B1.4 — No provisioning off the Linux host [test]
+### REQ-B1.4 — No provisioning on non-Linux hosts [test]
 
-The existing macOS matrix jobs run unmodified and continue to pass, which
-demonstrates the guard holds: those jobs execute the `services` role, so a
-missing or wrong guard would surface there as an attempt to install apt
-packages on macOS.
+A `services` entry is added to the macOS CI matrix by Task 2, and its passing
+run is the verification: the job executes the role on macOS, so a missing or
+wrong Linux guard surfaces there as an attempt to install apt packages on
+macOS. The entry runs at `strict_idempotency: true`, so the role is also held
+to the same convergence bar as REQ-C1.1.
+
+This pin was rewritten at kickoff. It previously claimed the *existing* matrix
+jobs already executed the `services` role; they do not — the role had no matrix
+entry at all, so the stated verification could not run. The new entry is what
+makes the claim true, and it gives the role its first CI coverage on either
+platform. The reverse direction — that the role's macOS-only content no longer
+runs on Linux — is asserted on the host in Task 7, since no macOS runner can
+demonstrate it.
 
 ### REQ-B1.5 — Stale declarations corrected [test]
 
@@ -122,12 +131,48 @@ confirmed to fail the pre-commit hook. This is a test of the guard itself,
 and is run once by deliberate mutation — a rule nobody has watched reject
 something is a rule being trusted on faith.
 
+The assertion is added to the repo's existing custom-rule test harness rather
+than to a new one. That harness was built for the same class of rule by an
+earlier bundle and already covers the flags-a-new-value and
+does-not-flag-an-allowlisted-value directions, so the identifier rules extend a
+pattern rather than introduce a second one.
+
 ### REQ-D1.3 — Allowlist scoped and self-retiring [test]
 
 Negative case: a staged edit to an already-tracked file containing one of the
 identifiers is confirmed to pass the hook. Reviewed alongside it: the
 allowlist entry names the successor hygiene bundle as its removal condition
 in an adjacent comment.
+
+### REQ-D1.4 — Identifier set stays machine-local [test]
+
+Positive: the identifier file is present, mode 0600, and reported untracked by
+`git status --porcelain --ignored`, so it cannot reach a commit. Negative,
+three cases: the generator is run with the source file absent, then empty,
+then holding unparseable content, and each is confirmed to exit non-zero with
+a message naming the fault rather than emitting a rule set covering fewer
+identifiers. The negative cases are the ones that matter — a hygiene guard
+that degrades quietly is indistinguishable from one that works, and the
+failure is invisible precisely when it is most costly. The empty and
+unparseable cases are enumerated separately because an absent-file check
+alone passes both.
+
+### REQ-D1.5 — Rules are generated, not hand-written [test]
+
+The generator is run against the source file and its output is confirmed to
+match the rule block committed in `.gitleaks.toml` byte for byte. That
+assertion is the whole requirement: if regenerating reproduces what is
+committed, the rules are derived rather than drifted, and a future identifier
+addition is a re-run instead of a hand edit. It also fails if someone edits
+the generated block directly, which is the drift this requirement exists to
+catch.
+
+Determinism is asserted alongside it, because the byte-for-byte check is only
+meaningful if the output does not depend on incidental input order: the
+generator is run twice against the same set listed in two different orders,
+and both runs must produce identical output. Without that, the same identifier
+set on two machines fails the comparison for no real reason, and the check
+would be abandoned as flaky rather than trusted.
 
 ### REQ-E1.1 — CI job asserts reachability on a pinned runner [test]
 
@@ -153,7 +198,10 @@ today, and nothing prevents a later edit from adding either. A stronger form
 would be a workflow-linting rule, which is out of proportion for this bundle
 and is noted here so the gap is visible rather than implied.
 
-### REQ-E1.4 — macOS matrix unaffected [test]
+### REQ-E1.4 — No pre-existing matrix entry modified [test]
 
-The existing macOS matrix jobs pass unchanged. Their job definitions are
-asserted untouched by this bundle's diff.
+Every pre-existing macOS matrix entry passes unchanged. The assertion is
+stated as a rule rather than a count: this bundle's diff modifies no entry
+that existed before it and no step definition shared across the matrix. The
+one permitted change is the added `services` entry REQ-B1.4's verification
+requires, which is a new job rather than a modification to an existing one.

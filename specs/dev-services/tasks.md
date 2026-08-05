@@ -1,7 +1,7 @@
 # Dev Services — Tasks
 
-**Status:** Draft
-**Last reviewed:** 2026-08-04
+**Status:** Ready
+**Last reviewed:** 2026-08-05
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -16,12 +16,23 @@ its protection rather than audited after the fact (D-8).
 - **Deliverables:** custom secret-scanner rules in the repo's `gitleaks`
   configuration matching the private project identifiers; a path-scoped
   allowlist covering their pre-existing tracked occurrences, annotated in the
-  file with the successor hygiene bundle as its removal condition.
+  file with the successor hygiene bundle as its removal condition; the
+  untracked machine-local identifier file the rules are generated from; a
+  tracked generator script that reads that file and writes the rule block,
+  refusing visibly when the file is absent, empty, or unparseable; new cases
+  in the repo's existing custom-rule test harness rather than a parallel one,
+  covering both the positive (a new identifier is flagged) and negative (an
+  allowlisted path is not) directions; plus a row for the file in the repo
+  guide's machine-local table naming its reader and what it holds.
 - **Done when:** a staged commit introducing one of the identifiers fails the
   repo's pre-commit hook; a staged edit to an already-tracked file containing
-  one passes; the allowlist entry names its removal condition in a comment.
+  one passes; the allowlist entry names its removal condition in a comment;
+  the identifier file is untracked, mode 0600, and absent from `git
+  status`; and the generator refuses visibly, with a non-zero exit, for each
+  of an absent, an empty, and an unparseable source file rather than emitting
+  a narrower rule set.
 - **Dependencies:** none
-- **Citations:** D-8 · REQ-D1.1, REQ-D1.2, REQ-D1.3
+- **Citations:** D-8, D-9 · REQ-D1.1, REQ-D1.2, REQ-D1.3, REQ-D1.4, REQ-D1.5
 - **Estimated effort:** half day
 
 ### Task 2 — Declaration and shared lifecycle
@@ -29,13 +40,19 @@ its protection rather than audited after the fact (D-8).
 - **Deliverables:** a defaults file for the `services` role declaring the
   service list, each entry carrying package name, unit name, and expected
   listen address and port; platform-guarded tasks driving install, enable,
-  start and reachability verification from that list.
+  start and reachability verification from that list; guards on the role's
+  pre-existing macOS-only tasks so they no longer run on Linux; and a
+  `services` entry in the macOS CI matrix with `strict_idempotency: true`,
+  which is what makes REQ-B1.4's guard executable rather than reviewed.
 - **Done when:** all four lifecycle steps are driven from the declaration with
-  no per-service branching in task control flow; a macOS host provisions
-  nothing and its existing role behaviour is unchanged; adding an entry to
-  the list requires no edit to any task file.
+  no per-service branching in task control flow; adding an entry to the list
+  requires no edit to any task file; a macOS host provisions none of the
+  declared services; a Linux host no longer receives the role's macOS-only
+  content, and specifically no longer has `~/.my.cnf` created; the new matrix
+  entry passes twice with zero changed tasks on the second run; and no
+  pre-existing matrix entry or shared step definition is modified.
 - **Dependencies:** 1
-- **Citations:** D-1, D-5 · REQ-B1.1, REQ-B1.2, REQ-B1.4
+- **Citations:** D-1, D-5 · REQ-B1.1, REQ-B1.2, REQ-B1.4, REQ-E1.4
 - **Estimated effort:** 1 day
 
 ### Task 3 — PostgreSQL
@@ -45,8 +62,12 @@ its protection rather than audited after the fact (D-8).
   privilege, created idempotently using `ansible.builtin` only.
 - **Done when:** connecting over the Unix socket as the invoking user
   succeeds with no password, and can create, migrate and drop a scratch
-  database; `pg_hba.conf` is byte-identical to the package default; the
-  server accepts no connection on a non-loopback interface.
+  database; no task in this repo templates, copies, edits or otherwise
+  manages `pg_hba.conf`, so the file remains whatever cluster creation
+  produced (the distribution generates it at cluster creation rather than
+  shipping it as a package conffile, so "unmanaged by us" is the checkable
+  form of D-4's intent, not a diff against a packaged default); the server
+  accepts no connection on a non-loopback interface.
 - **Dependencies:** 2
 - **Citations:** D-3, D-4, D-6 · REQ-A1.1, REQ-A1.3, REQ-A1.4
 - **Estimated effort:** 1 day
@@ -82,7 +103,11 @@ its protection rather than audited after the fact (D-8).
 - **Deliverables:** a **separate** CI job — not an entry in the existing
   matrix, which sets its runner at job level and is therefore macOS-only —
   on a pinned Ubuntu runner image matching the target host's release,
-  running the provisioning by tag, followed by an idempotency re-run.
+  running the provisioning by tag, followed by an idempotency re-run. The job
+  sets the host alias explicitly rather than letting it fall back: with
+  nothing declared, the playbook wrapper resolves to the macOS fallback alias
+  and emits a warning, which is harmless because `os_family` is what gates
+  provisioning, but is a misleading signal to leave in job output.
   Restructuring the existing matrix to take a per-entry runner is explicitly
   not the approach: it would put REQ-E1.4 at risk to save duplicating a few
   setup steps.
@@ -107,9 +132,10 @@ its protection rather than audited after the fact (D-8).
 - **Done when:** the second consecutive run reports zero changed tasks and
   zero failures; both services are running and reachable after a host reboot;
   a run interrupted partway is followed by a run that converges with no
-  manual cleanup.
+  manual cleanup; and the role's macOS-only content is confirmed absent from
+  the host, `~/.my.cnf` specifically, which no macOS runner can demonstrate.
 - **Dependencies:** 3, 4, 5
-- **Citations:** REQ-C1.1, REQ-C1.2, REQ-C1.3
+- **Citations:** REQ-B1.4, REQ-C1.1, REQ-C1.2, REQ-C1.3
 - **Estimated effort:** 1 day
 
 ## Awaiting input

@@ -1,7 +1,7 @@
 # Dev Services — Design
 
-**Status:** Draft
-**Last reviewed:** 2026-08-04
+**Status:** Ready
+**Last reviewed:** 2026-08-05
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -13,8 +13,8 @@ from another bundle's decision, foreign namespace qualified.
 ### D-1: The layer lives in the `services` role, platform-guarded  (N)
 
 **Decision:** The declared dev-services layer is implemented in the repo's
-existing `services` role, with an `os_family` guard so it provisions on the
-Linux host and nothing elsewhere. It does not live in the Linux platform
+existing `services` role, with an `os_family` guard so it provisions on Linux
+hosts and nothing elsewhere. It does not live in the Linux platform
 role.
 
 **Alternatives considered:**
@@ -194,6 +194,8 @@ bundle simply does not depend on it either way.
 
 **Decision:** The verification job runs on an explicitly pinned Ubuntu runner
 image matching the target host's release, not on the `ubuntu-latest` alias.
+The target host's release was read from the host at kickoff: Ubuntu 26.04 LTS
+(`resolute`), so the pin is the 26.04 runner label.
 
 **Alternatives considered:**
 
@@ -263,6 +265,51 @@ the migration bundle. The allowlist is scoped to known paths, so a new file
 still fires, and its annotation makes it a visible marker for the successor
 bundle rather than a silent permanent exemption.
 
+### D-9: The identifier set lives in an untracked machine-local file  (N)
+
+**Decision:** The private project identifiers the REQ-D1.2 scanner rules are
+built from are supplied by an untracked, machine-local file under
+`~/.config/dotfiles/`, mode 0600, following the convention the repo guide
+already documents for `slack-users.json` and `op-service-account-token`. A
+tracked generator script reads it and writes the rule block into
+`.gitleaks.toml`; a source file that is absent, empty, or unparseable is a
+visible refusal, not a silently narrower rule set. The brief and the repo
+guide record the path; the contents stay off the repo entirely.
+
+**Why a generator rather than hand-authored rules.** The kickoff lens pass
+surfaced that Task 1's completion condition presumed a generator nothing
+produced. Hand-authoring was weighed and rejected: it leaves no mechanism
+keeping the rules and the source file in agreement, so the set drifts silently
+as identifiers are added. Having the hook read the machine-local file directly
+at run time was also rejected — it removes the need for D-8's carve-out
+entirely, which is genuinely attractive, but the guard then does nothing at
+all on any machine or CI runner without the file, which is the exact
+silent-degradation failure REQ-D1.4 exists to forbid. The generated block is
+committed, so the guard works on a fresh checkout and in CI; the source file
+is what makes regenerating it reproducible.
+
+**Alternatives considered:**
+
+- Operator-supplied at execution time, with no file at all. Rejected because:
+  Task 1 could then never run unattended, and every orchestration pass would
+  return it as a blocked head. It also leaves nothing on disk for the next
+  run, so the same question is asked forever.
+- Deriving the set by grepping this repo's tracked files for the occurrences
+  the REQ-D1.3 allowlist has to cover anyway. Rejected because: it is
+  circular — finding the occurrences requires already knowing the strings —
+  and it silently under-covers any identifier not yet committed, which is
+  precisely the case the guard exists for.
+- A tracked file in the repo. Rejected because: it is what REQ-D1.1 forbids,
+  and the D-8 carve-out is deliberately narrow to the scanner configuration.
+
+**Chosen because:** it is the pattern this repo already runs three times over,
+so it lands where a reader looks for it, and the machine-local environment
+layer is the repo's documented answer to exactly this shape — per-machine
+input that must not enter tracked config. It degrades visibly rather than
+silently, which is the property the other machine-local files are chosen for
+and the one a hygiene guard cannot do without: a guard that quietly matches
+fewer identifiers than intended is worse than one that refuses to run.
+
 ## Cross-cutting concerns
 
 **Decision domains touched but deliberately not decided here.** The caching
@@ -276,9 +323,23 @@ boundary rather than an oversight.
 concurrency, observability, and versioning scheme. No decision in this bundle
 reaches any of them.
 
-**Secrets.** This bundle introduces no secret, credential, or generated
-password anywhere — a property of D-4 rather than a coincidence, and the
-reason the secrets-and-configuration domain does not escalate.
+**Secrets and configuration.** This bundle introduces no secret, credential,
+or generated password anywhere — a property of D-4 rather than a coincidence.
+It does introduce one new configuration source, the machine-local identifier
+file of D-9, which is why this domain is touched rather than untouched. It
+does not escalate: the domain's disposition is that plain configuration
+proceeds when documented, and the file is documented in D-9, required by
+REQ-D1.4, and carries a row in the repo guide's machine-local table as a Task 1
+deliverable. Its contents are project identifiers, not credentials; the 0600
+mode reflects that they are private, not that they are secret.
+
+**Data storage.** Standing up PostgreSQL touches this domain. Which store, and
+on what terms, is decided in D-3. What is *not* decided here is the cluster's
+lifecycle across a major-version change: D-3 deliberately declines to pin a
+major, so a future host release upgrade will introduce a new cluster rather
+than migrate the existing one. The bundle's position that development data is
+disposable makes that acceptable, but it is a real event with a real date, so
+it is carried as a risk-register row rather than left implicit.
 
 **Altitude.** No altitude trigger fired during drafting: the invocation made
 no claim about the deliverable's nature, and no mid-flow signal revealed an
