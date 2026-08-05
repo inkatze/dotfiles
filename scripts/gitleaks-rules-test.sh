@@ -19,7 +19,9 @@
 #   10.  a pre-existing tracked occurrence is allowlisted by path (REQ-D1.3),
 #   11.  --write converges, preserves the config's other rules, and --check
 #        rejects a hand edit inside the generated block (REQ-D1.5),
-#   12.  the block committed in .gitleaks.toml matches a fresh generation
+#   12.  the generated config is one gitleaks can actually load,
+#   13.  --help prints the header block and no code,
+#   14.  the block committed in .gitleaks.toml matches a fresh generation
 #        (REQ-D1.5) — skipped, visibly, on a machine with no source file.
 #
 # Not wired into CI/lefthook (those run the scanner itself, not this test);
@@ -264,7 +266,31 @@ else
     echo "ok[gen-detects-hand-edit]: --check rejected a hand-edited block"
 fi
 
-# 12. REQ-D1.5: what is committed is what the generator produces. Skipped
+# 12. A generated block must be loadable by the scanner, not merely stable.
+# --check compares the config against a regeneration of itself, so it would
+# certify a block gitleaks cannot parse; the hook would then fail open-ended
+# for everyone on the next commit.
+rt_gen --write >/dev/null 2>&1
+if (cd "$rt" && gitleaks git --staged --no-banner \
+    --config "$rt/.gitleaks.toml" >/dev/null 2>&1); then
+    echo "ok[gen-config-loads]: gitleaks accepted the generated config"
+else
+    echo "FAIL[gen-config-loads]: gitleaks rejected the generated config" >&2
+    fails=$((fails + 1))
+fi
+
+# 13. --help prints the header block and nothing else. Pinned because the
+# first implementation used a fixed line range, which started printing code
+# as soon as the header grew past it.
+help_out=$("$gen" --help 2>&1 || true)
+if grep -q 'Usage:' <<<"$help_out" && ! grep -q 'set -euo' <<<"$help_out"; then
+    echo "ok[help-header-only]: --help printed the header block and no code"
+else
+    echo "FAIL[help-header-only]: --help did not print the header block alone" >&2
+    fails=$((fails + 1))
+fi
+
+# 14. REQ-D1.5: what is committed is what the generator produces. Skipped
 # visibly rather than silently where the machine-local source is absent --
 # the assertion needs the real set, which by REQ-D1.4 lives off the repo.
 identifier_src="${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/private-identifiers"
