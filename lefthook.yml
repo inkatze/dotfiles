@@ -12,6 +12,14 @@ pre-commit:
       run: ansible-playbook main.yml --syntax-check
     gitleaks:
       run: gitleaks git --staged --no-banner --redact --config .gitleaks.toml
+    shellcheck:
+      # --severity=warning, not the default `style`, because the tracked
+      # scripts carry info-level SC2015 notes (`A && B || C`) that are
+      # deliberate and would block every commit. Warning-level is green today,
+      # so this gate catches regressions instead of demanding a cleanup first.
+      # Raise the bar by fixing the SC2015 notes and dropping the flag.
+      glob: "*.sh"
+      run: shellcheck --severity=warning {staged_files}
     skill-contracts:
       glob: "roles/claude/files/commands/*.md"
       run: roles/claude/files/scripts/skill-contracts.sh
