@@ -29,10 +29,29 @@ tags = ["hostname", "req-f1.1"]
 # hostnames are deliberately NOT allowlisted: the internal-hostname rule only
 # matches dotted `.local`-style names, and allowlisting a real `<host>.local`
 # would defeat the REQ-F1.1 backstop for exactly the value it must catch.
+#
+# The second group below is a different exemption class and worth keeping
+# distinct: repo-owned FILENAMES that happen to end in a private-TLD label.
+# `internal-hostname` matches any dotted `<label>.local`-style string, and it
+# cannot tell a machine name from a path this repo declares itself. These three
+# are files, not hosts:
+#
+#   ~/.ssh/config.local              machine-local ssh host aliases (roles/ssh)
+#   roles/ssh/files/config.lan.tpl   the committed op-inject template for it
+#   .claude/planwright.local.yml     planwright's per-repo config override
+#
+# Each is already referenced across tracked files (roles/ssh/README.md, both
+# CLAUDE.md copies, specs/pair-flow), so without this the rule blocks any commit
+# that so much as names them. Anchored to the exact matched strings so a real
+# host called `<something>-config.local` still fires; adding a real machine name
+# here would defeat the backstop, which the note above forbids.
 [allowlist]
-description = "Repo's documented Ollama work-host reservation"
+description = "Documented Ollama reservation, plus repo-owned filenames the hostname rule cannot distinguish from hosts"
 regexes = [
   # Ollama work-host DHCP reservation, documented in CLAUDE.md /
   # roles/fish/files/ollama.fish (Cross-host Ollama topology).
   '''192\.168\.1\.20''',
+  '''^config\.local$''',
+  '''^config\.lan$''',
+  '''^planwright\.local$''',
 ]
