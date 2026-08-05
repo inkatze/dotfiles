@@ -164,7 +164,15 @@ this section is ordered by dependency, not by id.
 
 ## Awaiting input
 
-(none yet)
+- **Spec PR ready-flip pending.** The kickoff sign-off completed and is
+  recorded with its anchor; the Draft→Ready flip on this bundle stands. The
+  terminal step that marks the spec PR ready for review did **not** run,
+  because the gate requires a green CI rollup on the PR's head commit and the
+  repository's pipeline is not currently green for reasons outside this
+  bundle. PR #97 therefore stays a draft. Re-entry: re-run the ready-flip
+  alone once CI is healthy — nothing else in the sign-off needs repeating.
+  This is a bundle-level publication step, not a task blocker: no task here is
+  parked, and every task is dispatchable the moment the spec PR merges.
 
 ## Deferred
 
