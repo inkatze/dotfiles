@@ -181,6 +181,21 @@ if absent:
 else:
     ok("lifecycle-steps-present", "install, enable, start and verify all present")
 
+# 7. Both platform files have to be reachable from the role's entry point.
+# The behavioural cases below import each leaf file directly, which is what
+# makes them isolated -- and is also why they cannot notice an import being
+# dropped from main.yml. Nothing else would: a role that silently stopped
+# applying its macOS content would just report changed=0 and pass the CI
+# matrix entry's idempotency check.
+main_doc = yaml.safe_dump(yaml.safe_load((tasks_dir / "main.yml").read_text()) or [])
+unreachable = [
+    leaf for leaf in ("linux.yml", "darwin.yml") if leaf not in main_doc
+]
+if unreachable:
+    bad("platform-files-imported", f"main.yml does not import: {unreachable}")
+else:
+    ok("platform-files-imported", "main.yml imports both platform files")
+
 sys.exit(1 if failed else 0)
 PY
 
