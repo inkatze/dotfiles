@@ -1,0 +1,36 @@
+---
+
+# The declared dev-services layer (specs/dev-services, D-1 and D-5).
+#
+# The shared lifecycle -- install, enable, start, verify reachability -- is
+# driven entirely from this list, so adding a service is an entry here rather
+# than an edit to any task file (REQ-B1.1). Every entry carries the package to
+# install, the systemd unit to manage, and the address and port the service is
+# expected to listen on (REQ-B1.2). The last two are not documentation: the
+# verify step asserts against them, so a wrong value fails a run rather than
+# quietly describing something that is not true.
+#
+# What deliberately does NOT belong here is per-service setup -- cluster
+# initialisation, authentication posture, config-file ownership. Those have no
+# shared shape between a relational database and a key-value cache, so forcing
+# them into one schema would produce a union of unrelated fields pretending to
+# be a pattern (D-5). A service that grows such setup gains a field here
+# naming where it lives, so the full picture stays reachable from one place
+# (REQ-B1.3).
+#
+# Loopback only, and deliberately: neither service authenticates a local
+# client, so the interface is the whole of what bounds who can reach them
+# (REQ-A1.3). The list is provisioned on Linux hosts and nowhere else
+# (REQ-B1.4); see roles/services/tasks/linux.yml for the guard.
+services_dev_services:
+  - name: PostgreSQL
+    package: postgresql
+    unit: postgresql.service
+    listen_address: 127.0.0.1
+    listen_port: 5432
+
+  - name: Valkey
+    package: valkey-server
+    unit: valkey-server.service
+    listen_address: 127.0.0.1
+    listen_port: 6379

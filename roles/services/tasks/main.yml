@@ -1,77 +1,11 @@
 ---
 
-- name: Symlink my.cnf
-  ansible.builtin.file:
-    src: "{{ ansible_facts.env.PWD }}/roles/services/files/my.cnf"
-    dest: "{{ ansible_facts.env.HOME }}/.my.cnf"
-    state: link
-  tags: [services]
+# Platform dispatch only. Both files guard themselves with a single `when:` on
+# their block, so the platform logic sits in the file it applies to rather
+# than here (specs/dev-services, REQ-B1.4). Nothing in this role runs on both
+# platforms any more.
+- name: Provision the declared dev services on Linux
+  ansible.builtin.import_tasks: linux.yml
 
-- name: Start colima service
-  ansible.builtin.command:
-    cmd: brew services start colima
-  register: services_colima_result
-  changed_when: "'Successfully started' in services_colima_result.stdout"
-  failed_when: false
-  when: inventory_hostname == 'personal'
-  tags: [services, colima]
-
-- name: Wait for colima to be ready
-  ansible.builtin.command:
-    cmd: colima status
-  register: services_colima_status
-  until: services_colima_status.rc == 0
-  retries: 30
-  delay: 2
-  when: inventory_hostname == 'personal'
-  tags: [services, colima]
-
-# colima's default $HOME mount plus mountInotify:true runs a file-event relay
-# over the entire home directory, spawning adhoc-signed limactl ~1/sec. Each
-# spawn triggers a Gatekeeper assessment, flashing the "Verifying..." panel.
-# Disabling inotify propagation stops the churn. virtiofs already propagates
-# most file changes; only re-enable (scoped to a project dir via `mounts:`) if a
-# container needs in-VM inotify for hot-reload.
-- name: Check for colima config file
-  ansible.builtin.stat:
-    path: "{{ ansible_facts.env.HOME }}/.colima/default/colima.yaml"
-  register: services_colima_config
-  when: inventory_hostname == 'personal'
-  tags: [services, colima]
-
-- name: Disable colima mountInotify to avoid Gatekeeper verify churn
-  ansible.builtin.lineinfile:
-    path: "{{ ansible_facts.env.HOME }}/.colima/default/colima.yaml"
-    regexp: "^mountInotify:.*$"
-    line: "mountInotify: false"
-  register: services_colima_inotify
-  when:
-    - inventory_hostname == 'personal'
-    - services_colima_config.stat.exists
-  tags: [services, colima]
-
-# brew services restart is safe for colima (unlike ollama): colima's formula
-# service block is a bare `colima start -f` with no custom plist keys to lose on
-# regeneration. The restart makes `colima start` re-read the edited colima.yaml.
-- name: Restart colima to apply mountInotify change
-  ansible.builtin.command:
-    cmd: brew services restart colima
-  register: services_colima_restart
-  changed_when: "'Successfully' in services_colima_restart.stdout"
-  when:
-    - inventory_hostname == 'personal'
-    - services_colima_inotify is changed
-  tags: [services, colima]
-
-- name: Wait for colima to be ready after restart
-  ansible.builtin.command:
-    cmd: colima status
-  register: services_colima_status_post
-  until: services_colima_status_post.rc == 0
-  retries: 30
-  delay: 2
-  changed_when: false
-  when:
-    - inventory_hostname == 'personal'
-    - services_colima_inotify is changed
-  tags: [services, colima]
+- name: Apply the macOS-only service configuration
+  ansible.builtin.import_tasks: darwin.yml
