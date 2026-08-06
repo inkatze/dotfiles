@@ -33,12 +33,14 @@ tags = ["hostname", "req-f1.1"]
 # The second group below is a different exemption class and worth keeping
 # distinct: repo-owned FILENAMES that happen to end in a private-TLD label.
 # `internal-hostname` matches any dotted `<label>.local`-style string, and it
-# cannot tell a machine name from a path this repo declares itself. These three
+# cannot tell a machine name from a path this repo declares itself. These four
 # are files, not hosts:
 #
 #   ~/.ssh/config.local              machine-local ssh host aliases (roles/ssh)
 #   roles/ssh/files/config.lan.tpl   the committed op-inject template for it
 #   .claude/planwright.local.yml     planwright's per-repo config override
+#   mise.local.toml                  machine-local mise env at the repo root,
+#                                    carrying this host's absolute paths
 #
 # Each is already referenced across tracked files (roles/ssh/README.md, both
 # CLAUDE.md copies, specs/pair-flow), so without this the rule blocks any commit
@@ -54,4 +56,5 @@ regexes = [
   '''^config\.local$''',
   '''^config\.lan$''',
   '''^planwright\.local$''',
+  '''^mise\.local$''',
 ]
