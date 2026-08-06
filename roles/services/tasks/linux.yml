@@ -1,0 +1,50 @@
+---
+
+# The shared dev-services lifecycle (specs/dev-services, D-1 and D-5). Every
+# task below reads the declaration in defaults/main.yml and names no service,
+# which is the whole of REQ-B1.1: adding one is a declaration edit, not a
+# control-flow edit.
+#
+# The guard sits on the block rather than on the import in main.yml so it
+# travels with the file it guards -- importing this file on its own is still
+# safe, which is what lets scripts/services-declaration-test.sh assert the
+# guard by running it directly.
+- name: Provision the declared dev services
+  when: ansible_facts.os_family == "Debian"
+  tags: [services]
+  block:
+    - name: Install the declared dev-service packages
+      ansible.builtin.apt:
+        name: "{{ services_dev_services | map(attribute='package') | list }}"
+        state: present
+        update_cache: true
+        # Two runs back to back are the convergence check (REQ-C1.1), and a
+        # cache refresh reports changed. An hour's validity keeps the second
+        # run clean without letting a stale list defer a first install.
+        cache_valid_time: 3600
+      become: true
+
+    - name: Enable and start the declared dev services
+      ansible.builtin.systemd_service:
+        name: "{{ item.unit }}"
+        enabled: true
+        state: started
+      become: true
+      loop: "{{ services_dev_services }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    # Not ceremony after the step above. A distribution meta unit can be a
+    # oneshot whose ExecStart is /bin/true, which systemd reports active
+    # whether or not anything is accepting connections; asserting the declared
+    # address and port is what makes "started" mean something. It is also the
+    # only step that checks the declaration against reality, so a wrong port
+    # or a service that binds somewhere unexpected fails here (REQ-B1.1).
+    - name: Verify the declared dev services are listening
+      ansible.builtin.wait_for:
+        host: "{{ item.listen_address }}"
+        port: "{{ item.listen_port }}"
+        timeout: 30
+      loop: "{{ services_dev_services }}"
+      loop_control:
+        label: "{{ item.name }}"

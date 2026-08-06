@@ -65,6 +65,15 @@ jobs:
           - role: environments
             brew_deps: "fish gpg"
             strict_idempotency: false
+          # The `services` role's first CI coverage on either platform. It runs
+          # here to prove the negative: a macOS host provisions none of the
+          # declared Linux services, so a missing or wrong os_family guard
+          # surfaces as an attempt to install apt packages on a Mac
+          # (specs/dev-services REQ-B1.4). Strict, so the role is held to the
+          # same convergence bar as everything else (REQ-C1.1).
+          - role: services
+            brew_deps: ""
+            strict_idempotency: true
           - role: upgrade
             brew_deps: "mas fish tmux"
             strict_idempotency: false
