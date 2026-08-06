@@ -72,7 +72,8 @@ case "${LC_ALL:-${LANG:-}}" in
 esac
 
 # ---------------------------------------------------------------------------
-# 1-6. Structural assertions over the declaration and the task files.
+# Declaration and lifecycle: structural assertions over the declared list
+# and the role's task files.
 # ---------------------------------------------------------------------------
 
 structural_rc=0
@@ -95,7 +96,7 @@ def bad(name, msg):
     failed.append(name)
 
 
-# 1. REQ-B1.1 -- the list exists, parses, and is not empty.
+# declaration-exists (REQ-B1.1) -- the list exists, parses, and is not empty.
 if not defaults_path.is_file():
     bad("declaration-exists", f"{defaults_path} does not exist")
     sys.exit(1)
@@ -106,7 +107,8 @@ if not isinstance(declared, list) or not declared:
     sys.exit(1)
 ok("declaration-exists", f"{len(declared)} service(s) declared")
 
-# 2. REQ-B1.2 -- every entry carries the fields the requirement names.
+# declaration-fields (REQ-B1.2) -- every entry carries the fields the
+# requirement names.
 required = ("name", "package", "unit", "listen_address", "listen_port")
 missing = {
     entry.get("name", f"#{i}"): [f for f in required if not entry.get(f)]
@@ -120,7 +122,8 @@ elif not all(isinstance(e["listen_port"], int) for e in declared):
 else:
     ok("declaration-fields", f"every entry carries {', '.join(required)}")
 
-# 3. REQ-A1.3 -- a declared service is expected on loopback, never on a
+# declaration-loopback (REQ-A1.3) -- a declared service is expected on
+# loopback, never on a
 # routable interface. The declaration is what the verify step asserts against,
 # so a wrong address here would certify the wrong thing.
 loopback = {"127.0.0.1", "::1", "localhost"}
@@ -130,7 +133,7 @@ if offenders:
 else:
     ok("declaration-loopback", "every declared listen address is loopback")
 
-# 4-6 read the Linux lifecycle file.
+# The lifecycle cases below all read the Linux lifecycle file.
 linux_path = tasks_dir / "linux.yml"
 if not linux_path.is_file():
     bad("lifecycle-file", f"{linux_path} does not exist")
@@ -142,7 +145,8 @@ if not lifecycle:
     bad("lifecycle-file", "no lifecycle tasks found")
     sys.exit(1)
 
-# 4. REQ-B1.1 -- every lifecycle task reads the declaration. A task that does
+# lifecycle-declaration-driven (REQ-B1.1) -- every lifecycle task reads the
+# declaration. A task that does
 # not is one the declaration cannot drive.
 undriven = [
     t.get("name", "<unnamed>")
@@ -154,7 +158,8 @@ if undriven:
 else:
     ok("lifecycle-declaration-driven", f"all {len(lifecycle)} lifecycle task(s) read the declaration")
 
-# 5. REQ-B1.1 -- "adding a service requires no task edit" is exactly the
+# no-per-service-branching (REQ-B1.1) -- "adding a service requires no task
+# edit" is exactly the
 # property that no task file names a service. Checked against every declared
 # identifier, in every task file, so a per-service branch cannot hide in one.
 # Against the parsed document rather than the raw text: the requirement is
@@ -172,7 +177,8 @@ if named:
 else:
     ok("no-per-service-branching", "no task file names any declared service")
 
-# 6. REQ-B1.1 -- all four lifecycle steps are present. Asserted by the module
+# lifecycle-steps-present (REQ-B1.1) -- all four steps are present. Asserted
+# by the module
 # each step must use, since a step's absence is otherwise invisible: a role
 # that installs and starts but never verifies still converges green.
 modules = {k for t in lifecycle for k in t if k.startswith("ansible.builtin.")}
@@ -192,7 +198,8 @@ if absent:
 else:
     ok("lifecycle-steps-present", "install, enable, start and verify all present")
 
-# 7. Both platform files have to be reachable from the role's entry point.
+# platform-files-imported -- both platform files have to be reachable from
+# the role's entry point.
 # The behavioural cases below import each leaf file directly, which is what
 # makes them isolated -- and is also why they cannot notice an import being
 # dropped from main.yml. Nothing else would: a role that silently stopped
@@ -215,7 +222,7 @@ if [[ "$structural_rc" -ne 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 7-8. REQ-B1.4, behavioural. Each direction imports one platform's task file
+# Guards (REQ-B1.4), behavioural. Each direction imports one platform's task file
 # under the other platform's `os_family` and asserts the play executed nothing:
 # `ok=0 changed=0 failed=0` with a non-zero skip count. A missing guard shows
 # up as an executed or failed task, never as a pass.
@@ -313,7 +320,7 @@ assert_tag_selects "services-tag-selects" "services" '^ *services :' "task(s) in
 assert_tag_selects "colima-tag-selects" "colima" 'TAGS: \[colima' "colima task(s)"
 
 # ---------------------------------------------------------------------------
-# 9-10. CI matrix. The entry is what turns 7 from a review into a run, and
+# CI matrix. The entry is what turns the guards from a review into a run, and
 # REQ-E1.4 is the constraint that buying it must cost no pre-existing coverage.
 # ---------------------------------------------------------------------------
 
