@@ -303,9 +303,12 @@ scripts/gitleaks-identifier-rules.sh --check   # assert the block is current
 ```
 
 Absence degrades visibly in the strong sense here: the generator refuses with
-a non-zero exit for an absent, empty, or unparseable file rather than emitting
-a rule set covering fewer identifiers (REQ-D1.4). A hygiene guard that quietly
-matches less than intended is worse than one that refuses to run.
+a non-zero exit for a file that is absent, empty, unparseable, or readable
+beyond its owner, rather than emitting a rule set covering fewer identifiers
+(REQ-D1.4). A hygiene guard that quietly matches less than intended is worse
+than one that refuses to run. The mode is enforced rather than assumed, the
+same posture `scripts/ssh-lan-config-sync.sh` takes toward
+`op-service-account-token`, so `chmod 600` it on creation.
 
 `slack-users.json` is untracked for a different reason than the others: it is
 not a secret, but it holds *other people's* email-derived identities. This repo

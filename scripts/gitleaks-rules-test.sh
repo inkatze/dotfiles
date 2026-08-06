@@ -21,7 +21,8 @@
 #        rejects a hand edit inside the generated block (REQ-D1.5),
 #   12.  the generated config is one gitleaks can actually load,
 #   13.  --help prints the header block and no code,
-#   14.  the block committed in .gitleaks.toml matches a fresh generation
+#   14.  a source file with looser permissions than 0600 is refused,
+#   15.  the block committed in .gitleaks.toml matches a fresh generation
 #        (REQ-D1.5) — skipped, visibly, on a machine with no source file.
 #
 # Not wired into CI/lefthook (those run the scanner itself, not this test);
@@ -147,15 +148,18 @@ gen_refuses() {
 gen_refuses "gen-absent" "$workdir/no-such-file" "absent"
 
 printf '# only a comment\n\n' >"$workdir/empty-src"
+chmod 0600 "$workdir/empty-src"
 gen_refuses "gen-empty" "$workdir/empty-src" "no identifiers"
 
 printf 'validname\nnot a valid identifier!\n' >"$workdir/bad-src"
+chmod 0600 "$workdir/bad-src"
 gen_refuses "gen-unparseable" "$workdir/bad-src" "unparseable"
 
 # 8. REQ-D1.5: the byte-for-byte check below is only meaningful if output does
 # not depend on incidental input order or case.
 printf 'beta\nAlpha\n' >"$workdir/order-a"
 printf 'alpha\nbeta\nALPHA\n' >"$workdir/order-b"
+chmod 0600 "$workdir/order-a" "$workdir/order-b"
 if diff -q <("$gen" --source "$workdir/order-a" --stdout) \
     <("$gen" --source "$workdir/order-b" --stdout) >/dev/null 2>&1; then
     echo "ok[gen-deterministic]: same set in two orders produced identical output"
@@ -178,6 +182,7 @@ git -C "$fix" -c user.email=test@example.invalid -c user.name=test \
     commit -qm "fixture"
 
 printf 'acmeproj\n' >"$workdir/fixture-src"
+chmod 0600 "$workdir/fixture-src"
 {
     printf 'title = "fixture"\n'
     "$gen" --source "$workdir/fixture-src" --repo-root "$fix" --stdout
@@ -290,7 +295,22 @@ else
     fails=$((fails + 1))
 fi
 
-# 14. REQ-D1.5: what is committed is what the generator produces. Skipped
+# 14. REQ-D1.4 / Done-when: the source must carry the mode it is documented
+# to have. Same posture as scripts/ssh-lan-config-sync.sh, which refuses to
+# read its machine-local file unless it is 600 or 400.
+cp "$workdir/fixture-src" "$workdir/loose-src"
+chmod 0644 "$workdir/loose-src"
+gen_refuses "gen-loose-mode" "$workdir/loose-src" "mode"
+
+chmod 0600 "$workdir/loose-src"
+if "$gen" --source "$workdir/loose-src" --stdout >/dev/null 2>&1; then
+    echo "ok[gen-accepts-0600]: a 0600 source is accepted"
+else
+    echo "FAIL[gen-accepts-0600]: a 0600 source was refused" >&2
+    fails=$((fails + 1))
+fi
+
+# 15. REQ-D1.5: what is committed is what the generator produces. Skipped
 # visibly rather than silently where the machine-local source is absent --
 # the assertion needs the real set, which by REQ-D1.4 lives off the repo.
 identifier_src="${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/private-identifiers"
