@@ -11,3 +11,8 @@ roles/fish/files/fish/conf.d
 roles/fish/files/fish/functions/_*
 roles/fish/files/fish/functions/fisher.fish
 .claude/
+mise.local.toml
+# planwright's per-spec orchestration runtime state (dispatch markers, lock).
+# Runtime, never tracked: every /orchestrate run would otherwise leave the
+# working tree dirty.
+specs/*/.orchestrate/

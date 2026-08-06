@@ -1,4 +1,10 @@
 #!/bin/bash
+# shellcheck disable=SC2154
+# ^ dracut sources this file with `initdir`, `moddir` and
+# `systemdsystemunitdir` already set -- they are the dracut module API, not
+# locals this script forgot to assign, so SC2154 is a false positive here and
+# is silenced for the file rather than at each of its three call sites.
+#
 # A dropbear SSH server inside the initrd, so the LUKS root can be unlocked
 # over the LAN instead of at the physical console (specs/linux-migration
 # Task 8, REQ-B1.7). Managed by roles/linux; installed to
