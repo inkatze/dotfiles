@@ -4,6 +4,16 @@
 # their block, so the platform logic sits in the file it applies to rather
 # than here (specs/dev-services, REQ-B1.4). Nothing in this role runs on both
 # platforms any more.
+#
+# import_tasks, NOT include_tasks, and deliberately against the grain of the
+# rest of this repo. The other roles include dynamically and carry the tag on
+# the include statement; the tags here live on the tasks inside these two
+# files, and a dynamic include is opaque to the tag selector, so `-t services`
+# would match nothing and select no tasks at all. That failure is silent --
+# `mise run services` exits 0 having done nothing -- which is why it is
+# written down here and asserted by scripts/services-declaration-test.sh
+# rather than left for someone to rediscover while tidying this file toward
+# the majority idiom.
 - name: Provision the declared dev services on Linux
   ansible.builtin.import_tasks: linux.yml
 

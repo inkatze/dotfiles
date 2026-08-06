@@ -282,6 +282,31 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# The role's tags must actually select its tasks. `mise run services` is
+# `playbook.sh -t services`, so a tag that selects nothing is a role that
+# silently does nothing while exiting 0 -- no failure, no output, no service.
+# The live hazard is roles/services/tasks/main.yml's import_tasks: this repo
+# mostly uses include_tasks, which is opaque to the tag selector, and swapping
+# to it here drops both selections to zero. Asserted rather than commented so
+# tidying that file toward the majority idiom fails here instead of on a host.
+# ---------------------------------------------------------------------------
+
+# assert_tag_selects <name> <tag> <grep-pattern> <what>
+assert_tag_selects() {
+    local name="$1" tag="$2" pattern="$3" what="$4" count
+    count=$( (cd "$repo_root" && ansible-playbook main.yml --list-tasks -t "$tag" 2>/dev/null) |
+        grep -c "$pattern" || true)
+    if [[ "$count" -eq 0 ]]; then
+        fail "$name" "\`-t $tag\` selected no $what; the role would run silently empty"
+    else
+        pass "$name" "\`-t $tag\` selects $count $what"
+    fi
+}
+
+assert_tag_selects "services-tag-selects" "services" '^ *services :' "task(s) in the role"
+assert_tag_selects "colima-tag-selects" "colima" 'TAGS: \[colima' "colima task(s)"
+
+# ---------------------------------------------------------------------------
 # 9-10. CI matrix. The entry is what turns 7 from a review into a run, and
 # REQ-E1.4 is the constraint that buying it must cost no pre-existing coverage.
 # ---------------------------------------------------------------------------
