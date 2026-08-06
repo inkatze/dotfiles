@@ -140,7 +140,22 @@ its protection rather than audited after the fact (D-8).
 
 ## Awaiting input
 
-(none yet)
+- **Task 1** — The guard's mechanism is built, tested and committed, but the
+  rules themselves cannot be generated unattended: they are derived from the
+  machine-local identifier file REQ-D1.4 requires, that file does not exist on
+  this host, and the identifiers it holds are deliberately absent from every
+  artifact a worker can read (REQ-D1.1 keeps them out of the bundle, and D-9
+  keeps them out of the repo). Inventing a set would produce exactly the
+  silently-narrower rule set REQ-D1.4 forbids, so the generator refuses
+  instead, which is the behaviour asserted by the tests. **Operator action,
+  once:** create `~/.config/dotfiles/private-identifiers`, mode 0600, one
+  identifier per line; run `scripts/gitleaks-identifier-rules.sh --write`;
+  commit the generated block in `.gitleaks.toml`. Every later run is a
+  re-run rather than a question, which is the property D-9 chose the file
+  for. Until then REQ-D1.2 and REQ-D1.3 are unsatisfied and Task 1's first
+  two Done-when clauses are unmet on this host, so the bundle's remaining
+  tasks do not yet ship under the protection D-8 ordered Task 1 first to
+  provide.
 
 ## Deferred
 
