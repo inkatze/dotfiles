@@ -46,6 +46,11 @@ fail() {
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 
+if ! command -v ansible-playbook >/dev/null 2>&1; then
+    echo "FAIL: ansible-playbook not on PATH; the guard cases below need it" >&2
+    exit 1
+fi
+
 if ! python3 -c 'import yaml' 2>/dev/null; then
     echo "FAIL: PyYAML is unavailable; it ships with ansible's dependencies" >&2
     exit 1
