@@ -2,28 +2,34 @@
 # Test for the `services` role's declared dev-services layer (specs/dev-services
 # Task 2, D-1 and D-5). Makes Task 2's Done-when checkable rather than reviewed:
 #
-#   1.  the role declares a non-empty service list (REQ-B1.1),
-#   2.  every entry carries package, unit, listen address and listen port
-#       (REQ-B1.2),
-#   3.  every declared listen address is loopback (REQ-A1.3),
-#   4.  every lifecycle task is driven from the declaration (REQ-B1.1),
-#   5.  no task file names any declared service, so adding one is a
-#       declaration edit rather than a control-flow edit (REQ-B1.1),
-#   6.  all four lifecycle steps -- install, enable, start, verify -- are
-#       present (REQ-B1.1),
-#   7.  the Linux lifecycle provisions nothing on a macOS host (REQ-B1.4),
-#   8.  the role's macOS-only content, `~/.my.cnf` included, runs on no Linux
-#       host (REQ-B1.4),
-#   9.  the macOS CI matrix carries a `services` entry at strict idempotency,
-#       which is what makes 7 executable rather than reviewed (REQ-B1.4),
-#   10. this branch modifies no pre-existing matrix entry and no step
-#       definition shared across the matrix (REQ-E1.4).
+# Grouped rather than enumerated, so adding a case does not silently leave a
+# numbered list here describing a different test than the one below. Each case
+# prints its own `ok[name]` line; that output is the authoritative inventory.
 #
-# 7 and 8 are behavioural: they run the role's task files under a stubbed
-# `os_family` and assert nothing executed. That is the same guard the macOS
-# matrix entry exercises on a real runner, run here in a second and without
-# one. The reverse direction -- that the lifecycle does provision on Linux --
-# needs a real Linux runner and belongs to Task 6's job.
+#   Declaration  -- the list is non-empty (REQ-B1.1), every entry carries
+#                   package, unit, listen address and listen port (REQ-B1.2),
+#                   and every declared address is loopback (REQ-A1.3).
+#   Lifecycle    -- every task is driven from the declaration and none names a
+#                   service, so adding one is a declaration edit rather than a
+#                   control-flow edit; all four steps (install, enable, start,
+#                   verify) are present; both platform files are reachable
+#                   from the role's entry point (REQ-B1.1).
+#   Guards       -- the Linux lifecycle provisions nothing on a macOS host, and
+#                   the role's macOS-only content, `~/.my.cnf` included, runs
+#                   on no Linux host (REQ-B1.4).
+#   Tags         -- `-t services` and `-t colima` each select the tasks they
+#                   name, since a tag selecting nothing is a role that exits 0
+#                   having done nothing at all.
+#   CI matrix    -- a `services` entry runs at strict idempotency, which is
+#                   what makes the guards executable rather than reviewed
+#                   (REQ-B1.4), and this branch modifies no pre-existing entry
+#                   and no shared step definition (REQ-E1.4).
+#
+# The guard cases are behavioural: they run the role's task files under a
+# stubbed `os_family` and assert nothing executed. That is the same guard the
+# macOS matrix entry exercises on a real runner, run here in a second and
+# without one. The reverse direction -- that the lifecycle does provision on
+# Linux -- needs a real Linux runner and belongs to Task 6's job.
 #
 # Not wired into CI/lefthook (CI runs the role itself, which is the stronger
 # signal); run manually: `scripts/services-declaration-test.sh`.
