@@ -157,6 +157,29 @@ its protection rather than audited after the fact (D-8).
   tasks do not yet ship under the protection D-8 ordered Task 1 first to
   provide.
 
+- **Task 2** — The unit is implemented, converged and pushed as draft PR #100,
+  and every clause of its Done-when is verified locally except one: "the new
+  matrix entry passes twice with zero changed tasks on the second run" needs
+  CI, and **no workflow run was created for the head commit at all**. Sixteen
+  minutes after the PR opened, `actions/runs?head_sha=` and `check-suites`
+  both report zero, which is not queue latency — GitHub creates the suite
+  within seconds even when the run then queues. Actions is enabled
+  (`allowed_actions: all`) and the `test` workflow is `active`, the base is
+  `main` so the `pull_request` branch filter matches, and other branches
+  produced runs earlier today. The leading hypothesis is exhausted Actions
+  minutes: the macOS runners this matrix uses bill at a 10x multiplier, and
+  today's runs alone total roughly two hours of them. That is unconfirmed —
+  the billing endpoint needs the `user` OAuth scope this host's token lacks,
+  and re-authorizing a credential is not something an unattended worker
+  should do. **Operator action:** check the Actions usage/spending limit for
+  the account; if that is the cause, raising the limit and re-running the
+  workflow on PR #100 is the whole fix, since nothing about the diff is
+  implicated. Everything else is green locally — `mise run lint`,
+  `lefthook run pre-commit`, `shellcheck`, and
+  `scripts/services-declaration-test.sh` (all assertions, each
+  mutation-tested). REQ-E1.4 in particular is verified without CI: the
+  workflow diff is nine added lines and zero removed.
+
 ## Deferred
 
 (none yet)
