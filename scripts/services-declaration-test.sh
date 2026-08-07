@@ -505,7 +505,11 @@ root, listing = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 pattern = re.compile(r"pg_hba|postgresql\.conf|listen_addresses")
 hits = []
 
-for rel in listing.read_text().split():
+# splitlines(), not split(): git prints one path per line, and a path
+# containing a space would otherwise arrive as two nonexistent ones -- both of
+# which fail the is_file() check below and vanish from the scan silently. No
+# such path is tracked today, which is exactly why this would go unnoticed.
+for rel in filter(None, listing.read_text().splitlines()):
     path = root / rel
     # A file *named* for the configuration is one shipped to be copied into
     # place, which is managing it in the most direct way there is.
