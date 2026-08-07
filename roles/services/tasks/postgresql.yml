@@ -42,6 +42,20 @@
 #
 # `argv` rather than a command string throughout, so no shell parses any of
 # this and the account name cannot become anything but one argument.
+#
+# The SQL arrives on **stdin**, not through `--command`, and that is load-
+# bearing rather than stylistic. psql sends a `-c` string to the server as a
+# single request without parsing it itself, so the `:'rolname'` and
+# `:"rolname"` interpolations below never happen there: the server receives
+# the literal text and answers `syntax error at or near ":"`. Variable
+# interpolation is performed on stdin and `-f` input, which is why the queries
+# moved here. (Postgres 18 psql docs; observed as a hard failure the first time
+# these tasks ran on a Linux host, in specs/dev-services Task 6's CI job --
+# nothing before that had ever executed them.)
+#
+# The alternative was to paste the account name into the SQL, which is exactly
+# the shape the note further down refuses. Moving the query to stdin keeps
+# `--set` as the only route the name takes.
 
 - name: Check whether the invoking account already has a database role
   ansible.builtin.command:
@@ -58,7 +72,7 @@
       - --dbname=postgres
       - --set=ON_ERROR_STOP=1
       - --set=rolname={{ ansible_facts.user_id }}
-      - "--command=SELECT 1 FROM pg_roles WHERE rolname = :'rolname'"
+    stdin: "SELECT 1 FROM pg_roles WHERE rolname = :'rolname'"
   become: true
   register: services_postgresql_role
   # Reads nothing and writes nothing, so it reports no change and runs even
@@ -80,7 +94,7 @@
       - --dbname=postgres
       - --set=ON_ERROR_STOP=1
       - --set=rolname={{ ansible_facts.user_id }}
-      - '--command=CREATE ROLE :"rolname" LOGIN CREATEDB'
+    stdin: 'CREATE ROLE :"rolname" LOGIN CREATEDB'
   become: true
   # The existence query above is what makes this converge: `CREATE ROLE` on an
   # existing role is an error, not a no-op, so a second run has to not reach
