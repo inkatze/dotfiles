@@ -338,6 +338,26 @@ fi
 # form Task 4's Done-when is written in. Addresses are discovered rather than
 # named: this repo is public, and the host's own addresses are not something to
 # commit (REQ-D1.1's posture, and the repo guide's machine-local rule).
+probe() {
+    timeout 5 bash -c 'exec 3<>/dev/tcp/'"$1"'/'"$2"'' 2>/dev/null
+}
+
+# A refusal-counting assertion is only as good as its ability to connect at
+# all. If the probe mechanism were broken -- a bash without /dev/tcp support,
+# an address form it cannot parse -- every probe would fail, every failure
+# would read as a refusal, and the assertion would pass by never having tested
+# anything. So the mechanism is first pointed at the address the server is
+# known to be listening on, where it must succeed. Same reasoning as
+# scripts/services-declaration-test.sh asserting that a tag selects a non-zero
+# number of tasks: a check that can only pass is not a check.
+if probe "$declared_address" "$declared_port"; then
+    pass "probe-positive-control" \
+        "the connection probe reaches $declared_address:$declared_port, so a refusal below means a refusal"
+else
+    fail "probe-positive-control" \
+        "the connection probe cannot reach the declared address; the refusal assertion below proves nothing"
+fi
+
 mapfile -t host_addresses < <(ip -o addr show scope global 2>/dev/null |
     awk '{split($4, a, "/"); print a[1]}')
 if [[ "${#host_addresses[@]}" -eq 0 ]]; then
@@ -346,7 +366,7 @@ if [[ "${#host_addresses[@]}" -eq 0 ]]; then
 else
     reachable=()
     for address in "${host_addresses[@]}"; do
-        if timeout 5 bash -c "exec 3<>/dev/tcp/$address/$declared_port" 2>/dev/null; then
+        if probe "$address" "$declared_port"; then
             reachable+=("$address")
         fi
     done
