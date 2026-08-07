@@ -279,24 +279,44 @@ listening=$(ss -Hltn "sport = :$declared_port" | awk '{print $4}')
 if [[ -z "$listening" ]]; then
     fail "listening" "nothing is listening on port $declared_port"
 else
-    non_loopback_binds=$(python3 - "$declared_port" <<PY
+    # Both questions -- are all the binds loopback, and is the declared one
+    # among them -- are answered where the addresses are already parsed. Doing
+    # the second with a regex over the raw `ss` output was the weaker half: it
+    # escaped dots and anchored on them, so it only ever understood dotted
+    # IPv4, and a declaration naming `::1` would have been reported as missing
+    # from a socket list that contained it, since `ss` writes IPv6 bracketed.
+    # `ipaddress` compares addresses as addresses, so the two forms of the same
+    # address agree and no escaping is involved.
+    bind_report=$(python3 - "$declared_address" <<PY
 import ipaddress, sys
 
-port = sys.argv[1]
-bad = []
+declared = ipaddress.ip_address(sys.argv[1])
+wildcards = {"*", "0.0.0.0", "::"}
+non_loopback = []
+declared_found = False
+
 for entry in """$listening""".split():
     host = entry.rsplit(":", 1)[0].strip("[]")
-    if host in ("*", "0.0.0.0", "::"):
-        bad.append(entry)
+    if host in wildcards:
+        non_loopback.append(entry)
         continue
     try:
-        if not ipaddress.ip_address(host).is_loopback:
-            bad.append(entry)
+        address = ipaddress.ip_address(host)
     except ValueError:
-        bad.append(entry)
-print(" ".join(bad))
+        non_loopback.append(entry)
+        continue
+    if not address.is_loopback:
+        non_loopback.append(entry)
+    if address == declared:
+        declared_found = True
+
+print("yes" if declared_found else "no")
+print(" ".join(non_loopback))
 PY
     )
+    declared_found=$(sed -n 1p <<<"$bind_report")
+    non_loopback_binds=$(sed -n 2p <<<"$bind_report")
+
     if [[ -n "$non_loopback_binds" ]]; then
         fail "bind-loopback-only" \
             "port $declared_port is bound at non-loopback address(es): $non_loopback_binds"
@@ -305,7 +325,7 @@ PY
             "every socket on port $declared_port is bound to a loopback address"
     fi
 
-    if grep -qE "(^|[^0-9.])${declared_address//./\\.}:${declared_port}\$" <<<"$listening"; then
+    if [[ "$declared_found" == yes ]]; then
         pass "bind-declared" "listening at the declared $declared_address:$declared_port"
     else
         fail "bind-declared" \
