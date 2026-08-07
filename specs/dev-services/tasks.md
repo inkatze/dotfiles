@@ -249,8 +249,13 @@ its protection rather than audited after the fact (D-8).
   description in the repo guide, the playbook's roles comment and the
   `mise run services` blurb all describe the platform-dispatched role it now
   is. `scripts/stale-declarations-test.sh` is the executable form of both
-  clauses, and every one of its four assertions was mutation-tested. What is
-  **not** applied is where that script runs from. `test-spec.md` pins REQ-B1.5
+  clauses: it asserts the absence of the old claim and, separately, that each
+  corrected description is still present, since checking only the negative half
+  would let a later tidy-up delete the correction and still report green. Every
+  assertion was mutation-tested, and the scan carries a fixture that exercises
+  its own detector in both directions on every run, so the harness cannot go
+  quietly blind and keep reporting clean. What is **not** applied is where that
+  script runs from. `test-spec.md` pins REQ-B1.5
   as `[test]`, which spec-format defines as "runs in the repo's CI", so the
   wiring the tag asks for is a step in the `lint` job. That edits
   `.github/workflows/test.yml`, which is CI configuration and therefore a
