@@ -57,8 +57,8 @@ linux_apt_packages:
   - xsltproc           # Linux equivalent of the libxslt CLI
   # Headers for the mise toolchains that build from source. macOS gets these
   # transitively through Homebrew; on apt the runtime libs ship separately from
-  # their -dev headers, so a source build fails without them. The first two are
-  # observed failures on this host, not precaution:
+  # their -dev headers, so a source build fails without them. The first three
+  # are observed failures on this host, not precaution:
   #   libyaml-dev    ruby 3.4.2 -- psych could not configure ("fatal error:
   #                  yaml.h: No such file or directory"); ruby-build then fails
   #                  the whole build because --with-ext lists psych explicitly.
@@ -66,15 +66,35 @@ linux_apt_packages:
   #                  headers were missing.
   #   libreadline-dev  lua 5.1.5 -- src/lua.c includes <readline/readline.h>
   #                  and make dies at lua.o.
+  #   libssl-dev     erlang 28.3 -- OTP's configure probes for this package by
+  #                  name, does not find the headers, and skips the crypto, ssl
+  #                  AND ssh applications. Same runtime-vs-headers split as
+  #                  libyaml above: libssl3t64 was already installed.
+  #
+  #                  Worse than the two above, because it is not a build
+  #                  failure. configure emits "WARNING: No (usable) OpenSSL
+  #                  found, skipping ssl, ssh and crypto applications" and the
+  #                  build then reports SUCCESS. mise installs a working-looking
+  #                  erlang whose crypto module simply does not exist, and the
+  #                  breakage surfaces much later as crypto:strong_rand_bytes/1
+  #                  raising undef -- no TLS listener, no hex fetch, and every
+  #                  Elixir project on the host inherits it.
+  #
+  #                  This line previously read "libssl-dev is deliberately
+  #                  absent: mise's ruby-build downloads and builds its own
+  #                  OpenSSL into the ruby prefix, so ruby does not need the
+  #                  system one." That is still true of ruby, and was the wrong
+  #                  thing to generalise from -- ruby-build vendors OpenSSL,
+  #                  erlang's configure does not. An absence justified by one
+  #                  toolchain silently broke another.
   # The last two are pre-emptive: they are ruby extensions built under
   # --with-ext=...,+ so a missing header skips them SILENTLY rather than
   # failing, surfacing much later as a gem that will not install.
   #   libffi-dev     fiddle, and the many gems that link libffi
   #   libgmp-dev     bignum acceleration
-  # libssl-dev is deliberately absent: mise's ruby-build downloads and builds
-  # its own OpenSSL into the ruby prefix, so ruby does not need the system one.
   - libyaml-dev
   - libreadline-dev
+  - libssl-dev
   - libffi-dev
   - libgmp-dev
 
