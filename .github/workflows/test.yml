@@ -134,8 +134,16 @@ jobs:
   # macos-latest, the scarcest hosted tier, and a runner shortage there took
   # this whole gate dark for hours during this bundle's execution. This job
   # queues on Ubuntu instead.
+  #
+  # Which is why it has no `needs:`, unlike the matrix above, whose `needs:
+  # lint` is what the duplicated linting here would otherwise buy. Gating this
+  # job on a macos-latest job would hand the Linux gate the exact dependency
+  # the paragraph above is about: the scarce tier back on the critical path,
+  # and the whole point of running on Ubuntu spent. The cost is that a
+  # yamllint or ansible-lint failure now burns an Ubuntu runner before it is
+  # noticed -- which is the cheap tier, and the failure still surfaces, just
+  # from the playbook rather than from the linter.
   services-linux:
-    needs: lint
     # Pinned, never `ubuntu-latest` (D-7): that alias still resolves to the
     # previous LTS, which ships different major versions of both declared
     # services. Green there would mean the provisioning works against packages
