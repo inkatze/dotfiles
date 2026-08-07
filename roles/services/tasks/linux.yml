@@ -13,6 +13,17 @@
   when: ansible_facts.os_family == "Debian"
   tags: [services]
   block:
+    # TEMPORARY -- specs/dev-services Task 6 Done-when, REQ-E1.2. This task
+    # reports `changed` on every run, so the convergence gate must fail the
+    # second run. Reverted in the very next commit; it exists only so the gate
+    # is observed failing rather than assumed to work. An idempotency gate that
+    # has never been seen to go red is indistinguishable from one that cannot.
+    - name: Deliberate non-idempotent task, reverted immediately
+      ansible.builtin.file:
+        path: /tmp/dev-services-idempotency-probe
+        state: touch
+        mode: "0644"
+
     - name: Install the declared dev-service packages
       ansible.builtin.apt:
         name: "{{ services_dev_services | map(attribute='package') | list }}"
