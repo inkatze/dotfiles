@@ -34,6 +34,14 @@ jobs:
       - name: Run syntax check
         run: ansible-playbook main.yml --syntax-check
 
+      # specs/dev-services REQ-B1.5, pinned as `[test]`. A repo-wide scan for
+      # tracked comments and docs still placing database services out of scope,
+      # plus the `services` role's own description. Lives in `lint` rather than
+      # in the role matrix: nothing is provisioned, and the assertion is over
+      # the checkout rather than over a run.
+      - name: Check for stale service declarations
+        run: scripts/stale-declarations-test.sh
+
   test:
     needs: lint
     runs-on: macos-latest
