@@ -744,6 +744,308 @@ if [[ "$matrix_rc" -ne 0 ]]; then
     fails=$((fails + 1))
 fi
 
+# ---------------------------------------------------------------------------
+# The Linux verification job (Task 6, REQ-E1.1, REQ-E1.2, REQ-E1.3, D-7). The
+# macOS matrix entry above proves the negative -- a Mac provisions none of this
+# -- and structurally cannot prove the positive, having neither apt nor
+# systemd. A separate Ubuntu job does that, and the job's own green run is the
+# verification (test-spec REQ-E1.1).
+#
+# What is checkable from a laptop is the job's *definition*, and the four
+# properties below are the ones a later edit could quietly drop while the job
+# kept passing: the release pin, the explicit host alias, the absence of any
+# secret, and -- the one that matters most -- that the second run is actually
+# *gated* rather than merely performed. The existing matrix runs the role twice
+# and inspects `changed=`; that inline form is what Task 2's convergence found
+# insufficient, since `changed=0` reads identically for a converged run and for
+# a run that selected no tasks at all. So the gate is a script here, and this
+# section asserts the job routes the second run through it.
+# ---------------------------------------------------------------------------
+
+linux_job_rc=0
+python3 - "$workflow" "$repo_root/mise.toml" <<'PY' || linux_job_rc=$?
+import pathlib
+import re
+import sys
+
+import yaml
+
+doc = yaml.safe_load(pathlib.Path(sys.argv[1]).read_text())
+failed = []
+
+
+def ok(name, msg):
+    print(f"ok[{name}]: {msg}")
+
+
+def bad(name, msg):
+    print(f"FAIL[{name}]: {msg}", file=sys.stderr)
+    failed.append(name)
+
+
+# Found by its runner rather than by its name, so the assertions below are
+# about the property the requirement names and not about an identifier this
+# test and the workflow would have to agree on twice.
+linux = {
+    jid: job
+    for jid, job in doc["jobs"].items()
+    if str(job.get("runs-on", "")).startswith("ubuntu")
+}
+if len(linux) != 1:
+    bad(
+        "linux-job-exists",
+        f"expected exactly one Ubuntu job running the provisioning, found {sorted(linux) or 'none'}",
+    )
+    sys.exit(1)
+job_id, job = next(iter(linux.items()))
+ok("linux-job-exists", f"`{job_id}` runs the provisioning on Ubuntu")
+
+steps = job.get("steps") or []
+runs = "\n".join(str(s.get("run", "")) for s in steps)
+
+
+def step_env(name):
+    """The value of an env var declared at job level or on any step."""
+    for scope in [job.get("env") or {}] + [s.get("env") or {} for s in steps]:
+        if name in scope:
+            return str(scope[name])
+    return None
+
+
+# linux-job-pinned (D-7) -- an explicit release label, never the `-latest`
+# alias, which resolves to the previous LTS and would exercise different major
+# versions of both services than the target host will ever install.
+label = str(job["runs-on"])
+release = label[len("ubuntu-"):]
+if not re.fullmatch(r"ubuntu-\d+\.\d+", label):
+    bad("linux-job-pinned", f"`runs-on: {label}` is not a pinned Ubuntu release label")
+elif release != "26.04":
+    # Hardcoded, and deliberately so: D-7 pins the label to the release read
+    # off the target host at kickoff (Ubuntu 26.04 LTS, `resolute`). A bump
+    # here is the reviewable moment the decision asks for, not a nuisance.
+    bad(
+        "linux-job-pinned",
+        f"pinned to `{label}`, but D-7 pins the runner to the target host's release (26.04)",
+    )
+else:
+    ok("linux-job-pinned", f"pinned to `{label}`, the target host's release (D-7)")
+
+# linux-job-release-asserted (REQ-E1.1, test-spec) -- the pin is only worth
+# having if the label still means what it says, so the job reads the release
+# back off the runner. The expected value is compared against `runs-on` here,
+# because two spellings of one release is exactly the pair that drifts.
+expected = step_env("EXPECTED_RELEASE")
+if expected is None:
+    bad(
+        "linux-job-release-asserted",
+        "no EXPECTED_RELEASE declared; nothing checks the label still means the release it names",
+    )
+elif expected != release:
+    bad(
+        "linux-job-release-asserted",
+        f"EXPECTED_RELEASE is {expected!r} but `runs-on: {label}` says {release!r}",
+    )
+elif "/etc/os-release" not in runs:
+    bad(
+        "linux-job-release-asserted",
+        "EXPECTED_RELEASE is declared but no step reads /etc/os-release to compare it against",
+    )
+else:
+    ok("linux-job-release-asserted", f"the job asserts the runner really is {release}")
+
+# linux-job-alias (Task 6 deliverable) -- set explicitly. Left unset, the
+# playbook wrapper falls back to the macOS alias and says so on stderr:
+# harmless, since `os_family` is what gates provisioning, and a misleading
+# thing to leave in the log of the job that exists to prove Linux works.
+alias = step_env("DOTFILES_HOST")
+if alias is None:
+    bad("linux-job-alias", "DOTFILES_HOST is not set; the wrapper would fall back to the macOS alias")
+elif alias != "server":
+    bad("linux-job-alias", f"DOTFILES_HOST is {alias!r}, not the Linux inventory alias 'server'")
+else:
+    ok("linux-job-alias", "the job names the Linux inventory alias explicitly")
+
+# linux-job-no-secrets (REQ-E1.3) -- the job references no `secrets` context,
+# and blanks the token the workflow-level env would otherwise hand every step.
+# The second half is what makes the requirement executable rather than
+# reviewed: with no credential in the environment, an authenticated fetch
+# cannot succeed by accident, so a later edit that adds one fails rather than
+# passing quietly. The workflow-level declaration itself is pre-existing and
+# REQ-E1.4 forbids touching it, so it is shadowed here instead.
+serialized = yaml.safe_dump(job)
+if "secrets." in serialized:
+    bad("linux-job-no-secrets", "the job references the `secrets` context")
+elif step_env("GITHUB_TOKEN") != "":
+    bad(
+        "linux-job-no-secrets",
+        "the job does not blank GITHUB_TOKEN, so it inherits the workflow-level token",
+    )
+else:
+    ok("linux-job-no-secrets", "the job references no secret and runs with no token in its environment")
+
+# linux-job-runs-twice (REQ-E1.2) -- provisioning, then the convergence re-run.
+provision_steps = [s for s in steps if "-t services" in str(s.get("run", ""))]
+if len(provision_steps) < 2:
+    bad(
+        "linux-job-runs-twice",
+        f"{len(provision_steps)} step(s) run the provisioning; REQ-E1.2 needs a second run to gate",
+    )
+else:
+    ok("linux-job-runs-twice", f"{len(provision_steps)} steps run the provisioning by tag")
+
+# linux-job-matches-mise-task -- the job calls the playbook wrapper directly
+# where the macOS matrix goes through `mise run <role>`, to keep its network
+# surface down to what REQ-E1.3 permits. That is only free while the two stay
+# the same command, and nothing else would notice them diverging: the mise task
+# is what a human runs, the job is what CI runs, and a change to either would
+# keep passing on its own terms.
+try:
+    import tomllib
+
+    mise = tomllib.loads(pathlib.Path(sys.argv[2]).read_text())
+    declared_run = " ".join((mise["tasks"]["services"]["run"]).split())
+except ImportError:
+    print(
+        "skip[linux-job-matches-mise-task]: tomllib is unavailable (needs Python 3.11+)",
+    )
+except (KeyError, OSError) as exc:
+    bad("linux-job-matches-mise-task", f"could not read mise.toml's `services` task: {exc}")
+else:
+    if not any(declared_run in " ".join(str(s.get("run", "")).split()) for s in provision_steps):
+        bad(
+            "linux-job-matches-mise-task",
+            f"no provisioning step runs mise's `services` task verbatim ({declared_run!r}); "
+            "CI and `mise run services` have drifted apart",
+        )
+    else:
+        ok("linux-job-matches-mise-task", f"the job runs mise's `services` task verbatim: {declared_run}")
+
+# linux-job-gated (REQ-E1.2, REQ-E1.1) -- the three assertions the job's green
+# result has to stand on. Named as paths so a rename cannot leave the job
+# quietly running one fewer of them.
+for name, script, why in (
+    ("gate", "scripts/ansible-idempotency-gate.sh", "the second run is not gated on convergence"),
+    ("runtime", "scripts/dev-services-runtime-test.sh", "nothing asserts the services are actually up"),
+    ("access", "scripts/postgresql-access-test.sh", "the invoking account's access is unverified"),
+):
+    if script not in runs:
+        bad(f"linux-job-{name}", f"no step runs {script}; {why}")
+    else:
+        ok(f"linux-job-{name}", f"the job runs {script}")
+
+if failed:
+    sys.exit(1)
+PY
+if [[ "$linux_job_rc" -ne 0 ]]; then
+    fails=$((fails + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# The convergence gate itself (REQ-E1.2, REQ-C1.1). Its whole job is to tell
+# three outcomes apart that a green log renders identically, so each is fed to
+# it here as a recap fixture rather than left to be discovered the one time it
+# matters:
+#
+#   converged   -- tasks ran and none changed. The only pass.
+#   changed     -- tasks ran and some changed. The failure the gate exists for.
+#   never ran   -- no task was selected at all, so `changed=0` is vacuously
+#                  true. This is Task 2's finding: a tag that stops matching,
+#                  or a guard that stops holding, silently converts the gate
+#                  into a no-op that keeps reporting success.
+#
+# The fourth case, no recap at all, is the same class as the third: nothing to
+# read, so nothing may be concluded.
+# ---------------------------------------------------------------------------
+
+gate="$repo_root/scripts/ansible-idempotency-gate.sh"
+if [[ ! -x "$gate" ]]; then
+    fail "gate-present" "$gate is missing or not executable"
+else
+    pass "gate-present" "the convergence gate is present and executable"
+
+    recap() {
+        printf 'PLAY RECAP %s\n%s\n' \
+            "*********************************************************" "$1"
+    }
+
+    gate_case() {
+        local name=$1 expect=$2 recap_line=$3 needle=$4 out rc=0
+        out=$(recap "$recap_line" | "$gate" 2>&1) || rc=$?
+        if [[ "$expect" == "pass" && "$rc" -ne 0 ]]; then
+            fail "$name" "the gate rejected a recap it should accept:
+$(sed 's/^/    /' <<<"$out")"
+        elif [[ "$expect" == "fail" && "$rc" -eq 0 ]]; then
+            fail "$name" "the gate accepted a recap it must reject:
+$(sed 's/^/    /' <<<"$out")"
+        elif [[ -n "$needle" ]] && ! grep -qi -- "$needle" <<<"$out"; then
+            fail "$name" "the gate's verdict does not name '$needle':
+$(sed 's/^/    /' <<<"$out")"
+        else
+            pass "$name" "the gate reports '$expect' for the $name fixture"
+        fi
+    }
+
+    gate_case "gate-converged" pass \
+        "server                     : ok=7    changed=0    unreachable=0    failed=0    skipped=2" ""
+    gate_case "gate-changed" fail \
+        "server                     : ok=7    changed=3    unreachable=0    failed=0    skipped=2" "changed"
+    gate_case "gate-never-ran" fail \
+        "server                     : ok=0    changed=0    unreachable=0    failed=0    skipped=0" "no task"
+    gate_case "gate-failed" fail \
+        "server                     : ok=5    changed=0    unreachable=0    failed=2    skipped=0" "failed"
+
+    no_recap_rc=0
+    no_recap_out=$(printf 'PLAY [Configure development environment] ***\n' | "$gate" 2>&1) ||
+        no_recap_rc=$?
+    if [[ "$no_recap_rc" -eq 0 ]]; then
+        fail "gate-no-recap" "the gate passed output containing no PLAY RECAP; it read nothing"
+    elif ! grep -qi 'recap' <<<"$no_recap_out"; then
+        fail "gate-no-recap" "the gate refused without naming the missing recap:
+$(sed 's/^/    /' <<<"$no_recap_out")"
+    else
+        pass "gate-no-recap" "the gate refuses output it cannot read a recap from"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# The runtime harness (REQ-E1.1). Like the access harness above, proving the
+# positive needs a provisioned host, so what is checkable here is that it
+# refuses visibly rather than passing vacuously when the units are absent.
+# ---------------------------------------------------------------------------
+
+runtime_test="$repo_root/scripts/dev-services-runtime-test.sh"
+if [[ ! -x "$runtime_test" ]]; then
+    fail "runtime-harness-present" "$runtime_test is missing or not executable"
+else
+    pass "runtime-harness-present" "the runtime harness is present and executable"
+
+    runtime_out="$workdir/runtime.out"
+    runtime_rc=0
+    "$runtime_test" >"$runtime_out" 2>&1 || runtime_rc=$?
+    if [[ "$runtime_rc" -eq 0 ]]; then
+        # A pass is only legitimate on a host where the provisioning has run,
+        # which is the CI job and the target host. Distinguished by asking the
+        # declaration's own first unit, so this stays correct if the list grows.
+        first_unit=$(python3 -c '
+import sys, yaml
+d = yaml.safe_load(open(sys.argv[1])) or {}
+print((d.get("services_dev_services") or [{}])[0].get("unit", ""))
+' "$defaults")
+        if [[ -n "$first_unit" ]] && systemctl is-active --quiet "$first_unit" 2>/dev/null; then
+            pass "runtime-harness-refuses" \
+                "the declared services are provisioned here, so the harness passed for real"
+        else
+            fail "runtime-harness-refuses" \
+                "the harness exited 0 with '$first_unit' inactive; it proved nothing"
+        fi
+    elif ! grep -qiE 'systemd|systemctl|not active|inactive|unit' "$runtime_out"; then
+        fail "runtime-harness-refuses" "the harness failed without naming what was missing:
+$(sed 's/^/    /' "$runtime_out")"
+    else
+        pass "runtime-harness-refuses" "the harness reports visibly with the services absent"
+    fi
+fi
+
 # REQ-E1.4 -- stated as a rule, so checked as one: this branch's diff against
 # the base may add lines to the workflow and remove none. A removal is either a
 # modified pre-existing entry or a modified shared step, and the requirement
