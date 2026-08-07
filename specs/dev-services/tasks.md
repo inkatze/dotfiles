@@ -208,6 +208,34 @@ its protection rather than audited after the fact (D-8).
   blocked behind the CI outage recorded in the Task 2 entry above, so the host
   route is the one that does not wait on anything.
 
+- **Task 3** — Convergence surfaced a finding in a hard-disqualifier zone, so
+  it is recorded here rather than applied: the fix grants a database privilege
+  and constructs SQL, and the gate does not let a worker take that decision
+  unattended however clear the fix looks. **The finding:** the setup guards
+  role creation on existence alone — `SELECT 1 FROM pg_roles WHERE rolname =
+  :'rolname'` — and `CREATE ROLE` errors on an existing role, so the guard is
+  what makes the task converge. But a role that already exists *without*
+  `CREATEDB` or `LOGIN` is then left exactly as it is: the run reports zero
+  changed tasks, and REQ-A1.4 is unmet. Green run, unmet requirement, which is
+  the failure shape worth stopping for. It is also specifically invisible to
+  the planned verification: `test-spec.md` pins REQ-C1.2 to Task 6's
+  idempotency re-run, and that second pass runs against a role this repo
+  created, which by construction has both attributes. On a fresh host nothing
+  is wrong; the case is a host where someone made a same-named role by hand,
+  which is precisely REQ-C1.2's "already provisioned" condition.
+  **Recommended fix**, unambiguous and confined to
+  `roles/services/tasks/postgresql.yml`: keep the existence query and the
+  guarded `CREATE ROLE`, and add a second guarded pair after it — query
+  `SELECT 1 FROM pg_roles WHERE rolname = :'rolname' AND rolcreatedb AND
+  rolcanlogin`, and on no result run `ALTER ROLE :"rolname" LOGIN CREATEDB`.
+  That converges the attributes rather than only the role's existence, which
+  is what `community.postgresql`'s own `postgresql_user` does and the reason
+  it is idempotent in the convergent sense rather than the create-once one.
+  Cost is one extra query per run and no change to the fresh-host path.
+  **Operator action:** approve the fix and it can land as a follow-up commit on
+  this branch, or direct otherwise if leaving a hand-made role untouched is the
+  preferred behaviour.
+
 ## Deferred
 
 (none yet)
