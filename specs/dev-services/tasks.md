@@ -255,8 +255,10 @@ its protection rather than audited after the fact (D-8).
   wiring the tag asks for is a step in the `lint` job. That edits
   `.github/workflows/test.yml`, which is CI configuration and therefore a
   hard-disqualifier zone, and this task's own REQs mandate no CI change (Task
-  2's matrix entry was different: REQ-E1.4 named it, so it was signed off at
-  kickoff). The zone screen fires, so the fix is recorded rather than applied.
+  2's matrix entry was different: its own Deliverables named it, so the CI edit
+  was signed off at kickoff; REQ-E1.4 is the constraint on that edit, not what
+  called for it). The zone screen fires, so the fix is recorded rather than
+  applied.
   **Recommended fix**, additions only, so REQ-E1.4 is untouched: append to the
   `lint` job in `.github/workflows/test.yml`, after the syntax-check step,
 

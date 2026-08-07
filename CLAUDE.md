@@ -255,12 +255,13 @@ and run on every host; driving their first Linux run clean is the
 `specs/linux-migration` Task 7 stabilization loop, not the platform split
 itself.
 
-`roles/services/` is the exception among those. It runs on every host and
+`roles/services/` is the exception to those. It runs on every host and
 carries no `when:` in `main.yml`, but it is not the same role on both
 platforms: its two task files guard themselves. On Debian it provisions the
 declared dev-services layer (`specs/dev-services`); on Darwin it applies the
-role's older macOS-only content (the `~/.my.cnf` symlink, the colima steps)
-and provisions none of the declared services. The declaration is
+role's older macOS-only content (the `~/.my.cnf` symlink, plus the colima
+steps on the `personal` host, which carry their own `inventory_hostname`
+guard) and provisions none of the declared services. The declaration is
 `roles/services/defaults/main.yml`, one entry per service carrying the
 package, the systemd unit, and the address and port the lifecycle verifies it
 on. Install, enable, start and verify are driven from that list and name no

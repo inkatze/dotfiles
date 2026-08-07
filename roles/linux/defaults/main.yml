@@ -168,6 +168,9 @@ linux_apt_packages:
   - jq
   - mosh
   - nnn
+  # The client half only. The Valkey server it talks to is not in this list:
+  # it is declared in roles/services/defaults/main.yml, per the databases and
+  # caches note at the bottom of this file.
   - redis-tools
 
   # Server baseline
@@ -230,13 +233,14 @@ linux_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
 #   and specs/dev-services declined a container runtime none of its services
 #   needed. colima is macOS-specific anyway — a Lima VM standing in for the
 #   native Linux containers this host would use.
-# - Databases and caches (mariadb, mysql, postgresql): no longer omitted on
-#   scope grounds. specs/dev-services declares PostgreSQL and Valkey, and the
-#   `services` role installs, enables, starts and verifies them from
-#   roles/services/defaults/main.yml. They stay absent from this list because
-#   that role owns their whole lifecycle, not because the host does not run
-#   them. mariadb and mysql are absent for a different reason: nothing
-#   declares them, and the Brewfile entries are the Macs' own.
+# - Databases and caches (postgresql, valkey-server, mariadb, mysql): the
+#   first two are no longer omitted on scope grounds. specs/dev-services
+#   declares PostgreSQL and Valkey, and the `services` role installs, enables,
+#   starts and verifies them from roles/services/defaults/main.yml. They stay
+#   absent from this list because that role owns their whole lifecycle, not
+#   because the host does not run them. mariadb and mysql are absent for a
+#   different reason: nothing declares them, and the Brewfile entries are the
+#   Macs' own.
 # - GUI casks (chrome, zoom, transmission, dbeaver, cyberduck): a separate
 #   call, and this host is heading toward headless server duty. steam was on
 #   this list until the eGPU landed and made gaming a real use of hardware the
