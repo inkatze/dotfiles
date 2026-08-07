@@ -70,7 +70,10 @@ fi
 # Emitted as tab-separated fields rather than parsed in bash, so a name
 # containing a space stays one field. Ordered as declared, so the output reads
 # in the same order as the file it came from.
-declaration=$(python3 - "$defaults" <<'PY'
+# stderr folded in, because that is where `sys.exit("...")` below writes: kept
+# separate, the refusal would name the failure and then print an empty reason,
+# with python's own explanation stranded on an earlier line.
+declaration=$(python3 - "$defaults" 2>&1 <<'PY'
 import pathlib
 import sys
 
