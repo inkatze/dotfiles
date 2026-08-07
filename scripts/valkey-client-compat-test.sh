@@ -364,7 +364,11 @@ pass "client-pinned" "$(printf '%s; ' "${deps[@]%% *}" | sed 's/; $//') fetched 
 # telemetry is Erlang and ships an app resource file; redix requires it to be
 # a *started* application, not merely loadable, or every command it issues logs
 # a handler-lookup warning.
-erlc -o "$ebin" "$workdir"/src/telemetry/src/*.erl
+if ! erlc -o "$ebin" "$workdir"/src/telemetry/src/*.erl >"$workdir/telemetry-compile.log" 2>&1; then
+    echo "FAIL: telemetry did not compile; the compatibility clause cannot be answered" >&2
+    cat "$workdir/telemetry-compile.log" >&2
+    exit 1
+fi
 cp "$workdir/src/telemetry/src/telemetry.app.src" "$ebin/telemetry.app"
 # `mix` is unusable here (it needs :crypto for its build lock), so the two
 # Elixir libraries are compiled straight to BEAM. redix references :ssl, which
