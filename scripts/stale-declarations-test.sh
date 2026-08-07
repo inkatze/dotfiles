@@ -314,7 +314,16 @@ else
         "$(grep '^examined ' "$scan_out" | cut -d' ' -f2) read"
 fi
 
-if grep -q '^skipped ' "$scan_out"; then
+# The completion line, before anything is read into the result: a scanner that
+# died partway (an unreadable declaration, a malformed listing) also exits
+# non-zero, and without this the failure below would report "files still place
+# services out of scope" and then list none, sending the reader to look for a
+# claim that was never found.
+if ! grep -q '^examined ' "$scan_out"; then
+    echo "FAIL[no-out-of-scope-service-claim]: the scan did not run to completion:" >&2
+    sed 's/^/    /' "$scan_out" >&2
+    note_failure
+elif grep -q '^skipped ' "$scan_out"; then
     echo "FAIL[no-out-of-scope-service-claim]: file(s) could not be read and were not scanned:" >&2
     sed -n 's/^skipped /    /p' "$scan_out" >&2
     note_failure
