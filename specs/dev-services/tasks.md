@@ -243,6 +243,43 @@ its protection rather than audited after the fact (D-8).
   this branch, or direct otherwise if leaving a hand-made role untouched is the
   preferred behaviour.
 
+- **Task 5** — Both Done-when clauses are met and verified on the branch: a
+  repo-wide scan finds no tracked config comment or documentation file still
+  placing database services out of scope, and the `services` role's
+  description in the repo guide, the playbook's roles comment and the
+  `mise run services` blurb all describe the platform-dispatched role it now
+  is. `scripts/stale-declarations-test.sh` is the executable form of both
+  clauses: it asserts the absence of the old claim and, separately, that each
+  corrected description is still present, since checking only the negative half
+  would let a later tidy-up delete the correction and still report green. Every
+  assertion was mutation-tested, and the scan carries a fixture that exercises
+  its own detector in both directions on every run, so the harness cannot go
+  quietly blind and keep reporting clean. What is **not** applied is where that
+  script runs from. `test-spec.md` pins REQ-B1.5
+  as `[test]`, which spec-format defines as "runs in the repo's CI", so the
+  wiring the tag asks for is a step in the `lint` job. That edits
+  `.github/workflows/test.yml`, which is CI configuration and therefore a
+  hard-disqualifier zone, and this task's own REQs mandate no CI change (Task
+  2's matrix entry was different: its own Deliverables named it, so the CI edit
+  was signed off at kickoff; REQ-E1.4 is the constraint on that edit, not what
+  called for it). The zone screen fires, so the fix is recorded rather than
+  applied.
+  **Recommended fix**, additions only, so REQ-E1.4 is untouched: append to the
+  `lint` job in `.github/workflows/test.yml`, after the syntax-check step,
+
+  ```yaml
+        - name: Check for stale service declarations
+          run: scripts/stale-declarations-test.sh
+  ```
+
+  The scan needs `python3` and `git`, both of which that job already has. The
+  alternatives, if CI is not where this belongs: a `lefthook.yml` pre-commit
+  command, which catches a regression at the commit that writes it but is not
+  what `[test]` means; or leaving it manual, which is what its two sibling
+  scripts do and would make the `[test]` tag on REQ-B1.5 inaccurate.
+  **Operator action:** apply the step above, pick one of the alternatives, or
+  direct otherwise.
+
 - **Task 6** — Implemented, converged and pushed as draft PR #103. Three of
   the four Done-when clauses are verified by observation rather than
   assumption: the job asserts every declared service running, enabled and

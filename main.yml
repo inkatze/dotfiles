@@ -6,6 +6,9 @@
     # (Homebrew, macOS defaults), the migrated host runs `linux` (apt, sshd).
     # The remaining roles are cross-platform config; the Linux stabilization
     # loop (specs/linux-migration Task 7) drives their first Linux run clean.
+    # `services` is the exception: it carries no `when:` here because its two
+    # task files guard themselves, provisioning the declared dev-services
+    # layer on Debian and the role's macOS-only content on Darwin.
     - role: osx
       when: ansible_facts.os_family == "Darwin"
     - role: linux

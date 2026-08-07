@@ -62,7 +62,7 @@ description = "Configure git"
 run = "./scripts/playbook.sh -t git"
 
 [tasks.services]
-description = "Install database services"
+description = "Provision the declared dev services (Linux) and macOS service config"
 run = "./scripts/playbook.sh -t services"
 
 [tasks.kitty]
