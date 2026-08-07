@@ -150,6 +150,20 @@ stage_server() {
     local pkgdir="$workdir/pkg" rundir="$workdir/run" conf="$workdir/run/valkey.conf"
     mkdir -p "$pkgdir" "$rundir"
 
+    # Refuse to stage onto an occupied port. Without this the assertions below
+    # would run against whatever process already holds it, and every one of
+    # them would pass: the bind checks would describe the foreign socket, and
+    # the client checks would succeed outright if that process happened to be
+    # a `redis-server` -- reporting a Valkey compatibility result derived from
+    # the very engine D-2 rejected. The service being active is the one case
+    # where another listener is expected, and it is handled as live mode.
+    if ss -Hltn "sport = :$declared_port" | grep -q .; then
+        echo "FAIL: something is already listening on port $declared_port, so a staged" >&2
+        echo "      run would assert against it rather than against the packaged server." >&2
+        echo "      Stop it, or start $declared_unit so this runs in live mode." >&2
+        exit 1
+    fi
+
     # valkey-tools carries the actual server binary; in valkey-server,
     # /usr/bin/valkey-server is a symlink into it. Fetching only the declared
     # package would unpack a dangling link.
@@ -196,12 +210,19 @@ stage_server() {
     "$binary" "$conf" --daemonize no >"$rundir/stdout.log" 2>&1 &
     server_pid=$!
 
+    # Liveness is checked *before* the socket is accepted as ours, so that a
+    # server which lost a race for the port cannot have someone else's listener
+    # mistaken for a successful start. The check above makes that race narrow;
+    # this makes it closed.
     local waited=0
-    while ! ss -ltn "sport = :$declared_port" 2>/dev/null | grep -q ":$declared_port"; do
+    while true; do
         if ! kill -0 "$server_pid" 2>/dev/null; then
             echo "FAIL: staged valkey-server exited during startup:" >&2
             cat "$rundir/stdout.log" >&2
             exit 1
+        fi
+        if ss -Hltn "sport = :$declared_port" | grep -q .; then
+            break
         fi
         sleep 0.2
         waited=$((waited + 1))
