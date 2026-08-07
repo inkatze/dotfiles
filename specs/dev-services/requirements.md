@@ -36,10 +36,12 @@ that consume them configure themselves.
   loop with no credential step.
 - Correction of the tracked repo config and documentation that currently
   assert database services are out of scope.
-- A public-repo hygiene backstop: secret-scanner rules preventing private
+- ~~A public-repo hygiene backstop: secret-scanner rules preventing private
   project identifiers from entering this repo's committed artifacts, with a
   documented, self-retiring allowlist for the identifiers' pre-existing
-  occurrences.
+  occurrences.~~ **Retired 2026-08-07** (REQ-D1.2 through REQ-D1.5). The
+  prohibition itself stays in scope as REQ-D1.1; what left is the automated
+  enforcement of it. See the retirement note under REQ-D.
 - A CI job executing the provisioning on a pinned Linux runner, asserting
   service reachability and idempotency.
 
@@ -73,9 +75,12 @@ that consume them configure themselves.
   role's total absence of execution coverage — stays open, and the
   observation recording it stays live rather than being consumed here.
 - **Scrubbing the private identifiers already present in this repo's
-  tracked artifacts and git history.** The backstop added here guards new
-  commits only. The scrub, and the harder question of what to do about
-  content already published, belong to the successor hygiene bundle.
+  tracked artifacts and git history.** Out of scope from the start, and more
+  so since 2026-08-07: the backstop that would have guarded *new* commits is
+  retired too, so this bundle now leaves the identifier question wholly to the
+  successor hygiene bundle — both the scrub and the harder question of what to
+  do about content already published. REQ-D1.1 still binds this bundle's own
+  artifacts; it just binds them by review rather than by hook.
 
 ## REQ-A — Service availability
 
@@ -148,28 +153,28 @@ that consume them configure themselves.
 ## REQ-D — Public-repo hygiene
 
 - **REQ-D1.1** No artifact this bundle commits to this repo SHALL name the
-  consuming project, its repository, its features, or its file paths. The
-  secret-scanner configuration is the sole exception: a rule cannot match an
-  identifier without containing a pattern for it, so REQ-D1.2's rules and
-  REQ-D1.3's allowlist MAY name them. That exception SHALL NOT extend to any
-  other artifact.
+  consuming project, its repository, its features, or its file paths.
   *(Cites: D-8, drafting-session decision (2026-08-03), drafting-session
   decision (2026-08-04).)*
+
 - **REQ-D1.2** The repo's pre-commit secret scanner SHALL carry rules
   matching the private project identifiers, so a commit reintroducing one
   fails the hook rather than depending on review to catch it.
+  **Retired (2026-08-07)** — withdrawn with no successor; see the note below.
   *(Cites: D-8, drafting-session decision (2026-08-03).)*
 - **REQ-D1.3** The rules added under REQ-D1.2 SHALL carry a documented,
   path-scoped allowlist covering the identifiers' pre-existing tracked
   occurrences, so editing those files for unrelated reasons does not fail
   the hook. The allowlist SHALL name the successor hygiene bundle as the
   condition for its removal.
+  **Retired (2026-08-07)** — withdrawn with no successor; see the note below.
   *(Cites: REQ-D1.2, D-8, drafting-session decision (2026-08-03).)*
 - **REQ-D1.4** The identifier set the REQ-D1.2 rules are built from SHALL be
   supplied by an untracked, machine-local file, and SHALL NOT be stored in
   this repo outside the scanner configuration REQ-D1.1 carves out. A source
   file that is absent, empty, or unparseable SHALL surface as a visible
   refusal to proceed, never as a silently narrower rule set.
+  **Retired (2026-08-07)** — withdrawn with no successor; see the note below.
   *(Cites: REQ-D1.1, REQ-D1.2, D-9, kickoff §2 (2026-08-04).)*
 - **REQ-D1.5** The REQ-D1.2 rules SHALL be generated from the REQ-D1.4 source
   file by a tracked, re-runnable generator, so that regenerating after the
@@ -177,8 +182,36 @@ that consume them configure themselves.
   output SHALL be deterministic for a given set, independent of the order the
   source file lists it in, so that regeneration on any machine reproduces the
   committed block exactly.
+  **Retired (2026-08-07)** — withdrawn with no successor; see the note below.
   *(Cites: REQ-D1.2, REQ-D1.4, D-9, kickoff §2 lens F1 (2026-08-04), kickoff
   sign-off lens L1 (2026-08-05).)*
+
+**Retirement note (2026-08-07): REQ-D1.2 through REQ-D1.5.** Their bodies are
+left exactly as written — a frozen record is not edited (D-20), and the four
+IDs stay in place because stable IDs are never reused. What follows is why they
+no longer bind.
+
+Retired on the operator's decision, and the reason is worth recording rather
+than leaving as an unexplained deletion. The guard's rule block is committed by
+design (D-9), because it has to work on a fresh checkout and in CI. That means
+the artifact protecting the identifiers is itself a public list of patterns for
+them, in a public repo. D-9 accepted that trade at kickoff; the operator
+declined it on review. Since a rule cannot match an identifier without
+containing a pattern for it, there is no variant of this guard that avoids the
+trade — so the requirement is withdrawn rather than reworked.
+
+REQ-D1.1 above is unaffected and still binds: nothing this bundle commits names
+the consuming project. What is gone is the automated enforcement of it, which
+now rests on review, as it did before this bundle. The carve-out REQ-D1.1
+previously granted the scanner configuration is removed with the rules it
+existed for, so the prohibition is now absolute.
+
+Task 1 shipped the mechanism before this decision (PR #98), and
+`scripts/gitleaks-identifier-rules.sh` with its harness cases stay in the repo,
+unwired and inert: they refuse visibly when no source file is present, so they
+cost nothing sitting there and the guard can be revived by generating a block
+if the trade is ever accepted. No `private-project-identifier` block has ever
+existed in `.gitleaks.toml`, so nothing is being removed from the scanner.
 
 ## REQ-E — Verification
 
@@ -258,6 +291,25 @@ that consume them configure themselves.
   inheriting the wrapper's macOS fallback, which is harmless but misleading
   in job output. Altitude check recorded as not applicable: the bundle fired
   no altitude trigger at drafting and carries no altitude decision.
+
+- **2026-08-07** — Meaning-class amendment, operator decision. REQ-D1.2
+  through REQ-D1.5 retired with no successor: the identifier guard's rule
+  block is committed by design (D-9) so it works on a fresh checkout and in
+  CI, which makes the artifact protecting the private identifiers a public
+  list of patterns for them, in a public repo. No variant avoids that, since a
+  rule cannot match an identifier without containing a pattern for it, so the
+  requirements are withdrawn rather than reworked. Their bodies and IDs are
+  left in place (frozen record, stable IDs never reused), each marked
+  `Retired (2026-08-07)`, and their four `test-spec.md` entries likewise.
+  REQ-D1.1 lost the scanner-configuration carve-out it granted for those
+  rules, so its prohibition is now absolute, and its pin dropped from
+  `[test + design-level]` to `[design-level]` — the enforcement genuinely got
+  weaker and the pin says so. D-9 marked superseded, body intact. Task 1's
+  citations reduced to REQ-D1.1 and its reference bullet moved from
+  `## Awaiting input` to `## Out of scope`, withdrawing the operator action it
+  requested. The shipped mechanism (PR #98) stays in the repo, unwired and
+  inert; no `private-project-identifier` block ever existed in
+  `.gitleaks.toml`, so nothing was removed from the scanner.
 
 ## Sources
 
