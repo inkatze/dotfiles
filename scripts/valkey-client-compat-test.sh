@@ -91,7 +91,18 @@ case "${LC_ALL:-${LANG:-}}" in
 *) export LANG=C.UTF-8 LC_ALL=C.UTF-8 ;;
 esac
 
-for tool in python3 curl sha256sum ss elixir elixirc erlc; do
+# `ip` and `timeout` are here for a sharper reason than the rest. Both are used
+# by the non-loopback assertion, and neither failure is loud: without `ip` the
+# address list comes back empty and the assertion downgrades to a skip line
+# claiming the host has no non-loopback interface, and without `timeout` every
+# connection probe fails and reads as a refusal. Either way a missing tool
+# would be reported as a passing security property. A guard that quietly checks
+# less than it claims is worse than one that refuses to run, which is the same
+# posture scripts/gitleaks-identifier-rules.sh takes toward its own input.
+#
+# The staged-mode-only tools are checked inside stage_server instead, so a live
+# run on a host without them still works.
+for tool in python3 curl sha256sum tar ss ip timeout elixir elixirc erlc; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "FAIL: $tool not on PATH; run from a mise-activated shell" >&2
         exit 1
@@ -149,6 +160,13 @@ echo "declaration: unit=$declared_unit address=$declared_address port=$declared_
 stage_server() {
     local pkgdir="$workdir/pkg" rundir="$workdir/run" conf="$workdir/run/valkey.conf"
     mkdir -p "$pkgdir" "$rundir"
+
+    for tool in apt-get dpkg-deb; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            echo "FAIL: $tool not on PATH; staged mode unpacks the archive package with it" >&2
+            exit 1
+        fi
+    done
 
     # Refuse to stage onto an occupied port. Without this the assertions below
     # would run against whatever process already holds it, and every one of
