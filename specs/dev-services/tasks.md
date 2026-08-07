@@ -208,7 +208,7 @@ its protection rather than audited after the fact (D-8).
   blocked behind the CI outage recorded in the Task 2 entry above, so the host
   route is the one that does not wait on anything.
 
-- **Task 3** — Convergence surfaced a finding in a hard-disqualifier zone, so
+  Convergence additionally surfaced a finding in a hard-disqualifier zone, so
   it is recorded here rather than applied: the fix grants a database privilege
   and constructs SQL, and the gate does not let a worker take that decision
   unattended however clear the fix looks. **The finding:** the setup guards
