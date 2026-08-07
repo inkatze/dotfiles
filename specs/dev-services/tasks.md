@@ -180,6 +180,69 @@ its protection rather than audited after the fact (D-8).
   mutation-tested). REQ-E1.4 in particular is verified without CI: the
   workflow diff is nine added lines and zero removed.
 
+- **Task 3** — Implemented and converged as a draft PR, with the structural
+  half of its Done-when verified locally and the runtime half not verified at
+  all. Verified: no task, template or file in this repo manages `pg_hba.conf`,
+  `postgresql.conf` or `listen_addresses`, asserted rather than reviewed and
+  mutation-tested in three directions; the database role is created using
+  `ansible.builtin` only (D-6), likewise asserted; the bespoke setup is reached
+  only through the declaration's `setup:` field, so REQ-B1.1 survives REQ-B1.3.
+  **Not verified:** that the invoking account can connect over the Unix socket
+  with no password and create, migrate and drop a scratch database, and that
+  the server binds loopback only. Both need a provisioned server, and this host
+  has neither PostgreSQL installed nor a passwordless `sudo` — provisioning one
+  needs the become password an unattended worker has no way to supply. The
+  consequence worth stating plainly: **no `psql` invocation in
+  `roles/services/tasks/postgresql.yml` has ever run.** Flag spellings and the
+  `:'var'` / `:"var"` interpolation come from the PostgreSQL 18 documentation,
+  not from execution. `scripts/postgresql-access-test.sh` is the executable
+  form of both unverified clauses and is written, lint-clean, and exercised in
+  its refusal paths (it exits non-zero when `PGPASSWORD` is set and when no
+  client is present, rather than passing vacuously); its loopback parser is
+  unit-tested against synthetic `ss` output including a wildcard bind and a
+  `:15432` near-miss. Its connecting path is what remains unrun. **Operator
+  action, one of two:** run `mise run services -K` on the Linux host and then
+  `scripts/postgresql-access-test.sh`, which answers both clauses in a few
+  seconds; or leave it to Task 6, whose CI job is the intended caller and which
+  covers Task 4's equivalent clauses in the same run. **The CI outage recorded
+  in the Task 2 entry above has cleared:** Task 3's PR produced a full workflow
+  run, and `lint` plus every `test` entry that reached a runner passed,
+  including `test (services)` at `strict_idempotency: true` — which verifies
+  the clause Task 2 had to leave open, since the macOS run executed the role
+  twice with zero changed tasks and provisioned none of the declared services.
+  Whatever caused the outage was transient or was fixed between then and now;
+  the exhausted-minutes hypothesis is neither confirmed nor needed any more.
+  Task 6 is therefore not blocked on CI availability, though the host route
+  remains the faster of the two for Task 3's own open clauses.
+
+  Convergence additionally surfaced a finding in a hard-disqualifier zone, so
+  it is recorded here rather than applied: the fix grants a database privilege
+  and constructs SQL, and the gate does not let a worker take that decision
+  unattended however clear the fix looks. **The finding:** the setup guards
+  role creation on existence alone — `SELECT 1 FROM pg_roles WHERE rolname =
+  :'rolname'` — and `CREATE ROLE` errors on an existing role, so the guard is
+  what makes the task converge. But a role that already exists *without*
+  `CREATEDB` or `LOGIN` is then left exactly as it is: the run reports zero
+  changed tasks, and REQ-A1.4 is unmet. Green run, unmet requirement, which is
+  the failure shape worth stopping for. It is also specifically invisible to
+  the planned verification: `test-spec.md` pins REQ-C1.2 to Task 6's
+  idempotency re-run, and that second pass runs against a role this repo
+  created, which by construction has both attributes. On a fresh host nothing
+  is wrong; the case is a host where someone made a same-named role by hand,
+  which is precisely REQ-C1.2's "already provisioned" condition.
+  **Recommended fix**, unambiguous and confined to
+  `roles/services/tasks/postgresql.yml`: keep the existence query and the
+  guarded `CREATE ROLE`, and add a second guarded pair after it — query
+  `SELECT 1 FROM pg_roles WHERE rolname = :'rolname' AND rolcreatedb AND
+  rolcanlogin`, and on no result run `ALTER ROLE :"rolname" LOGIN CREATEDB`.
+  That converges the attributes rather than only the role's existence, which
+  is what `community.postgresql`'s own `postgresql_user` does and the reason
+  it is idempotent in the convergent sense rather than the create-once one.
+  Cost is one extra query per run and no change to the fresh-host path.
+  **Operator action:** approve the fix and it can land as a follow-up commit on
+  this branch, or direct otherwise if leaving a hand-made role untouched is the
+  preferred behaviour.
+
 ## Deferred
 
 (none yet)

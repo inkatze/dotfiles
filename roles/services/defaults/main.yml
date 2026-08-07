@@ -28,6 +28,12 @@ services_dev_services:
     unit: postgresql.service
     listen_address: 127.0.0.1
     listen_port: 5432
+    # The bespoke half of REQ-B1.3: a database role for the invoking account,
+    # which no other service has an equivalent of. Named here rather than
+    # imported from a task file so the field is the only route in -- adding a
+    # service with bespoke setup stays a declaration edit (REQ-B1.1). Resolved
+    # against this role's tasks/ directory.
+    setup: postgresql.yml
 
   - name: Valkey
     package: valkey-server

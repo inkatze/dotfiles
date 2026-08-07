@@ -48,3 +48,28 @@
       loop: "{{ services_dev_services }}"
       loop_control:
         label: "{{ item.name }}"
+
+    # Where the shared lifecycle stops and the per-service half begins (D-5,
+    # REQ-B1.3). The four steps above generalise because they are identical
+    # for every service; cluster initialisation and authentication posture are
+    # not, so forcing them into the declaration would produce a schema that is
+    # a union of unrelated fields. What the declaration carries instead is a
+    # pointer, and this step follows it -- so the lifecycle still names no
+    # service, and a service with bespoke setup is still added by declaring
+    # it rather than by editing control flow (REQ-B1.1).
+    #
+    # Last, and not incidentally: the setup below connects to a server, so it
+    # needs the verify step above to have already established there is one.
+    #
+    # `selectattr` rather than a `when:` on the include, so a service with no
+    # bespoke setup contributes no task at all instead of a skipped one.
+    # include_tasks, not import_tasks: the file to run comes from a variable,
+    # which a static import cannot express. The tag inheritance that costs is
+    # cheap here -- the enclosing block's `services` tag reaches the included
+    # tasks, verified against ansible-core 2.21 rather than assumed, because
+    # main.yml's note records how quietly this exact thing fails.
+    - name: Apply the declared per-service setup
+      ansible.builtin.include_tasks: "{{ item.setup }}"
+      loop: "{{ services_dev_services | selectattr('setup', 'defined') | list }}"
+      loop_control:
+        label: "{{ item.name }}"

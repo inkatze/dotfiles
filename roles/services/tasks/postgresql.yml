@@ -1,0 +1,102 @@
+---
+
+# Bespoke setup for the declared PostgreSQL server (specs/dev-services Task 3,
+# D-4 and D-6). Reached only from `setup:` on this service's declaration entry;
+# see the dispatch step at the end of linux.yml.
+#
+# The whole of it is one database role named after the invoking OS account,
+# with permission to create databases. That is all D-4 needs, and the smallness
+# is the point rather than an omission: peer authentication over the Unix
+# socket binds a database role to a kernel-verified OS identity, so once the
+# role exists the account can connect with no password and no credential file,
+# and nothing about `pg_hba.conf` has to be deviated from, templated, or kept
+# correct across a major-version upgrade. No task in this repo touches that
+# file, or `postgresql.conf`; the loopback-only bind (REQ-A1.3) is likewise the
+# distribution's shipped default rather than something asserted here.
+#
+# Not `community.postgresql` (D-6). Its `postgresql_user` would be one line
+# where the two below are the same work spelled out, but adopting it means a
+# collection bootstrap on the host, a matching install step in CI, and a
+# dependency surface this repo has so far had none of -- for two tasks whose
+# idempotency is a one-line existence query. The temptation is real on the
+# target host specifically, where `ansible` resolves to a batteries-included
+# distribution that already carries the collection, so a task using it works
+# there and fails wherever the repo's declared `ansible-core` is what runs.
+# scripts/services-declaration-test.sh asserts the constraint rather than
+# leaving it to review, for exactly that reason.
+#
+# `runuser` rather than `become_user: postgres`, which is what a reader will
+# expect and is worth the two lines to explain. Both would work here today;
+# the difference is what they depend on. Ansible escalating from one
+# unprivileged user to another has to hand the module file across a privilege
+# boundary, and its documented mechanism for that is POSIX ACLs -- `setfacl`
+# present, and the remote temp directory mounted with ACL support -- falling
+# back through progressively worse options to world-readable temp files. The
+# documented way to avoid the whole class is to not escalate to an
+# unprivileged user, which is what this does: become root, and let `runuser`
+# establish the postgres identity that peer authentication is going to read
+# anyway. The failure it avoids is also worth naming, because it is not
+# obviously about any of this: an ACL-less runner reports "Failed to set
+# permissions on the temporary files", which reads like a broken playbook
+# rather than a missing package.
+#
+# `argv` rather than a command string throughout, so no shell parses any of
+# this and the account name cannot become anything but one argument.
+
+- name: Check whether the invoking account already has a database role
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - --no-psqlrc
+      - --no-password
+      - --no-align
+      - --tuples-only
+      - --dbname=postgres
+      - --set=ON_ERROR_STOP=1
+      - --set=rolname={{ ansible_facts.user_id }}
+      - "--command=SELECT 1 FROM pg_roles WHERE rolname = :'rolname'"
+  become: true
+  register: services_postgresql_role
+  # Reads nothing and writes nothing, so it reports no change and runs even
+  # under --check -- where skipping it would leave the guard below reading an
+  # undefined result and predicting a creation that is not needed.
+  changed_when: false
+  check_mode: false
+
+- name: Create the database role for the invoking account
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - --no-psqlrc
+      - --no-password
+      - --dbname=postgres
+      - --set=ON_ERROR_STOP=1
+      - --set=rolname={{ ansible_facts.user_id }}
+      - '--command=CREATE ROLE :"rolname" LOGIN CREATEDB'
+  become: true
+  # The existence query above is what makes this converge: `CREATE ROLE` on an
+  # existing role is an error, not a no-op, so a second run has to not reach
+  # it (REQ-C1.1). `--tuples-only --no-align` reduces the query's output to
+  # exactly `1` or nothing at all, so the comparison has no formatting to
+  # tolerate.
+  when: services_postgresql_role.stdout != "1"
+  # LOGIN because peer authentication still needs a role that may connect, and
+  # CREATEDB because REQ-A1.4 is about creating and dropping databases rather
+  # than about reaching an existing one. Nothing further: this is a
+  # development account, not a superuser, and the role owns what it creates,
+  # which is what lets it drop those again.
+  #
+  # `:"rolname"` is psql's quoted-identifier interpolation and `:'rolname'`
+  # above is its quoted-literal form. Both are used deliberately in place of
+  # pasting the account name into the SQL: the name arrives from a gathered
+  # fact rather than from anywhere hostile, but an identifier assembled by
+  # string concatenation is the wrong shape regardless of how trusted today's
+  # input is, and psql already ships the right one.
