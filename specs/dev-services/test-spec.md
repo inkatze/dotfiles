@@ -114,17 +114,25 @@ a chosen step, and the resulting test would verify the injection point rather
 than the property. This is the weaker of the two weak pins, and it is
 accepted as such for a development-services bundle.
 
-### REQ-D1.1 — No consuming-project identifiers committed [test + design-level]
+### REQ-D1.1 — No consuming-project identifiers committed [design-level]
 
-Test: the scanner rules from Task 1 run over this bundle's own commits in the
-pre-commit hook, and the bundle's artifacts passing that hook is the
-verification. Design-level: the carve-out is reviewed for scope — the
-identifiers appear in the scanner configuration and nowhere else in the diff.
-That review is not redundant with the test, because the scanner cannot flag
-the one file it is allowed to name them in, so its own carve-out is precisely
-the blind spot a human has to check.
+Design-level review of the diff: no artifact this bundle commits names the
+consuming project, its repository, its features, or its file paths. There is no
+carve-out to scope any more, so the review is the whole of it and the check is
+simply that the identifiers appear nowhere.
+
+Was `[test + design-level]` until 2026-08-07. The test half was the scanner
+rules from Task 1 running in the pre-commit hook, which is exactly what the
+retirement below withdraws — so this is now verified by review, as it was
+before this bundle. Stated rather than left as a downgraded tag: the
+enforcement genuinely got weaker, and a requirement whose automated half was
+removed should say so instead of quietly presenting as still covered.
 
 ### REQ-D1.2 — Scanner rules block reintroduction [test]
+
+**Retired (2026-08-07)** — the requirement this verifies is withdrawn with no
+successor. Entry kept because stable IDs are never reused and its body is a
+frozen record; see the retirement note in `requirements.md`.
 
 Positive case: a staged change introducing one of the identifiers is
 confirmed to fail the pre-commit hook. This is a test of the guard itself,
@@ -139,12 +147,20 @@ pattern rather than introduce a second one.
 
 ### REQ-D1.3 — Allowlist scoped and self-retiring [test]
 
+**Retired (2026-08-07)** — the requirement this verifies is withdrawn with no
+successor. Entry kept because stable IDs are never reused and its body is a
+frozen record; see the retirement note in `requirements.md`.
+
 Negative case: a staged edit to an already-tracked file containing one of the
 identifiers is confirmed to pass the hook. Reviewed alongside it: the
 allowlist entry names the successor hygiene bundle as its removal condition
 in an adjacent comment.
 
 ### REQ-D1.4 — Identifier set stays machine-local [test]
+
+**Retired (2026-08-07)** — the requirement this verifies is withdrawn with no
+successor. Entry kept because stable IDs are never reused and its body is a
+frozen record; see the retirement note in `requirements.md`.
 
 Positive: the identifier file is present, mode 0600, and reported untracked by
 `git status --porcelain --ignored`, so it cannot reach a commit. Negative,
@@ -158,6 +174,10 @@ unparseable cases are enumerated separately because an absent-file check
 alone passes both.
 
 ### REQ-D1.5 — Rules are generated, not hand-written [test]
+
+**Retired (2026-08-07)** — the requirement this verifies is withdrawn with no
+successor. Entry kept because stable IDs are never reused and its body is a
+frozen record; see the retirement note in `requirements.md`.
 
 The generator is run against the source file and its output is confirmed to
 match the rule block committed in `.gitleaks.toml` byte for byte. That

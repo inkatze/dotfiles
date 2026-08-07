@@ -217,6 +217,22 @@ re-verified.
 
 ### D-8: Hygiene guard first, with a self-retiring allowlist  (N)
 
+> **Superseded 2026-08-07**, in the half that mandates the rules. REQ-D1.2
+> through REQ-D1.5 are retired; see the retirement note in `requirements.md`.
+> The body below is left intact as the record of what was chosen and why.
+>
+> Read the paragraph further down beginning "match an identifier without
+> containing a pattern for it": this decision *saw* that it necessarily writes
+> the private identifiers into a tracked file in a public repo, weighed it, and
+> accepted it on the grounds that they already appear in published git history.
+> That is the same trade the retirement declines — not on new information, but
+> on a different judgement of an acknowledged cost. Recorded plainly because a
+> future reader should see a decision reversed on its merits rather than
+> assume the risk was overlooked.
+>
+> The ordering half of this decision (hygiene guard first, before any other
+> commit) is moot rather than wrong: Task 1 did land first, and did ship.
+
 **Decision:** Secret-scanner rules for the private project identifiers land
 as this bundle's first task, before any other commit. They are paired with a
 path-scoped allowlist covering the identifiers' pre-existing tracked
@@ -266,6 +282,22 @@ still fires, and its annotation makes it a visible marker for the successor
 bundle rather than a silent permanent exemption.
 
 ### D-9: The identifier set lives in an untracked machine-local file  (N)
+
+> **Superseded 2026-08-07.** The requirements this decision serves (REQ-D1.2
+> through REQ-D1.5) are retired; see the retirement note in `requirements.md`.
+> The decision below is left intact as the record of what was chosen and why,
+> because the trade it accepted is exactly what the retirement rejects, and a
+> future revival would have to re-make it rather than rediscover it.
+>
+> The pivot is the sentence below that reads "The generated block is committed,
+> so the guard works on a fresh checkout and in CI." That is what makes the
+> artifact protecting the private identifiers a public list of patterns for
+> them, in a public repo. This design weighed it against a hook reading the
+> machine-local file at run time and chose the committed block, because the
+> alternative degrades silently where the file is absent. Both horns were real;
+> the operator declined the one this decision took. `scripts/gitleaks-identifier-rules.sh`
+> and its harness cases stay in the repo, unwired, so a revival is a
+> regeneration rather than a rewrite.
 
 **Decision:** The private project identifiers the REQ-D1.2 scanner rules are
 built from are supplied by an untracked, machine-local file under

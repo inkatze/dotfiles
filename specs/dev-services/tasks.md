@@ -32,8 +32,12 @@ its protection rather than audited after the fact (D-8).
   of an absent, an empty, and an unparseable source file rather than emitting
   a narrower rule set.
 - **Dependencies:** none
-- **Citations:** D-8, D-9 · REQ-D1.1, REQ-D1.2, REQ-D1.3, REQ-D1.4, REQ-D1.5
+- **Citations:** D-8, D-9 · REQ-D1.1
 - **Estimated effort:** half day
+- **Note (2026-08-07):** the mechanism shipped in PR #98 and the code stays in
+  the repo, but the requirements it served (REQ-D1.2 through REQ-D1.5) are
+  retired, so the Deliverables and Done-when above describe work that is done
+  and no longer required. See the reference bullet under `## Out of scope`.
 
 ### Task 2 — Declaration and shared lifecycle
 
@@ -140,28 +144,26 @@ its protection rather than audited after the fact (D-8).
 
 ## Awaiting input
 
-- **Task 1** — The guard's mechanism is built, tested and committed, but the
-  rules themselves cannot be generated unattended: they are derived from the
-  machine-local identifier file REQ-D1.4 requires, that file does not exist on
-  this host, and the identifiers it holds are deliberately absent from every
-  artifact a worker can read (REQ-D1.1 keeps them out of the bundle, and D-9
-  keeps them out of the repo). Inventing a set would produce exactly the
-  silently-narrower rule set REQ-D1.4 forbids, so the generator refuses
-  instead, which is the behaviour asserted by the tests. **Operator action,
-  once:** create `~/.config/dotfiles/private-identifiers`, mode 0600, one
-  identifier per line; run `scripts/gitleaks-identifier-rules.sh --write`;
-  commit the generated block in `.gitleaks.toml`. Every later run is a
-  re-run rather than a question, which is the property D-9 chose the file
-  for. Until then REQ-D1.2 and REQ-D1.3 are unsatisfied and Task 1's first
-  two Done-when clauses are unmet on this host, so the bundle's remaining
-  tasks do not yet ship under the protection D-8 ordered Task 1 first to
-  provide.
+(none yet)
 
 ## Deferred
 
 (none yet)
 
 ## Out of scope
+
+- **Task 1's identifier guard (REQ-D1.2 through REQ-D1.5).** Retired
+  2026-08-07 on the operator's decision. The guard's rule block is committed
+  by design (D-9) so it works on a fresh checkout and in CI, which makes the
+  artifact protecting the private identifiers a public list of patterns for
+  them, in a public repo. No variant avoids that: a rule cannot match an
+  identifier without containing a pattern for it. The mechanism shipped in
+  PR #98 and `scripts/gitleaks-identifier-rules.sh` and its harness cases stay
+  in the repo, unwired and inert -- they refuse visibly with no source file, so
+  the guard can be revived by generating a block if the trade is ever accepted.
+  No `private-project-identifier` block has ever existed in `.gitleaks.toml`,
+  so nothing was removed from the scanner. REQ-D1.1 still binds; what is gone
+  is its automated enforcement, which now rests on review.
 
 - **The remote-shell / access layer.** A successor bundle, spun out during
   drafting per the spin-new triggers. It also inherits the live
