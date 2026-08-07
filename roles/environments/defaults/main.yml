@@ -17,3 +17,8 @@ environments_mise_tools:
   # missing tool would keep the gate open forever without ever being installed.
   - {name: lua}
   - {name: rust}
+  # Listed here as well as in files/mise.toml, for the reason the note above
+  # records: mise.toml alone would leave `mise ls --missing` reporting usage on
+  # every run while the install loop never reaches it, so the role could never
+  # converge to changed=0.
+  - {name: usage}
