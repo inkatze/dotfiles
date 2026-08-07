@@ -180,6 +180,34 @@ its protection rather than audited after the fact (D-8).
   mutation-tested). REQ-E1.4 in particular is verified without CI: the
   workflow diff is nine added lines and zero removed.
 
+- **Task 3** — Implemented and converged as a draft PR, with the structural
+  half of its Done-when verified locally and the runtime half not verified at
+  all. Verified: no task, template or file in this repo manages `pg_hba.conf`,
+  `postgresql.conf` or `listen_addresses`, asserted rather than reviewed and
+  mutation-tested in three directions; the database role is created using
+  `ansible.builtin` only (D-6), likewise asserted; the bespoke setup is reached
+  only through the declaration's `setup:` field, so REQ-B1.1 survives REQ-B1.3.
+  **Not verified:** that the invoking account can connect over the Unix socket
+  with no password and create, migrate and drop a scratch database, and that
+  the server binds loopback only. Both need a provisioned server, and this host
+  has neither PostgreSQL installed nor a passwordless `sudo` — provisioning one
+  needs the become password an unattended worker has no way to supply. The
+  consequence worth stating plainly: **no `psql` invocation in
+  `roles/services/tasks/postgresql.yml` has ever run.** Flag spellings and the
+  `:'var'` / `:"var"` interpolation come from the PostgreSQL 18 documentation,
+  not from execution. `scripts/postgresql-access-test.sh` is the executable
+  form of both unverified clauses and is written, lint-clean, and exercised in
+  its refusal paths (it exits non-zero when `PGPASSWORD` is set and when no
+  client is present, rather than passing vacuously); its loopback parser is
+  unit-tested against synthetic `ss` output including a wildcard bind and a
+  `:15432` near-miss. Its connecting path is what remains unrun. **Operator
+  action, one of two:** run `mise run services -K` on the Linux host and then
+  `scripts/postgresql-access-test.sh`, which answers both clauses in a few
+  seconds; or leave it to Task 6, whose CI job is the intended caller and which
+  covers Task 4's equivalent clauses in the same run. Note that Task 6 is
+  blocked behind the CI outage recorded in the Task 2 entry above, so the host
+  route is the one that does not wait on anything.
+
 ## Deferred
 
 (none yet)

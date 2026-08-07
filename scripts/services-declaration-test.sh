@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Test for the `services` role's declared dev-services layer (specs/dev-services
-# Task 2, D-1 and D-5). Makes Task 2's Done-when checkable rather than reviewed:
+# Tasks 2 and 3, D-1, D-4, D-5 and D-6). Makes their Done-when checkable rather
+# than reviewed:
 #
 # Grouped rather than enumerated, so adding a case does not silently leave a
 # numbered list here describing a different test than the one below. Each case
@@ -24,12 +25,32 @@
 #                   what makes the guards executable rather than reviewed
 #                   (REQ-B1.4), and this branch modifies no pre-existing entry
 #                   and no shared step definition (REQ-E1.4).
+#   Bespoke setup -- a service needing more than the shared lifecycle names
+#                   where that setup lives, in its declaration entry, and is
+#                   reached only through that field (REQ-B1.3); the setup uses
+#                   `ansible.builtin` and nothing else (D-6) and is written so
+#                   a second run has a reason to do less than the first
+#                   (REQ-C1.1).
+#   PostgreSQL   -- the distribution's own configuration is left alone: no
+#                   task, template or file in this repo manages `pg_hba.conf`,
+#                   `postgresql.conf` or `listen_addresses` (D-4, Task 3
+#                   Done-when). The access harness is present, and refuses
+#                   visibly rather than passing vacuously when it cannot
+#                   actually prove anything (REQ-A1.4).
 #
 # The guard cases are behavioural: they run the role's task files under a
 # stubbed `os_family` and assert nothing executed. That is the same guard the
 # macOS matrix entry exercises on a real runner, run here in a second and
 # without one. The reverse direction -- that the lifecycle does provision on
 # Linux -- needs a real Linux runner and belongs to Task 6's job.
+#
+# Everything here is structural or stubbed, deliberately: it runs on a laptop
+# with no PostgreSQL installed and no root. Proving that a client can actually
+# connect needs a provisioned server, which is what
+# scripts/postgresql-access-test.sh is for -- Task 6 runs it in CI and Task 7
+# runs it on the host. The two are complements, and neither substitutes for
+# the other: this file proves the role is written correctly, that one proves
+# the result works.
 #
 # Not wired into CI/lefthook (CI runs the role itself, which is the stronger
 # signal); run manually: `scripts/services-declaration-test.sh`.
@@ -133,6 +154,39 @@ if offenders:
 else:
     ok("declaration-loopback", "every declared listen address is loopback")
 
+# bespoke-setup-declared (REQ-B1.3, D-5) -- a service whose setup exceeds the
+# shared lifecycle names, in its own entry, the file that setup lives in, so
+# the full picture for that service is reachable from the declaration alone.
+#
+# The value must be a bare filename resolved against the role's tasks/
+# directory. A separator or a parent reference would let declaration data
+# decide which file the role executes from outside the role, which is a
+# different and much larger thing than naming one of its own task files.
+#
+# Asserting that at least one exists is deliberate rather than incidental:
+# PostgreSQL is that service in this bundle (its database role is bespoke by
+# D-4 and D-6), so an empty set means the dispatch has been removed. A future
+# bundle that genuinely has no bespoke setup left will have to edit this line,
+# which is the visible conversation that deletion deserves.
+setup_files = {}
+bad_refs = []
+for entry in declared:
+    ref = entry.get("setup")
+    if ref is None:
+        continue
+    if not isinstance(ref, str) or "/" in ref or ref.startswith("."):
+        bad_refs.append(f"{entry['name']}: {ref!r} is not a bare filename")
+    elif not (tasks_dir / ref).is_file():
+        bad_refs.append(f"{entry['name']}: {ref} is not a file in {tasks_dir}")
+    else:
+        setup_files[ref] = entry["name"]
+if bad_refs:
+    bad("bespoke-setup-declared", f"unusable setup reference(s): {bad_refs}")
+elif not setup_files:
+    bad("bespoke-setup-declared", "no declared service names a bespoke setup file")
+else:
+    ok("bespoke-setup-declared", f"bespoke setup declared for: {sorted(setup_files.values())}")
+
 # The lifecycle cases below all read the Linux lifecycle file.
 linux_path = tasks_dir / "linux.yml"
 if not linux_path.is_file():
@@ -164,8 +218,20 @@ else:
 # identifier, in every task file, so a per-service branch cannot hide in one.
 # Against the parsed document rather than the raw text: the requirement is
 # about control flow, and a comment naming a service is prose, not a branch.
+#
+# Bespoke setup files are exempt, and the exemption is derived rather than
+# hardcoded: it is exactly the set of files the declaration's `setup:` fields
+# name. A file that exists to configure one service names that service --
+# that is what "bespoke" means, and REQ-B1.3 blesses it explicitly, while
+# REQ-B1.1's no-branching property is about the *shared* lifecycle. The
+# exemption costs nothing because `bespoke-setup-dispatch` below asserts the
+# only route into those files is the declaration itself: reaching one still
+# takes a declaration entry rather than a task edit, which is the whole of
+# what REQ-B1.1 asks.
 named = []
 for task_file in sorted(tasks_dir.glob("*.yml")):
+    if task_file.name in setup_files:
+        continue
     body = yaml.safe_dump(yaml.safe_load(task_file.read_text()) or [])
     for entry in declared:
         for field in ("name", "package", "unit"):
@@ -175,7 +241,89 @@ for task_file in sorted(tasks_dir.glob("*.yml")):
 if named:
     bad("no-per-service-branching", f"task files name declared services: {named}")
 else:
-    ok("no-per-service-branching", "no task file names any declared service")
+    ok("no-per-service-branching", "no shared task file names any declared service")
+
+# bespoke-setup-dispatch (REQ-B1.1, REQ-B1.3) -- what makes the exemption
+# above safe. Asserted in both directions: some lifecycle task includes
+# `item.setup` while looping over the declaration, and no task file reaches a
+# setup file by writing its name. Together those say the declaration is the
+# only door in, so a per-service branch cannot hide behind one.
+dispatch = [
+    t
+    for t in lifecycle
+    if "item.setup" in str(t.get("ansible.builtin.include_tasks", ""))
+]
+hardcoded = [
+    f"{p.name} names '{ref}'"
+    for p in sorted(tasks_dir.glob("*.yml"))
+    for ref in setup_files
+    if ref in yaml.safe_dump(yaml.safe_load(p.read_text()) or [])
+]
+if not dispatch:
+    bad("bespoke-setup-dispatch", "no lifecycle task includes item.setup")
+elif not all("services_dev_services" in yaml.safe_dump(t) for t in dispatch):
+    bad("bespoke-setup-dispatch", "the setup dispatch does not loop over the declaration")
+elif hardcoded:
+    bad("bespoke-setup-dispatch", f"setup file(s) reached by literal name: {hardcoded}")
+else:
+    ok("bespoke-setup-dispatch", "bespoke setup is reached only through the declaration")
+
+# The two cases below read every declared setup file's tasks, flattened out of
+# any enclosing block the same way the lifecycle is above.
+setup_tasks = {
+    ref: [
+        t
+        for top in (yaml.safe_load((tasks_dir / ref).read_text()) or [])
+        for t in (top.get("block") or [top])
+    ]
+    for ref in sorted(setup_files)
+}
+
+# bespoke-setup-builtin-only (D-6) -- the bespoke setup uses `ansible.builtin`
+# and nothing else. This is exactly where `community.postgresql` would first be
+# reached for: `postgresql_user` is one line where a guarded query is three,
+# and the pull is real. D-6 declined the collection for reasons that outlive
+# the convenience -- a bootstrap step on the host, a matching install step in
+# CI, and a dependency surface this repo has so far had none of.
+#
+# Asserted rather than reviewed because the drift is invisible on exactly the
+# machine most likely to introduce it. D-6 records that `ansible` on the target
+# host resolves to a batteries-included distribution carrying the collection
+# already, so a task using it works there and fails wherever the repo's
+# declared `ansible-core` is what runs.
+noncore = [
+    f"{ref}: {key}"
+    for ref, tasks in setup_tasks.items()
+    for t in tasks
+    for key in t
+    if "." in key and not key.startswith("ansible.builtin.")
+]
+if noncore:
+    bad("bespoke-setup-builtin-only", f"non-builtin module(s) in bespoke setup: {noncore}")
+else:
+    ok("bespoke-setup-builtin-only", "every bespoke setup task uses ansible.builtin")
+
+# bespoke-setup-idempotent (REQ-C1.1) -- bespoke setup is where convergence is
+# easiest to lose. The shared lifecycle is all module calls that decide for
+# themselves whether they changed anything; a bespoke file is where `command`
+# appears, and `command` reports changed on every run unless something says
+# otherwise. Every task must therefore either declare it changes nothing, or
+# be guarded, so that a second run has a reason to do less than the first.
+#
+# Structural rather than behavioural, and honest about it: proving convergence
+# takes two real runs against a real server, which is the CI job's idempotency
+# re-run in Task 6. What this catches is the unguarded `command` that would
+# fail that job, at the point it is written rather than a task later.
+unguarded = [
+    f"{ref}: {t.get('name', '<unnamed>')}"
+    for ref, tasks in setup_tasks.items()
+    for t in tasks
+    if t.get("changed_when") is not False and "when" not in t
+]
+if unguarded:
+    bad("bespoke-setup-idempotent", f"task(s) neither guarded nor changed_when: false: {unguarded}")
+else:
+    ok("bespoke-setup-idempotent", "every bespoke setup task is guarded or declares no change")
 
 # lifecycle-steps-present (REQ-B1.1) -- all four steps are present. Asserted
 # by the module
@@ -318,6 +466,140 @@ assert_tag_selects() {
 
 assert_tag_selects "services-tag-selects" "services" '^ *services :' "task(s) in the role"
 assert_tag_selects "colima-tag-selects" "colima" 'TAGS: \[colima' "colima task(s)"
+
+# ---------------------------------------------------------------------------
+# PostgreSQL's own configuration stays the distribution's (D-4, Task 3's
+# Done-when). D-4 chose peer authentication over the Unix socket precisely
+# because it needs no deviation from the shipped configuration -- there is
+# nothing to template, converge, or keep correct across a major upgrade. The
+# checkable form of that intent is not a diff against a packaged default,
+# because the distribution generates `pg_hba.conf` at cluster creation rather
+# than shipping it as a conffile; it is that nothing in this repo touches the
+# file at all.
+#
+# Scoped to `roles/` and the playbook, which is where every task, template and
+# file in this repo lives. `listen_addresses` is in the pattern alongside the
+# two filenames because it is the specific setting that would widen the bind
+# past loopback (REQ-A1.3), and it would arrive by way of managing
+# `postgresql.conf`.
+# ---------------------------------------------------------------------------
+
+# `--others --exclude-standard` alongside the tracked listing, and not
+# incidentally: a bare `git ls-files` sees committed files only, so a new task
+# file managing the config would pass this assertion right up until it was
+# committed -- including, when this case was written, the very file Task 3 was
+# adding. Untracked-but-not-ignored is the honest scope for "nothing in this
+# repo does this", since that is what is about to become a commit.
+(cd "$repo_root" && git ls-files --cached --others --exclude-standard -- roles/ main.yml) \
+    >"$workdir/pg-listing.txt"
+
+pg_rc=0
+python3 - "$repo_root" "$workdir/pg-listing.txt" <<'PY' || pg_rc=$?
+import pathlib
+import re
+import sys
+
+import yaml
+
+root, listing = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+pattern = re.compile(r"pg_hba|postgresql\.conf|listen_addresses")
+hits = []
+
+for rel in listing.read_text().split():
+    path = root / rel
+    # A file *named* for the configuration is one shipped to be copied into
+    # place, which is managing it in the most direct way there is.
+    if pattern.search(rel):
+        hits.append(f"{rel} -- shipped as a configuration file")
+        continue
+    if not path.is_file():
+        continue
+    try:
+        text = path.read_text()
+    except (OSError, UnicodeDecodeError):
+        continue
+    # Against the parsed document for YAML, the raw text otherwise -- the same
+    # split `no-per-service-branching` above makes, for the same reason. The
+    # requirement is that nothing *manages* these files; a comment explaining
+    # which files are deliberately left alone is prose, and roles/services'
+    # own setup file is the first thing that would trip a raw grep. An
+    # unparseable YAML file falls back to raw text, which over-reports rather
+    # than waving the file through.
+    if path.suffix in (".yml", ".yaml"):
+        try:
+            text = yaml.safe_dump(yaml.safe_load(text) or [])
+        except yaml.YAMLError:
+            pass
+    if pattern.search(text):
+        hits.append(f"{rel} -- names it in a task")
+
+if hits:
+    print(
+        "FAIL[pg-config-unmanaged]: PostgreSQL configuration is managed by:\n"
+        + "\n".join(f"    {h}" for h in sorted(hits)),
+        file=sys.stderr,
+    )
+    sys.exit(1)
+print("ok[pg-config-unmanaged]: no task, template or file manages PostgreSQL's configuration")
+PY
+if [[ "$pg_rc" -ne 0 ]]; then
+    fails=$((fails + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# The access harness (REQ-A1.4). Proving a client can connect needs a
+# provisioned server, so the harness itself lives in a separate script that
+# Task 6 runs in CI and Task 7 runs on the host. What is checkable from here
+# is the property that makes it worth running at all: that it refuses visibly
+# instead of passing vacuously.
+#
+# That is not a hypothetical failure mode. A verification script whose
+# preconditions are absent has two ways to behave, and the difference is
+# invisible in a green log: exit 0 having proved nothing, or exit non-zero
+# naming what was missing. The first is worse than having no test, because it
+# reports coverage that does not exist -- the same reasoning REQ-D1.4 applies
+# to the identifier generator in Task 1.
+# ---------------------------------------------------------------------------
+
+access_test="$repo_root/scripts/postgresql-access-test.sh"
+if [[ ! -x "$access_test" ]]; then
+    fail "access-harness-present" "$access_test is missing or not executable"
+else
+    pass "access-harness-present" "the access harness is present and executable"
+
+    # A supplied password is what REQ-A1.4's fixture must not contain: with one
+    # present, a passing run proves the server accepts that password, not that
+    # it needs none. Checked before anything else in the harness, so this case
+    # runs on a host with no PostgreSQL at all.
+    fixture_out="$workdir/access-fixture.out"
+    if PGPASSWORD=never-used "$access_test" >"$fixture_out" 2>&1; then
+        fail "access-harness-fixture" \
+            "the harness passed with PGPASSWORD set; it cannot prove a passwordless connection"
+    elif ! grep -qi 'PGPASSWORD' "$fixture_out"; then
+        fail "access-harness-fixture" \
+            "the harness refused without naming the compromised fixture:
+$(sed 's/^/    /' "$fixture_out")"
+    else
+        pass "access-harness-fixture" "the harness refuses when a password is available to it"
+    fi
+
+    if command -v psql >/dev/null 2>&1; then
+        echo "skip[access-harness-refuses]: psql is installed, so the no-server refusal" \
+            "cannot be exercised here; run scripts/postgresql-access-test.sh directly"
+    else
+        refusal_out="$workdir/access-refusal.out"
+        if "$access_test" >"$refusal_out" 2>&1; then
+            fail "access-harness-refuses" \
+                "the harness exited 0 with no PostgreSQL client present; it proved nothing"
+        elif ! grep -qi 'psql' "$refusal_out"; then
+            fail "access-harness-refuses" \
+                "the harness refused without naming the missing client:
+$(sed 's/^/    /' "$refusal_out")"
+        else
+            pass "access-harness-refuses" "the harness refuses visibly with no server to test"
+        fi
+    fi
+fi
 
 # ---------------------------------------------------------------------------
 # CI matrix. The entry is what turns the guards from a review into a run, and

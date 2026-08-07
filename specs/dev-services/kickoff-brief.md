@@ -341,6 +341,38 @@ Inputs: risks surfaced during the walk, the two grounded findings from sections
 | 7 | D-8's carve-out consolidates identifiers currently scattered across prose into one labelled, greppable list, which is easier to harvest than the status quo | Accepted and reasoned in D-8. Retires with the successor hygiene bundle, which the allowlist annotation names as its removal condition |
 | 8 | REQ-C1.3 and REQ-E1.3 are weak pins by the bundle's own declaration: a review and a manual exercise, neither of which prevents a later regression | Declared in `test-spec.md` rather than implied, which is the mitigation available at this bundle's proportion. REQ-E1.3's stronger form (a workflow-linting rule) is named there and judged out of proportion |
 | 9 | Task 7 is manual and cannot be dispatched to a worker; a selector reading only the graph would return it as a ready head no agent can satisfy | The task block states this inline, which is the only channel available given there is no machine-readable manual flag |
+| 10 | Task 3's setup runs commands as the `postgres` account. Ansible escalating between two unprivileged accounts depends on POSIX ACLs being available on the remote temp directory, and reports its absence as "Failed to set permissions on the temporary files" — a message about neither Ansible's role nor PostgreSQL's | Avoided rather than mitigated: the tasks become root and use `runuser`, which is the Ansible documentation's own "do not become an unprivileged user" workaround. No dependency on `acl` being installed on a runner image this repo does not control (Task 6) |
+| 11 | Task 3's `psql` invocations were never executed. No PostgreSQL is installed on the executing host and provisioning one needs a become password no unattended worker has, so flag spellings and the `:'var'` / `:"var"` interpolation rest on the PostgreSQL 18 documentation rather than on a run | Early signal is Task 6's CI job, which is the first execution of any kind; `scripts/postgresql-access-test.sh` is written and lint-clean and is what that job runs. A wrong flag fails loudly and immediately, and cannot be mistaken for a passing verification because the harness refuses rather than exits 0 when it cannot connect |
+
+### Task 3 execution research
+
+Fired on two triggers: a security-touching pattern (privilege escalation, plus
+an SQL identifier assembled from a gathered fact) and version-sensitive API use
+(Ansible's become semantics; the distribution's PostgreSQL defaults). Depth
+scoped to the official documentation for the versions actually in play, with one
+behaviour verified by execution rather than by reading, which is the level
+`proportionality` asks for at this stake and this reversibility.
+
+- **Ansible privilege escalation** (docs, ansible-core 2.21.2). Unprivileged→
+  unprivileged `become` shares the module file via `setfacl`, degrading through
+  `chown`, a shared group, and finally world-readable temp files. Two of the
+  documented workarounds are pipelining and not escalating to an unprivileged
+  user; this repo enables no pipelining, so the second is the one taken.
+  Recorded as risk 10.
+- **psql variable interpolation** (PostgreSQL 18 docs). `:'v'` interpolates as a
+  quoted SQL literal and `:"v"` as a quoted identifier, which is why neither the
+  existence query nor `CREATE ROLE` concatenates the account name into SQL.
+- **The distribution's defaults** (Ubuntu Server docs; `apt-cache policy` on the
+  target host). `postgresql` resolves to 18 from `main` on 26.04, confirming
+  D-3's no-pin position, and ships `listen_addresses` at localhost — so
+  REQ-A1.3's loopback bind is the shipped default and needs no task, which is
+  what lets D-4's "touch nothing" hold.
+- **Dynamic-include tag inheritance** (executed, not read). `main.yml`'s note
+  records that a dynamic include is opaque to the tag selector and that the
+  failure is silent, so the dispatch step was run under `-t services` — first as
+  an isolated reproduction, then as the real task lifted out of `linux.yml` —
+  and confirmed to reach the included tasks. Under `-t colima` it selects
+  nothing, which is the direction that would have hidden the defect.
 
 ### Decision-domains gap check
 
