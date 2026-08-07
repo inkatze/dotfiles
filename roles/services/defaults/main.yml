@@ -35,6 +35,17 @@ services_dev_services:
     # against this role's tasks/ directory.
     setup: postgresql.yml
 
+  # Per-service setup: none, and that is a checked result rather than a gap
+  # (REQ-B1.3 asks for the reference either way, so a service needing nothing
+  # says so here). The archive package ships `bind 127.0.0.1 -::1`,
+  # `protected-mode yes` and no `requirepass`, so REQ-A1.3 and REQ-A1.5 both
+  # hold on the distribution's own configuration; anything this repo added
+  # would be a deviation to converge across upgrades for no gain, which is the
+  # posture D-4 takes toward PostgreSQL's pg_hba.conf for the same reason.
+  # scripts/valkey-client-compat-test.sh asserts it in both directions, and
+  # answers D-2's compatibility question by exercising the consuming stack's
+  # Redis client against a running server rather than assuming the engines
+  # agree.
   - name: Valkey
     package: valkey-server
     unit: valkey-server.service

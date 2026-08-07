@@ -153,9 +153,19 @@ $(sed 's/^/    /' <<<"$migration")"
         # no FAIL line, no assertion name, and no summary. Letting it through
         # keeps the failure legible: whatever psql said lands in the message
         # below, which is what a reader needs.
+        #
+        # On stdin rather than through `--command`, and that is required, not
+        # a style choice: psql hands a `-c` string to the server as a single
+        # request without parsing it, so `:'db'` is never interpolated there
+        # and the server answers `syntax error at or near ":"`. Interpolation
+        # happens on stdin and `-f` input. Every other psql call here passes
+        # plain SQL, which is why this is the only one that had to move. The
+        # same bug, from the same cause, was in
+        # roles/services/tasks/postgresql.yml; both surfaced the first time
+        # anything ran them on Linux (specs/dev-services Task 6's CI job).
         remaining=$(psql "${psql_args[@]}" --dbname=postgres \
             --set=db="$scratch" \
-            --command="SELECT count(*) FROM pg_database WHERE datname = :'db'" 2>&1 || true)
+            <<<"SELECT count(*) FROM pg_database WHERE datname = :'db'" 2>&1 || true)
         if [[ "$remaining" != "0" ]]; then
             fail "scratch-drop" "'$scratch' survived the drop (pg_database reports $remaining)"
         else

@@ -118,3 +118,118 @@ jobs:
               echo "::warning::Non-idempotent tasks detected: $CHANGED"
             fi
           fi
+
+  # The declared dev-services layer's Linux coverage (specs/dev-services Task
+  # 6, REQ-E1.1--REQ-E1.4). The `services` entry in the matrix above proves the
+  # negative -- a Mac provisions none of this -- and structurally cannot prove
+  # the positive, having neither apt nor systemd.
+  #
+  # A separate job rather than a matrix entry, deliberately. The matrix sets
+  # `runs-on` once, at job level, so it is macOS-only by construction;
+  # restructuring it to take a per-entry runner would touch the step
+  # definitions every pre-existing entry shares, which is exactly what REQ-E1.4
+  # forbids. Duplicating four setup steps is the cheaper side of that trade.
+  #
+  # It also happens to be the resilient side. Every job above runs on
+  # macos-latest, the scarcest hosted tier, and a runner shortage there took
+  # this whole gate dark for hours during this bundle's execution. This job
+  # queues on Ubuntu instead.
+  #
+  # Which is why it has no `needs:`, unlike the matrix above, whose `needs:
+  # lint` is what the duplicated linting here would otherwise buy. Gating this
+  # job on a macos-latest job would hand the Linux gate the exact dependency
+  # the paragraph above is about: the scarce tier back on the critical path,
+  # and the whole point of running on Ubuntu spent. The cost is that a
+  # yamllint or ansible-lint failure now burns an Ubuntu runner before it is
+  # noticed -- which is the cheap tier, and the failure still surfaces, just
+  # from the playbook rather than from the linter.
+  services-linux:
+    # Pinned, never `ubuntu-latest` (D-7): that alias still resolves to the
+    # previous LTS, which ships different major versions of both declared
+    # services. Green there would mean the provisioning works against packages
+    # the target host will never install -- the least useful kind of pass,
+    # because it looks like coverage. 26.04 is the release read off the target
+    # host at kickoff; moving the host means bumping this label, and that bump
+    # is precisely when the provisioning wants re-verifying.
+    runs-on: ubuntu-26.04
+    name: services (linux)
+    timeout-minutes: 30
+    env:
+      # REQ-E1.3: this job requires no secrets and fetches from nothing
+      # authenticated. The workflow-level `env` above hands every job a token;
+      # that declaration is pre-existing and REQ-E1.4 forbids editing it, so it
+      # is shadowed here instead. Blanking rather than merely not referencing
+      # it is what makes the requirement executable: with no credential in the
+      # environment, a later edit that adds an authenticated fetch fails
+      # outright instead of passing quietly on an ambient token.
+      GITHUB_TOKEN: ""
+      # Set explicitly, because the playbook wrapper's fallback is the macOS
+      # alias: unset, this job would announce "Running on host: work" and warn
+      # about it. Harmless -- `os_family` is what gates provisioning, not the
+      # alias -- and a thoroughly misleading line to leave in the log of the
+      # job whose entire purpose is to prove the Linux path.
+      DOTFILES_HOST: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert the runner matches the target host's release
+        # The pin above is only worth having while the label still means what
+        # it says, so the release is read back off the runner rather than
+        # trusted. A label silently re-pointed at another release surfaces here
+        # as a failure instead of as a quietly less useful pass.
+        env:
+          EXPECTED_RELEASE: "26.04"
+        run: |
+          . /etc/os-release
+          echo "runner: $PRETTY_NAME (VERSION_ID=$VERSION_ID)"
+          if [ "$VERSION_ID" != "$EXPECTED_RELEASE" ]; then
+            echo "::error::runner is Ubuntu $VERSION_ID, expected $EXPECTED_RELEASE (D-7)"
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ansible
+        run: pip3 install ansible
+
+      # `scripts/playbook.sh` directly, where the matrix above goes through
+      # `mise run <role>`. The mise task is a one-line alias for this same
+      # command, so no coverage is lost, and skipping mise keeps the job's
+      # network surface down to pip and the distribution archive -- which is
+      # what REQ-E1.3 permits, and all this job needs. mise would resolve its
+      # pinned tools through GitHub's API, unauthenticated here by the blanked
+      # token above, for tools the provisioning never calls.
+      #
+      # scripts/services-declaration-test.sh asserts this job and the mise task
+      # still run the same thing, so the two cannot drift apart unnoticed.
+      - name: Provision the declared dev services
+        run: ./scripts/playbook.sh -t services
+
+      # Independent of the run above, and that is the point: the playbook's own
+      # `wait_for` step runs inside the run whose result is in question, so it
+      # can only report that the run reached it. This asks systemd and a socket
+      # afterwards, from outside, driven from the same declaration.
+      - name: Assert every declared service is running, enabled and reachable
+        run: ./scripts/dev-services-runtime-test.sh
+
+      # REQ-E1.2. Gated through a script rather than a grep for `changed=`,
+      # because `changed=0` is also what a run reports when it selected no
+      # tasks at all: the gate treats `ok=0` as a failure for that reason. Read
+      # together with the step above, the pair separates "converged" from
+      # "silently stopped provisioning", which neither can do alone.
+      - name: Assert the second run converges
+        run: |
+          set -o pipefail
+          ./scripts/playbook.sh -t services 2>&1 | tee second-run.log
+          ./scripts/ansible-idempotency-gate.sh second-run.log
+
+      # The half of Task 3 only a provisioned server can answer: the invoking
+      # account reaches PostgreSQL over the Unix socket with no password and no
+      # credential file, and the server is bound to loopback alone (REQ-A1.4,
+      # REQ-A1.3). The harness refuses visibly rather than passing vacuously
+      # when it cannot prove that, so a green line here is a real result.
+      - name: Assert the invoking account's PostgreSQL access
+        run: ./scripts/postgresql-access-test.sh
