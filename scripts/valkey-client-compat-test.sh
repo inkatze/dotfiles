@@ -379,7 +379,14 @@ for dep in "${deps[@]}"; do
     tar -xf "$tarball" -C "$workdir/src/$name"
     tar -xzf "$workdir/src/$name/contents.tar.gz" -C "$workdir/src/$name"
 done
-pass "client-pinned" "$(printf '%s; ' "${deps[@]%% *}" | sed 's/; $//') fetched at pinned versions, SHA-256 verified"
+# Name the versions, not just the libraries. The result this script reports is
+# a statement about a specific pair of versions, and a record that omits half
+# of the pair is not one a later reader can act on.
+pinned=$(for dep in "${deps[@]}"; do
+    read -r name version _ <<<"$dep"
+    printf '%s %s, ' "$name" "$version"
+done)
+pass "client-pinned" "${pinned%, } fetched and SHA-256 verified"
 
 # telemetry is Erlang and ships an app resource file; redix requires it to be
 # a *started* application, not merely loadable, or every command it issues logs
