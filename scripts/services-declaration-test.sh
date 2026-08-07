@@ -908,7 +908,10 @@ except ImportError:
     print(
         "skip[linux-job-matches-mise-task]: tomllib is unavailable (needs Python 3.11+)",
     )
-except (KeyError, OSError) as exc:
+except (KeyError, OSError, ValueError) as exc:
+    # ValueError covers tomllib.TOMLDecodeError, which is a subclass of it: a
+    # malformed mise.toml should name itself here rather than end this test in
+    # a traceback that reads like the test is broken.
     bad("linux-job-matches-mise-task", f"could not read mise.toml's `services` task: {exc}")
 else:
     if not any(declared_run in " ".join(str(s.get("run", "")).split()) for s in provision_steps):
@@ -985,14 +988,42 @@ $(sed 's/^/    /' <<<"$out")"
         fi
     }
 
-    gate_case "gate-converged" pass \
-        "server                     : ok=7    changed=0    unreachable=0    failed=0    skipped=2" ""
+    # Recap lines carry ansible's full field set, `rescued` and `ignored`
+    # included, rather than the shortened form the assertions strictly need:
+    # the gate reads fields by name, and a fixture that omits half of them
+    # would not notice if it stopped.
+    converged="ok=7    changed=0    unreachable=0    failed=0    skipped=2    rescued=0    ignored=0"
+    gate_case "gate-converged" pass "server                     : $converged" "ok=7"
     gate_case "gate-changed" fail \
-        "server                     : ok=7    changed=3    unreachable=0    failed=0    skipped=2" "changed"
+        "server                     : ok=7 changed=3 unreachable=0 failed=0 skipped=2 rescued=0 ignored=0" \
+        "changed"
     gate_case "gate-never-ran" fail \
-        "server                     : ok=0    changed=0    unreachable=0    failed=0    skipped=0" "no task"
+        "server                     : ok=0 changed=0 unreachable=0 failed=0 skipped=9 rescued=0 ignored=0" \
+        "no task"
     gate_case "gate-failed" fail \
-        "server                     : ok=5    changed=0    unreachable=0    failed=2    skipped=0" "failed"
+        "server                     : ok=5 changed=0 unreachable=0 failed=2 skipped=0 rescued=0 ignored=1" \
+        "failed"
+
+    # A coloured recap, which is what a force_color or `script`-wrapped run
+    # hands the gate. Every other fixture is plain, so without this case the
+    # escape stripping goes unexercised and could rot into a no-op. The escape
+    # is put in front of `PLAY RECAP` deliberately: that is where an unstripped
+    # run stops matching the header at all, so the gate refuses a run that
+    # converged perfectly well. A colour only on the host line would leave
+    # enough of the fields readable that this case could pass without the
+    # stripping working -- which is the fixture testing nothing.
+    coloured_rc=0
+    coloured_out=$(printf '\033[0;36mPLAY RECAP ****\033[0m\n\033[0;32mserver : %s\033[0m\n' \
+        "$converged" | "$gate" 2>&1) || coloured_rc=$?
+    if [[ "$coloured_rc" -ne 0 ]]; then
+        fail "gate-coloured" "the gate rejected a converged recap because it was coloured:
+$(sed 's/^/    /' <<<"$coloured_out")"
+    elif [[ "$coloured_out" == *$'\033'* ]]; then
+        fail "gate-coloured" "the gate passed the recap but echoed escapes back into its verdict:
+$(sed 's/^/    /' <<<"$coloured_out")"
+    else
+        pass "gate-coloured" "the gate reads a coloured recap and reports a clean verdict"
+    fi
 
     no_recap_rc=0
     no_recap_out=$(printf 'PLAY [Configure development environment] ***\n' | "$gate" 2>&1) ||

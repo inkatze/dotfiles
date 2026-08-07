@@ -58,10 +58,16 @@ fi
 
 # Ansible colours its recap when it believes it is writing to a terminal, and
 # `script`-wrapped or force_color runs reach here with the escapes intact. A
-# gate that silently matched nothing because of them would report exactly the
-# vacuous pass this script exists to prevent, so they are stripped rather than
-# assumed absent.
-output=$(printf '%s\n' "$output" | sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g')
+# coloured `PLAY RECAP` does not start with `PLAY`, so the check below would
+# refuse rather than mis-read it -- a safe failure, and still the wrong answer
+# for a run that converged fine.
+#
+# The escape is a literal byte from bash's `$'...'` rather than the `\x1B` a
+# GNU sed would accept: BSD sed reads that as a plain `x`, so on macOS the
+# expression would quietly match nothing at all. This repo's other platform is
+# macOS and services-declaration-test.sh drives this script from a laptop, so
+# the difference is reachable rather than theoretical.
+output=$(printf '%s\n' "$output" | sed -E $'s/\033\\[[0-9;]*[A-Za-z]//g')
 
 if ! grep -q '^PLAY RECAP' <<<"$output"; then
     refuse "no PLAY RECAP in $source, so nothing can be concluded about convergence." \
@@ -95,6 +101,13 @@ verdict=$(awk '
         if (stat["unreachable"] > 0) {
             printf "unreachable\t%s\twas unreachable\n", host
         }
+        # Carried into the verdict rather than only counted, so the pass line
+        # can say how much work it is calling converged. `ok=1` is a play that
+        # gathered facts and skipped everything else: it satisfies this gate,
+        # and it is not what anyone means by provisioned. The runtime harness
+        # is what actually rules that out; printing the number here is what
+        # makes it visible to a reader of the log either way.
+        printf "ok\t%s\t%d\n", host, stat["ok"]
         # `split("", stat)` rather than `delete stat`: the same clear, spelled
         # in the form every awk on either platform accepts.
         split("", stat)
@@ -108,7 +121,7 @@ if [[ "$hosts" -eq 0 ]]; then
         "\`host : ok=N changed=N ...\` form; the gate cannot read it."
 fi
 
-problems=$(awk -F'\t' '$1 != "hosts" { printf "    %s: %s\n", $2, $3 }' <<<"$verdict")
+problems=$(awk -F'\t' '$1 != "hosts" && $1 != "ok" { printf "    %s: %s\n", $2, $3 }' <<<"$verdict")
 if [[ -n "$problems" ]]; then
     echo "FAIL: the run did not converge:" >&2
     printf '%s\n' "$problems" >&2
@@ -123,4 +136,5 @@ if [[ -n "$problems" ]]; then
     exit 1
 fi
 
-echo "ok: $hosts host(s) converged -- tasks ran and none reported a change"
+tallies=$(awk -F'\t' '$1 == "ok" { printf "%s%s ok=%s", sep, $2, $3; sep = ", " }' <<<"$verdict")
+echo "ok: $hosts host(s) converged -- tasks ran and none reported a change ($tallies)"
