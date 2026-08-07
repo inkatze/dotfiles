@@ -34,6 +34,19 @@ jobs:
       - name: Run syntax check
         run: ansible-playbook main.yml --syntax-check
 
+      # specs/dev-services REQ-B1.5 is pinned `[test]` in test-spec.md, which
+      # spec-format defines as "runs in the repo's CI". Without this step the
+      # script existed and nothing ran it, so the pin was inaccurate.
+      #
+      # This job rather than the services (linux) one: the scan reads tracked
+      # files and needs no provisioned service, and lint already gates the whole
+      # matrix, so a stale declaration fails before anything spends a runner.
+      # Its three dependencies are already here -- git from checkout, python3
+      # from setup-python, and PyYAML transitively from the ansible install
+      # above.
+      - name: Check for stale service declarations
+        run: scripts/stale-declarations-test.sh
+
   test:
     needs: lint
     runs-on: macos-latest
