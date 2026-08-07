@@ -148,9 +148,14 @@ $(sed 's/^/    /' <<<"$migration")"
     if ! dropdb --no-password --host="$socket_dir" "$scratch" 2>&1; then
         fail "scratch-drop" "could not drop database '$scratch'"
     else
+        # `|| true`, because `set -e` aborts on an assignment whose command
+        # fails -- and aborting here would end the run with psql's error and
+        # no FAIL line, no assertion name, and no summary. Letting it through
+        # keeps the failure legible: whatever psql said lands in the message
+        # below, which is what a reader needs.
         remaining=$(psql "${psql_args[@]}" --dbname=postgres \
             --set=db="$scratch" \
-            --command="SELECT count(*) FROM pg_database WHERE datname = :'db'" 2>&1)
+            --command="SELECT count(*) FROM pg_database WHERE datname = :'db'" 2>&1 || true)
         if [[ "$remaining" != "0" ]]; then
             fail "scratch-drop" "'$scratch' survived the drop (pg_database reports $remaining)"
         else
