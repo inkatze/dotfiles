@@ -31,8 +31,14 @@
 # This file is excluded too: it carries both halves of the pattern it looks for,
 # in the regexes below, and a detector cannot also be its own subject.
 #
-# Wired into the `lint` CI job and runnable directly:
+# Not wired into CI or lefthook, matching its two siblings
+# (services-declaration-test.sh, gitleaks-rules-test.sh); run manually:
 # `scripts/stale-declarations-test.sh`. Exit 0 = all assertions pass.
+#
+# test-spec.md pins REQ-B1.5 as `[test]`, which means "runs in the repo's CI",
+# so a step in the `lint` job is the wiring this wants. That step edits CI
+# configuration, a hard-disqualifier zone, so it is recorded as a
+# recommendation in specs/dev-services/tasks.md rather than applied here.
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
