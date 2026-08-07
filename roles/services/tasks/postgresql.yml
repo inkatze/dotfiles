@@ -114,3 +114,77 @@
   # fact rather than from anywhere hostile, but an identifier assembled by
   # string concatenation is the wrong shape regardless of how trusted today's
   # input is, and psql already ships the right one.
+
+# The pair above converges the role's EXISTENCE and stops there, which is not
+# the same as converging the role. A role that already exists without CREATEDB
+# or LOGIN is left exactly as found: the existence query returns 1, the
+# creation is skipped, the run reports zero changed tasks, and REQ-A1.4 is
+# unmet. A green run with an unmet requirement is the failure shape worth
+# spending two extra tasks on.
+#
+# It is also specifically invisible to the verification this bundle planned.
+# test-spec.md pins REQ-C1.2 to Task 6's idempotency re-run, and that second
+# pass runs against a role THIS FILE created one task earlier, which by
+# construction already has both attributes. On a fresh host nothing is wrong.
+# The case is a host where someone made a same-named role by hand, which is
+# precisely REQ-C1.2's "already provisioned" condition.
+#
+# This is what `community.postgresql`'s `postgresql_user` does internally, and
+# the reason it is idempotent in the convergent sense rather than the
+# create-once one. D-6 keeps that collection out, so the behaviour is spelled
+# out here instead. Cost is one extra query per run and no change at all to
+# the fresh-host path, where the role was just created with both attributes
+# and this query returns 1 immediately.
+#
+# Placed after the creation rather than before it so it reads post-create
+# state; ordered the other way it would predict an ALTER on every fresh host.
+- name: Check whether the account's database role carries the required attributes
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - --no-psqlrc
+      - --no-password
+      - --no-align
+      - --tuples-only
+      - --dbname=postgres
+      - --set=ON_ERROR_STOP=1
+      - --set=rolname={{ ansible_facts.user_id }}
+    stdin: >-
+      SELECT 1 FROM pg_roles
+       WHERE rolname = :'rolname' AND rolcreatedb AND rolcanlogin
+  become: true
+  register: services_postgresql_role_attrs
+  # Same posture as the existence query: reads nothing, writes nothing, and
+  # must run under --check so the guard below has a defined result to read.
+  changed_when: false
+  check_mode: false
+
+- name: Converge the database role's attributes
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - --no-psqlrc
+      - --no-password
+      - --dbname=postgres
+      - --set=ON_ERROR_STOP=1
+      - --set=rolname={{ ansible_facts.user_id }}
+    stdin: 'ALTER ROLE :"rolname" LOGIN CREATEDB'
+  become: true
+  # `rolcanlogin` and `rolcreatedb` are the catalog columns behind the LOGIN
+  # and CREATEDB clauses. Both are required, so the query ANDs them and a role
+  # missing either one falls through to here -- ALTER sets both, and setting
+  # an attribute a role already has is a no-op rather than an error, so there
+  # is no need to work out which of the two was missing.
+  when: services_postgresql_role_attrs.stdout != "1"
+  # Deliberately NOT granting anything beyond what the creation above asks
+  # for. This task exists to make an existing role match what this repo would
+  # have created, not to escalate it: same two attributes, same reasoning, no
+  # superuser, no role membership.
