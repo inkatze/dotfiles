@@ -204,9 +204,16 @@ its protection rather than audited after the fact (D-8).
   action, one of two:** run `mise run services -K` on the Linux host and then
   `scripts/postgresql-access-test.sh`, which answers both clauses in a few
   seconds; or leave it to Task 6, whose CI job is the intended caller and which
-  covers Task 4's equivalent clauses in the same run. Note that Task 6 is
-  blocked behind the CI outage recorded in the Task 2 entry above, so the host
-  route is the one that does not wait on anything.
+  covers Task 4's equivalent clauses in the same run. **The CI outage recorded
+  in the Task 2 entry above has cleared:** Task 3's PR produced a full workflow
+  run, and `lint` plus every `test` entry that reached a runner passed,
+  including `test (services)` at `strict_idempotency: true` — which verifies
+  the clause Task 2 had to leave open, since the macOS run executed the role
+  twice with zero changed tasks and provisioned none of the declared services.
+  Whatever caused the outage was transient or was fixed between then and now;
+  the exhausted-minutes hypothesis is neither confirmed nor needed any more.
+  Task 6 is therefore not blocked on CI availability, though the host route
+  remains the faster of the two for Task 3's own open clauses.
 
   Convergence additionally surfaced a finding in a hard-disqualifier zone, so
   it is recorded here rather than applied: the fix grants a database privilege
