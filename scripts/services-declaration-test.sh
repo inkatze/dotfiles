@@ -468,6 +468,114 @@ assert_tag_selects "services-tag-selects" "services" '^ *services :' "task(s) in
 assert_tag_selects "colima-tag-selects" "colima" 'TAGS: \[colima' "colima task(s)"
 
 # ---------------------------------------------------------------------------
+# The bespoke-setup dispatch, behaviourally (REQ-B1.1, REQ-B1.3). The
+# structural cases above assert the dispatch is *written* to read the
+# declaration; this one runs it and watches where it goes, against a stubbed
+# declaration so no server is needed.
+#
+# Two directions, and the second is the one worth the setup cost. A service
+# declaring `setup:` must reach that file; a service declaring none must
+# contribute no task at all rather than an error about an undefined key. The
+# declaration holds one of each today -- PostgreSQL has bespoke setup and
+# Valkey does not -- so a dispatch that mishandled the second would break a
+# service whose own task never changed.
+#
+# Run under `-t services`, the tag `mise run services` passes, because a
+# dynamic include is where tag selection silently stops reaching tasks. That
+# is the failure main.yml's note describes and the one no recap distinguishes
+# from a role with nothing to do.
+#
+# The dispatch task is lifted out of linux.yml rather than rewritten here: a
+# hand-copied lookalike would keep passing after the real one changed, which
+# is the only way this case could mislead.
+# ---------------------------------------------------------------------------
+
+dispatch_rc=0
+python3 - "$tasks_dir" "$workdir" <<'PY' || dispatch_rc=$?
+import pathlib
+import sys
+
+import yaml
+
+tasks_dir, workdir = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+doc = yaml.safe_load((tasks_dir / "linux.yml").read_text()) or []
+tasks = [t for top in doc for t in (top.get("block") or [top])]
+dispatch = [
+    t for t in tasks if "item.setup" in str(t.get("ansible.builtin.include_tasks", ""))
+]
+if len(dispatch) != 1:
+    print(
+        f"FAIL[bespoke-setup-runs]: expected one dispatch task in linux.yml, found {len(dispatch)}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+outer = doc[0]
+(workdir / "dispatch.yml").write_text(
+    yaml.safe_dump(
+        [{"name": outer["name"], "when": outer["when"], "tags": outer["tags"], "block": dispatch}]
+    )
+)
+(workdir / "stub-setup.yml").write_text(
+    yaml.safe_dump(
+        [{"name": "Stubbed bespoke setup", "ansible.builtin.debug": {"msg": "STUB-SETUP-RAN"}}]
+    )
+)
+(workdir / "dispatch-play.yml").write_text(
+    yaml.safe_dump(
+        [
+            {
+                "name": "bespoke setup dispatch",
+                "hosts": "localhost",
+                "gather_facts": False,
+                "connection": "local",
+                "vars": {
+                    "ansible_facts": {"os_family": "Debian"},
+                    "services_dev_services": [
+                        {"name": "Declares bespoke setup", "setup": str(workdir / "stub-setup.yml")},
+                        {"name": "Declares none"},
+                    ],
+                },
+                "tasks": [
+                    {
+                        "name": "The dispatch task, as linux.yml writes it",
+                        "ansible.builtin.import_tasks": str(workdir / "dispatch.yml"),
+                    }
+                ],
+            }
+        ]
+    )
+)
+PY
+
+if [[ "$dispatch_rc" -ne 0 ]]; then
+    fails=$((fails + 1))
+else
+    dispatch_out="$workdir/dispatch.out"
+    if ! ansible-playbook -i localhost, -t services "$workdir/dispatch-play.yml" \
+        >"$dispatch_out" 2>&1; then
+        fail "bespoke-setup-runs" "the dispatch play did not complete:
+$(sed 's/^/    /' "$dispatch_out")"
+    elif ! grep -q 'STUB-SETUP-RAN' "$dispatch_out"; then
+        fail "bespoke-setup-runs" \
+            "\`-t services\` did not reach the declared setup file; the include is selected
+    but its tasks are not, which is the silent failure main.yml's note describes"
+    else
+        # ok=2 is the include plus the one stubbed task it pulled in. A third
+        # would mean the entry declaring no setup produced something; a
+        # failure would mean it produced an error about a missing key.
+        recap=$(grep -o 'ok=[0-9]*  *changed=[0-9]*.*' "$dispatch_out" | tail -1)
+        if ! grep -qE 'ok=2 .*failed=0' <<<"$recap"; then
+            fail "bespoke-setup-runs" \
+                "a service declaring no bespoke setup did not contribute zero tasks: $recap"
+        else
+            pass "bespoke-setup-runs" \
+                "\`-t services\` reached the declared setup and skipped the service without one"
+        fi
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # PostgreSQL's own configuration stays the distribution's (D-4, Task 3's
 # Done-when). D-4 chose peer authentication over the Unix socket precisely
 # because it needs no deviation from the shipped configuration -- there is
