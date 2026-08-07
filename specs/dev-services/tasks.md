@@ -243,6 +243,31 @@ its protection rather than audited after the fact (D-8).
   this branch, or direct otherwise if leaving a hand-made role untouched is the
   preferred behaviour.
 
+- **Task 6** — Implemented, converged and pushed as draft PR #103. Three of
+  the four Done-when clauses are verified by observation rather than
+  assumption: the job asserts every declared service running, enabled and
+  reachable; it declares no secrets (and blanks the inherited token, so the
+  CI log shows it empty); and the convergence gate was **seen to fail** — a
+  deliberate always-changed task in `1e1b5fc` failed the job at the gate with
+  `changed=1 task(s)` and skipped the steps after it, reverted in `75d6e13`.
+  The fourth clause, that the existing macOS matrix jobs still pass, is
+  **unverified and not blocked on anything in this branch**: all ten
+  `test (…)` jobs have sat queued on `macos-latest` for over an hour with no
+  runner allocated, while `lint` and the new `services (linux)` job both
+  passed. Their being unmodified is proven structurally (the workflow diff is
+  a pure append, `120a121,235`, asserted on every run by
+  `scripts/services-declaration-test.sh`), so only the live green remains.
+  **Operator action:** re-read `gh pr checks 103` once macOS capacity frees
+  up; no code change is expected. Worth noting for the bundle rather than
+  only for this task, since it is the second time this shortage has stalled
+  the gate today and is the concrete argument the Linux job was put on Ubuntu
+  in the first place. Separately, the job found and this branch fixes two
+  pre-existing `psql --command` interpolation bugs in **Task 3's** work
+  (`roles/services/tasks/postgresql.yml` and
+  `scripts/postgresql-access-test.sh`), neither of which had ever run on
+  Linux before; both sit in PR #103's pending-sign-off checklist and are the
+  items there most worth reading closely.
+
 ## Deferred
 
 (none yet)
