@@ -238,6 +238,75 @@ revert the LaunchAgent edit, and SSH-tunnel from clients instead
 `OLLAMA_HOST=localhost:11434` and
 `OLLAMA_BASE_URL=http://localhost:11434` on the client).
 
+## Review backends: codex vs gemini
+
+`/panel-review` and `/code-review` run their discovery pass through a
+non-Anthropic CLI. Which one is not a per-run choice, it follows the machine:
+
+| Alias | Backend | CLI comes from | Key comes from |
+|---|---|---|---|
+| `work` | `codex` | `Brewfile` (`cask "codex"`) | `codex login`, interactive |
+| `personal`, `alt` | `gemini` | `Brewfile` (`brew "gemini-cli"`) | `scripts/claude-gemini-auth-sync.sh` |
+| `server` | `gemini` | mise, pinned in `roles/linux/files/mise/linux.toml` | same script, service-account path |
+
+**The profile is the inventory alias**, resolved exactly as
+`scripts/playbook.sh` and `roles/fish/files/ollama.fish` resolve it:
+`DOTFILES_HOST`, else `~/.config/dotfiles/host`, else `work`.
+`PANEL_REVIEW_PROFILE` is still honoured ahead of all of it as a per-run
+override.
+
+It used to be *only* that env var, defaulting to `personal`, and the default
+was a live bug rather than a latent one: nothing in this repo ever sets
+`PANEL_REVIEW_PROFILE`, so the work Mac resolved to `personal` and reached for
+gemini on every review, which is the exact opposite of the table. Keying on
+the alias the rest of the repo already uses means the work host is right with
+nothing to remember, and a new host is wrong only if it has not declared
+itself, which is the same failure every other alias consumer has.
+
+Note the fallback direction differs from `ollama.fish` on purpose. There an
+unresolved alias must set nothing, so an unconfigured client gets a visible
+connection-refused instead of silently talking to a LAN address. Here it means
+`work`, matching `playbook.sh`, because the work host is the one machine
+documented as having no alias file.
+
+**Linux is the odd one out for installing the CLI, twice over.** apt has no
+gemini package and mise's registry offers exactly one backend for it
+(`npm:@google/gemini-cli`), so npm is the route rather than a preference. And
+because that backend needs node on PATH while `roles/linux` runs *before*
+`roles/environments` (which owns the node pin), the version pin lives in
+`linux.toml` with the other Linux-only pins but the install step sits in
+`roles/environments/tasks/main.yml`. Splitting them is deliberate: on a fresh
+host `linux_mise_tools` is walked before node exists, and the install would
+hard-fail there. That is also why the install task is tagged `environments`
+and not `linux`, so `mise run linux` does not reach it.
+
+The key sync is cross-platform and lives in `roles/claude`, not in either
+platform role. It was in the Darwin-guarded `roles/osx` until this change,
+which is why the Linux host had fish `conf.d/gemini.fish` exporting
+`GEMINI_API_KEY` from a file nothing ever wrote. It keeps the `osx` tag so
+`mise run osx` still syncs on a Mac.
+
+**On a headless host the key comes from the service account, and that
+constrains the vault.** There is no 1Password desktop app to authorize
+against, so `claude-gemini-auth-sync.sh` falls back to
+`~/.config/dotfiles/op-service-account-token` the same way
+`ssh-lan-config-sync.sh` does. A service account cannot be granted the
+Personal or Private vault, so the key item has to live in
+`Dotfiles Service Account`, and it must be addressed with an explicit
+`--vault`: without one, `op` refuses every field with "a vault query must be
+provided when this command is called by a service account", which reads like a
+missing item and is not. Moving the item between vaults also reassigns its
+id, so `ITEM_UUID` in that script is the id *in that vault*, not the one it
+had in Private.
+
+**Gemini CLI needs `--skip-trust` for any headless run** (verified on
+gemini-cli 0.54.4). Without it the CLI downgrades `--approval-mode plan` to
+`default` and *then* aborts with "not running in a trusted directory". Keep
+`--approval-mode plan` regardless: it is the read-only guard, and `--skip-trust`
+only bypasses the folder-trust gate. That ordering matters, since a future
+version that stops aborting would otherwise run with the guard already
+stripped.
+
 ## Ansible role layout
 
 The repo is split by platform via `os_family` guards in `main.yml`:

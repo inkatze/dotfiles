@@ -27,31 +27,49 @@ Runs identically in both modes.
 
 1. **Identify base branch and capture the diff** (same as `/self-review` step 1).
 2. **(Optional) Jira ticket** (same as `/self-review` step 2).
-3. **Detect repo profile.** Work or personal, driven by an untracked, machine-local
-   signal so no employer identifiers live in this tracked, public file. Set
-   `PANEL_REVIEW_PROFILE=work` on work machines (e.g. a fish universal variable or
-   shell rc); anything else (unset or any other value) resolves to `personal`:
+3. **Detect the machine profile.** Driven by an untracked, machine-local signal so no
+   employer identifiers live in this tracked, public file. Resolve **the dotfiles
+   inventory alias**, the same indirection `scripts/playbook.sh` and fish
+   `conf.d/ollama.fish` already use, in the same order and with the same `work`
+   fallback:
 
    ```bash
-   case "${PANEL_REVIEW_PROFILE:-personal}" in
-     work) echo work ;;
-     *)    echo personal ;;
-   esac
+   if   [ -n "${PANEL_REVIEW_PROFILE:-}" ];  then echo "$PANEL_REVIEW_PROFILE"   # explicit per-run override
+   elif [ -n "${DOTFILES_HOST:-}" ];        then echo "$DOTFILES_HOST"
+   elif [ -f "$HOME/.config/dotfiles/host" ]; then tr -d '[:space:]' < "$HOME/.config/dotfiles/host"
+   else echo work                                                               # same fallback as playbook.sh
+   fi
    ```
+
+   **This replaces a `PANEL_REVIEW_PROFILE`-only lookup that defaulted to `personal`,
+   and the default was the bug.** Nothing in the dotfiles repo ever sets that variable,
+   so a work machine that had not exported it by hand resolved to `personal` and reached
+   for `gemini` on every run, which is the opposite of what the table below asks for. The
+   alias file is the signal the rest of the repo already keys on, so the work host now
+   resolves correctly with nothing to remember. `PANEL_REVIEW_PROFILE` is still honored
+   first as a per-run override; it is no longer the only signal.
+
+   Note the fallback direction differs from `ollama.fish` on purpose. There, an
+   unresolved alias must set nothing (a client that has not named itself should fail to
+   reach a local daemon rather than silently talk to a LAN address). Here, an unresolved
+   alias means `work`, matching `playbook.sh`, because the work host is the one machine
+   documented as having no alias file.
 
 4. **Resolve the backend set.** If `$ARGUMENTS` contains `--backends a,b,c`, use those (comma-separated). Otherwise use the profile table default:
 
    | Profile | Default backends |
    |---|---|
    | work | `codex` |
-   | personal / alt | `gemini` |
+   | personal / alt / server | `gemini` |
+
+   An alias not in the table resolves to `gemini`, the non-work default.
 
    Supported backends: `codex`, `gemini`, `qwen-coder`, `gpt-oss`, `copilot`. `copilot` is **opt-in only** via `--backends`; do not auto-include it (the GitHub quota is the original constraint and including it implicitly defeats the point). `deepseek-r1` was retired: it is a reasoning model that emits `<think>` chain-of-thought blocks the panel prompt cannot reliably suppress, and ~2x wall-clock vs `qwen-coder`. `gpt-oss:20b` replaces it as a different-lineage second slot (OpenAI training, instruction-tuned, no reasoning trace). The Ollama models remain available via `--backends` for variance panels when wanted.
 
 5. **Verify each backend.** Stop with a specific install / auth message if any fails; do not silently drop a backend (the user expects the variance the backend provides).
 
-   - `codex`: `command -v codex` must succeed; `codex auth status` (or equivalent: query the codex CLI's own readiness probe) must report an authenticated session. If not authed, stop with `Codex CLI needs auth; run 'codex login'`. If not installed, stop with `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'`.
-   - `gemini`: `command -v gemini` must succeed. The `GEMINI_API_KEY` env var must be set (the dotfiles fish conf.d/gemini.fish exports it from `~/.gemini/.api-key`, which is written by `scripts/claude-gemini-auth-sync.sh` from the 1Password item declared in that script). If `gemini` is missing, stop with `Gemini CLI not installed; mise run osx will install via Brewfile 'gemini-cli'`. If `GEMINI_API_KEY` is unset, stop with `Gemini CLI needs auth; run 'mise run osx' to sync from 1Password (requires the 1Password item UUID to be set in scripts/claude-gemini-auth-sync.sh) or set GEMINI_API_KEY manually`.
+   - `codex`: `command -v codex` must succeed; `codex auth status` (or equivalent: query the codex CLI's own readiness probe) must report an authenticated session. If not authed, stop with `Codex CLI needs auth; run 'codex login'`. If not installed, stop with `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'` — and note that the Brewfile entry is a **cask**, so this route is macOS-only. On Linux nothing in the dotfiles installs codex; it is only ever reached there by an explicit `--backends codex`.
+   - `gemini`: `command -v gemini` must succeed. The `GEMINI_API_KEY` env var must be set (the dotfiles fish conf.d/gemini.fish exports it from `~/.gemini/.api-key`, which is written by `scripts/claude-gemini-auth-sync.sh` from the 1Password item declared in that script). The install route is platform-specific, so name the right one: on macOS `Gemini CLI not installed; mise run osx will install via Brewfile 'gemini-cli'`, on Linux `Gemini CLI not installed; mise run environments will install it (pinned in roles/linux/files/mise/linux.toml, npm backend)`. If `GEMINI_API_KEY` is unset, stop with `Gemini CLI needs auth; run 'mise run osx' (macOS) or 'mise run linux' (Linux) to sync from 1Password, or set GEMINI_API_KEY manually`. On a headless host that sync reads the machine-local service-account token rather than the 1Password desktop app, and a service account cannot be granted Personal or Private, so the key item must live in a vault it can reach.
    - `qwen-coder` / `gpt-oss`: `curl -sf "${OLLAMA_BASE_URL:-http://localhost:11434}/api/tags"` must return a body containing the model name (`qwen2.5-coder:32b` or `gpt-oss:20b`). If the API does not respond, stop with `Ollama service not running; brew services start ollama` (on the work host; on personal/alt the dotfiles fish conf.d/ollama.fish points OLLAMA_BASE_URL at the work host's LAN IP, see dotfiles `CLAUDE.md` "Cross-host Ollama topology"). If the model is missing, stop with `Model not pulled; ollama pull <name>` (the dotfiles Ansible task pulls both on the work host by default; missing means an opt-out or the cross-host route is not configured).
    - `copilot`: `gh copilot --help` must succeed and the account must have quota. Stop if `gh` is not authenticated or `gh copilot` returns a quota-exhausted error.
 
@@ -101,7 +119,9 @@ Diff:
 **Per-backend invocation patterns** (verify exact flags on first use; this is illustrative):
 
 - **codex**: `codex exec "<prompt>"` (or the equivalent flag set; the CLI may require `--model` or similar). Codex returns text on stdout; capture and parse the table.
-- **gemini**: pipe the prompt via **stdin**, not `-p`. In fish, `gemini -p "$(…)"` / `gemini -p (cat file)` splits the multiline prompt into separate argv entries (and can feed empty stdin), so the CLI prints its help instead of answering — this bit the worker-permission-ergonomics panel pass, which only recovered after switching to stdin. Write the prompt to a file and pipe it in the **same `Bash` tool invocation** (fresh shell per call — same `$$` caveat as the Ollama backends below): `gemini -o text [-m <model>] [--approval-mode plan] < "$prompt_file"`. `-o text` keeps stdout free of the JSON envelope so the table parser sees raw markdown; `-m <model>` pins a specific Gemini model (defaults to whatever the CLI considers current); `--approval-mode plan` forces read-only operation. Stdout carries the model response; capture and parse the table.
+- **gemini**: pipe the prompt via **stdin**, not `-p`. In fish, `gemini -p "$(…)"` / `gemini -p (cat file)` splits the multiline prompt into separate argv entries (and can feed empty stdin), so the CLI prints its help instead of answering — this bit the worker-permission-ergonomics panel pass, which only recovered after switching to stdin. Write the prompt to a file and pipe it in the **same `Bash` tool invocation** (fresh shell per call — same `$$` caveat as the Ollama backends below): `gemini -o text --skip-trust [-m <model>] [--approval-mode plan] < "$prompt_file"`. `-o text` keeps stdout free of the JSON envelope so the table parser sees raw markdown; `-m <model>` pins a specific Gemini model (defaults to whatever the CLI considers current); `--approval-mode plan` forces read-only operation.
+
+  `--skip-trust` is **required for any headless run**, not optional tidiness. Without it the CLI prints `Approval mode overridden to "default" because the current folder is not trusted` and then aborts with `Gemini CLI is not running in a trusted directory` — note the ordering: it silently *downgrades* `--approval-mode plan` first, so a future version that stops aborting would leave a run going with the read-only guard already stripped. `GEMINI_CLI_TRUST_WORKSPACE=true` in the environment is the equivalent. Verified against gemini-cli 0.54.4: with `--skip-trust` the plan-mode override warning disappears, so the read-only guard survives. Stdout carries the model response; capture and parse the table.
 - **qwen-coder** and **gpt-oss** (Ollama): **prefer the HTTP API** for programmatic invocation. The base URL is read from `OLLAMA_BASE_URL` (set in fish conf.d/ollama.fish on personal/alt hosts to the work host's LAN IP) and falls back to `http://localhost:11434` on the work host itself. **Write the prompt file and run `curl` in the same `Bash` tool invocation**: the `Bash` tool spawns a fresh shell per call, so `$$` in a later call is a different PID than `$$` in an earlier one; if the write and the read land in separate tool calls, the `--rawfile` path silently points at a file that was never created and `jq` fails.
   ```bash
   prompt_file="/tmp/panel-review-prompt.$$.txt"

@@ -55,10 +55,15 @@ Apply the canonical spec in CLAUDE.md `Discovery Rigor (Issue Identification)`. 
 
 a. **Run project tooling once.** Linters, formatters, type checkers, static analyzers, complexity / duplication meters, dead-code detectors, security scanners. Discover via `lefthook.yml`, CI workflows, `mise.toml` tasks, language config files, and the SessionStart `tool-discovery` summary if present in this session's context. Capture the output; it becomes shared input for every lens agent and for the backend.
 
-b. **Resolve and verify the backend.** Same mechanism as `/panel-review` so the choice tracks the machine, not this tracked, public file. Read the machine profile from `PANEL_REVIEW_PROFILE` (the shared work/personal signal; unset or any non-`work` value resolves to `personal`), then pick the backend from the profile table. A `--backends <name>` token in `$ARGUMENTS` overrides it (code-review supports `codex` or `gemini`; the Ollama / Copilot backends stay `/panel-review`-only). The remaining non-flag `$ARGUMENTS` token is the PR number from step 1.
+b. **Resolve and verify the backend.** Same mechanism as `/panel-review` so the choice tracks the machine, not this tracked, public file: resolve the dotfiles inventory alias, then pick the backend from the profile table. A `--backends <name>` token in `$ARGUMENTS` overrides it (code-review supports `codex` or `gemini`; the Ollama / Copilot backends stay `/panel-review`-only). The remaining non-flag `$ARGUMENTS` token is the PR number from step 1.
 
    ```bash
-   case "${PANEL_REVIEW_PROFILE:-personal}" in
+   if   [ -n "${PANEL_REVIEW_PROFILE:-}" ];  then profile="$PANEL_REVIEW_PROFILE"   # explicit per-run override
+   elif [ -n "${DOTFILES_HOST:-}" ];        then profile="$DOTFILES_HOST"
+   elif [ -f "$HOME/.config/dotfiles/host" ]; then profile="$(tr -d '[:space:]' < "$HOME/.config/dotfiles/host")"
+   else profile=work                                                               # same fallback as playbook.sh
+   fi
+   case "$profile" in
      work) echo codex ;;
      *)    echo gemini ;;
    esac
@@ -67,11 +72,13 @@ b. **Resolve and verify the backend.** Same mechanism as `/panel-review` so the 
    | Profile | Default backend |
    |---|---|
    | work | `codex` |
-   | personal / alt | `gemini` |
+   | personal / alt / server | `gemini` |
+
+   This used to read `PANEL_REVIEW_PROFILE` alone and default to `personal`, which meant a work machine that had not exported that variable by hand (nothing in the dotfiles repo sets it) silently resolved to `gemini`. Keying on the alias file the rest of the repo already uses fixes that; the env var is still honored first as a per-run override. Keep this block and `/panel-review` step 3 in sync.
 
    Verify the resolved backend before using it. Stop with a specific install / auth message if it fails; do not silently fall back to a Claude-only run, since the whole point is the non-Anthropic angle:
-   - `codex`: `command -v codex` must succeed and `codex auth status` (or the CLI's readiness probe) must report an authenticated session. Missing: `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'`. Not authed: `Codex CLI needs auth; run 'codex login'`.
-   - `gemini`: `command -v gemini` must succeed and `GEMINI_API_KEY` must be set (dotfiles fish conf.d/gemini.fish exports it from `~/.gemini/.api-key`). Missing: `Gemini CLI not installed; mise run osx will install via Brewfile 'gemini-cli'`. Unset key: `Gemini CLI needs auth; run 'mise run osx' to sync from 1Password or set GEMINI_API_KEY manually`.
+   - `codex`: `command -v codex` must succeed and `codex auth status` (or the CLI's readiness probe) must report an authenticated session. Missing: `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'` (a cask, so macOS-only; nothing in the dotfiles installs codex on Linux). Not authed: `Codex CLI needs auth; run 'codex login'`.
+   - `gemini`: `command -v gemini` must succeed and `GEMINI_API_KEY` must be set (dotfiles fish conf.d/gemini.fish exports it from `~/.gemini/.api-key`). Missing, macOS: `Gemini CLI not installed; mise run osx will install via Brewfile 'gemini-cli'`. Missing, Linux: `Gemini CLI not installed; mise run environments will install it (pinned in roles/linux/files/mise/linux.toml, npm backend)`. Unset key: `Gemini CLI needs auth; run 'mise run osx' (macOS) or 'mise run linux' (Linux) to sync from 1Password, or set GEMINI_API_KEY manually`.
 
 c. **Spawn one `Explore` sub-agent per canonical lens, in parallel.** Default is to spawn for all 9 lenses; only skip a lens when it is genuinely n/a for the diff, and record the reason for the lens-coverage table. Each sub-agent receives:
    - The full diff (or relevant slice for large diffs)
@@ -81,7 +88,7 @@ c. **Spawn one `Explore` sub-agent per canonical lens, in parallel.** Default is
 
 d. **Backend discovery pass.** Invoke the resolved backend **once** with the full diff (or relevant slice) and the tooling output from (a), asking it to walk the 9 canonical lenses and return a findings table. Run it concurrently with the Claude fan-out in (c). Invocation patterns (verify exact flags on first use):
    - **codex**: `codex exec "<prompt>"` (add `--model` etc. as the CLI requires). Capture stdout and parse the table.
-   - **gemini**: pipe the prompt via **stdin**, not `-p`. In fish, `gemini -p "$(…)"` splits the multiline prompt across argv and the CLI prints its help instead of answering, so write the prompt to a file and pipe it in the **same `Bash` tool invocation** (fresh shell per call): `gemini -o text [-m <model>] --approval-mode plan < "$prompt_file"`. `-o text` keeps stdout free of the JSON envelope; `--approval-mode plan` forces read-only operation.
+   - **gemini**: pipe the prompt via **stdin**, not `-p`. In fish, `gemini -p "$(…)"` splits the multiline prompt across argv and the CLI prints its help instead of answering, so write the prompt to a file and pipe it in the **same `Bash` tool invocation** (fresh shell per call): `gemini -o text --skip-trust [-m <model>] --approval-mode plan < "$prompt_file"`. `-o text` keeps stdout free of the JSON envelope; `--approval-mode plan` forces read-only operation. `--skip-trust` is required for any headless run (or `GEMINI_CLI_TRUST_WORKSPACE=true`): without it the CLI downgrades `--approval-mode plan` to `default` and then aborts with `Gemini CLI is not running in a trusted directory`. That matters more here than in `/panel-review`, because this command reviews **someone else's** checked-out PR: the folder-trust gate is exactly the thing being bypassed, so keep `--approval-mode plan` on every invocation, since it is what actually holds the run read-only over untrusted code.
 
    Prompt structure (adapt wording per backend; the substance is the lens walk):
    ```
@@ -233,6 +240,6 @@ git checkout <original-branch>
 
 ## Maintenance
 
-After completing the workflow, check if any part of these instructions seem outdated, incorrect, or misaligned with the current project's tooling or workflow. Watch specifically for backend drift: codex / gemini CLI flag changes, profile-table or `PANEL_REVIEW_PROFILE` changes, and divergence from `/panel-review`'s backend resolution (which this command mirrors, so the two should stay in sync). If something looks off, flag it and offer a ready-to-use prompt I can paste into a new dotfiles session to update this command.
+After completing the workflow, check if any part of these instructions seem outdated, incorrect, or misaligned with the current project's tooling or workflow. Watch specifically for backend drift: codex / gemini CLI flag changes, profile-table changes, new inventory aliases the table does not cover, and divergence from `/panel-review`'s backend resolution (which this command mirrors, so the two should stay in sync). If something looks off, flag it and offer a ready-to-use prompt I can paste into a new dotfiles session to update this command.
 
 $ARGUMENTS
