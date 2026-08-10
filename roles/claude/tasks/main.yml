@@ -81,8 +81,9 @@
 # the Darwin guard on that role is what left this host with fish
 # conf.d/gemini.fish exporting GEMINI_API_KEY from a file no task ever wrote.
 #
-# Both tasks keep the `osx` tag so `mise run osx` still syncs the key on a Mac,
-# and gain `linux` so `mise run linux` does the same here.
+# The four tasks below (directory, op probe, sync, skip notice) keep the `osx`
+# tag so `mise run osx` still syncs the key on a Mac, and gain `linux` so
+# `mise run linux` does the same here.
 #
 # Still gated on non-work: the work host reviews through codex, so it has no
 # use for a Gemini key, while `server` needs one exactly as `personal` and

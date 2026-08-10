@@ -264,13 +264,15 @@ tests mere existence, so a `touch`ed alias file there yields an empty
 inventory host against this machine. Worth fixing there too; it is left alone
 here only because this change has no business editing the playbook entrypoint.
 
-Two of those clauses are easy to drop and were dropped in the first cut of
-this change. Without the `alt` hostname branch, an `alt` Mac (which
+Three of those clauses are easy to drop, and the first cut of this change
+dropped all three. Without the `alt` hostname branch, an `alt` Mac (which
 legitimately has no alias file, see the machine-local files section below)
 resolves to `work` and reaches for codex, which it never logs into. Without the
 non-whitespace test, a `touch`ed alias file yields an empty profile, which is
 not `work` and therefore selects gemini on the work host — the very bug this
-change exists to fix, re-entered through a different door.
+change exists to fix, re-entered through a different door. And without
+`DOTFILES_HOST_FILE`, a host that relocates its alias file has `playbook.sh`
+and the review commands disagreeing about which machine it is.
 
 It used to be *only* that env var, defaulting to `personal`, and the default
 was a live bug rather than a latent one: nothing in this repo ever sets
