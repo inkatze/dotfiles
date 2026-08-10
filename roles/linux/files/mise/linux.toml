@@ -61,12 +61,13 @@ lua-language-server = "3.18.2"
 # to roles/environments/files/mise.toml would shadow the Macs' Homebrew copy for
 # no gain.
 #
-# INSTALLED FROM roles/environments, not from linux_mise_tools, which is the one
-# asymmetry in this file. The npm backend needs node on PATH, and the linux role
-# runs BEFORE environments (which owns the node pin), so on a fresh host nothing
-# has installed node yet when linux_mise_tools is walked. The pin stays here
-# with the other Linux-only pins; only the install step moved. See the
-# "Install the Gemini CLI" task in roles/environments/tasks/main.yml.
+# Installed from linux_mise_tools like every other entry here, despite the npm
+# backend appearing to need a node this role installs nothing of. It does not:
+# with a throwaway MISE_DATA_DIR (no node installed anywhere) and node absent
+# from PATH, `mise install npm:<pkg>` still succeeds, because mise bootstraps a
+# node for the backend rather than borrowing the host's. That was measured, not
+# assumed — an earlier revision of this change split the pin from its install
+# across two roles to work around the ordering problem it turns out not to have.
 gemini = "0.54.4"
 
 # Ubuntu resolute ships gh 2.46.0, tagged upstream in March 2024. gh is a

@@ -115,54 +115,6 @@
   changed_when: true
   tags: [environments]
 
-# The Gemini CLI, pinned in roles/linux/files/mise/linux.toml alongside the
-# other Linux-only tools but installed HERE rather than from linux_mise_tools.
-# mise's only backend for it is npm:@google/gemini-cli, and the npm backend
-# needs node on PATH; the linux role runs before this one, so on a fresh host
-# nothing has installed node by the time linux_mise_tools is walked and the
-# install would hard-fail. By this point the loop above has installed it.
-#
-# Debian-guarded because linux.toml (and therefore the pin) exists only there;
-# the Macs get the CLI from the Brewfile. Tagged `environments` only, NOT
-# `linux`: `mise run linux` deliberately does not reach this task, since on a
-# fresh host that invocation has no node either.
-#
-# Gated on `mise ls --missing` rather than on a string in mise's output, for
-# the reason the long comment above records. The linux role's own loop keys
-# `changed` off the word "installed" appearing on stderr, which is not safe
-# here: mise emits `WARN gemini installed but not activated` on EVERY run when
-# the tool is not yet declared in a config file, so that test would report
-# changed forever and re-open the convergence hole the comment above closed.
-# `mise ls --missing <tool>` answers the actual question and prints nothing
-# when there is nothing to do (verified both ways on this host).
-#
-# linux.toml is symlinked by the linux role, which runs before this one, so
-# gemini is always declared by the time this is evaluated on Debian.
-- name: Check whether the pinned Gemini CLI is installed (Linux)
-  ansible.builtin.shell:
-    cmd: mise ls --missing gemini
-    chdir: "{{ ansible_facts.env.HOME }}"
-    executable: "{{ environments_fish_prefix }}/bin/fish"
-  register: environments_gemini_missing
-  changed_when: false
-  when: ansible_facts.os_family == "Debian"
-  tags: [environments]
-
-- name: Install the Gemini CLI (Linux; the panel/code-review backend)
-  ansible.builtin.shell:
-    cmd: mise install gemini
-    chdir: "{{ ansible_facts.env.HOME }}"
-    executable: "{{ environments_fish_prefix }}/bin/fish"
-  when:
-    - ansible_facts.os_family == "Debian"
-    # `| default('')` rather than bare `.stdout`: on macOS the check task above
-    # is skipped, and a skipped task still registers a variable — one with no
-    # `stdout` attribute. Jinja's `and` short-circuits on the Debian test above,
-    # so a bare reference happens to work, but only by evaluation order.
-    - environments_gemini_missing.stdout | default('') | trim | length > 0
-  changed_when: true
-  tags: [environments]
-
 - name: Update NodeJS config
   ansible.builtin.import_tasks: nodejs.yml
   tags: [environments]
