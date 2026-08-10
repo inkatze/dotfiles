@@ -43,9 +43,10 @@ optional, and its absence degrades visibly rather than silently.
 
 | File | Read by | Holds |
 |---|---|---|
-| `host` | `scripts/playbook.sh`, `roles/fish/files/ollama.fish` | This machine's inventory alias: `work`, `personal`, `alt` or `server` |
+| `host` | `scripts/playbook.sh`, `roles/fish/files/ollama.fish`, the `/panel-review` and `/code-review` commands | This machine's inventory alias: `work`, `personal`, `alt` or `server` |
 | `ssh-host` | the `sshc` fish function | Hostname `kitten ssh` connects to |
 | `kitty-ssh.conf` | kitty's `ssh.conf`, via `globinclude` | Host-specific kitty `ssh.conf` sections (see that file for an example) |
+| `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh` | 1Password service-account token, mode 0600. The only secret here, and the only way these two syncs can authenticate on a headless host, where there is no desktop app to approve them. Absent, each degrades differently: the ssh sync is skipped with a notice, while the Gemini key sync fails the task on any host that has `op` installed. See the repo `CLAUDE.md` for how to mint one. |
 
 `host` is the one that matters most: `scripts/playbook.sh` uses it to pick
 the inventory host, falling back to `work` (with a warning) when nothing
