@@ -52,6 +52,23 @@ uv = "0.11.32"
 # shadow the Macs' Homebrew copy for no gain.
 lua-language-server = "3.18.2"
 
+# The Gemini CLI, this host's `/panel-review` and `/code-review` backend. The
+# Macs get it from the Brewfile (`brew "gemini-cli"`); apt has no package at
+# all, and mise's registry offers exactly one backend for it
+# (`npm:@google/gemini-cli`), so npm is the route rather than a preference.
+#
+# Linux-only, like lua-language-server above and for the same reason: adding it
+# to roles/environments/files/mise.toml would shadow the Macs' Homebrew copy for
+# no gain.
+#
+# INSTALLED FROM roles/environments, not from linux_mise_tools, which is the one
+# asymmetry in this file. The npm backend needs node on PATH, and the linux role
+# runs BEFORE environments (which owns the node pin), so on a fresh host nothing
+# has installed node yet when linux_mise_tools is walked. The pin stays here
+# with the other Linux-only pins; only the install step moved. See the
+# "Install the Gemini CLI" task in roles/environments/tasks/main.yml.
+gemini = "0.54.4"
+
 # Ubuntu resolute ships gh 2.46.0, tagged upstream in March 2024. gh is a
 # credential-holding network client and a hard dependency of the planwright
 # pipeline; two years of missed releases is the less secure option here, not
