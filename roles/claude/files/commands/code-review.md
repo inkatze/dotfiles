@@ -58,10 +58,15 @@ a. **Run project tooling once.** Linters, formatters, type checkers, static anal
 b. **Resolve and verify the backend.** Same mechanism as `/panel-review` so the choice tracks the machine, not this tracked, public file: resolve the dotfiles inventory alias, then pick the backend from the profile table. A `--backends <name>` token in `$ARGUMENTS` overrides it (code-review supports `codex` or `gemini`; the Ollama / Copilot backends stay `/panel-review`-only). The remaining non-flag `$ARGUMENTS` token is the PR number from step 1.
 
    ```bash
-   if   [ -n "${PANEL_REVIEW_PROFILE:-}" ];  then profile="$PANEL_REVIEW_PROFILE"   # explicit per-run override
-   elif [ -n "${DOTFILES_HOST:-}" ];        then profile="$DOTFILES_HOST"
-   elif [ -f "$HOME/.config/dotfiles/host" ]; then profile="$(tr -d '[:space:]' < "$HOME/.config/dotfiles/host")"
-   else profile=work                                                               # same fallback as playbook.sh
+   alias_file="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"
+   from_file=""
+   [ -f "$alias_file" ] && from_file="$(tr -d '[:space:]' < "$alias_file")"
+
+   if   [ -n "${PANEL_REVIEW_PROFILE:-}" ]; then profile="$PANEL_REVIEW_PROFILE"  # explicit per-run override
+   elif [ -n "${DOTFILES_HOST:-}" ];       then profile="$DOTFILES_HOST"
+   elif [ -n "$from_file" ];               then profile="$from_file"
+   elif hostname | grep -q panela;         then profile=alt                       # residual hostname match
+   else profile=work                                                              # same fallback as playbook.sh
    fi
    case "$profile" in
      work) echo codex ;;
@@ -74,11 +79,17 @@ b. **Resolve and verify the backend.** Same mechanism as `/panel-review` so the 
    | work | `codex` |
    | personal / alt / server | `gemini` |
 
-   This used to read `PANEL_REVIEW_PROFILE` alone and default to `personal`, which meant a work machine that had not exported that variable by hand (nothing in the dotfiles repo sets it) silently resolved to `gemini`. Keying on the alias file the rest of the repo already uses fixes that; the env var is still honored first as a per-run override. Keep this block and `/panel-review` step 3 in sync.
+   An alias not in the table resolves to `gemini`, the non-work default.
+
+   This used to read `PANEL_REVIEW_PROFILE` alone and default to `personal`, which meant a work machine that had not exported that variable by hand (nothing in the dotfiles repo sets it) silently resolved to `gemini`. Keying on the alias file the rest of the repo already uses fixes that; the env var is still honored first as a per-run override.
+
+   Three details in the snippet are load-bearing, each got wrong in an earlier revision: the `alt` hostname branch must stay (both siblings carry it, and an `alt` Mac legitimately has no alias file, so dropping it sends that host to `codex`, which it never logs into); the alias-file branch tests the trimmed *contents*, not `[ -f ]`, because an empty or newline-only file otherwise yields an empty profile that falls to `gemini` instead of the documented `work`; and `DOTFILES_HOST_FILE` is honoured because `playbook.sh` honours it. The single deliberate divergence from `ollama.fish` is the `work` fallback: there an unresolved alias must set nothing, here it means `work`, matching `playbook.sh`, because `work` is the host that does not write an alias file.
+
+   Keep this block and `/panel-review` step 3 in sync.
 
    Verify the resolved backend before using it. Stop with a specific install / auth message if it fails; do not silently fall back to a Claude-only run, since the whole point is the non-Anthropic angle:
    - `codex`: `command -v codex` must succeed and `codex auth status` (or the CLI's readiness probe) must report an authenticated session. Missing: `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'` (a cask, so macOS-only; nothing in the dotfiles installs codex on Linux). Not authed: `Codex CLI needs auth; run 'codex login'`.
-   - `gemini`: `command -v gemini` must succeed and `GEMINI_API_KEY` must be set (dotfiles fish conf.d/gemini.fish exports it from `~/.gemini/.api-key`). Missing, macOS: `Gemini CLI not installed; mise run osx will install via Brewfile 'gemini-cli'`. Missing, Linux: `Gemini CLI not installed; mise run environments will install it (pinned in roles/linux/files/mise/linux.toml, npm backend)`. Unset key: `Gemini CLI needs auth; run 'mise run osx' (macOS) or 'mise run linux' (Linux) to sync from 1Password, or set GEMINI_API_KEY manually`.
+   - `gemini`: `command -v gemini` must succeed and `GEMINI_API_KEY` must be set (dotfiles fish conf.d/gemini.fish exports it from `~/.gemini/.api-key`). Missing, macOS: `Gemini CLI not installed; mise run osx will install via Brewfile 'gemini-cli'`. Missing, Linux: `Gemini CLI not installed; mise run linux will install it (pinned in roles/linux/files/mise/linux.toml, installed from linux_mise_tools)`. Unset key: `Gemini CLI needs auth; run 'mise run osx' (macOS) or 'mise run linux' (Linux) to sync from 1Password, or set GEMINI_API_KEY manually`. On a headless host that sync reads the machine-local service-account token rather than the 1Password desktop app, and a service account cannot be granted Personal or Private, so the key item must live in a vault it can reach.
 
 c. **Spawn one `Explore` sub-agent per canonical lens, in parallel.** Default is to spawn for all 9 lenses; only skip a lens when it is genuinely n/a for the diff, and record the reason for the lens-coverage table. Each sub-agent receives:
    - The full diff (or relevant slice for large diffs)

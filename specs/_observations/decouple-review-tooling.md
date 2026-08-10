@@ -41,6 +41,8 @@ into this public repo.
 
 This decision was about how `panel-backends` should pick codex vs. gemini without leaking org/host names into a tracked file. It's moot now: `panel-backends` deletion left `PANEL_REVIEW_PROFILE` (the existing untracked env var already used for the personal/work profile split) as the only signal, which happens to match the "per-machine" option below. Left in place as the historical record of the original proposal.
 
+**Superseded 2026-08-10.** `PANEL_REVIEW_PROFILE` is no longer the only signal, and being the only one turned out to be the defect: nothing in this repo ever set it, so its `personal` default sent the work host to gemini on every review. Both commands now resolve the dotfiles inventory alias (`~/.config/dotfiles/host` and its siblings) and keep the env var as a per-run override. That is the "per-machine" option this section proposed, arrived at from the opposite direction. See "Review backends: codex vs gemini" in the repo `CLAUDE.md`.
+
 Pick the leak-free shape (no org/host names in tracked files):
 
 - **Per-machine (simplest):** the work machine's untracked
