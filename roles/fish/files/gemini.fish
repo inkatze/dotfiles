@@ -1,6 +1,7 @@
 # Export GEMINI_API_KEY from ~/.gemini/.api-key if present so the gemini
-# CLI (panel-* skill backend on personal/alt hosts per D-6) can run
-# non-interactively. The key file is written by
+# CLI (the /panel-review and /code-review backend on the personal, alt and
+# server hosts; see "Review backends: codex vs gemini" in the repo's
+# CLAUDE.md) can run non-interactively. The key file is written by
 # scripts/claude-gemini-auth-sync.sh from a 1Password item; this snippet
 # is the read side. The file is gitignored and mode 0600.
 #

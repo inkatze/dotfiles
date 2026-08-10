@@ -76,6 +76,90 @@
     state: link
   tags: [claude]
 
+# Gemini API key for the panel/code-review backend, moved here from
+# roles/osx/tasks/homebrew.yml. Nothing about it was ever macOS-specific, and
+# the Darwin guard on that role is what left this host with fish
+# conf.d/gemini.fish exporting GEMINI_API_KEY from a file no task ever wrote.
+#
+# The four tasks below (directory, op probe, sync, skip notice) keep the `osx`
+# tag so `mise run osx` still syncs the key on a Mac, and gain `linux` so
+# `mise run linux` does the same here.
+#
+# Still gated on non-work: the work host reviews through codex, so it has no
+# use for a Gemini key, while `server` needs one exactly as `personal` and
+# `alt` do. D-6 in specs/pair-flow/design.md is the origin of the codex-on-work
+# split but predates this host and names only work/personal/alt, so it is
+# background here rather than the authority for the `server` row; the current
+# mapping lives in the repo CLAUDE.md's "Review backends" section.
+#
+# The directory holds the key file, so create it with private perms
+# declaratively; the sync script also chmods it 700 best-effort as
+# defense-in-depth.
+- name: Ensure ~/.gemini directory exists with private perms
+  ansible.builtin.file:
+    path: "{{ ansible_facts.env.HOME }}/.gemini"
+    state: directory
+    mode: '0700'
+  when:
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
+    - inventory_hostname != 'work'
+  tags: [claude, osx, linux]
+
+# Detection is split from the sync, exactly as roles/ssh does it for the LAN
+# alias sync, and for the reason recorded there: a host without the 1Password
+# CLI genuinely cannot do this and is skipped, while a host that HAS op and
+# still fails (locked vault, missing item, unreadable token) is a real error
+# and fails the play.
+#
+# That split was not needed while these tasks lived in the Darwin-guarded osx
+# role, because the Brewfile guaranteed `op` on every Mac that ran them. Moving
+# them into the unguarded claude role removes that guarantee, and an unguarded
+# hard failure here would abort the LAST role in main.yml partway through,
+# taking the planwright marketplace and plugin installs below with it, on any
+# non-work host that has not been given a token yet. It would also put
+# linux-migration Task 7's "two consecutive runs, zero failed tasks"
+# convergence out of reach, which is the specific outcome the ssh role's
+# comment warns against.
+- name: Detect the 1Password CLI
+  ansible.builtin.command: op --version
+  register: claude_op_probe
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  tags: [claude, osx, linux]
+
+# The script strict-fails rather than skipping quietly when it cannot read the
+# item: a silent skip would leave a stale key in place unnoticed. On a Mac that
+# means an unlocked desktop app; on this headless host it means the
+# machine-local service-account token, which is why the key item has to live in
+# a vault a service account can be granted (not Personal or Private). See
+# scripts/claude-gemini-auth-sync.sh.
+- name: Sync Gemini API key from 1Password
+  ansible.builtin.command:
+    cmd: "{{ ansible_facts.env.PWD }}/scripts/claude-gemini-auth-sync.sh"
+  register: claude_gemini_auth
+  changed_when: "'CHANGED' in claude_gemini_auth.stdout"
+  when:
+    - claude_op_probe.rc == 0
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
+    - inventory_hostname != 'work'
+  tags: [claude, osx, linux]
+
+- name: Report skipped Gemini key sync
+  ansible.builtin.debug:
+    msg: >-
+      1Password CLI not found; ~/.gemini/.api-key was left as-is, so it is
+      whatever it already was (absent on a host that has never synced). Until
+      `op` is installed and either signed in or given a service-account token,
+      /panel-review and /code-review will stop with their own auth message on
+      any host where that file is missing. See CLAUDE.md "Review backends:
+      codex vs gemini".
+  when:
+    - claude_op_probe.rc != 0
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
+    - inventory_hostname != 'work'
+  tags: [claude, osx, linux]
+
 - name: Remove dangling pair-flow.yml symlink (repo-class retirement cleanup)
   ansible.builtin.file:
     path: "{{ ansible_facts.env.HOME }}/.claude/pair-flow.yml"

@@ -55,10 +55,20 @@ Apply the canonical spec in CLAUDE.md `Discovery Rigor (Issue Identification)`. 
 
 a. **Run project tooling once.** Linters, formatters, type checkers, static analyzers, complexity / duplication meters, dead-code detectors, security scanners. Discover via `lefthook.yml`, CI workflows, `mise.toml` tasks, language config files, and the SessionStart `tool-discovery` summary if present in this session's context. Capture the output; it becomes shared input for every lens agent and for the backend.
 
-b. **Resolve and verify the backend.** Same mechanism as `/panel-review` so the choice tracks the machine, not this tracked, public file. Read the machine profile from `PANEL_REVIEW_PROFILE` (the shared work/personal signal; unset or any non-`work` value resolves to `personal`), then pick the backend from the profile table. A `--backends <name>` token in `$ARGUMENTS` overrides it (code-review supports `codex` or `gemini`; the Ollama / Copilot backends stay `/panel-review`-only). The remaining non-flag `$ARGUMENTS` token is the PR number from step 1.
+b. **Resolve and verify the backend.** Same mechanism as `/panel-review` so the choice tracks the machine, not this tracked, public file: resolve the dotfiles inventory alias, then pick the backend from the profile table. A `--backends <name>` token in `$ARGUMENTS` overrides it (code-review supports `codex` or `gemini`; the Ollama / Copilot backends stay `/panel-review`-only). The remaining non-flag `$ARGUMENTS` token is the PR number from step 1.
 
    ```bash
-   case "${PANEL_REVIEW_PROFILE:-personal}" in
+   alias_file="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"
+   from_file=""
+   [ -f "$alias_file" ] && from_file="$(tr -d '[:space:]' < "$alias_file")"
+
+   if   [ -n "${PANEL_REVIEW_PROFILE:-}" ]; then profile="$PANEL_REVIEW_PROFILE"  # explicit per-run override
+   elif [ -n "${DOTFILES_HOST:-}" ];       then profile="$DOTFILES_HOST"
+   elif [ -n "$from_file" ];               then profile="$from_file"
+   elif hostname | grep -q panela;         then profile=alt                       # residual hostname match
+   else profile=work                                                              # same fallback as playbook.sh
+   fi
+   case "$profile" in
      work) echo codex ;;
      *)    echo gemini ;;
    esac
@@ -67,11 +77,19 @@ b. **Resolve and verify the backend.** Same mechanism as `/panel-review` so the 
    | Profile | Default backend |
    |---|---|
    | work | `codex` |
-   | personal / alt | `gemini` |
+   | personal / alt / server | `gemini` |
+
+   An alias not in the table resolves to `gemini`, the non-work default.
+
+   This used to read `PANEL_REVIEW_PROFILE` alone and default to `personal`, which meant a work machine that had not exported that variable by hand (nothing in the dotfiles repo sets it) silently resolved to `gemini`. Keying on the alias file the rest of the repo already uses fixes that; the env var is still honored first as a per-run override.
+
+   Three details in the snippet are load-bearing, each got wrong in an earlier revision: the `alt` hostname branch must stay (both siblings carry it, and an `alt` Mac legitimately has no alias file, so dropping it sends that host to `codex`, which it never logs into); the alias-file branch tests the trimmed *contents*, not `[ -f ]`, because an empty or newline-only file otherwise yields an empty profile that falls to `gemini` instead of the documented `work`; and `DOTFILES_HOST_FILE` is honoured because `playbook.sh` honours it. The single deliberate divergence from `ollama.fish` is the `work` fallback: there an unresolved alias must set nothing, here it means `work`, matching `playbook.sh`, because `work` is the host that does not write an alias file.
+
+   Keep this block and `/panel-review` step 3 in sync.
 
    Verify the resolved backend before using it. Stop with a specific install / auth message if it fails; do not silently fall back to a Claude-only run, since the whole point is the non-Anthropic angle:
-   - `codex`: `command -v codex` must succeed and `codex auth status` (or the CLI's readiness probe) must report an authenticated session. Missing: `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'`. Not authed: `Codex CLI needs auth; run 'codex login'`.
-   - `gemini`: `command -v gemini` must succeed and `GEMINI_API_KEY` must be set (dotfiles fish conf.d/gemini.fish exports it from `~/.gemini/.api-key`). Missing: `Gemini CLI not installed; mise run osx will install via Brewfile 'gemini-cli'`. Unset key: `Gemini CLI needs auth; run 'mise run osx' to sync from 1Password or set GEMINI_API_KEY manually`.
+   - `codex`: `command -v codex` must succeed and `codex auth status` (or the CLI's readiness probe) must report an authenticated session. Missing: `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'` (a cask, so macOS-only; nothing in the dotfiles installs codex on Linux). Not authed: `Codex CLI needs auth; run 'codex login'`.
+   - `gemini`: `command -v gemini` must succeed and `GEMINI_API_KEY` must be set (dotfiles fish conf.d/gemini.fish exports it from `~/.gemini/.api-key`). Missing, macOS: `Gemini CLI not installed; mise run osx will install via Brewfile 'gemini-cli'`. Missing, Linux: `Gemini CLI not installed; mise run linux will install it (pinned in roles/linux/files/mise/linux.toml, installed from linux_mise_tools)`. Unset key: `Gemini CLI needs auth; run 'mise run osx' (macOS) or 'mise run linux' (Linux) to sync from 1Password, or set GEMINI_API_KEY manually`. On a headless host that sync reads the machine-local service-account token rather than the 1Password desktop app, and a service account cannot be granted Personal or Private, so the key item must live in a vault it can reach.
 
 c. **Spawn one `Explore` sub-agent per canonical lens, in parallel.** Default is to spawn for all 9 lenses; only skip a lens when it is genuinely n/a for the diff, and record the reason for the lens-coverage table. Each sub-agent receives:
    - The full diff (or relevant slice for large diffs)
@@ -81,7 +99,23 @@ c. **Spawn one `Explore` sub-agent per canonical lens, in parallel.** Default is
 
 d. **Backend discovery pass.** Invoke the resolved backend **once** with the full diff (or relevant slice) and the tooling output from (a), asking it to walk the 9 canonical lenses and return a findings table. Run it concurrently with the Claude fan-out in (c). Invocation patterns (verify exact flags on first use):
    - **codex**: `codex exec "<prompt>"` (add `--model` etc. as the CLI requires). Capture stdout and parse the table.
-   - **gemini**: pipe the prompt via **stdin**, not `-p`. In fish, `gemini -p "$(…)"` splits the multiline prompt across argv and the CLI prints its help instead of answering, so write the prompt to a file and pipe it in the **same `Bash` tool invocation** (fresh shell per call): `gemini -o text [-m <model>] --approval-mode plan < "$prompt_file"`. `-o text` keeps stdout free of the JSON envelope; `--approval-mode plan` forces read-only operation.
+   - **gemini**: pipe the prompt via **stdin**, not `-p`. In fish, `gemini -p "$(…)"` splits the multiline prompt across argv and the CLI prints its help instead of answering, so write the prompt to a file and pipe it in the **same `Bash` tool invocation** (fresh shell per call): `gemini -o text --skip-trust --approval-mode plan [-m <model>] < "$prompt_file"`. `-o text` keeps stdout free of the JSON envelope; `--approval-mode plan` forces read-only operation. `--skip-trust` is required for any headless run: without it the CLI downgrades `--approval-mode plan` to `default` and then aborts with `Gemini CLI is not running in a trusted directory`. Keep `--approval-mode plan` on every invocation; it is what holds the run read-only.
+
+   **Run gemini from a freshly created empty directory, never from the PR checkout and never from `/tmp`.** Write the prompt file there too, and invoke inside a **subshell**:
+
+   ```bash
+   scratch="$(mktemp -d)" || exit 1
+   trap 'rm -rf "$scratch"' EXIT INT TERM HUP
+   prompt_file="$scratch/prompt.txt"
+   # ... write the prompt into "$prompt_file" ...
+   ( cd "$scratch" && gemini -o text --skip-trust --approval-mode plan < "$prompt_file" )
+   ```
+
+   Clean it up. The scratch directory holds the full diff of the PR under review, so leaving one behind per run accumulates copies of someone else's source in `/tmp`; the `trap` is the whole fix. `INT TERM HUP` as well as `EXIT`, matching `claude-gemini-auth-sync.sh`, since Ctrl-C during a multi-minute backend call is the likeliest way a run ends early. The `|| exit 1` matters too: an unchecked `mktemp -d` failure leaves `$scratch` empty, and everything after it then operates on the wrong path.
+
+   This matters more here than in `/panel-review`, because this command reviews **someone else's** PR: that working tree is untrusted content, and folder trust is precisely what gates the CLI loading `.gemini/settings.json`, project hooks, skills and `GEMINI.md` from it. The diff goes in on stdin, so the checkout never needs to be the cwd — which means `--skip-trust` has nothing to trust rather than trusting a stranger's tree. `mktemp -d` rather than `/tmp` itself, which is world-writable and so pre-seedable by any local user; and a subshell because this session's shell keeps its cwd between tool calls, so a bare `cd` would strand the later `git`/`gh` steps (including the checkout restore at the end of this command) outside the repo.
+
+   A direct test on 0.54.4 found a project-supplied MCP server was *not* executed under `--skip-trust --approval-mode plan`, so this is defence in depth, not a live hole. It does not cover user-level `~/.gemini/` config, which loads regardless of cwd, nor the model reading tree files by absolute path under plan mode. Prefer the flag over exporting `GEMINI_CLI_TRUST_WORKSPACE=true`, which would trust every directory for every later gemini run in that shell.
 
    Prompt structure (adapt wording per backend; the substance is the lens walk):
    ```
@@ -233,6 +267,6 @@ git checkout <original-branch>
 
 ## Maintenance
 
-After completing the workflow, check if any part of these instructions seem outdated, incorrect, or misaligned with the current project's tooling or workflow. Watch specifically for backend drift: codex / gemini CLI flag changes, profile-table or `PANEL_REVIEW_PROFILE` changes, and divergence from `/panel-review`'s backend resolution (which this command mirrors, so the two should stay in sync). If something looks off, flag it and offer a ready-to-use prompt I can paste into a new dotfiles session to update this command.
+After completing the workflow, check if any part of these instructions seem outdated, incorrect, or misaligned with the current project's tooling or workflow. Watch specifically for backend drift: codex / gemini CLI flag changes, profile-table changes, new inventory aliases the table does not cover, and divergence from `/panel-review`'s backend resolution (which this command mirrors, so the two should stay in sync). If something looks off, flag it and offer a ready-to-use prompt I can paste into a new dotfiles session to update this command.
 
 $ARGUMENTS

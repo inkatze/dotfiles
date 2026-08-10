@@ -27,31 +27,72 @@ Runs identically in both modes.
 
 1. **Identify base branch and capture the diff** (same as `/self-review` step 1).
 2. **(Optional) Jira ticket** (same as `/self-review` step 2).
-3. **Detect repo profile.** Work or personal, driven by an untracked, machine-local
-   signal so no employer identifiers live in this tracked, public file. Set
-   `PANEL_REVIEW_PROFILE=work` on work machines (e.g. a fish universal variable or
-   shell rc); anything else (unset or any other value) resolves to `personal`:
+3. **Detect the machine profile.** Driven by an untracked, machine-local signal so no
+   employer identifiers live in this tracked, public file. Resolve **the dotfiles
+   inventory alias**, the same indirection `scripts/playbook.sh` and fish
+   `conf.d/ollama.fish` already use, in the same order — with one deliberate divergence
+   from `ollama.fish`, spelled out below the snippet:
 
    ```bash
-   case "${PANEL_REVIEW_PROFILE:-personal}" in
-     work) echo work ;;
-     *)    echo personal ;;
-   esac
+   alias_file="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"
+   from_file=""
+   [ -f "$alias_file" ] && from_file="$(tr -d '[:space:]' < "$alias_file")"
+
+   if   [ -n "${PANEL_REVIEW_PROFILE:-}" ]; then echo "$PANEL_REVIEW_PROFILE"  # explicit per-run override
+   elif [ -n "${DOTFILES_HOST:-}" ];       then echo "$DOTFILES_HOST"
+   elif [ -n "$from_file" ];               then echo "$from_file"
+   elif hostname | grep -q panela;         then echo alt                       # residual hostname match
+   else echo work                                                              # same fallback as playbook.sh
+   fi
    ```
+
+   Three details are load-bearing, and each was got wrong in an earlier revision of this
+   block:
+
+   - **The `alt` hostname branch is not optional.** `playbook.sh` and `ollama.fish` both
+     carry it, and the alias-file section of `CLAUDE.md` records that `alt` is the one
+     host still matched by hostname (only `personal` was made to name itself). Drop it and
+     an `alt` Mac with no alias file resolves to `work`, so it reaches for `codex` on a
+     machine that never logs into codex — the same class of bug this whole resolver
+     exists to fix, just pointed at a different host.
+   - **Test the file's *contents*, not its existence.** `[ -f ]` is true for an empty or
+     newline-only file, and the trimmed value is then the empty string, which is not
+     `work` and therefore resolves to `gemini`. Reproduced: an operator who `touch`es the
+     alias file gets gemini on the work host, silently. Binding the branch to
+     `[ -n "$from_file" ]` is what makes the documented `work` fallback reachable.
+   - **`DOTFILES_HOST_FILE` is honoured**, because `playbook.sh` honours it. A host that
+     relocates its alias file would otherwise have `playbook.sh` and this resolver
+     disagree about which machine it is.
+
+   **This replaces a `PANEL_REVIEW_PROFILE`-only lookup that defaulted to `personal`,
+   and the default was the bug.** Nothing in the dotfiles repo ever sets that variable,
+   so a work machine that had not exported it by hand resolved to `personal` and reached
+   for `gemini` on every run, which is the opposite of what the table below asks for. The
+   alias file is the signal the rest of the repo already keys on, so the work host now
+   resolves correctly with nothing to remember. `PANEL_REVIEW_PROFILE` is still honored
+   first as a per-run override; it is no longer the only signal.
+
+   Note the fallback direction differs from `ollama.fish` on purpose, and it is the one
+   deliberate divergence from the two siblings. There, an unresolved alias must set
+   nothing (a client that has not named itself should fail to reach a local daemon rather
+   than silently talk to a LAN address). Here it means `work`, matching `playbook.sh`,
+   because `work` is the host that does not write an alias file.
 
 4. **Resolve the backend set.** If `$ARGUMENTS` contains `--backends a,b,c`, use those (comma-separated). Otherwise use the profile table default:
 
    | Profile | Default backends |
    |---|---|
    | work | `codex` |
-   | personal / alt | `gemini` |
+   | personal / alt / server | `gemini` |
+
+   An alias not in the table resolves to `gemini`, the non-work default.
 
    Supported backends: `codex`, `gemini`, `qwen-coder`, `gpt-oss`, `copilot`. `copilot` is **opt-in only** via `--backends`; do not auto-include it (the GitHub quota is the original constraint and including it implicitly defeats the point). `deepseek-r1` was retired: it is a reasoning model that emits `<think>` chain-of-thought blocks the panel prompt cannot reliably suppress, and ~2x wall-clock vs `qwen-coder`. `gpt-oss:20b` replaces it as a different-lineage second slot (OpenAI training, instruction-tuned, no reasoning trace). The Ollama models remain available via `--backends` for variance panels when wanted.
 
 5. **Verify each backend.** Stop with a specific install / auth message if any fails; do not silently drop a backend (the user expects the variance the backend provides).
 
-   - `codex`: `command -v codex` must succeed; `codex auth status` (or equivalent: query the codex CLI's own readiness probe) must report an authenticated session. If not authed, stop with `Codex CLI needs auth; run 'codex login'`. If not installed, stop with `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'`.
-   - `gemini`: `command -v gemini` must succeed. The `GEMINI_API_KEY` env var must be set (the dotfiles fish conf.d/gemini.fish exports it from `~/.gemini/.api-key`, which is written by `scripts/claude-gemini-auth-sync.sh` from the 1Password item declared in that script). If `gemini` is missing, stop with `Gemini CLI not installed; mise run osx will install via Brewfile 'gemini-cli'`. If `GEMINI_API_KEY` is unset, stop with `Gemini CLI needs auth; run 'mise run osx' to sync from 1Password (requires the 1Password item UUID to be set in scripts/claude-gemini-auth-sync.sh) or set GEMINI_API_KEY manually`.
+   - `codex`: `command -v codex` must succeed; `codex auth status` (or equivalent: query the codex CLI's own readiness probe) must report an authenticated session. If not authed, stop with `Codex CLI needs auth; run 'codex login'`. If not installed, stop with `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'` — and note that the Brewfile entry is a **cask**, so this route is macOS-only. On Linux nothing in the dotfiles installs codex; it is only ever reached there by an explicit `--backends codex`.
+   - `gemini`: `command -v gemini` must succeed. The `GEMINI_API_KEY` env var must be set (the dotfiles fish conf.d/gemini.fish exports it from `~/.gemini/.api-key`, which is written by `scripts/claude-gemini-auth-sync.sh` from the 1Password item declared in that script). The install route is platform-specific, so name the right one: on macOS `Gemini CLI not installed; mise run osx will install via Brewfile 'gemini-cli'`, on Linux `Gemini CLI not installed; mise run linux will install it (pinned in roles/linux/files/mise/linux.toml, installed from linux_mise_tools)`. If `GEMINI_API_KEY` is unset, stop with `Gemini CLI needs auth; run 'mise run osx' (macOS) or 'mise run linux' (Linux) to sync from 1Password, or set GEMINI_API_KEY manually`. On a headless host that sync reads the machine-local service-account token rather than the 1Password desktop app, and a service account cannot be granted Personal or Private, so the key item must live in a vault it can reach.
    - `qwen-coder` / `gpt-oss`: `curl -sf "${OLLAMA_BASE_URL:-http://localhost:11434}/api/tags"` must return a body containing the model name (`qwen2.5-coder:32b` or `gpt-oss:20b`). If the API does not respond, stop with `Ollama service not running; brew services start ollama` (on the work host; on personal/alt the dotfiles fish conf.d/ollama.fish points OLLAMA_BASE_URL at the work host's LAN IP, see dotfiles `CLAUDE.md` "Cross-host Ollama topology"). If the model is missing, stop with `Model not pulled; ollama pull <name>` (the dotfiles Ansible task pulls both on the work host by default; missing means an opt-out or the cross-host route is not configured).
    - `copilot`: `gh copilot --help` must succeed and the account must have quota. Stop if `gh` is not authenticated or `gh copilot` returns a quota-exhausted error.
 
@@ -101,10 +142,30 @@ Diff:
 **Per-backend invocation patterns** (verify exact flags on first use; this is illustrative):
 
 - **codex**: `codex exec "<prompt>"` (or the equivalent flag set; the CLI may require `--model` or similar). Codex returns text on stdout; capture and parse the table.
-- **gemini**: pipe the prompt via **stdin**, not `-p`. In fish, `gemini -p "$(…)"` / `gemini -p (cat file)` splits the multiline prompt into separate argv entries (and can feed empty stdin), so the CLI prints its help instead of answering — this bit the worker-permission-ergonomics panel pass, which only recovered after switching to stdin. Write the prompt to a file and pipe it in the **same `Bash` tool invocation** (fresh shell per call — same `$$` caveat as the Ollama backends below): `gemini -o text [-m <model>] [--approval-mode plan] < "$prompt_file"`. `-o text` keeps stdout free of the JSON envelope so the table parser sees raw markdown; `-m <model>` pins a specific Gemini model (defaults to whatever the CLI considers current); `--approval-mode plan` forces read-only operation. Stdout carries the model response; capture and parse the table.
+- **gemini**: pipe the prompt via **stdin**, not `-p`. In fish, `gemini -p "$(…)"` / `gemini -p (cat file)` splits the multiline prompt into separate argv entries (and can feed empty stdin), so the CLI prints its help instead of answering — this bit the worker-permission-ergonomics panel pass, which only recovered after switching to stdin. Write the prompt to a file and pipe it in the **same `Bash` tool invocation** (fresh shell per call — same `$$` caveat as the Ollama backends below): `gemini -o text --skip-trust --approval-mode plan [-m <model>] < "$prompt_file"`. `-o text` keeps stdout free of the JSON envelope so the table parser sees raw markdown; `-m <model>` pins a specific Gemini model (defaults to whatever the CLI considers current); `--approval-mode plan` forces read-only operation and is **not** optional — it is unbracketed here deliberately, matching `/code-review`, because a bracketed form invited exactly the invocation this skill must never make (trusted workspace plus `default` approval, which auto-approves tool calls).
+
+  `--skip-trust` is **required for any headless run**, not optional tidiness. Without it the CLI prints `Approval mode overridden to "default" because the current folder is not trusted` and then aborts with `Gemini CLI is not running in a trusted directory` — note the ordering: it silently *downgrades* `--approval-mode plan` first, so a future version that stops aborting would leave a run going with the read-only guard already stripped. Verified against gemini-cli 0.54.4: with `--skip-trust` the plan-mode override warning disappears, so the read-only guard survives. Stdout carries the model response; capture and parse the table.
+
+  **Run it from a freshly created empty directory, not from the repo under review and not from `/tmp`.** Use `scratch="$(mktemp -d)"` and invoke gemini inside a **subshell** so the cwd change cannot leak into later steps of the review:
+
+  ```bash
+  scratch="$(mktemp -d)" || exit 1
+  trap 'rm -rf "$scratch"' EXIT INT TERM HUP
+  prompt_file="$scratch/prompt.txt"
+  # ... write the prompt into "$prompt_file" ...
+  ( cd "$scratch" && gemini -o text --skip-trust --approval-mode plan < "$prompt_file" )
+  ```
+
+  Clean it up: the scratch directory holds the full diff, so leaving one behind per review accumulates copies of private source in `/tmp`. The `trap` above is the whole fix, and it covers `INT TERM HUP` as well as `EXIT` (matching `claude-gemini-auth-sync.sh`) because Ctrl-C during a multi-minute backend call is the likeliest way a run ends early. `|| exit 1` on the `mktemp -d` matters for the same reason a bare one does not: an unchecked failure leaves `$scratch` empty and everything after it operates on the wrong path.
+
+  Both details are load-bearing, and the prompt file moves into the scratch directory with it (same as `/code-review`). `mktemp -d` rather than the `/tmp/panel-review-prompt.$$.txt` convention the Ollama backends below use: `/tmp` is world-writable, so making it the cwd would let anyone pre-plant `/tmp/GEMINI.md` or `/tmp/.gemini/settings.json` and have a `--skip-trust` run load it — relocating the trust rather than removing it. It also fixes the mode of the prompt file itself, which carries the whole diff of a private repo and is created world-readable under the default umask in `/tmp`. And the subshell because this session's shell keeps its working directory between tool calls, so a bare `cd` would leave every later `git` command in the review running outside the repo.
+
+  The point of all this: the diff and tooling output reach the model on **stdin**, so the working tree never needs to be the cwd, and from an empty directory `--skip-trust` has nothing to trust — no `.gemini/settings.json`, project hooks, skills, or `GEMINI.md` can load from the tree at all. A direct test on 0.54.4 showed a project-supplied MCP server was *not* executed under `--skip-trust --approval-mode plan`, so this is defence in depth rather than a patched hole. Note what it does not cover: user-level `~/.gemini/` config still loads, and plan mode still permits read tools, so the model can still pull files from the tree by absolute path. Prefer `--skip-trust` over exporting `GEMINI_CLI_TRUST_WORKSPACE=true`: the flag is per-invocation, while the env var trusts every directory for every later gemini run in that shell.
 - **qwen-coder** and **gpt-oss** (Ollama): **prefer the HTTP API** for programmatic invocation. The base URL is read from `OLLAMA_BASE_URL` (set in fish conf.d/ollama.fish on personal/alt hosts to the work host's LAN IP) and falls back to `http://localhost:11434` on the work host itself. **Write the prompt file and run `curl` in the same `Bash` tool invocation**: the `Bash` tool spawns a fresh shell per call, so `$$` in a later call is a different PID than `$$` in an earlier one; if the write and the read land in separate tool calls, the `--rawfile` path silently points at a file that was never created and `jq` fails.
   ```bash
-  prompt_file="/tmp/panel-review-prompt.$$.txt"
+  scratch="$(mktemp -d)" || exit 1
+  trap 'rm -rf "$scratch"' EXIT INT TERM HUP
+  prompt_file="$scratch/prompt.txt"
   cat > "$prompt_file" <<'PROMPT_EOF'
   <the lens-walk prompt, with tooling output and diff appended>
   PROMPT_EOF
@@ -113,7 +174,7 @@ Diff:
       '{model: $model, prompt: $prompt, stream: false}')" \
     | jq -r '.response'
   ```
-  Namespace this prompt file by `$$` (the shell PID), not a fixed name: two concurrent `--nested` runs in different worktrees would otherwise race on the same path, with one run's write landing between the other's write and its `curl` call, scoring the wrong diff. The API returns clean JSON with the response under `.response`. `ollama run <model> "<prompt>"` works as a fallback but emits ANSI escape codes (cursor moves, line clears) intended for an interactive TTY; even when piped, those leak into the output and require post-processing (`sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\r'`). The HTTP API path avoids that entirely.
+  `mktemp -d`, not the `/tmp/panel-review-prompt.$$.txt` this used to use. That file holds the entire diff of the repo under review and was created world-readable under the default umask, in a world-writable directory — the exact exposure the gemini bullet above spends a paragraph warning about, sitting five lines below it. `mktemp -d` gives a 0700 directory and settles the collision question the `$$` namespacing was there for: two concurrent `--nested` runs in different worktrees can no longer share a path at all, rather than merely being unlikely to. The API returns clean JSON with the response under `.response`. `ollama run <model> "<prompt>"` works as a fallback but emits ANSI escape codes (cursor moves, line clears) intended for an interactive TTY; even when piped, those leak into the output and require post-processing (`sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\r'`). The HTTP API path avoids that entirely.
 - **Wall-clock estimates on M1 Max 32GB** (one model loaded at a time; Ollama swaps when the second is invoked): `qwen-coder:32b` ~5 min, `gpt-oss:20b` ~3 min (smaller, instruction-tuned, no reasoning chain). qwen-coder at ~19 GB and gpt-oss at ~13 GB can't co-reside in unified memory comfortably, so the panel still serializes in practice; gpt-oss swaps in faster than the retired deepseek-r1:32b did.
 - **copilot**: route through `gh copilot` or the chosen Copilot CLI; specifics depend on which CLI variant is current.
 
@@ -291,6 +352,6 @@ The user's next move depends on the exit reason:
 
 ## Maintenance
 
-After completing the workflow, check if any part of these instructions seems outdated or misaligned with current tooling: backend CLI command syntax changes (Codex flags, Ollama API), new backend options worth adding, changes to model names / sizes, drift from `/self-review`'s discovery shape (which this skill mirrors), changes to `Finding Categorization` thresholds, or stop-condition gaps revealed by a real nested run. If something looks off, flag it and offer a ready-to-use prompt to paste into a new dotfiles session to update this command.
+After completing the workflow, check if any part of these instructions seems outdated or misaligned with current tooling: backend CLI command syntax changes (Codex flags, Gemini trust/approval flags, Ollama API), new backend options worth adding, changes to model names / sizes, profile-table changes and new inventory aliases the table does not cover, divergence from `/code-review`'s backend resolution (that command mirrors this one, so this step 3 and its step 5b must stay in sync in both directions), drift from `/self-review`'s discovery shape (which this skill mirrors), changes to `Finding Categorization` thresholds, or stop-condition gaps revealed by a real nested run. If something looks off, flag it and offer a ready-to-use prompt to paste into a new dotfiles session to update this command.
 
 $ARGUMENTS

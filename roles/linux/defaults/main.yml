@@ -234,6 +234,12 @@ linux_mise_tools:
   - pipx:ansible-lint
   - gh
   - lua-language-server
+  # The Gemini CLI, this host's /panel-review and /code-review backend. Last in
+  # the list only because it is the newest; unlike the pipx entries it has no
+  # ordering constraint. Its npm backend needs no pre-installed node: mise
+  # bootstraps one for the backend itself, verified against a throwaway
+  # MISE_DATA_DIR with node absent from PATH and uninstalled.
+  - gemini
 
 # Absolute path to the user-level mise binary. The tasks below shell out to it
 # directly rather than relying on PATH, because on a fresh host mise has just

@@ -3,6 +3,15 @@
 - Recorded: 2026-06-04
 - Status: **The config-mis-homing problem this note exists for is resolved (2026-07-13).** `pair-flow-config.sh` and `pair-flow.yml` were deleted outright (repo-class was found not to gate anything real; `panel-backends` is now a hardcoded profile-table default in `panel-review.md`/`panel-pairing.md`, no config file at all). More complete than the relocation this note proposed ("Why it matters" #1 / "Scope" #1 below, and the "Open decision" section, are all moot as a result — left in place below as the historical record of the note's original proposal). Two things this note also raised remain open and are NOT resolved by the above: the broader org-name scrub ("Separate, optional" section below) and the `CLAUDE.md` "convergence layer" doc-framing point ("Why it matters" #3 / "Scope" #3 below). Still a seed for `/spec-draft` if pursued.
 - Suggested branch: off `main`, e.g. `refactor/decouple-review-config`
+- **Superseded detail (2026-08-10):** every statement below that describes
+  `PANEL_REVIEW_PROFILE` as *the* profile-detection mechanism ("Why it matters"
+  #2, "Scope" #2, the Pointers list, and the "Open decision" section) is now
+  historical. Being the only signal turned out to be the defect: nothing in the
+  repo ever set it, so its `personal` default sent the work host to gemini on
+  every review. Both commands now resolve the dotfiles inventory alias and keep
+  the env var as a per-run override. See "Review backends: codex vs gemini" in
+  the repo `CLAUDE.md`. The org-name-scrub and doc-framing points this note
+  raises are untouched by that and remain open.
 
 ## Problem
 
@@ -40,6 +49,8 @@ into this public repo.
 ## Open decision: work-detection mechanism (moot, resolved by deletion — see Status above)
 
 This decision was about how `panel-backends` should pick codex vs. gemini without leaking org/host names into a tracked file. It's moot now: `panel-backends` deletion left `PANEL_REVIEW_PROFILE` (the existing untracked env var already used for the personal/work profile split) as the only signal, which happens to match the "per-machine" option below. Left in place as the historical record of the original proposal.
+
+**Superseded 2026-08-10.** `PANEL_REVIEW_PROFILE` is no longer the only signal, and being the only one turned out to be the defect: nothing in this repo ever set it, so its `personal` default sent the work host to gemini on every review. Both commands now resolve the dotfiles inventory alias (`~/.config/dotfiles/host` and its siblings) and keep the env var as a per-run override. That is the "per-machine" option this section proposed, arrived at from the opposite direction. See "Review backends: codex vs gemini" in the repo `CLAUDE.md`.
 
 Pick the leak-free shape (no org/host names in tracked files):
 

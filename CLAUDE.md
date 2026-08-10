@@ -238,6 +238,123 @@ revert the LaunchAgent edit, and SSH-tunnel from clients instead
 `OLLAMA_HOST=localhost:11434` and
 `OLLAMA_BASE_URL=http://localhost:11434` on the client).
 
+## Review backends: codex vs gemini
+
+`/panel-review` and `/code-review` run their discovery pass through a
+non-Anthropic CLI. The machine picks the *default*; a run can still override it
+(`--backends` on either command, `PANEL_REVIEW_PROFILE` for the profile
+itself). `/panel-review` also accepts `qwen-coder`, `gpt-oss` and `copilot`
+via `--backends`; only the two below are ever chosen automatically.
+
+| Alias | Backend | CLI comes from | Key comes from |
+|---|---|---|---|
+| `work` | `codex` | `Brewfile` (`cask "codex"`) | `codex login`, interactive |
+| `personal`, `alt` | `gemini` | `Brewfile` (`brew "gemini-cli"`) | `scripts/claude-gemini-auth-sync.sh` |
+| `server` | `gemini` | mise, pinned in `roles/linux/files/mise/linux.toml` | same script, service-account path |
+
+**The profile is the inventory alias**, resolved in `scripts/playbook.sh`'s
+order: `DOTFILES_HOST`, else `~/.config/dotfiles/host` (honouring
+`DOTFILES_HOST_FILE`), else the residual `alt` hostname match, else `work`.
+`PANEL_REVIEW_PROFILE` is honoured ahead of all of it as a per-run override.
+
+The commands are deliberately one notch stricter than `playbook.sh`: they take
+the alias file only when it has non-whitespace content. `playbook.sh` still
+tests mere existence, so a `touch`ed alias file there yields an empty
+`ansible-playbook -l ""`, which Ansible reads as *no limit* and runs every
+inventory host against this machine. Worth fixing there too; it is left alone
+here only because this change has no business editing the playbook entrypoint.
+
+Three of those clauses are easy to drop, and the first cut of this change
+dropped all three. Without the `alt` hostname branch, an `alt` Mac (which
+legitimately has no alias file, see the machine-local files section below)
+resolves to `work` and reaches for codex, which it never logs into. Without the
+non-whitespace test, a `touch`ed alias file yields an empty profile, which is
+not `work` and therefore selects gemini on the work host — the very bug this
+change exists to fix, re-entered through a different door. And without
+`DOTFILES_HOST_FILE`, a host that relocates its alias file has `playbook.sh`
+and the review commands disagreeing about which machine it is.
+
+It used to be *only* that env var, defaulting to `personal`, and the default
+was a live bug rather than a latent one: nothing in this repo ever sets
+`PANEL_REVIEW_PROFILE`, so the work Mac resolved to `personal` and reached for
+gemini on every review, which is the exact opposite of the table. Keying on
+the alias the rest of the repo already uses means the work host is right with
+nothing to remember, and a new host is wrong only if it has not declared
+itself, which is the same failure every other alias consumer has.
+
+The one deliberate divergence from `ollama.fish` is the fallback direction.
+There an unresolved alias must set nothing, so an unconfigured client gets a
+visible connection-refused instead of silently talking to a LAN address. Here
+it means `work`, matching `playbook.sh`, because `work` is the host that does
+not write an alias file.
+
+**On Linux the CLI comes from mise**, because apt has no gemini package and
+mise's registry offers exactly one backend for it (`npm:@google/gemini-cli`).
+It is pinned in `linux.toml` and installed from `linux_mise_tools` like every
+other entry there.
+
+The npm backend looks like it should need a node the `linux` role installs
+nothing of, since `roles/environments` owns the node pin and runs later. It
+does not: with a throwaway `MISE_DATA_DIR` and node both uninstalled and absent
+from PATH, `mise install npm:<pkg>` still succeeds, because mise bootstraps a
+node for the backend rather than borrowing the host's. Worth recording because
+the first cut of this change split the pin from its install across two roles to
+route around an ordering problem that measurement showed does not exist.
+
+The key sync is cross-platform and lives in `roles/claude`, not in either
+platform role. It was in the Darwin-guarded `roles/osx` until this change,
+which is why the Linux host had fish `conf.d/gemini.fish` exporting
+`GEMINI_API_KEY` from a file nothing ever wrote. It carries `osx` *and* `linux`
+tags, so both `mise run osx` and `mise run linux` sync the key on their
+respective hosts. Those tags are the only place in the repo where a platform
+tag names tasks outside its platform role, which is a wart: on a Mac,
+`mise run linux` will now run the four Claude tasks that carry them (behind its
+sudo prompt), and on the Linux host `mise run osx` will run them too. Both are
+harmless, and the alternative is a `mise run claude` task that does not exist
+yet.
+
+Because that role is unguarded, the sync is preceded by an `op --version`
+probe, the same split `roles/ssh` uses: a host without the 1Password CLI is
+skipped with a notice, while a host that has `op` and still fails is a real
+error. Without the probe, a not-yet-provisioned host aborts the last role in
+`main.yml` partway through, taking the planwright plugin install with it.
+
+**On a headless host the key comes from the service account, and that
+constrains the vault.** There is no 1Password desktop app to authorize
+against, so `claude-gemini-auth-sync.sh` falls back to
+`~/.config/dotfiles/op-service-account-token` the same way
+`ssh-lan-config-sync.sh` does. A service account cannot be granted the
+Personal or Private vault, so the key item has to live in
+`Dotfiles Service Account`, and it must be addressed with an explicit
+`--vault`: without one, `op` refuses every field with "a vault query must be
+provided when this command is called by a service account", which reads like a
+missing item and is not. Moving the item between vaults also reassigns its
+id, so `ITEM_UUID` in that script is the id *in that vault*, not the one it
+had in Private.
+
+**Gemini CLI needs `--skip-trust` for any headless run** (measured on
+gemini-cli 0.54.4). Without it the CLI downgrades `--approval-mode plan` to
+`default` and *then* aborts with "not running in a trusted directory". Keep
+`--approval-mode plan` on every invocation: it is what holds the run read-only,
+and the downgrade-before-abort ordering means a future version that stops
+aborting would otherwise run with that guard already stripped.
+
+What `--skip-trust` costs is worth stating precisely rather than either
+hand-waving or overstating it, because both commands run the CLI inside a
+working tree and `/code-review` runs it inside *someone else's* checked-out PR.
+Folder trust is what gates the CLI loading project-supplied configuration from
+the current directory. A direct test on 0.54.4 (a `.gemini/settings.json`
+declaring an MCP server whose command writes a marker file, run under
+`--skip-trust --approval-mode plan`) did **not** execute it, so this is not the
+drive-by code execution it might look like. It is still a gate being switched
+off over untrusted content, so both commands now **require** the CLI to be run
+from a freshly `mktemp -d`'d empty directory, in a subshell, with the diff and
+tooling output going in on stdin. Not `/tmp` itself, which is world-writable
+and therefore pre-seedable with a `GEMINI.md`; and a subshell because this
+shell keeps its cwd between tool calls. From an empty directory the trust gate
+has nothing to act on. It does not cover user-level `~/.gemini/` config, which
+loads regardless of cwd.
+
 ## Ansible role layout
 
 The repo is split by platform via `os_family` guards in `main.yml`:
@@ -294,10 +411,10 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 
 | File | Read by | Holds |
 |---|---|---|
-| `host` | `scripts/playbook.sh`, `roles/fish/files/ollama.fish` | This machine's inventory alias (`work`/`personal`/`alt`/`server`) |
+| `host` | `scripts/playbook.sh`, `roles/fish/files/ollama.fish`, the `/panel-review` and `/code-review` commands | This machine's inventory alias (`work`/`personal`/`alt`/`server`) |
 | `ssh-host` | the `sshc` function in `roles/fish/files/fish/config.fish` | `kitten ssh` target hostname |
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
-| `op-service-account-token` | `scripts/ssh-lan-config-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
+| `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
 | `slack-users.json` | the `/code-review` and `/peer-review` commands | GitHub login → Slack user ID, so review notifications can find a person |
 | `private-identifiers` | `scripts/gitleaks-identifier-rules.sh` | Private project identifiers the secret scanner's `private-project-identifier` rule is generated from, one per line (mode 0600) |
 
@@ -338,13 +455,22 @@ Ansible (a fresh process per task), and impossible during a headless boot where
 no desktop app is running to approve anything. A service-account token
 authenticates non-interactively instead.
 
-Two consequences worth knowing before moving items around:
+Three consequences worth knowing before moving items around:
 
 - **Service accounts cannot access the Personal or Private vault.** 1Password
-  refuses the grant outright, which is why `dotfiles-lan-ssh` lives in the
-  `Dotfiles Service Account` vault rather than `Private`, and why that is the
-  script's default vault.
-- The script refuses to read the file unless it is mode 0600 or 0400, and an
+  refuses the grant outright, which is why both items that need this token
+  (`dotfiles-lan-ssh` and the Gemini API key) live in the
+  `Dotfiles Service Account` vault rather than `Private`, and why that is both
+  scripts' default vault. Note the blast radius that creates: one machine-local
+  file on the headless host now reaches the LAN ssh topology *and* a billable
+  Google API key. Splitting them across two service accounts is the move if
+  that ever stops being an acceptable trade.
+- Moving an item into that vault **reassigns its id**. That is only a problem
+  for `claude-gemini-auth-sync.sh`, which addresses its item by id, so a move
+  there is also an edit to the script. `ssh-lan-config-sync.sh` addresses its
+  item by name (`dotfiles-lan-ssh`, via the `op://` references in its
+  template), which survives a move untouched.
+- Both scripts refuse to read the file unless it is mode 0600 or 0400, and an
   already-exported `OP_SERVICE_ACCOUNT_TOKEN` takes precedence, so CI can
   supply one without the file existing.
 
