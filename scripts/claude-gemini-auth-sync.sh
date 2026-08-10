@@ -98,6 +98,13 @@ if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
   # case where the guarantee quietly does not hold.
   op_token="$OP_SERVICE_ACCOUNT_TOKEN"
   unset OP_SERVICE_ACCOUNT_TOKEN
+  # Same emptiness bar as the file path below. Validating one and not the other
+  # was an asymmetry: a caller exporting a whitespace-only value would reach
+  # `op` and come back with "failed to parseToken", the same misleading error
+  # the file-side guard exists to prevent.
+  if [ -z "$(printf '%s' "$op_token" | tr -d '[:space:]')" ]; then
+    fail "OP_SERVICE_ACCOUNT_TOKEN is set but contains only whitespace; unset it or supply a real token"
+  fi
 elif [ -e "$OP_TOKEN_FILE" ]; then
   # `-e` above, then an explicit regular-file test: `-e` is what lets the empty
   # check below fire at all, but on its own it also captures a directory (a
@@ -170,22 +177,28 @@ fi
 # script where `password` would resolve to the account login password).
 new_key=""
 op_errors=""
+# One stderr capture file for the whole loop, created BEFORE it and covered by
+# a trap. Previously each iteration mktemp'd its own and removed it on the
+# normal paths only, so an interrupt during any `op` call (the slow part, a
+# network round trip) leaked one file per run with nothing to clean it up.
+op_err=$(mktemp 2>&1) \
+  || fail "could not create temp file for op stderr capture: $op_err"
+trap 'rm -f "$op_err"' EXIT INT TERM HUP
 for field in credential password api_key apikey; do
-  op_err=$(mktemp 2>&1) \
-    || fail "could not create temp file for op stderr capture: $op_err"
+  : > "$op_err"
   if value=$(op_get item get "$ITEM_UUID" --vault "$VAULT" --fields "$field" --reveal 2>"$op_err"); then
     if [ -n "$value" ]; then
       new_key="$value"
-      rm -f "$op_err"
       break
     fi
   fi
   err=$(cat "$op_err")
-  rm -f "$op_err"
   if [ -n "$err" ]; then
     op_errors="${op_errors}  [$field] $err"$'\n'
   fi
 done
+rm -f "$op_err"
+trap - EXIT INT TERM HUP
 
 if [ -z "$new_key" ]; then
   echo "FAILED: could not read Gemini API key from 1Password item $ITEM_UUID in vault '$VAULT' (tried fields credential, password, api_key, apikey). Is op signed in? On a headless host that means a readable $OP_TOKEN_FILE whose service account can reach that vault (service accounts cannot be granted Personal or Private)." >&2

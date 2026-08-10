@@ -149,17 +149,21 @@ Diff:
   **Run it from a freshly created empty directory, not from the repo under review and not from `/tmp`.** Use `scratch="$(mktemp -d)"` and invoke gemini inside a **subshell** so the cwd change cannot leak into later steps of the review:
 
   ```bash
-  scratch="$(mktemp -d)"; prompt_file="$scratch/prompt.txt"
+  scratch="$(mktemp -d)"; trap 'rm -rf "$scratch"' EXIT
+  prompt_file="$scratch/prompt.txt"
   # ... write the prompt into "$prompt_file" ...
   ( cd "$scratch" && gemini -o text --skip-trust --approval-mode plan < "$prompt_file" )
   ```
+
+  Clean it up: the scratch directory holds the full diff, so leaving one behind per review accumulates copies of private source in `/tmp`. The `trap` above is the whole fix.
 
   Both details are load-bearing, and the prompt file moves into the scratch directory with it (same as `/code-review`). `mktemp -d` rather than the `/tmp/panel-review-prompt.$$.txt` convention the Ollama backends below use: `/tmp` is world-writable, so making it the cwd would let anyone pre-plant `/tmp/GEMINI.md` or `/tmp/.gemini/settings.json` and have a `--skip-trust` run load it — relocating the trust rather than removing it. It also fixes the mode of the prompt file itself, which carries the whole diff of a private repo and is created world-readable under the default umask in `/tmp`. And the subshell because this session's shell keeps its working directory between tool calls, so a bare `cd` would leave every later `git` command in the review running outside the repo.
 
   The point of all this: the diff and tooling output reach the model on **stdin**, so the working tree never needs to be the cwd, and from an empty directory `--skip-trust` has nothing to trust — no `.gemini/settings.json`, project hooks, skills, or `GEMINI.md` can load from the tree at all. A direct test on 0.54.4 showed a project-supplied MCP server was *not* executed under `--skip-trust --approval-mode plan`, so this is defence in depth rather than a patched hole. Note what it does not cover: user-level `~/.gemini/` config still loads, and plan mode still permits read tools, so the model can still pull files from the tree by absolute path. Prefer `--skip-trust` over exporting `GEMINI_CLI_TRUST_WORKSPACE=true`: the flag is per-invocation, while the env var trusts every directory for every later gemini run in that shell.
 - **qwen-coder** and **gpt-oss** (Ollama): **prefer the HTTP API** for programmatic invocation. The base URL is read from `OLLAMA_BASE_URL` (set in fish conf.d/ollama.fish on personal/alt hosts to the work host's LAN IP) and falls back to `http://localhost:11434` on the work host itself. **Write the prompt file and run `curl` in the same `Bash` tool invocation**: the `Bash` tool spawns a fresh shell per call, so `$$` in a later call is a different PID than `$$` in an earlier one; if the write and the read land in separate tool calls, the `--rawfile` path silently points at a file that was never created and `jq` fails.
   ```bash
-  prompt_file="/tmp/panel-review-prompt.$$.txt"
+  scratch="$(mktemp -d)"; trap 'rm -rf "$scratch"' EXIT
+  prompt_file="$scratch/prompt.txt"
   cat > "$prompt_file" <<'PROMPT_EOF'
   <the lens-walk prompt, with tooling output and diff appended>
   PROMPT_EOF
@@ -168,7 +172,7 @@ Diff:
       '{model: $model, prompt: $prompt, stream: false}')" \
     | jq -r '.response'
   ```
-  Namespace this prompt file by `$$` (the shell PID), not a fixed name: two concurrent `--nested` runs in different worktrees would otherwise race on the same path, with one run's write landing between the other's write and its `curl` call, scoring the wrong diff. The API returns clean JSON with the response under `.response`. `ollama run <model> "<prompt>"` works as a fallback but emits ANSI escape codes (cursor moves, line clears) intended for an interactive TTY; even when piped, those leak into the output and require post-processing (`sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\r'`). The HTTP API path avoids that entirely.
+  `mktemp -d`, not the `/tmp/panel-review-prompt.$$.txt` this used to use. That file holds the entire diff of the repo under review and was created world-readable under the default umask, in a world-writable directory — the exact exposure the gemini bullet above spends a paragraph warning about, sitting five lines below it. `mktemp -d` gives a 0700 directory and settles the collision question the `$$` namespacing was there for: two concurrent `--nested` runs in different worktrees can no longer share a path at all, rather than merely being unlikely to. The API returns clean JSON with the response under `.response`. `ollama run <model> "<prompt>"` works as a fallback but emits ANSI escape codes (cursor moves, line clears) intended for an interactive TTY; even when piped, those leak into the output and require post-processing (`sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\r'`). The HTTP API path avoids that entirely.
 - **Wall-clock estimates on M1 Max 32GB** (one model loaded at a time; Ollama swaps when the second is invoked): `qwen-coder:32b` ~5 min, `gpt-oss:20b` ~3 min (smaller, instruction-tuned, no reasoning chain). qwen-coder at ~19 GB and gpt-oss at ~13 GB can't co-reside in unified memory comfortably, so the panel still serializes in practice; gpt-oss swaps in faster than the retired deepseek-r1:32b did.
 - **copilot**: route through `gh copilot` or the chosen Copilot CLI; specifics depend on which CLI variant is current.
 

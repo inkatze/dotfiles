@@ -55,7 +55,17 @@ ITEM="${DOTFILES_OP_ITEM:-dotfiles-lan-ssh}"
 # the vault while the actual fault is a placeholder file. Reaching that state
 # takes nothing more exotic than a `touch` on the way to pasting a token.
 OP_TOKEN_FILE="${DOTFILES_OP_TOKEN_FILE:-$HOME/.config/dotfiles/op-service-account-token}"
-if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -e "$OP_TOKEN_FILE" ]; then
+op_token=""
+if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
+  # Take ownership of a caller-supplied token and unset the exported copy, so
+  # `op_run` below is the only route by which it reaches a child. Same emptiness
+  # bar as the file path, so neither route can hand `op` a whitespace-only value.
+  op_token="$OP_SERVICE_ACCOUNT_TOKEN"
+  unset OP_SERVICE_ACCOUNT_TOKEN
+  if [ -z "$(printf '%s' "$op_token" | tr -d '[:space:]')" ]; then
+    fail "OP_SERVICE_ACCOUNT_TOKEN is set but contains only whitespace; unset it or supply a real token"
+  fi
+elif [ -e "$OP_TOKEN_FILE" ]; then
   # `-e` is what lets the empty check fire; the regular-file test keeps a
   # directory at this path (a `mkdir -p` typo on the parent) from reaching the
   # mode check and failing with a confusing "is mode 755".
@@ -76,7 +86,7 @@ if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -e "$OP_TOKEN_FILE" ]; then
   # file (mode 600 but root-owned, which is what creating it under `sudo`
   # leaves) aborts on cat's own status, so the run ends with a raw "Permission
   # denied" and none of this script's `FAILED:` convention.
-  OP_SERVICE_ACCOUNT_TOKEN="$(cat "$OP_TOKEN_FILE" 2>/dev/null)" \
+  op_token="$(cat "$OP_TOKEN_FILE" 2>/dev/null)" \
     || fail "$OP_TOKEN_FILE is not readable by this user (mode is $perms, but check the owner)"
   # Test a whitespace-stripped COPY, not the value itself. `$(...)` strips
   # trailing newlines and nothing else, so a file holding "   " or a tab yields
@@ -85,11 +95,25 @@ if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -e "$OP_TOKEN_FILE" ]; then
   # shape, when the actual fault is a placeholder file. Same guard as
   # claude-gemini-auth-sync.sh; porting `-s` without this one left half the
   # hole open.
-  if [ -z "$(printf '%s' "$OP_SERVICE_ACCOUNT_TOKEN" | tr -d '[:space:]')" ]; then
+  if [ -z "$(printf '%s' "$op_token" | tr -d '[:space:]')" ]; then
     fail "$OP_TOKEN_FILE contains only whitespace; write the service-account token to it or remove it"
   fi
-  export OP_SERVICE_ACCOUNT_TOKEN
 fi
+
+# Scope the bearer token to the single `op` call that needs it rather than
+# exporting it for the rest of the run. This script spawns `sed`, `grep`, `cmp`,
+# `chmod`, `mv` and an `ssh -G` after the injection, and an exported token would
+# sit in the environment of every one of them; `ssh` in particular is a
+# network-capable binary that also evaluates `Match exec` blocks from the config
+# it is handed. Mirrors op_get in claude-gemini-auth-sync.sh, so both scripts
+# now have one posture rather than two.
+op_run() {
+  if [ -n "$op_token" ]; then
+    OP_SERVICE_ACCOUNT_TOKEN="$op_token" op "$@"
+  else
+    op "$@"
+  fi
+}
 
 # Resolve the template relative to this script so the caller's cwd does not
 # matter (Ansible invokes it with ansible_env.PWD, a human may not).
@@ -132,7 +156,7 @@ sed -e "s|__OP_VAULT__|$VAULT|g" -e "s|__OP_ITEM__|$ITEM|g" \
 # every failure surfaced as the generic message below regardless of cause, so a
 # malformed template and a dismissed auth prompt looked identical. op's own
 # error line is the useful part -- pass it through and keep the hint as context.
-if ! op inject --force --file-mode 0600 --in-file "$tmp_tpl" --out-file "$tmp_out" >/dev/null; then
+if ! op_run inject --force --file-mode 0600 --in-file "$tmp_tpl" --out-file "$tmp_out" >/dev/null; then
   fail "op inject failed reading vault='$VAULT' item='$ITEM' — see the op error above (locked session? missing item? bad field name?)"
 fi
 
