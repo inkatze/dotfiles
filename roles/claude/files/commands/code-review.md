@@ -104,13 +104,14 @@ d. **Backend discovery pass.** Invoke the resolved backend **once** with the ful
    **Run gemini from a freshly created empty directory, never from the PR checkout and never from `/tmp`.** Write the prompt file there too, and invoke inside a **subshell**:
 
    ```bash
-   scratch="$(mktemp -d)"; trap 'rm -rf "$scratch"' EXIT
+   scratch="$(mktemp -d)" || exit 1
+   trap 'rm -rf "$scratch"' EXIT INT TERM HUP
    prompt_file="$scratch/prompt.txt"
    # ... write the prompt into "$prompt_file" ...
    ( cd "$scratch" && gemini -o text --skip-trust --approval-mode plan < "$prompt_file" )
    ```
 
-   Clean it up. The scratch directory holds the full diff of the PR under review, so leaving one behind per run accumulates copies of someone else's source in `/tmp`; the `trap` is the whole fix.
+   Clean it up. The scratch directory holds the full diff of the PR under review, so leaving one behind per run accumulates copies of someone else's source in `/tmp`; the `trap` is the whole fix. `INT TERM HUP` as well as `EXIT`, matching `claude-gemini-auth-sync.sh`, since Ctrl-C during a multi-minute backend call is the likeliest way a run ends early. The `|| exit 1` matters too: an unchecked `mktemp -d` failure leaves `$scratch` empty, and everything after it then operates on the wrong path.
 
    This matters more here than in `/panel-review`, because this command reviews **someone else's** PR: that working tree is untrusted content, and folder trust is precisely what gates the CLI loading `.gemini/settings.json`, project hooks, skills and `GEMINI.md` from it. The diff goes in on stdin, so the checkout never needs to be the cwd — which means `--skip-trust` has nothing to trust rather than trusting a stranger's tree. `mktemp -d` rather than `/tmp` itself, which is world-writable and so pre-seedable by any local user; and a subshell because this session's shell keeps its cwd between tool calls, so a bare `cd` would strand the later `git`/`gh` steps (including the checkout restore at the end of this command) outside the repo.
 

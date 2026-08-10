@@ -149,20 +149,22 @@ Diff:
   **Run it from a freshly created empty directory, not from the repo under review and not from `/tmp`.** Use `scratch="$(mktemp -d)"` and invoke gemini inside a **subshell** so the cwd change cannot leak into later steps of the review:
 
   ```bash
-  scratch="$(mktemp -d)"; trap 'rm -rf "$scratch"' EXIT
+  scratch="$(mktemp -d)" || exit 1
+  trap 'rm -rf "$scratch"' EXIT INT TERM HUP
   prompt_file="$scratch/prompt.txt"
   # ... write the prompt into "$prompt_file" ...
   ( cd "$scratch" && gemini -o text --skip-trust --approval-mode plan < "$prompt_file" )
   ```
 
-  Clean it up: the scratch directory holds the full diff, so leaving one behind per review accumulates copies of private source in `/tmp`. The `trap` above is the whole fix.
+  Clean it up: the scratch directory holds the full diff, so leaving one behind per review accumulates copies of private source in `/tmp`. The `trap` above is the whole fix, and it covers `INT TERM HUP` as well as `EXIT` (matching `claude-gemini-auth-sync.sh`) because Ctrl-C during a multi-minute backend call is the likeliest way a run ends early. `|| exit 1` on the `mktemp -d` matters for the same reason a bare one does not: an unchecked failure leaves `$scratch` empty and everything after it operates on the wrong path.
 
   Both details are load-bearing, and the prompt file moves into the scratch directory with it (same as `/code-review`). `mktemp -d` rather than the `/tmp/panel-review-prompt.$$.txt` convention the Ollama backends below use: `/tmp` is world-writable, so making it the cwd would let anyone pre-plant `/tmp/GEMINI.md` or `/tmp/.gemini/settings.json` and have a `--skip-trust` run load it — relocating the trust rather than removing it. It also fixes the mode of the prompt file itself, which carries the whole diff of a private repo and is created world-readable under the default umask in `/tmp`. And the subshell because this session's shell keeps its working directory between tool calls, so a bare `cd` would leave every later `git` command in the review running outside the repo.
 
   The point of all this: the diff and tooling output reach the model on **stdin**, so the working tree never needs to be the cwd, and from an empty directory `--skip-trust` has nothing to trust — no `.gemini/settings.json`, project hooks, skills, or `GEMINI.md` can load from the tree at all. A direct test on 0.54.4 showed a project-supplied MCP server was *not* executed under `--skip-trust --approval-mode plan`, so this is defence in depth rather than a patched hole. Note what it does not cover: user-level `~/.gemini/` config still loads, and plan mode still permits read tools, so the model can still pull files from the tree by absolute path. Prefer `--skip-trust` over exporting `GEMINI_CLI_TRUST_WORKSPACE=true`: the flag is per-invocation, while the env var trusts every directory for every later gemini run in that shell.
 - **qwen-coder** and **gpt-oss** (Ollama): **prefer the HTTP API** for programmatic invocation. The base URL is read from `OLLAMA_BASE_URL` (set in fish conf.d/ollama.fish on personal/alt hosts to the work host's LAN IP) and falls back to `http://localhost:11434` on the work host itself. **Write the prompt file and run `curl` in the same `Bash` tool invocation**: the `Bash` tool spawns a fresh shell per call, so `$$` in a later call is a different PID than `$$` in an earlier one; if the write and the read land in separate tool calls, the `--rawfile` path silently points at a file that was never created and `jq` fails.
   ```bash
-  scratch="$(mktemp -d)"; trap 'rm -rf "$scratch"' EXIT
+  scratch="$(mktemp -d)" || exit 1
+  trap 'rm -rf "$scratch"' EXIT INT TERM HUP
   prompt_file="$scratch/prompt.txt"
   cat > "$prompt_file" <<'PROMPT_EOF'
   <the lens-walk prompt, with tooling output and diff appended>
