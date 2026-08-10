@@ -76,6 +76,47 @@
     state: link
   tags: [claude]
 
+# Gemini API key for the panel/code-review backend, moved here from
+# roles/osx/tasks/homebrew.yml. Nothing about it was ever macOS-specific, and
+# the Darwin guard on that role is what left this host with fish
+# conf.d/gemini.fish exporting GEMINI_API_KEY from a file no task ever wrote.
+#
+# Both tasks keep the `osx` tag so `mise run osx` still syncs the key on a Mac,
+# and gain `linux` so `mise run linux` does the same here.
+#
+# Still gated on non-work: per D-6 in specs/pair-flow/design.md the work host
+# reviews through codex, so it has no use for a Gemini key. `server`, like
+# `personal` and `alt`, does.
+#
+# The directory holds the key file, so create it with private perms
+# declaratively; the sync script also chmods it 700 best-effort as
+# defense-in-depth.
+- name: Ensure ~/.gemini directory exists with private perms
+  ansible.builtin.file:
+    path: "{{ ansible_facts.env.HOME }}/.gemini"
+    state: directory
+    mode: '0700'
+  when:
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
+    - inventory_hostname != 'work'
+  tags: [claude, osx, linux]
+
+# The script strict-fails rather than skipping quietly when it cannot read the
+# item: a silent skip would leave a stale key in place unnoticed. On a Mac that
+# means an unlocked desktop app; on this headless host it means the
+# machine-local service-account token, which is why the key item has to live in
+# a vault a service account can be granted (not Personal or Private). See
+# scripts/claude-gemini-auth-sync.sh.
+- name: Sync Gemini API key from 1Password
+  ansible.builtin.command:
+    cmd: "{{ ansible_facts.env.PWD }}/scripts/claude-gemini-auth-sync.sh"
+  register: claude_gemini_auth
+  changed_when: "'CHANGED' in claude_gemini_auth.stdout"
+  when:
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
+    - inventory_hostname != 'work'
+  tags: [claude, osx, linux]
+
 - name: Remove dangling pair-flow.yml symlink (repo-class retirement cleanup)
   ansible.builtin.file:
     path: "{{ ansible_facts.env.HOME }}/.claude/pair-flow.yml"

@@ -32,12 +32,64 @@ fail() {
 # GEMINI_OP_ITEM_UUID if the item lives under a different id on a given host.
 # If the item cannot be read, the script fails loudly (see below) so an
 # uninitialized deployment cannot silently skip the sync.
-ITEM_UUID="${GEMINI_OP_ITEM_UUID:-hvscsuq25owvgrqt235xwlfmgy}"
+#
+# This id is the item as it exists in the vault named below, and it is NOT the
+# id the item had in the Private vault (that was hvscsuq25owvgrqt235xwlfmgy).
+# 1Password assigns a fresh id when an item lands in a different vault, so the
+# move that made this key reachable from a headless host also invalidated the
+# old default.
+#
+# Both platforms now read this one item: a Mac's desktop-app session can see
+# the service-account vault too. If a copy is still sitting in Private, it is
+# no longer what anything reads, so delete it rather than leaving two items
+# that can drift apart silently. On the first Mac run after this change the
+# script will print CHANGED once as it rewrites the key file from the new
+# item, then OK on every run after.
+ITEM_UUID="${GEMINI_OP_ITEM_UUID:-kigewmgkgl4gct6qyeekbirn6q}"
+
+# The vault holding that item. Named explicitly rather than left to op's
+# search, because a service account REQUIRES one: called without --vault it
+# refuses with "a vault query must be provided when this command is called by a
+# service account" for every field, which reads like a missing-item error and
+# is not. Same default vault as scripts/ssh-lan-config-sync.sh, and for the
+# same reason recorded there: a service account cannot be granted the Personal
+# or Private vault, so anything it must read lives here. Harmless on a Mac
+# reading through the desktop app, which can see the vault too.
+VAULT="${GEMINI_OP_VAULT:-${DOTFILES_OP_VAULT:-Dotfiles Service Account}}"
 
 target="$HOME/.gemini/.api-key"
 
 if ! command -v op >/dev/null 2>&1; then
   fail "1Password CLI (op) not installed"
+fi
+
+# Headless hosts have no 1Password desktop app to authorize against, so `op`
+# fails with "connecting to desktop app: cannot connect to 1Password app"
+# before it ever reads an item. Fall back to the machine-local service-account
+# token, exactly as scripts/ssh-lan-config-sync.sh does and for the same
+# reason: the desktop-app integration authorizes per calling process, which is
+# useless under Ansible (a fresh process per task) and impossible during a
+# headless boot.
+#
+# Note the vault consequence, because it constrains where the item may live: a
+# service account cannot be granted access to the Personal or Private vault, so
+# the Gemini API key has to sit in `Dotfiles Service Account` for this path to
+# reach it. On a Mac with the desktop app running, the block below is skipped
+# (no token file) and the item is read through the app session as before.
+#
+# An already-exported token wins, so CI or a caller can override without the
+# file existing.
+OP_TOKEN_FILE="${DOTFILES_OP_TOKEN_FILE:-$HOME/.config/dotfiles/op-service-account-token}"
+if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -f "$OP_TOKEN_FILE" ]; then
+  # Refuse a token file others can read: it is a bearer credential.
+  perms="$(stat -c '%a' "$OP_TOKEN_FILE" 2>/dev/null || stat -f '%Lp' "$OP_TOKEN_FILE" 2>/dev/null || echo '')"
+  case "$perms" in
+    600 | 400) ;;
+    '') fail "could not stat token file $OP_TOKEN_FILE" ;;
+    *) fail "$OP_TOKEN_FILE is mode $perms; must be 600 or 400 (chmod 600 it)" ;;
+  esac
+  OP_SERVICE_ACCOUNT_TOKEN="$(cat "$OP_TOKEN_FILE")"
+  export OP_SERVICE_ACCOUNT_TOKEN
 fi
 
 # Refuse to overwrite anything that is not a plain regular file. Symlinks
@@ -60,7 +112,7 @@ op_errors=""
 for field in credential password api_key apikey; do
   op_err=$(mktemp 2>&1) \
     || fail "could not create temp file for op stderr capture: $op_err"
-  if value=$(op item get "$ITEM_UUID" --fields "$field" --reveal 2>"$op_err"); then
+  if value=$(op item get "$ITEM_UUID" --vault "$VAULT" --fields "$field" --reveal 2>"$op_err"); then
     if [ -n "$value" ]; then
       new_key="$value"
       rm -f "$op_err"
@@ -75,7 +127,7 @@ for field in credential password api_key apikey; do
 done
 
 if [ -z "$new_key" ]; then
-  echo "FAILED: could not read Gemini API key from 1Password item $ITEM_UUID (tried fields credential, password, api_key, apikey). Is op signed in?" >&2
+  echo "FAILED: could not read Gemini API key from 1Password item $ITEM_UUID in vault '$VAULT' (tried fields credential, password, api_key, apikey). Is op signed in? On a headless host that means a readable $OP_TOKEN_FILE whose service account can reach that vault (service accounts cannot be granted Personal or Private)." >&2
   if [ -n "$op_errors" ]; then
     printf 'op errors:\n%s' "$op_errors" >&2
   fi
