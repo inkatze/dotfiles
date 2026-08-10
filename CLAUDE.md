@@ -252,12 +252,17 @@ via `--backends`; only the two below are ever chosen automatically.
 | `personal`, `alt` | `gemini` | `Brewfile` (`brew "gemini-cli"`) | `scripts/claude-gemini-auth-sync.sh` |
 | `server` | `gemini` | mise, pinned in `roles/linux/files/mise/linux.toml` | same script, service-account path |
 
-**The profile is the inventory alias**, resolved the way
-`scripts/playbook.sh` resolves it: `DOTFILES_HOST`, else
-`~/.config/dotfiles/host` (honouring `DOTFILES_HOST_FILE`, and only when the
-file has non-whitespace content), else the residual `alt` hostname match, else
-`work`. `PANEL_REVIEW_PROFILE` is honoured ahead of all of it as a per-run
-override.
+**The profile is the inventory alias**, resolved in `scripts/playbook.sh`'s
+order: `DOTFILES_HOST`, else `~/.config/dotfiles/host` (honouring
+`DOTFILES_HOST_FILE`), else the residual `alt` hostname match, else `work`.
+`PANEL_REVIEW_PROFILE` is honoured ahead of all of it as a per-run override.
+
+The commands are deliberately one notch stricter than `playbook.sh`: they take
+the alias file only when it has non-whitespace content. `playbook.sh` still
+tests mere existence, so a `touch`ed alias file there yields an empty
+`ansible-playbook -l ""`, which Ansible reads as *no limit* and runs every
+inventory host against this machine. Worth fixing there too; it is left alone
+here only because this change has no business editing the playbook entrypoint.
 
 Two of those clauses are easy to drop and were dropped in the first cut of
 this change. Without the `alt` hostname branch, an `alt` Mac (which
@@ -299,11 +304,12 @@ platform role. It was in the Darwin-guarded `roles/osx` until this change,
 which is why the Linux host had fish `conf.d/gemini.fish` exporting
 `GEMINI_API_KEY` from a file nothing ever wrote. It carries `osx` *and* `linux`
 tags, so both `mise run osx` and `mise run linux` sync the key on their
-respective hosts. Those two tags are the only place in the repo where a
-platform tag names a task outside its platform role, which is a wart: on a Mac,
-`mise run linux` will now run this one Claude task (behind its sudo prompt),
-and on the Linux host `mise run osx` will run it too. Both are harmless, and
-the alternative is a `mise run claude` task that does not exist yet.
+respective hosts. Those tags are the only place in the repo where a platform
+tag names tasks outside its platform role, which is a wart: on a Mac,
+`mise run linux` will now run the four Claude tasks that carry them (behind its
+sudo prompt), and on the Linux host `mise run osx` will run them too. Both are
+harmless, and the alternative is a `mise run claude` task that does not exist
+yet.
 
 Because that role is unguarded, the sync is preceded by an `op --version`
 probe, the same split `roles/ssh` uses: a host without the 1Password CLI is
@@ -339,9 +345,13 @@ the current directory. A direct test on 0.54.4 (a `.gemini/settings.json`
 declaring an MCP server whose command writes a marker file, run under
 `--skip-trust --approval-mode plan`) did **not** execute it, so this is not the
 drive-by code execution it might look like. It is still a gate being switched
-off over untrusted content, and the cheap hardening is that neither command
-needs the untrusted directory as its cwd at all: the diff and the tooling
-output go in on stdin, so the CLI can be run from anywhere.
+off over untrusted content, so both commands now **require** the CLI to be run
+from a freshly `mktemp -d`'d empty directory, in a subshell, with the diff and
+tooling output going in on stdin. Not `/tmp` itself, which is world-writable
+and therefore pre-seedable with a `GEMINI.md`; and a subshell because this
+shell keeps its cwd between tool calls. From an empty directory the trust gate
+has nothing to act on. It does not cover user-level `~/.gemini/` config, which
+loads regardless of cwd.
 
 ## Ansible role layout
 
@@ -443,7 +453,7 @@ Ansible (a fresh process per task), and impossible during a headless boot where
 no desktop app is running to approve anything. A service-account token
 authenticates non-interactively instead.
 
-Two consequences worth knowing before moving items around:
+Three consequences worth knowing before moving items around:
 
 - **Service accounts cannot access the Personal or Private vault.** 1Password
   refuses the grant outright, which is why both items that need this token
@@ -453,8 +463,11 @@ Two consequences worth knowing before moving items around:
   file on the headless host now reaches the LAN ssh topology *and* a billable
   Google API key. Splitting them across two service accounts is the move if
   that ever stops being an acceptable trade.
-- Moving an item into that vault **reassigns its id**. Both scripts address
-  their item by id, so a move is also an edit to the script that reads it.
+- Moving an item into that vault **reassigns its id**. That is only a problem
+  for `claude-gemini-auth-sync.sh`, which addresses its item by id, so a move
+  there is also an edit to the script. `ssh-lan-config-sync.sh` addresses its
+  item by name (`dotfiles-lan-ssh`, via the `op://` references in its
+  template), which survives a move untouched.
 - Both scripts refuse to read the file unless it is mode 0600 or 0400, and an
   already-exported `OP_SERVICE_ACCOUNT_TOKEN` takes precedence, so CI can
   supply one without the file existing.

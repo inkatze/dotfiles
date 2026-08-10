@@ -147,12 +147,15 @@
 - name: Report skipped Gemini key sync
   ansible.builtin.debug:
     msg: >-
-      1Password CLI not found; ~/.gemini/.api-key was left as-is. GEMINI_API_KEY
-      will be unset, so /panel-review and /code-review will stop with their own
-      auth message until `op` is installed and either signed in or given a
-      service-account token. See CLAUDE.md "Review backends: codex vs gemini".
+      1Password CLI not found; ~/.gemini/.api-key was left as-is, so it is
+      whatever it already was (absent on a host that has never synced). Until
+      `op` is installed and either signed in or given a service-account token,
+      /panel-review and /code-review will stop with their own auth message on
+      any host where that file is missing. See CLAUDE.md "Review backends:
+      codex vs gemini".
   when:
     - claude_op_probe.rc != 0
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
     - inventory_hostname != 'work'
   tags: [claude, osx, linux]
 
