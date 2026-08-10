@@ -79,8 +79,19 @@ fi
 #
 # An already-exported token wins, so CI or a caller can override without the
 # file existing.
+#
+# `-s` rather than `-f`, because an EMPTY token file is worse than none: it
+# passes a `-f` test and a mode check, and the resulting empty
+# OP_SERVICE_ACCOUNT_TOKEN switches OFF the desktop-app path that would
+# otherwise have worked, so a Mac fails with an error naming the item and the
+# vault while the actual fault is a placeholder file. A `touch`ed file on the
+# way to pasting a token is the ordinary way to reach that state.
 OP_TOKEN_FILE="${DOTFILES_OP_TOKEN_FILE:-$HOME/.config/dotfiles/op-service-account-token}"
-if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -f "$OP_TOKEN_FILE" ]; then
+op_token=""
+if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -e "$OP_TOKEN_FILE" ]; then
+  if [ ! -s "$OP_TOKEN_FILE" ]; then
+    fail "$OP_TOKEN_FILE exists but is empty; write the service-account token to it or remove it (an empty file disables the desktop-app fallback)"
+  fi
   # Refuse a token file others can read: it is a bearer credential.
   perms="$(stat -c '%a' "$OP_TOKEN_FILE" 2>/dev/null || stat -f '%Lp' "$OP_TOKEN_FILE" 2>/dev/null || echo '')"
   case "$perms" in
@@ -88,9 +99,33 @@ if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -f "$OP_TOKEN_FILE" ]; then
     '') fail "could not stat token file $OP_TOKEN_FILE" ;;
     *) fail "$OP_TOKEN_FILE is mode $perms; must be 600 or 400 (chmod 600 it)" ;;
   esac
-  OP_SERVICE_ACCOUNT_TOKEN="$(cat "$OP_TOKEN_FILE")"
-  export OP_SERVICE_ACCOUNT_TOKEN
+  # Read through `fail()` rather than a bare assignment. Under `set -eu` an
+  # unreadable file (mode 600 but owned by root, the state `sudo` leaves behind)
+  # aborts on cat's own status, so the run ends with a raw "Permission denied"
+  # and no `FAILED:` line -- breaking the contract this file's header states and
+  # defeating any caller that greps for the prefix.
+  op_token="$(cat "$OP_TOKEN_FILE" 2>/dev/null)" \
+    || fail "$OP_TOKEN_FILE is not readable by this user (mode is $perms, but check the owner)"
+  if [ -z "$op_token" ]; then
+    fail "$OP_TOKEN_FILE contains only whitespace; write the service-account token to it or remove it"
+  fi
 fi
+
+# Run `op` with the service-account token scoped to the single call that needs
+# it, instead of exporting it for the rest of the script. The header above
+# promises the key is never on argv and that the env-var window stays narrow;
+# a process-wide export contradicts the second half, since it would then be
+# inherited by every later child -- mktemp, cat, chmod, mv, and the `sh -c`
+# that holds the plaintext API key, which would carry BOTH secrets at once.
+# Same-user inspection via /proc/<pid>/environ stays possible for the duration
+# of an `op` call; that is the irreducible part.
+op_get() {
+  if [ -n "$op_token" ]; then
+    OP_SERVICE_ACCOUNT_TOKEN="$op_token" op "$@"
+  else
+    op "$@"
+  fi
+}
 
 # Refuse to overwrite anything that is not a plain regular file. Symlinks
 # and special files signal another tool is managing this path; rewriting
@@ -112,7 +147,7 @@ op_errors=""
 for field in credential password api_key apikey; do
   op_err=$(mktemp 2>&1) \
     || fail "could not create temp file for op stderr capture: $op_err"
-  if value=$(op item get "$ITEM_UUID" --vault "$VAULT" --fields "$field" --reveal 2>"$op_err"); then
+  if value=$(op_get item get "$ITEM_UUID" --vault "$VAULT" --fields "$field" --reveal 2>"$op_err"); then
     if [ -n "$value" ]; then
       new_key="$value"
       rm -f "$op_err"
@@ -135,9 +170,21 @@ if [ -z "$new_key" ]; then
 fi
 
 # Fast path: if the on-disk key already matches, exit OK without rewriting.
+#
+# The mode is still asserted before the early exit. chmod 600 otherwise only
+# ever runs on the slow path (against the temp file), so a key file that
+# already holds the right bytes at the wrong mode would stay loose forever:
+# no future run rewrites it, because the content matches. That state is
+# reachable rather than theoretical -- the Linux host carried a fish snippet
+# reading this path long before anything wrote it, so a hand-created
+# `echo ... > ~/.gemini/.api-key` at a default umask lands exactly there. The
+# gemini CLI also creates ~/.gemini itself at 0755, so the directory is not
+# reliably a second line of defence.
 if [ -f "$target" ]; then
-  current_key=$(cat "$target")
+  current_key=$(cat "$target" 2>/dev/null) \
+    || fail "$target exists but is not readable; inspect it manually"
   if [ "$current_key" = "$new_key" ]; then
+    chmod 600 "$target" || fail "could not chmod 600 $target"
     echo "OK"
     exit 0
   fi
