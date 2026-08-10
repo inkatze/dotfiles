@@ -56,6 +56,12 @@ ITEM="${DOTFILES_OP_ITEM:-dotfiles-lan-ssh}"
 # takes nothing more exotic than a `touch` on the way to pasting a token.
 OP_TOKEN_FILE="${DOTFILES_OP_TOKEN_FILE:-$HOME/.config/dotfiles/op-service-account-token}"
 if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -e "$OP_TOKEN_FILE" ]; then
+  # `-e` is what lets the empty check fire; the regular-file test keeps a
+  # directory at this path (a `mkdir -p` typo on the parent) from reaching the
+  # mode check and failing with a confusing "is mode 755".
+  if [ ! -f "$OP_TOKEN_FILE" ]; then
+    fail "$OP_TOKEN_FILE is not a regular file; remove it or replace it with the service-account token"
+  fi
   if [ ! -s "$OP_TOKEN_FILE" ]; then
     fail "$OP_TOKEN_FILE exists but is empty; write the service-account token to it or remove it (an empty file disables the desktop-app fallback)"
   fi
@@ -72,6 +78,16 @@ if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -e "$OP_TOKEN_FILE" ]; then
   # denied" and none of this script's `FAILED:` convention.
   OP_SERVICE_ACCOUNT_TOKEN="$(cat "$OP_TOKEN_FILE" 2>/dev/null)" \
     || fail "$OP_TOKEN_FILE is not readable by this user (mode is $perms, but check the owner)"
+  # Test a whitespace-stripped COPY, not the value itself. `$(...)` strips
+  # trailing newlines and nothing else, so a file holding "   " or a tab yields
+  # a non-empty token that sails past a bare `-z`, reaches `op`, and comes back
+  # as "failed to parseToken, format is invalid" -- an error about the token's
+  # shape, when the actual fault is a placeholder file. Same guard as
+  # claude-gemini-auth-sync.sh; porting `-s` without this one left half the
+  # hole open.
+  if [ -z "$(printf '%s' "$OP_SERVICE_ACCOUNT_TOKEN" | tr -d '[:space:]')" ]; then
+    fail "$OP_TOKEN_FILE contains only whitespace; write the service-account token to it or remove it"
+  fi
   export OP_SERVICE_ACCOUNT_TOKEN
 fi
 

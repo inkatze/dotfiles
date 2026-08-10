@@ -88,7 +88,25 @@ fi
 # way to pasting a token is the ordinary way to reach that state.
 OP_TOKEN_FILE="${DOTFILES_OP_TOKEN_FILE:-$HOME/.config/dotfiles/op-service-account-token}"
 op_token=""
-if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -e "$OP_TOKEN_FILE" ]; then
+if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
+  # A caller (CI, a wrapper shell, an Ansible environment) already supplied a
+  # token. Take ownership of it and unset the exported copy, so `op_get` below
+  # is the ONLY route by which it reaches a child process. Leaving it exported
+  # would mean every later child -- including the `sh -c` that holds the
+  # plaintext API key -- inherits the vault credential, which is exactly what
+  # the scoping exists to prevent; the exported path would otherwise be the one
+  # case where the guarantee quietly does not hold.
+  op_token="$OP_SERVICE_ACCOUNT_TOKEN"
+  unset OP_SERVICE_ACCOUNT_TOKEN
+elif [ -e "$OP_TOKEN_FILE" ]; then
+  # `-e` above, then an explicit regular-file test: `-e` is what lets the empty
+  # check below fire at all, but on its own it also captures a directory (a
+  # `mkdir -p` typo on the parent path), which would otherwise reach the mode
+  # check and fail with a confusing "is mode 755" instead of naming the real
+  # problem.
+  if [ ! -f "$OP_TOKEN_FILE" ]; then
+    fail "$OP_TOKEN_FILE is not a regular file; remove it or replace it with the service-account token"
+  fi
   if [ ! -s "$OP_TOKEN_FILE" ]; then
     fail "$OP_TOKEN_FILE exists but is empty; write the service-account token to it or remove it (an empty file disables the desktop-app fallback)"
   fi
@@ -106,7 +124,13 @@ if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -e "$OP_TOKEN_FILE" ]; then
   # defeating any caller that greps for the prefix.
   op_token="$(cat "$OP_TOKEN_FILE" 2>/dev/null)" \
     || fail "$OP_TOKEN_FILE is not readable by this user (mode is $perms, but check the owner)"
-  if [ -z "$op_token" ]; then
+  # Test a whitespace-stripped COPY, not the value itself. `$(...)` strips
+  # trailing newlines and nothing else, so a file holding "   " or a tab yields
+  # a non-empty op_token that sails past a bare `-z`, reaches `op`, and comes
+  # back as "failed to parseToken, format is invalid" -- an error about the
+  # token's shape, when the actual fault is a placeholder file. The real token
+  # is passed through unmodified; only the emptiness test is normalised.
+  if [ -z "$(printf '%s' "$op_token" | tr -d '[:space:]')" ]; then
     fail "$OP_TOKEN_FILE contains only whitespace; write the service-account token to it or remove it"
   fi
 fi
@@ -117,6 +141,8 @@ fi
 # a process-wide export contradicts the second half, since it would then be
 # inherited by every later child -- mktemp, cat, chmod, mv, and the `sh -c`
 # that holds the plaintext API key, which would carry BOTH secrets at once.
+# Because the branch above unsets any inherited copy, this holds on the
+# caller-supplied path too, not only when the token came from the file.
 # Same-user inspection via /proc/<pid>/environ stays possible for the duration
 # of an `op` call; that is the irreducible part.
 op_get() {
@@ -184,7 +210,25 @@ if [ -f "$target" ]; then
   current_key=$(cat "$target" 2>/dev/null) \
     || fail "$target exists but is not readable; inspect it manually"
   if [ "$current_key" = "$new_key" ]; then
-    chmod 600 "$target" || fail "could not chmod 600 $target"
+    # Only chmod when the mode is actually wrong. An unconditional chmod would
+    # turn the steady state into a hard failure on a host where the key file is
+    # owned by someone else (root, if it was ever created under sudo): the
+    # content matches, so the old code printed OK, and an EPERM here would fail
+    # the Ansible task and abort the last role in main.yml on EVERY run --
+    # re-entering, through a different door, the exact failure the `op` probe
+    # was added to prevent.
+    target_perms="$(stat -c '%a' "$target" 2>/dev/null || stat -f '%Lp' "$target" 2>/dev/null || echo '')"
+    if [ "$target_perms" != "600" ]; then
+      chmod 600 "$target" \
+        || fail "$target is mode ${target_perms:-unknown} and could not be tightened to 600; check its owner"
+    fi
+    # Same treatment for the directory, for the reason the slow path's chmod
+    # records: the gemini CLI creates ~/.gemini itself at 0755, and on a
+    # converged host the slow path never runs again to correct it.
+    dir_perms="$(stat -c '%a' "$(dirname "$target")" 2>/dev/null || stat -f '%Lp' "$(dirname "$target")" 2>/dev/null || echo '')"
+    if [ "$dir_perms" != "700" ]; then
+      chmod 700 "$(dirname "$target")" 2>/dev/null || true
+    fi
     echo "OK"
     exit 0
   fi
@@ -203,7 +247,11 @@ chmod 700 "$target_dir" 2>/dev/null || true
 tmp=$(mktemp "${target}.XXXXXX" 2>&1) \
   || fail "could not create temp file next to $target: $tmp"
 
-trap 'rm -f "$tmp"' EXIT
+# INT/TERM/HUP as well as EXIT: the temp file holds the plaintext API key
+# between the write and the rename, and a Ctrl-C or an Ansible timeout in that
+# window would otherwise leave ~/.gemini/.api-key.XXXXXX on disk forever. The
+# fast path never looks at those names, so nothing would ever clean them up.
+trap 'rm -f "$tmp"' EXIT INT TERM HUP
 
 # Write the key via printf with the value sourced from an env var; this
 # avoids putting the key on argv (where `ps -A` could leak it) without
