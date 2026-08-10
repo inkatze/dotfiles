@@ -49,8 +49,16 @@ ITEM="${DOTFILES_OP_ITEM:-dotfiles-lan-ssh}"
 # The token is machine-local and gitignored, alongside the other files in
 # ~/.config/dotfiles/ (see CLAUDE.md). An already-exported token wins, so CI or
 # a caller can override without touching the file.
+# `-s` rather than `-f`: an EMPTY token file passes a `-f` test and the mode
+# check below, and the resulting empty OP_SERVICE_ACCOUNT_TOKEN switches OFF
+# the desktop-app path that would otherwise have worked, so the failure names
+# the vault while the actual fault is a placeholder file. Reaching that state
+# takes nothing more exotic than a `touch` on the way to pasting a token.
 OP_TOKEN_FILE="${DOTFILES_OP_TOKEN_FILE:-$HOME/.config/dotfiles/op-service-account-token}"
-if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -f "$OP_TOKEN_FILE" ]; then
+if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -e "$OP_TOKEN_FILE" ]; then
+  if [ ! -s "$OP_TOKEN_FILE" ]; then
+    fail "$OP_TOKEN_FILE exists but is empty; write the service-account token to it or remove it (an empty file disables the desktop-app fallback)"
+  fi
   # Refuse a token file others can read: it is a bearer credential.
   perms="$(stat -c '%a' "$OP_TOKEN_FILE" 2>/dev/null || stat -f '%Lp' "$OP_TOKEN_FILE" 2>/dev/null || echo '')"
   case "$perms" in
@@ -58,7 +66,12 @@ if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -f "$OP_TOKEN_FILE" ]; then
     '') fail "could not stat token file $OP_TOKEN_FILE" ;;
     *) fail "$OP_TOKEN_FILE is mode $perms; must be 600 or 400 (chmod 600 it)" ;;
   esac
-  OP_SERVICE_ACCOUNT_TOKEN="$(cat "$OP_TOKEN_FILE")"
+  # Read through `fail()`. Under `set -eu` a bare assignment from an unreadable
+  # file (mode 600 but root-owned, which is what creating it under `sudo`
+  # leaves) aborts on cat's own status, so the run ends with a raw "Permission
+  # denied" and none of this script's `FAILED:` convention.
+  OP_SERVICE_ACCOUNT_TOKEN="$(cat "$OP_TOKEN_FILE" 2>/dev/null)" \
+    || fail "$OP_TOKEN_FILE is not readable by this user (mode is $perms, but check the owner)"
   export OP_SERVICE_ACCOUNT_TOKEN
 fi
 
