@@ -1,0 +1,1 @@
+- 2026-08-14 [dotfiles] gitleaks detect over full history reports 57 findings (620 commits) while the lefthook pre-commit gate scans only staged changes, so history findings sit unaudited; worth a one-time triage or a baseline/ignore file so the full-history number becomes a meaningful signal.

@@ -88,7 +88,10 @@
 # Takes ownership of another undeclared manual change, and fixes a real bug in
 # it: the hand-written rule matched GPUs by card NUMBER, which is unstable here,
 # so it clamped the RX 580 eGPU to 300 MHz alongside the internal dGPU it was
-# meant for. See the header of the source file for the full reasoning.
+# meant for. The file has since grown a second half: it also tags the eGPU as
+# mutter's preferred primary GPU, so deploying it changes which card renders
+# the desktop -- at the next graphical login, not on the reload the handler
+# does. See the header of the source file for the full reasoning.
 - name: Deploy the amdgpu power-management udev rule
   ansible.builtin.copy:
     src: "udev/{{ linux_amdgpu_pm_rule }}"

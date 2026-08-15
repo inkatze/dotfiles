@@ -1,0 +1,1 @@
+- 2026-08-14 [dotfiles] roles/linux/files/udev/*.rules have no automated syntax gate; udevadm verify (systemd 254+) validates rule files and passes on 30-amdgpu-pm.rules today; candidate lefthook/CI addition alongside yamllint and ansible-lint.

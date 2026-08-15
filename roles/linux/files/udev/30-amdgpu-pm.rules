@@ -1,4 +1,7 @@
-# Pin the INTERNAL Radeon Pro to its lowest power state. Never the eGPU.
+# GPU power and primary-GPU policy for the two AMD cards, two halves of one
+# decision: pin the INTERNAL Radeon Pro to its lowest power state (never the
+# eGPU), and point mutter's primary-GPU choice at the eGPU so nothing that
+# matters renders on the clamped card.
 # Managed by roles/linux; installed to /etc/udev/rules.d/30-amdgpu-pm.rules.
 #
 # This REPLACES a hand-written rule at the same path (dated 2026-05-20, owned by
@@ -36,3 +39,24 @@
 ACTION=="add|change", SUBSYSTEM=="drm", KERNEL=="card*", \
   ATTRS{vendor}=="0x1002", ATTRS{device}=="0x67ef", \
   ATTR{device/power_dpm_force_performance_level}="low"
+
+# The companion to the clamp above: make mutter render on the eGPU.
+#
+# The clamp is safe only if nothing performance-sensitive renders on the
+# clamped card, and until 2026-08-14 everything did. The internal Radeon Pro is
+# boot_vga, and mutter picks boot_vga as its primary GPU by default, so the
+# whole desktop -- including the external monitor attached to the RX 580 --
+# was composited at 214 MHz and copied across, and any game launched without
+# DRI_PRIME rendered there too. Portal-on-the-eGPU (above) was the exception
+# that had been forced by hand, not the rule.
+#
+# mutter honours this tag when choosing its primary GPU, so with the RX 580
+# tagged, the desktop and default game rendering move to the card running at
+# full clocks, and the clamped internal GPU is reduced to scanning out the
+# built-in panel. When the eGPU is detached the tag matches nothing and mutter
+# falls back to boot_vga, so lid-shut headless operation and travel are
+# unchanged. mutter reads the tag at startup: a change here needs a
+# logout/login (or reboot) to take effect, not just a udev reload.
+ACTION=="add|change", SUBSYSTEM=="drm", KERNEL=="card*", \
+  ATTRS{vendor}=="0x1002", ATTRS{device}=="0x67df", \
+  TAG+="mutter-device-preferred-primary"

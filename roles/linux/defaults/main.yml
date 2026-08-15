@@ -181,6 +181,32 @@ linux_apt_packages:
   - celluloid
   - ffmpeg
   - vainfo
+  # VA-API drivers, declared so the decode stack the block above verifies is
+  # asserted rather than assumed.
+  #
+  #   mesa-va-drivers       VA-API for the AMD GPUs (UVD/VCE on both Polaris
+  #                         cards; radeonsi_drv_video.so). Virtual in resolute:
+  #                         Mesa folded the gallium video drivers into
+  #                         mesa-libgallium, which Provides this name, so on
+  #                         this host the line is a documented no-op. Kept
+  #                         under the old name because it is the name apt
+  #                         still resolves, and on a minimal fresh host it
+  #                         pulls the provider in.
+  #   intel-media-va-driver Quick Sync on the UHD 630 iGPU (iHD_drv_video.so),
+  #                         genuinely absent until 2026-08-14, so decode also
+  #                         works when a player lands on the Intel device. The
+  #                         non-free variant only adds encode breadth; decode
+  #                         does not need it.
+  #
+  # A diagnostic trap recorded so it is not re-diagnosed: `vainfo` run over ssh
+  # reports "Failed to open the given device!" on every render node and lists
+  # zero profiles. That is not a missing driver -- /dev/dri/renderD* is
+  # root:render 0660 plus a logind per-seat ACL, an ssh session has neither,
+  # and this user is not in the render group. Verify decode from inside the
+  # graphical session (mpv's `i` overlay showing "hwdec: vaapi"), or after
+  # adding the user to the render group.
+  - mesa-va-drivers
+  - intel-media-va-driver
 
   # Misc tools
   - ddgr
