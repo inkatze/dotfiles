@@ -1,0 +1,1 @@
+- 2026-08-18 [dotfiles] Review loops over markdown-only diffs (CLAUDE.md, commands/, specs/) have no tool-grounded discovery: the repo ships yamllint/ansible-lint/shellcheck/gitleaks but no markdown linter, so prose diffs rely entirely on judgment lenses. Consider adding markdownlint (or similar) to lefthook and CI.
