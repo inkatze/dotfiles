@@ -68,17 +68,36 @@
     remote = green
 [branch]
     autosetuprebase = always
+    sort = -committerdate
+[tag]
+    sort = version:refname
+[column]
+    ui = auto
+[help]
+    autocorrect = prompt
+[diff]
+    algorithm = histogram
+    colorMoved = plain
+[rerere]
+    enabled = true
+    autoupdate = true
+[rebase]
+    autoSquash = true
+    autoStash = true
+    updateRefs = true
 [log]
     decorate = short
 [merge]
-    conflictstyle = diff3
+    conflictstyle = zdiff3
     renamelimit = 3000
 [push]
     default = current
+    autoSetupRemote = true
 [pull]
     rebase = true
 [commit]
     gpgsign = true
+    verbose = true
 [gpg]
     format = ssh
 [gpg "ssh"]
