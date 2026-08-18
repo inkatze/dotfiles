@@ -21,7 +21,7 @@ right one, so treat anything after `clanky` as wrong by default.
 
 ## Shell Environment
 - **Shell**: Fish shell (`fish`) - A smart and user-friendly command line shell
-- **Version Manager**: `mise` (formerly rtx) - Multi-language runtime version manager
+- **Version Manager**: `mise` - Multi-language runtime version manager
 - **Terminal Multiplexer**: `tmux` - Terminal session manager
 
 ## Running Commands
@@ -44,37 +44,14 @@ mise install node@20   # Install specific versions
 ```
 
 ### Running Mise-Managed Tools
-**IMPORTANT**: When running any mise-managed tools, always use Fish shell with mise. The following languages and tools are managed by mise:
-- **Languages**: Ruby, Python, Node.js/JavaScript, Go, Rust, Java, Elixir, Erlang
+**IMPORTANT**: When running any mise-managed tools, always run them through
+Fish so mise activation applies: `fish -c "npm install"`, `fish -c "cargo
+build"`, and so on. The languages and tools managed by mise:
+- **Languages**: Ruby, Python, Node.js/JavaScript, Rust, Java, Elixir, Erlang, Lua
 - **Tools**: Terraform, Ansible, and other CLI tools
 
-Examples of running mise-managed tools (use `fish -c "..."` to ensure mise is available):
-```bash
-# Run Python scripts
-fish -c "python script.py"
-
-# Run Ruby scripts
-fish -c "ruby script.rb"
-
-# Run Node.js
-fish -c "node app.js"
-fish -c "npm install"
-fish -c "npm run dev"
-
-# Run Go
-fish -c "go run main.go"
-
-# Run Rust
-fish -c "cargo build"
-
-# Run Terraform
-fish -c "terraform plan"
-
-# Run Ansible
-fish -c "ansible-playbook playbook.yml"
-```
-
-All these commands will automatically use the versions specified in `.mise.toml` or `.tool-versions` files in your project directories.
+These pick up the versions pinned in `mise.toml` (or the machine-local
+`mise.local.toml`) in your project directories.
 
 ### Tmux Sessions
 Tmux is available for managing terminal sessions:
@@ -181,7 +158,7 @@ For any review workflow that generates findings (not just validates pre-existing
 
 - **Self-critique pass before reporting.** After the lens walk (or fan-out merge) produces a finding list, do one more pass: assume the list is incomplete, re-scan the diff specifically looking for what feels under-represented, and add what you find. This is mandatory, not optional. The cost is small; the upside is that the user does not have to re-run the skill to drain pass-2 findings.
 
-Skills cite this section the same way they cite Validation Rigor. The canonical lens list lives here so individual skills do not drift.
+The dotfiles-local review commands cite this section the same way they cite Validation Rigor, and this copy of the lens list is canonical for them. planwright's skills resolve their own copy from the plugin's `doctrine/` instead, which is canonical for those skills and may word individual lenses slightly differently; a change meant for both has to land in both places.
 
 ### Finding Categorization
 
@@ -259,13 +236,13 @@ Guiding principle: **small, continuous refactors prevent large, breaking ones.**
 - Do not invent abstractions for hypothetical future requirements. Three similar lines is fine; demanding a helper for them is noise.
 
 ### Review Workflows
-There are five review workflows, each with a corresponding slash command. `/self-review` and `/polish` ship as **planwright plugin skills** (see the Spec-Driven Autonomy Pipeline section); the rest (`/panel-review`, `/peer-review`, `/copilot-review`) are dotfiles-local commands under `roles/claude/files/commands/`. (`/code-review`, for reviewing someone else's PR rather than your own, is a separate dotfiles-local command covered at the end of this section, not counted among the five. It is the only review workflow that notifies on BOTH edges: it DMs the PR author when the review starts and again with the outcome, if a Slack MCP server is available.) `/panel-review` and `/copilot-review` are permanent, complementary workflows, not a transitional pair being consolidated into one: `/panel-review` routes discovery through external, non-Anthropic model backends, while `/copilot-review` integrates specifically with GitHub Copilot's own PR review threads. Each takes an optional `--nested` flag that swaps its single interactive pass for an autonomous drain loop (folding in what used to be the separate `/panel-pairing` and `/copilot-pairing` commands); that flag is also what makes them *nestable* review skills for planwright's `review_sequence` config knob (an ordered list of `--nested`-invocable review skills that `/execute-task`'s convergence phase runs, default `[polish]`). `/panel-review --nested` fits there unconditionally (it needs no PR, only a diff against the base branch). `/copilot-review --nested` does not: its pre-flight requires an existing PR for the current branch (`gh pr view`), while `/execute-task` opens the draft PR only after the convergence phase completes, so on a task's first execution, `review_sequence` cannot include `/copilot-review --nested` before a PR exists. It only fits `review_sequence` on a later convergence pass against a task that already has an open PR, not as a `/polish --nested` replacement on first execution.
+Each review workflow below has a corresponding slash command. `/self-review` and `/polish` ship as **planwright plugin skills** (see the Spec-Driven Autonomy Pipeline section); the rest (`/panel-review`, `/peer-review`, `/copilot-review`) are dotfiles-local commands under `roles/claude/files/commands/`. (`/code-review`, for reviewing someone else's PR rather than your own, is a separate dotfiles-local command covered at the end of this section, not part of the numbered list below. It is the only review workflow that notifies on BOTH edges: it DMs the PR author when the review starts and again with the outcome, if a Slack MCP server is available.) `/panel-review` and `/copilot-review` are permanent, complementary workflows, not a transitional pair being consolidated into one: `/panel-review` routes discovery through external, non-Anthropic model backends, while `/copilot-review` integrates specifically with GitHub Copilot's own PR review threads. Each takes an optional `--nested` flag that swaps its single interactive pass for an autonomous drain loop (folding in what used to be the separate `/panel-pairing` and `/copilot-pairing` commands); that flag is also what makes them *nestable* review skills for planwright's `review_sequence` config knob (an ordered list of `--nested`-invocable review skills that `/execute-task`'s convergence phase runs, default `[polish]`). `/panel-review --nested` fits there unconditionally (it needs no PR, only a diff against the base branch). `/copilot-review --nested` does not: its pre-flight requires an existing PR for the current branch (`gh pr view`), while `/execute-task` opens the draft PR only after the convergence phase completes, so on a task's first execution, `review_sequence` cannot include `/copilot-review --nested` before a PR exists. It only fits `review_sequence` on a later convergence pass against a task that already has an open PR, not as a `/polish --nested` replacement on first execution.
 
 1. **Self-review** (`/self-review`, planwright skill): Comprehensive code review of the feature branch against main. Review, validate for false positives, iterate until clean, then push and create a draft PR.
 2. **Polish** (`/polish`, planwright skill): Autonomous act-then-review convergence loop over `/self-review`'s discovery + validation. Each iteration drains every action disposition (Auto-applicable and Needs sign-off, all applied on the branch) until only irreducible Needs-human-judgment forks remain, then hands off the audit record. Local-only: never pushes, never opens a PR. Pass `--nested` when a parent skill (e.g. `/execute-task`) owns the handoff. Use as a finishing pass before `/self-review` opens the PR.
-3. **Panel review** (`/panel-review`): Same shape as `/self-review` but routes Discovery Rigor and Validation Rigor through configurable external backends (OpenAI Codex CLI on work, Google Gemini CLI on personal/alt/server, local Ollama models like Qwen2.5-Coder and gpt-oss:20b available via opt-in) so the variance does not come exclusively from the active Claude session. Pluggable `--backends` flag with profile-aware defaults: work defaults to `codex`; personal/alt/server default to `gemini`. The profile is the machine's dotfiles inventory alias, resolved as `scripts/playbook.sh` resolves it (`DOTFILES_HOST`, else a non-empty `~/.config/dotfiles/host`, else the residual `alt` hostname match, else `work`), so the work host picks codex without any extra variable to set. `PANEL_REVIEW_PROFILE` still overrides the alias for a single run, and `--backends` still overrides the resulting backend. Useful whenever GitHub Copilot quota is the bottleneck, or simply for a non-Anthropic angle. Pass `--nested` to loop autonomously (review, apply, re-review) instead of one interactive pass: drains only Auto-applicable items per iteration, local-only (never pushes, never opens a PR, same contract as `/polish`), and iterates until convergence (all three buckets empty) or a safety condition fires (iteration cap 15).
+3. **Panel review** (`/panel-review`): Same shape as `/self-review` but routes Discovery Rigor and Validation Rigor through configurable external backends (OpenAI Codex CLI on work, Google Gemini CLI on personal/alt/server, local Ollama models like Qwen2.5-Coder and gpt-oss:20b available via opt-in) so the variance does not come exclusively from the active Claude session. Pluggable `--backends` flag with profile-aware defaults: work defaults to `codex`; personal/alt/server default to `gemini`. The profile is the machine's dotfiles inventory alias, resolved as `scripts/playbook.sh` resolves it (`DOTFILES_HOST`, else a non-empty `~/.config/dotfiles/host`, else the residual `alt` hostname match, else `work`), so the work host picks codex without any extra variable to set. `PANEL_REVIEW_PROFILE` still overrides the alias for a single run, and `--backends` still overrides the resulting backend. Useful whenever GitHub Copilot quota is the bottleneck, or simply for a non-Anthropic angle. Pass `--nested` to loop autonomously (review, apply, re-review) instead of one interactive pass: drains only Auto-applicable items per iteration, local-only (never pushes, never opens a PR, same contract as `/polish`), and iterates until convergence (all three buckets empty) or a safety condition fires; the iteration cap and stop conditions live in the command file.
 4. **Peer review** (`/peer-review`): Address unresolved peer review threads on the current PR. Same validation process as `/copilot-review`, but responses must sound natural, human, and match the user's communication style. Outward-facing side effect: on completion it DMs each reviewer whose threads it replied to, if a Slack MCP server is available (see `Slack Notifications (review workflows)`); there is deliberately no start-of-pass message.
-5. **Copilot review** (`/copilot-review`): Address unresolved GitHub Copilot review threads on the current PR. Fetch threads via GraphQL, reproduce each issue when relevant, design our own fix (do not trust Copilot's recommendation), validate via the three-pass rigor, present findings as a table, then implement test-first when applicable, comment, and resolve threads via GraphQL. Pass `--nested` to loop autonomously (address, push, re-request Copilot's review, wait, repeat) instead of one interactive pass. Unlike `/panel-review --nested`, this mode is not local-only: Copilot's review cycle needs a pushed commit to produce a fresh review, so nested mode pushes on any iteration that applies a fix (a resolve-only iteration skips the push, since there is no new HEAD); it never creates or merges the PR itself, though at convergence it asks whether to mark the PR ready and only does so on that run's explicit confirmation. It stops at convergence (Copilot's unresolved-thread queue reaches zero) or diminishing returns (three consecutive iterations each netting ≤1 resolved thread), rather than always running to the hard iteration cap of 10. Hard stop conditions (ambiguity, scope creep, test failure, security-sensitive code, loop detection, and more) hand control back to the human at any point.
+5. **Copilot review** (`/copilot-review`): Address unresolved GitHub Copilot review threads on the current PR. Fetch threads via GraphQL, reproduce each issue when relevant, design our own fix (do not trust Copilot's recommendation), validate via the three-pass rigor, present findings as a table, then implement test-first when applicable, comment, and resolve threads via GraphQL. Pass `--nested` to loop autonomously (address, push, re-request Copilot's review, wait, repeat) instead of one interactive pass. Unlike `/panel-review --nested`, this mode is not local-only: Copilot's review cycle needs a pushed commit to produce a fresh review, so nested mode pushes on any iteration that applies a fix (a resolve-only iteration skips the push, since there is no new HEAD); it never creates or merges the PR itself, though at convergence it asks whether to mark the PR ready and only does so on that run's explicit confirmation. It stops at convergence (Copilot's unresolved-thread queue reaches zero) or diminishing returns (successive iterations netting only marginal progress), rather than always grinding to its hard iteration cap; the exact thresholds live in the command file. Hard stop conditions (ambiguity, scope creep, test failure, security-sensitive code, loop detection, and more) hand control back to the human at any point.
 
 For reviewing **someone else's** PR (not your own), use `/code-review` instead. It checks out the PR, runs discovery through both Claude's lens fan-out and a non-Anthropic backend (codex or gemini, alias-selected the same way `/panel-review` does it) that also adversarially cross-checks surviving findings, applies the same three-pass validation rigor locally, and drafts comments for the user to submit manually.
 
@@ -342,16 +319,41 @@ Every message ends with the standard sign-off from the **Name** section above:
 
 ## Spec-Driven Autonomy Pipeline
 
-The review workflows above are the convergence layer of a larger spec-driven pipeline that pairs human and agent from comprehension through execution and orchestration. It now ships as the **planwright plugin** (`planwright@planwright`, installed via the marketplace flow in `roles/osx/tasks/osx.yml`); planwright was extracted from this repo's original "pair-flow" system, whose origin spec and history remain at `specs/pair-flow/`. The pipeline uses Claude Code primitives only (skills, hooks, slash commands, scheduled remote agents, file-based state); no second agent framework is introduced. Per-skill mechanics, the spec-format rules, and the rule docs (rigor, finding categorization, engineering doctrine) live in planwright's own `doctrine/` and resolve plugin-relative at runtime; this section only covers what is specific to using it in these repos.
+The review workflows above are the convergence layer of a larger spec-driven pipeline that pairs human and agent from comprehension through execution and orchestration. It now ships as the **planwright plugin** (`planwright@planwright`, installed via the marketplace flow in `roles/claude/tasks/main.yml`); planwright was extracted from this repo's original "pair-flow" system, whose origin spec and history remain at `specs/pair-flow/`. The pipeline uses Claude Code primitives only (skills, hooks, slash commands, scheduled remote agents, file-based state); no second agent framework is introduced. Per-skill mechanics, the spec-format rules, and the rule docs (rigor, finding categorization, engineering doctrine) live in planwright's own `doctrine/` and resolve plugin-relative at runtime; this section only covers what is specific to using it in these repos.
 
 **The four-file spec.** Each feature lives in `specs/<feature>/` as `requirements.md` (REQ-IDs), `design.md` (D-IDs with `Alternatives considered:` / `Chosen because:`), `tasks.md` (stable task IDs with `Done when:` / `Dependencies:` / `Citations:`), and `test-spec.md` (each REQ pinned to a verification path). `requirements.md` carries a status: `Draft` → `Active` → `Done`. `tasks.md` doubles as the canonical orchestration state record (sections: Completed, In progress, Awaiting input, Deferred, Out of scope). planwright ships its own spec validator (resolved plugin-relative) that enforces task structure: warnings on Draft, errors that block execution on Active.
 
-**The skills planwright supplies (pipeline order):** `/spec-draft` (elicit the four-file bundle), `/spec-kickoff` (walk to mutual understanding and sign off the kickoff brief; flips Draft → Active), `/orchestrate` (stateless step machine: pick the next ready task or bundle, create/reuse a worktree, dispatch execution), `/execute-task` (test-first execution workhorse converging via `/polish`, then a draft PR), and the read-only `/resume`, `/spec-walkthrough`, and `/drain`. `/self-review` and `/polish` (the convergence skills referenced in Review Workflows above) come from planwright too. Customize without editing planwright core via its overlay mechanism (config in `planwright.yml` layers, doctrine shadowing, catalog appends); see planwright's `docs/overlays.md`.
+**The skills planwright supplies (pipeline order):** `/spec-draft` (elicit the four-file bundle), `/spec-kickoff` (walk to mutual understanding and sign off the kickoff brief; flips Draft → Active), `/orchestrate` (stateless step machine: pick the next ready task or bundle, create/reuse a worktree, dispatch execution), `/execute-task` (test-first execution workhorse converging via `/polish`, then a draft PR), and the read-only `/resume`, `/spec-walkthrough`, and `/drain`. `/self-review` and `/polish` (the convergence skills referenced in Review Workflows above) come from planwright too, as do two skills outside the pipeline order: `/builder` (detect a project's stack and recommend or apply planwright's mechanical quality guards) and `/offload` (dispatch a free-form piece of work to the smallest sufficient execution backend). Customize without editing planwright core via its overlay mechanism (config in `planwright.yml` layers, doctrine shadowing, catalog appends); see planwright's `docs/overlays.md`.
 
 **Hard invariants.** Never auto-merge (merge is a reserved human action, permanent, not deferred). Never act on a non-Active spec (no bypass flag). Never auto-chain `/orchestrate` into `/spec-kickoff`. Never force-push, amend, squash, or rebase; create new commits only.
 
 ## Writing Style
 - Avoid em-dashes in prose unless strictly necessary. Use commas, parentheses, colons, or separate sentences instead.
+- **No fragile filler in comments, descriptions, and docs.** Leave out details
+  that add nothing and rot silently because the source of truth is a lookup
+  away: counts of items ("the five steps below"), line numbers and ranges,
+  file sizes, restated signatures, and values copied from a neighboring file
+  that owns them. If the reader can get the fact from the thing itself, point
+  at the thing instead of embedding a copy of it. The exceptions share one
+  shape: the value is *owned or produced* where you are writing. A cap or
+  threshold being defined at that spot, a measured result, an external
+  reference that context cannot resolve (an RFC number, an issue link).
+  Default to omitting; include only when the value originates there.
+- **Collapse important-but-bulky context.** When a comment, description, or
+  PR body carries context worth keeping but too heavy to lead with, collapse
+  it: state the one-line point first, then fold the supporting detail below
+  it (a `<details>` block in a PR, a short trailing paragraph in a comment),
+  or cut it entirely when it is findable at its source. The reader should
+  get the point without wading, and the depth only if they ask for it.
+- **Write outward-facing text for a human without the spec open.** PR titles
+  and bodies, review comments and replies, and commit messages are read by
+  people who do not know spec identifiers by memory, and a human would never
+  write "REQ-F.2b" unprompted. Say the substance in plain language ("keeps
+  the scanner from silently matching fewer identifiers than intended"), and
+  carry the identifier only where traceability needs it, in parentheses
+  after the plain statement or in the spec files where IDs are the
+  convention. The test: a teammate with no spec open understands the
+  sentence on first read.
 
 ## Non-obvious Tools
 
