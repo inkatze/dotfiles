@@ -1,0 +1,1 @@
+- 2026-08-19 [dotfiles] elixir-tools.nvim (lua/elixir/utils.lua) concatenates vim.env.HOME unguarded, so it errors on any nvim started without HOME. Upstream and pinned by lazy-lock.json; noticed while fixing the same class of bug in our own ftplugin/java.lua.
