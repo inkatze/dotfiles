@@ -16,6 +16,10 @@ neovim_download_url: "{{ neovim_release_base }}/{{ neovim_archive }}.tar.gz"
 neovim_archive_cache_dir: "{{ ansible_facts.env.HOME }}/.cache/dotfiles"
 neovim_archive_cache: "{{ neovim_archive_cache_dir }}/{{ neovim_archive }}.tar.gz"
 
+# Sits beside the install directory so the move into place is a rename inside
+# one filesystem rather than a copy across two.
+neovim_staging_dir: "{{ ansible_facts.env.HOME }}/.local/.{{ neovim_archive }}.staging"
+
 # Re-extract on a new release, and also when the binary is missing — the cache
 # alone would otherwise report "unchanged" against an install directory that
 # had been removed by hand.

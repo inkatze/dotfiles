@@ -33,6 +33,29 @@
 # loaded and blow up against the current vim.health API. Replacing the
 # directory rather than writing over it is the fix upstream's own advice asks
 # for ("Delete the $VIMRUNTIME directory, then reinstall Nvim").
+#
+# Staged rather than extracted straight over the install directory: removing
+# it first and then failing the extract (truncated archive, full disk) would
+# leave no editor at all and a dangling symlink. Everything that can fail
+# happens in the staging directory, and the install directory is only touched
+# once there is a complete tree to put in its place.
+- name: Reset the neovim staging directory
+  ansible.builtin.file:
+    path: "{{ neovim_staging_dir }}"
+    state: "{{ item }}"
+    mode: "0755"
+  loop: [absent, directory]
+  when: neovim_install_needed | bool
+  tags: [neovim]
+
+- name: Extract neovim stable into staging
+  ansible.builtin.unarchive:
+    src: "{{ neovim_archive_cache }}"
+    dest: "{{ neovim_staging_dir }}"
+    remote_src: true
+  when: neovim_install_needed | bool
+  tags: [neovim]
+
 - name: Remove the previous neovim install directory
   ansible.builtin.file:
     path: "{{ neovim_install_dir }}"
@@ -40,11 +63,19 @@
   when: neovim_install_needed | bool
   tags: [neovim]
 
-- name: Extract neovim stable
-  ansible.builtin.unarchive:
-    src: "{{ neovim_archive_cache }}"
-    dest: "{{ ansible_facts.env.HOME }}/.local"
-    remote_src: true
+# A rename within one filesystem, so the window where no install directory
+# exists is as short as it can be made.
+- name: Move the staged neovim into place
+  ansible.builtin.command:
+    cmd: "mv {{ neovim_staging_dir }}/{{ neovim_archive }} {{ neovim_install_dir }}"
+    creates: "{{ neovim_install_dir }}/bin/nvim"
+  when: neovim_install_needed | bool
+  tags: [neovim]
+
+- name: Clean up the neovim staging directory
+  ansible.builtin.file:
+    path: "{{ neovim_staging_dir }}"
+    state: absent
   when: neovim_install_needed | bool
   tags: [neovim]
 
