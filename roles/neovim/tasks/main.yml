@@ -56,6 +56,17 @@
   when: neovim_install_needed | bool
   tags: [neovim]
 
+# The last check before anything is destroyed, and the reason the staging
+# above is worth its tasks: an extract that reported success but produced no
+# runnable binary would otherwise be discovered only after the working install
+# was already gone. Failing here leaves the old install untouched.
+- name: Verify the staged neovim runs
+  ansible.builtin.command:
+    cmd: "{{ neovim_staging_dir }}/{{ neovim_archive }}/bin/nvim --version"
+  changed_when: false
+  when: neovim_install_needed | bool
+  tags: [neovim]
+
 - name: Remove the previous neovim install directory
   ansible.builtin.file:
     path: "{{ neovim_install_dir }}"
