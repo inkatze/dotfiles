@@ -28,8 +28,15 @@ end
 local project_root = vim.fs.dirname(project_marker)
 
 -- One workspace per project: jdtls keeps mutable index state here, and
--- pointing every project at a single directory makes it thrash.
-local workspace = vim.fn.stdpath("cache") .. "/jdtls/workspace/" .. vim.fn.fnamemodify(project_root, ":t")
+-- pointing every project at a single directory (which is what this used to do)
+-- makes it thrash. Named for the directory, disambiguated by a digest of the
+-- full path, so two checkouts that happen to share a basename get a workspace
+-- each instead of corrupting one between them.
+local workspace = table.concat({
+  vim.fn.stdpath("cache"),
+  "jdtls/workspace",
+  vim.fn.fnamemodify(project_root, ":t") .. "-" .. vim.fn.sha256(project_root):sub(1, 12),
+}, "/")
 
 -- java-debug is optional; an absent checkout just means no debug adapter.
 local bundles = {}
