@@ -41,7 +41,7 @@ local workspace = table.concat({
 -- java-debug is optional; an absent checkout just means no debug adapter.
 local bundles = {}
 for _, jar in ipairs(vim.split(vim.fn.glob(
-  os.getenv("HOME") .. "/dev/java-debug/com.microsoft.java.debug.plugin/target/com.microsoft.java.debug.plugin-*.jar",
+  vim.fn.expand("~/dev/java-debug/com.microsoft.java.debug.plugin/target/com.microsoft.java.debug.plugin-*.jar"),
   true
 ), "\n")) do
   if #jar > 0 then
