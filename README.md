@@ -196,10 +196,15 @@ install plugins. Plugins themselves are lazy.nvim's business, pinned by
 - `neovim_bin`: The extracted binary, used by the tasks that drive nvim
   headlessly.
 
-The install directory is **removed and re-extracted** rather than written over.
-Neovim reorganises its runtime between releases, and `unarchive` on its own
-leaves everything upstream renamed or deleted still sitting on `runtimepath`,
-which `:checkhealth` reports as "Found old files in $VIMRUNTIME".
+- `neovim_staging_dir`: Where the archive is extracted before being moved
+  into place.
+
+The install directory is **replaced, not written over**: the archive is
+extracted into staging and moved in with a rename. Neovim reorganises its
+runtime between releases, and `unarchive` on its own leaves everything
+upstream renamed or deleted still sitting on `runtimepath`, which
+`:checkhealth` reports as "Found old files in $VIMRUNTIME". Staging is what
+keeps a failed download or extract from leaving no editor behind at all.
 
 ### SSH
 
