@@ -1,4 +1,5 @@
 {
+    "runtime.version": "LuaJIT",
     "workspace.checkThirdParty": "Disable",
     "diagnostics.globals": [
         "vim"

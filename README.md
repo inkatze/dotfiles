@@ -153,7 +153,6 @@ Installs all packages and cask applications required for the environment.
 - `basic_tools`: List of packages that can be installed with `brew install`.
 - `homebrew_cask_applications`: List of OS X applications that can be installed using `brew cask install`.
 - `programming_environments`: List of programming environments to be installed using `brew install`.
-- `neovim_dependencies`: List of packages to be installed with `brew install` required by vim to work correctly.
 
 ### MAS
 
@@ -179,16 +178,28 @@ Changes the default login shell to fish instead of bash.
 
 ### Neovim
 
-The one true editor.
+The one true editor. Installs the `stable` release tarball under `~/.local`,
+links the binary and the config, then drives `nvim` headlessly to restore and
+install plugins. Plugins themselves are lazy.nvim's business, pinned by
+`roles/neovim/files/nvim/lazy-lock.json`.
 
-- `neovim__python3_version`: Python 3 version used by neovim's python host program.
-- `neovim_python3_virtualenv`: Name of the Python 3 virtual env to be crated with neovim's host program.
-- `neovim__python2_version`: Python 2 version used by neovim's python host program.
-- `neovim_python2_virtualenv`: Name of the Python 2 virtual env to be crated with neovim's host program.
-- `neovim__ruby_version`: Ruby version used by neovim's ruby host program.
-- `neovim_ruby_gemset`: Name of the gemset where neovim's gems are going to be installed.
-- `neovim_plugins`: List of key-value pairs with the `name` of the plugin and the `repo`'s url.'
-- `neovim_colorschemes`: List of repos containing neovim's color schemes.
+- `neovim_os_token` / `neovim_archive`: Build the `nvim-<os>-<arch>` release
+  asset name from the platform facts.
+- `neovim_install_dir`: Where the archive is extracted.
+- `neovim_release_base` / `neovim_download_url`: The release asset to fetch.
+- `neovim_archive_cache_dir` / `neovim_archive_cache`: Where the tarball is
+  kept between runs, so the extract can be skipped when the release has not
+  changed.
+- `neovim_install_needed`: Whether to replace the install directory this run.
+- `neovim_bin_link`: Where the binary is linked (`/usr/local/bin` on macOS,
+  `~/.local/bin` on Linux).
+- `neovim_bin`: The extracted binary, used by the tasks that drive nvim
+  headlessly.
+
+The install directory is **removed and re-extracted** rather than written over.
+Neovim reorganises its runtime between releases, and `unarchive` on its own
+leaves everything upstream renamed or deleted still sitting on `runtimepath`,
+which `:checkhealth` reports as "Found old files in $VIMRUNTIME".
 
 ### SSH
 
@@ -209,7 +220,6 @@ Imports your GPG keys to your local machine.
 The following list of variables store relative paths to the relevant dorfiles.
 
 - `fish_config_path`
-- `neovim_init`
 - `gitconfig_path`
 - `pylintrc_path`
 - `npmrc_path`

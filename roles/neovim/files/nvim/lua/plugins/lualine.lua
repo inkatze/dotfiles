@@ -4,7 +4,10 @@ return {
   config = function()
     require("lualine").setup({
       options = {
-        theme = "catppuccin",
+        -- catppuccin ships its lualine theme as catppuccin-nvim (it follows
+        -- the active flavour); there is no plain "catppuccin" module, so that
+        -- name silently resolved to the "auto" fallback.
+        theme = "catppuccin-nvim",
       },
       sections = {
         lualine_a = { "mode" },

@@ -16,10 +16,26 @@ M.setup_server = function(server_name, config, filetypes)
       lsp_config.name = server_name
       lsp_config.bufnr = args.buf
 
-      -- Resolve root_dir if it's a function
+      -- Resolve root_dir if it's a function. A nil result means none of the
+      -- server's root markers were found, which is the signal not to start it:
+      -- falling back to the cwd started every server configured for the
+      -- filetype in every directory, so angularls launched in plain
+      -- TypeScript checkouts and `bundle exec` servers launched outside a
+      -- bundle, each dying immediately with an error notification.
       if type(lsp_config.root_dir) == 'function' then
         local bufname = vim.api.nvim_buf_get_name(args.buf)
-        lsp_config.root_dir = lsp_config.root_dir(bufname) or vim.fn.getcwd()
+        lsp_config.root_dir = lsp_config.root_dir(bufname)
+        if not lsp_config.root_dir then
+          return
+        end
+      end
+
+      -- A server whose command is absent is a missing tool, not a config
+      -- error: skip it quietly rather than raising a spawn failure on every
+      -- buffer of that filetype.
+      local cmd = lsp_config.cmd
+      if type(cmd) == 'table' and cmd[1] and vim.fn.executable(cmd[1]) == 0 then
+        return
       end
 
       vim.lsp.start(lsp_config)
