@@ -222,7 +222,7 @@ Imports your GPG keys to your local machine.
 
 ### Dotfiles
 
-The following list of variables store relative paths to the relevant dorfiles.
+The following list of variables stores relative paths to the relevant dotfiles.
 
 - `fish_config_path`
 - `gitconfig_path`
