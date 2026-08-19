@@ -62,7 +62,9 @@
 # was already gone. Failing here leaves the old install untouched.
 - name: Verify the staged neovim runs
   ansible.builtin.command:
-    cmd: "{{ neovim_staging_dir }}/{{ neovim_archive }}/bin/nvim --version"
+    argv:
+      - "{{ neovim_staging_dir }}/{{ neovim_archive }}/bin/nvim"
+      - --version
   changed_when: false
   when: neovim_install_needed | bool
   tags: [neovim]
@@ -78,7 +80,10 @@
 # exists is as short as it can be made.
 - name: Move the staged neovim into place
   ansible.builtin.command:
-    cmd: "mv {{ neovim_staging_dir }}/{{ neovim_archive }} {{ neovim_install_dir }}"
+    argv:
+      - mv
+      - "{{ neovim_staging_dir }}/{{ neovim_archive }}"
+      - "{{ neovim_install_dir }}"
     creates: "{{ neovim_install_dir }}/bin/nvim"
   when: neovim_install_needed | bool
   tags: [neovim]
@@ -113,30 +118,50 @@
 # own environment, not the login shell that puts the link target on PATH.
 - name: Restore neovim plugins
   ansible.builtin.command:
-    cmd: "{{ neovim_bin }} --headless '+Lazy! restore' +qa"
+    argv:
+      - "{{ neovim_bin }}"
+      - --headless
+      - "+Lazy! restore"
+      - +qa
   changed_when: false
   tags: [neovim]
 
 - name: Install neovim plugins
   ansible.builtin.command:
-    cmd: "{{ neovim_bin }} --headless '+Lazy! install' +qa"
+    argv:
+      - "{{ neovim_bin }}"
+      - --headless
+      - "+Lazy! install"
+      - +qa
   changed_when: false
   tags: [neovim]
 
 - name: Install treesitter modules
   ansible.builtin.command:
-    cmd: "{{ neovim_bin }} --headless '+TSInstallSync all' +qa"
+    argv:
+      - "{{ neovim_bin }}"
+      - --headless
+      - "+TSInstallSync all"
+      - +qa
   changed_when: false
   tags: [neovim]
 
 - name: Upgrade neovim plugins
   ansible.builtin.command:
-    cmd: "{{ neovim_bin }} --headless '+Lazy! sync' +qa"
+    argv:
+      - "{{ neovim_bin }}"
+      - --headless
+      - "+Lazy! sync"
+      - +qa
   changed_when: false
   tags: [upgrade]
 
 - name: Upgrade treesitter modules
   ansible.builtin.command:
-    cmd: "{{ neovim_bin }} --headless '+TSUpdateSync all' +qa"
+    argv:
+      - "{{ neovim_bin }}"
+      - --headless
+      - "+TSUpdateSync all"
+      - +qa
   changed_when: false
   tags: [upgrade]
