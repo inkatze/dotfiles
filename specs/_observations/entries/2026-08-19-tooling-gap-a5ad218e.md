@@ -1,0 +1,1 @@
+- 2026-08-19 [dotfiles] stylua ships in the Brewfile but the repo has no .stylua.toml and no lefthook gate, so its defaults (tabs) disagree with the 2-space convention every lua file in roles/neovim uses: 31 of 41 files report a diff. Either add a config matching the convention or drop the tool.

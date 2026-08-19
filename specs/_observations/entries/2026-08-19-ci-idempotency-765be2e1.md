@@ -1,0 +1,1 @@
+- 2026-08-19 [dotfiles] The neovim role now converges to changed=0 on a second run (measured locally), so its CI matrix entry could move from strict_idempotency: false to true. CI config is a hard-disqualifier zone, so this was surfaced rather than applied.
