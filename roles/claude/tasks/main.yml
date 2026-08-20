@@ -76,6 +76,18 @@
     state: link
   tags: [claude]
 
+# `compact` is a custom style, not a built-in: Claude Code ships only Default,
+# Proactive, Explanatory and Learning, so `outputStyle` in settings.json above
+# resolves to nothing without this directory. It sets
+# keep-coding-instructions: true, which a custom style needs to keep the
+# built-in software engineering instructions; leaving it out replaces them.
+- name: Symlink Claude output styles
+  ansible.builtin.file:
+    src: "{{ ansible_facts.env.PWD }}/roles/claude/files/output-styles"
+    dest: "{{ ansible_facts.env.HOME }}/.claude/output-styles"
+    state: link
+  tags: [claude]
+
 # Gemini API key for the panel/code-review backend, moved here from
 # roles/osx/tasks/homebrew.yml. Nothing about it was ever macOS-specific, and
 # the Darwin guard on that role is what left this host with fish

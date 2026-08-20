@@ -15,11 +15,28 @@ runtime:
 | `~/.claude/CLAUDE.md` | `roles/claude/files/CLAUDE.md` | Symlink |
 | `~/.claude/commands/*` | `roles/claude/files/commands/` | Symlink |
 | `~/.claude/scripts/*` | `roles/claude/files/scripts/` | Symlink (hook scripts invoked from `settings.json`) |
+| `~/.claude/output-styles/*` | `roles/claude/files/output-styles/` | Symlink (resolved by name from `outputStyle`) |
 | `~/.claude/settings.json` | `roles/claude/files/settings.json` | jq merge (not symlink) |
 
 Always edit the tracked source. The materialized file in `~/.claude/` is
 overwritten on the next Ansible run. Run `readlink` on any `~/.claude/` file
 before editing to confirm whether it is symlinked.
+
+**The `compact` output style is ours, not a built-in.** Claude Code ships
+`Default`, `Proactive`, `Explanatory` and `Learning`; `outputStyle: compact`
+in the tracked `settings.json` resolves against
+`roles/claude/files/output-styles/compact.md` and silently falls back to the
+default if that symlink is missing. The file sets
+`keep-coding-instructions: true`, which is load-bearing: a custom style
+*replaces* Claude Code's built-in software engineering instructions unless
+that field is set, so dropping it would trade verbosity for every default
+about scoping changes, writing comments, and verifying work. Output style is
+part of the system prompt and is read once per session, so a change needs
+`/clear` or a new session to take effect.
+
+One override worth knowing: picking a style through `/config` writes
+`outputStyle` to the project-level `.claude/settings.local.json`, which wins
+over this repo's global value for that project.
 
 ## Permissions three-layer model
 

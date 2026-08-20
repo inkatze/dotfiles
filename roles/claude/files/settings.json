@@ -42,6 +42,7 @@
     "planwright@planwright": true
   },
   "alwaysThinkingEnabled": true,
+  "outputStyle": "compact",
   "permissions": {
     "defaultMode": "auto",
     "allow": [
