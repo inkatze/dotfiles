@@ -1,10 +1,98 @@
 ---
 
+- name: Ensure the neovim archive cache directory exists
+  ansible.builtin.file:
+    path: "{{ neovim_archive_cache_dir }}"
+    state: directory
+    mode: "0755"
+  tags: [neovim]
+
+# Fetched to a cache path rather than piped straight into unarchive so the
+# extract below can be conditional on the archive actually changing. force
+# keeps the conditional GET: the file is re-fetched every run, but reports
+# changed only when its contents differ from the cached copy.
 - name: Download neovim stable
+  ansible.builtin.get_url:
+    url: "{{ neovim_download_url }}"
+    dest: "{{ neovim_archive_cache }}"
+    force: true
+    mode: "0644"
+  register: neovim_archive_fetch
+  tags: [neovim]
+
+- name: Check for an existing neovim binary
+  ansible.builtin.stat:
+    path: "{{ neovim_install_dir }}/bin/nvim"
+  register: neovim_binary
+  tags: [neovim]
+
+# unarchive overlays the destination, so anything upstream renamed or deleted
+# survives the extract. Neovim reorganises its runtime between releases, and
+# the orphans it leaves behind stay on `runtimepath`: `:checkhealth` reports
+# "Found old files in $VIMRUNTIME", and stale provider health modules get
+# loaded and blow up against the current vim.health API. Replacing the
+# directory rather than writing over it is the fix upstream's own advice asks
+# for ("Delete the $VIMRUNTIME directory, then reinstall Nvim").
+#
+# Staged rather than extracted straight over the install directory: removing
+# it first and then failing the extract (truncated archive, full disk) would
+# leave no editor at all and a dangling symlink. Everything that can fail
+# happens in the staging directory, and the install directory is only touched
+# once there is a complete tree to put in its place.
+- name: Reset the neovim staging directory
+  ansible.builtin.file:
+    path: "{{ neovim_staging_dir }}"
+    state: "{{ item }}"
+    mode: "0755"
+  loop: [absent, directory]
+  when: neovim_install_needed | bool
+  tags: [neovim]
+
+- name: Extract neovim stable into staging
   ansible.builtin.unarchive:
-    src: "{{ neovim_download_url }}"
-    dest: "{{ ansible_facts.env.HOME }}/.local"
+    src: "{{ neovim_archive_cache }}"
+    dest: "{{ neovim_staging_dir }}"
     remote_src: true
+  when: neovim_install_needed | bool
+  tags: [neovim]
+
+# The last check before anything is destroyed, and the reason the staging
+# above is worth its tasks: an extract that reported success but produced no
+# runnable binary would otherwise be discovered only after the working install
+# was already gone. Failing here leaves the old install untouched.
+- name: Verify the staged neovim runs
+  ansible.builtin.command:
+    argv:
+      - "{{ neovim_staging_dir }}/{{ neovim_archive }}/bin/nvim"
+      - --version
+  changed_when: false
+  when: neovim_install_needed | bool
+  tags: [neovim]
+
+- name: Remove the previous neovim install directory
+  ansible.builtin.file:
+    path: "{{ neovim_install_dir }}"
+    state: absent
+  when: neovim_install_needed | bool
+  tags: [neovim]
+
+# A rename within one filesystem, so the window where no install directory
+# exists is as short as it can be made.
+- name: Move the staged neovim into place
+  ansible.builtin.command:
+    argv:
+      - mv
+      - "{{ neovim_staging_dir }}/{{ neovim_archive }}"
+      - "{{ neovim_install_dir }}"
+    creates: "{{ neovim_install_dir }}/bin/nvim"
+  when: neovim_install_needed | bool
+  tags: [neovim]
+
+- name: Clean up the neovim staging directory
+  ansible.builtin.file:
+    path: "{{ neovim_staging_dir }}"
+    state: absent
+  when: neovim_install_needed | bool
   tags: [neovim]
 
 # macOS keeps /usr/local/bin, which Homebrew leaves user-writable (REQ-D1.2:
@@ -26,32 +114,54 @@
     state: link
   tags: [neovim]
 
+# Invoked by absolute path rather than by name: these run through Ansible's
+# own environment, not the login shell that puts the link target on PATH.
 - name: Restore neovim plugins
   ansible.builtin.command:
-    cmd: nvim --headless '+Lazy! restore' +qa
+    argv:
+      - "{{ neovim_bin }}"
+      - --headless
+      - "+Lazy! restore"
+      - +qa
   changed_when: false
   tags: [neovim]
 
 - name: Install neovim plugins
   ansible.builtin.command:
-    cmd: nvim --headless '+Lazy! install' +qa
+    argv:
+      - "{{ neovim_bin }}"
+      - --headless
+      - "+Lazy! install"
+      - +qa
   changed_when: false
   tags: [neovim]
 
 - name: Install treesitter modules
   ansible.builtin.command:
-    cmd: nvim --headless '+TSInstallSync all' +qa
+    argv:
+      - "{{ neovim_bin }}"
+      - --headless
+      - "+TSInstallSync all"
+      - +qa
   changed_when: false
   tags: [neovim]
 
 - name: Upgrade neovim plugins
   ansible.builtin.command:
-    cmd: nvim --headless '+Lazy! sync' +qa
+    argv:
+      - "{{ neovim_bin }}"
+      - --headless
+      - "+Lazy! sync"
+      - +qa
   changed_when: false
   tags: [upgrade]
 
 - name: Upgrade treesitter modules
   ansible.builtin.command:
-    cmd: nvim --headless '+TSUpdateSync all' +qa
+    argv:
+      - "{{ neovim_bin }}"
+      - --headless
+      - "+TSUpdateSync all"
+      - +qa
   changed_when: false
   tags: [upgrade]

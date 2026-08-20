@@ -69,9 +69,12 @@ jobs:
           - role: fish
             brew_deps: fish
             strict_idempotency: false
+          # Strict since the role stages its extract and makes it conditional on
+          # the release tarball actually changing, so a second run converges to
+          # changed=0 rather than re-installing.
           - role: neovim
             brew_deps: ""
-            strict_idempotency: false
+            strict_idempotency: true
           - role: osx
             brew_deps: mas
             strict_idempotency: false

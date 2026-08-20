@@ -26,11 +26,6 @@ local servers = {
     filetypes = { 'json', 'jsonc' },
     root_markers = { '.git' },
   },
-  pyright = {
-    cmd = { 'pyright-langserver', '--stdio' },
-    filetypes = { 'python' },
-    root_markers = { 'pyproject.toml', 'setup.py', 'setup.cfg', 'requirements.txt', 'Pipfile', '.git' },
-  },
   stylelint_lsp = {
     cmd = { 'stylelint-lsp', '--stdio' },
     filetypes = { 'css', 'scss', 'less', 'sass' },

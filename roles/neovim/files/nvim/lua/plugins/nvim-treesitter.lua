@@ -36,8 +36,11 @@ return {
       },
     })
   end,
+  -- No tree-sitter CLI install here: it was a hardcoded `brew install`, so it
+  -- did nothing on the Linux host, and package provisioning belongs in the
+  -- Brewfile and the apt baseline rather than in a plugin build hook. The CLI
+  -- is only needed for :TSInstallFromGrammar, not for :TSInstall.
   build = function()
-    vim.fn.system({ "brew", "install", "tree-sitter" })
     local ts_update = require("nvim-treesitter.install").update({ with_sync = true })
     ts_update()
   end,

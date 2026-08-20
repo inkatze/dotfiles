@@ -478,6 +478,43 @@ To rotate: `op service-account create <name> --vault 'Dotfiles Service
 Account':read_items`, write the returned token to the file with `umask 077`,
 and never let it reach a terminal — it is printed exactly once.
 
+## Neovim: the install replaces, it does not overlay
+
+The `neovim` role installs the `stable` release tarball under `~/.local`. It
+**removes and re-creates** the install directory rather than extracting over
+it, and that is the whole point of the extra tasks: `unarchive` on its own
+leaves behind everything upstream renamed or deleted, and those orphans stay
+on `runtimepath`. Neovim reorganises its runtime between releases often
+enough that this compounds. By the time it was noticed, 155 stale files had
+accumulated since 2023 and `:checkhealth` was reporting an `$VIMRUNTIME`
+"old files" error plus ten provider healthcheck crashes, where superseded
+health modules were still being loaded and called a `vim.health` API that no
+longer exists.
+
+Two consequences worth knowing before editing the role:
+
+- **The extract is conditional, and deliberately so.** `stable` is a moving
+  tag with no version string to compare against without fetching, so the
+  tarball is cached under `~/.cache/dotfiles` and `get_url` (`force: true`)
+  reports changed only when the bytes differ. Wiping unconditionally would
+  make the role report changed on every single run.
+- **It stages before it swaps.** The archive is extracted into a staging
+  directory beside the install directory and moved into place with a rename.
+  Removing first and then failing the extract would leave no editor at all
+  and a dangling `/usr/local/bin/nvim`, which is a bad trade for saving two
+  tasks.
+
+`:checkhealth` on a healthy install still reports a handful of warnings that
+are **not** worth chasing: nvim 0.12 creates an empty `vim.pack` plugin
+directory on every startup, which lazy.nvim reports as "found existing
+packages" and `vim.pack` reports as a missing lockfile. The headless Copilot
+"LSP client not available" error is likewise an artifact of there being no
+buffer to attach to; it attaches normally in a real session.
+
+Java is the one language whose LSP is macOS-only. `jdtls` comes from the
+Brewfile, there is no apt package and no mise backend for it, and
+`ftplugin/java.lua` skips itself where the launcher is absent.
+
 ## GitHub auth on a headless host
 
 Two different credentials, because ssh and the API do not share one.

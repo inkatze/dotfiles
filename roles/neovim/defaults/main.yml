@@ -10,6 +10,22 @@ neovim_install_dir: "{{ ansible_facts.env.HOME }}/.local/{{ neovim_archive }}"
 neovim_release_base: "https://github.com/neovim/neovim/releases/download/stable"
 neovim_download_url: "{{ neovim_release_base }}/{{ neovim_archive }}.tar.gz"
 
+# The release tarball is kept so the extract can be skipped when it has not
+# changed. `stable` is a moving tag, so there is no version string to compare
+# against without fetching the asset first.
+neovim_archive_cache_dir: "{{ ansible_facts.env.HOME }}/.cache/dotfiles"
+neovim_archive_cache: "{{ neovim_archive_cache_dir }}/{{ neovim_archive }}.tar.gz"
+
+# Sits beside the install directory so the move into place is a rename inside
+# one filesystem rather than a copy across two.
+neovim_staging_dir: "{{ ansible_facts.env.HOME }}/.local/.{{ neovim_archive }}.staging"
+
+# Re-extract on a new release, and also when the binary is missing. Keying on
+# the cache alone would report "unchanged" against an install directory that
+# had been removed by hand.
+neovim_install_needed: >-
+  {{ neovim_archive_fetch is changed or not neovim_binary.stat.exists }}
+
 # Where the nvim binary is linked. macOS keeps /usr/local/bin (Homebrew leaves
 # it user-writable, so this needs no root and REQ-D1.2 holds). On Linux that
 # path is root-owned, and nothing about this role actually requires root:
@@ -18,3 +34,8 @@ neovim_bin_link: >-
   {{ '/usr/local/bin/nvim'
      if ansible_facts.os_family == 'Darwin'
      else ansible_facts.env.HOME ~ '/.local/bin/nvim' }}
+
+# The extracted binary, for the tasks that drive nvim headlessly. Not the link
+# above: those run under Ansible's environment, which has no reason to carry
+# whatever puts the link's directory on PATH.
+neovim_bin: "{{ neovim_install_dir }}/bin/nvim"

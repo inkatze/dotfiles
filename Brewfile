@@ -40,6 +40,10 @@ brew "watchman"
 # LSP servers
 brew "ansible-lint"
 brew "efm-langserver"
+# Replaces the hand-built ~/dev/eclipse.jdt.ls checkout ftplugin/java.lua used
+# to point at. There is no apt package and no mise backend for it, so the
+# Linux host has no java LSP and the ftplugin skips itself there.
+brew "jdtls"
 brew "lua-language-server"
 brew "vscode-langservers-extracted"
 brew "stylua"
