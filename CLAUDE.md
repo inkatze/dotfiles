@@ -433,6 +433,7 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
 | `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
 | `slack-users.json` | the `/code-review` and `/peer-review` commands | GitHub login → Slack user ID, so review notifications can find a person |
+| `code-review-egress.json` | the `/code-review` command | Repos approved for backend egress (`owner/repo` → backend), so the diff-upload consent is asked once per repo |
 | `private-identifiers` | `scripts/gitleaks-identifier-rules.sh` | Private project identifiers the secret scanner's `private-project-identifier` rule is generated from, one per line (mode 0600) |
 
 None are created by Ansible and none live in the repo (`~/.config/kitty` is

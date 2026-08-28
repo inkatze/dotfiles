@@ -47,6 +47,15 @@ jobs:
       - name: Check for stale service declarations
         run: scripts/stale-declarations-test.sh
 
+      # The review-command contract checker plus its fixture suite. lefthook
+      # runs the checker pre-commit, but a bypassed hook (--no-verify, web
+      # edits) would land unchecked without this; the fixture suite is what
+      # proves each check class still catches a planted drift.
+      - name: Check skill contracts
+        run: |
+          roles/claude/files/scripts/skill-contracts.sh
+          roles/claude/files/scripts/skill-contracts-test.sh
+
   test:
     needs: lint
     runs-on: macos-latest
