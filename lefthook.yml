@@ -21,10 +21,13 @@ pre-commit:
       glob: "*.sh"
       run: shellcheck --severity=warning {staged_files}
     skill-contracts:
-      # CLAUDE.md and the checker itself are in the glob because the checker
-      # asserts against both: a commit touching only them must still run it.
-      glob: "roles/claude/files/{commands/*.md,CLAUDE.md,scripts/skill-contracts.sh}"
-      run: roles/claude/files/scripts/skill-contracts.sh
+      # Beyond the command files: CLAUDE.md is in the glob because the checker
+      # asserts against it; the checker so its own edits re-run it; and the
+      # fixture suite both so its edits are validated and because the suite is
+      # the only thing that notices a check class being deleted from the
+      # checker (the checker alone still reports "all invariants hold").
+      glob: "roles/claude/files/{commands/*.md,CLAUDE.md,scripts/skill-contracts.sh,scripts/skill-contracts-test.sh}"
+      run: roles/claude/files/scripts/skill-contracts.sh && roles/claude/files/scripts/skill-contracts-test.sh
     baseline-plaintext-guard:
       glob: "specs/metrics-baseline/snapshots/baseline-*"
       run: |
