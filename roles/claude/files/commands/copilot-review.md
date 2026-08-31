@@ -271,18 +271,18 @@ You want a hands-off drain pass with Copilot. The loop: address Copilot's thread
      query($owner: String!, $repo: String!, $number: Int!) {
        repository(owner: $owner, name: $repo) {
          pullRequest(number: $number) {
-           reviews(last: 20) { nodes { author { __typename login } } }
+           reviews(last: 20) { nodes { author { __typename login } commit { oid } } }
          }
        }
      }
    ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
    ```
-   Use the actual `Bot` login if it differs.
+   Use the actual `Bot` login if it differs. (`commit { oid }` is the commit each review was submitted against; step (a)'s stale-baseline guard re-runs this query and reads the most recent Copilot-authored node's value.)
 
-   **Fallback when no Copilot review is found.** If `reviews(last: 20)` returns zero Copilot-authored reviews (a brand-new PR Copilot has not yet reviewed, or a long-lived PR where 20+ non-Copilot reviews stacked after the last Copilot one), bot detection cannot key off a prior review on this PR. Two options, in preference order: (a) inspect another open or recently-merged PR in the same repo via the same `reviews(last: 20)` query and use that PR's Copilot review for `__typename` detection, or (b) default to `repo_mode = "app"` (the common case in 2026 since Copilot installs as a GitHub App by default) and let step (f)'s `request_copilot_review` MCP call plus `reviewRequests.nodes` verification confirm the assumption.
+   **Fallback when no Copilot review is found.** If `reviews(last: 20)` returns zero Copilot-authored reviews (a brand-new PR Copilot has not yet reviewed, or a long-lived PR where 20+ non-Copilot reviews stacked after the last Copilot one), bot detection cannot key off a prior review on this PR. Two options, in preference order: (a) inspect another open or recently-merged PR in the same repo via the same `reviews(last: 20)` query and use that PR's Copilot review for `__typename` detection, or (b) default to `repo_mode = "app"` (the common case in 2026 since Copilot installs as a GitHub App by default) and let step (f)'s reviewer request plus its GraphQL `reviewRequests.nodes` verification confirm the assumption.
 
    Then set `repo_mode` from the same `__typename` field:
-   - `__typename == "Bot"` → `repo_mode = "app"`. Copilot is installed as a GitHub App, not a collaborator. The REST endpoint `POST /repos/{owner}/{repo}/pulls/{n}/requested_reviewers` returns 422 ("not a collaborator") for App-typed reviewers and must NOT be used in this mode. Step (f) instead calls the `request_copilot_review` MCP tool (which wraps an internal endpoint that accepts Bot reviewers). Do not assume push alone will trigger a Copilot review: auto-review-on-push has been observed to silently no-op (see step (f) for the verified failure mode), so step (g)'s 10-minute poll is the only authoritative confirmation that Copilot has reviewed.
+   - `__typename == "Bot"` → `repo_mode = "app"`. Copilot is installed as a GitHub App, not a collaborator. The mode decides the **login form, the read-back expectations, and the fallback path**, never which transport is permitted. The REST endpoint `POST /repos/{owner}/{repo}/pulls/{n}/requested_reviewers` works in this mode too when given the `[bot]`-suffixed login (verified 2026-08-13 on `nihldev/tecpan#273`: the POST returned the PR object and a real Copilot review arrived minutes later, no MCP tool involved). An earlier revision forbade REST here outright on a 422 claim; that conclusion came from the two read-back traps documented in step (f), and following it dead-ended every app-mode run on a host with no GitHub MCP server. Step (f) tries REST first and falls back to the `request_copilot_review` MCP tool on a genuine 422 ("not a collaborator"). Do not assume push alone will trigger a Copilot review: auto-review-on-push has been observed to silently no-op (see step (f) for the verified failure mode), so step (g)'s 10-minute poll is the only authoritative confirmation that Copilot has reviewed.
    - Otherwise → `repo_mode = "collaborator"`. Use the explicit re-request POST in step (f).
 4. **Initialize iteration counter** = 0, and acquire a same-PR lock. The loop's per-iteration filter is `isResolved: false` (step (a)), so we don't need to snapshot HEAD or the baseline thread-ID set. Temp-file names elsewhere in this loop are namespaced by PR number, which prevents two nested runs on *different* PRs from clobbering each other but not two runs targeting the *same* PR (e.g., two worktrees or two sessions pointed at the same branch). A PID-based lock does not work here: each `Bash` tool call is a fresh process, so the process that wrote a lock has already exited by the time a later call would check it for liveness. Use a timestamp-with-refresh lock instead:
    ```bash
@@ -297,8 +297,8 @@ You want a hands-off drain pass with Copilot. The loop: address Copilot's thread
    Refresh the lock at the start of every iteration's step (a) by re-running both the `now=$(date +%s)` line and the `echo "$now" > "$lockfile"` line, not just the write: rewriting the file with a stale `$now` leaves the timestamp frozen, so a legitimately long-running loop would age past the 30-minute staleness window mid-run even while "refreshing" it. There is no matching unlock step: a hard requirement to release the lock on every exit path (convergence, each stop condition, the iteration cap) would be easy to miss on some path and leave a stale lock blocking the next real run indefinitely, so letting it age out on its own bounds the damage instead.
 5. **Bootstrap a first review when the PR has none (zero threads, zero reviews).** Before entering the iteration loop, check the start state. When the PR's `reviewThreads` returns **zero** unresolved Copilot threads (step (a)'s query) **and** `reviews(last: 20)` (from step 3) shows **no** Copilot-authored review at all, the PR is brand-new to Copilot: neither Path A (code changes) nor Path B (already-handled / false-positive threads) has anything to act on, and step (a) has no threads to fetch. Bootstrap one review before the loop starts (bot-login detection for this same no-review state is handled by step 3's "Fallback when no Copilot review is found"; this step closes the loop-entry gap):
    - **Capture the poll window.** Write the baseline review id and poll-window start epoch exactly as step (e)'s Path A step 1 does (the baseline-id GraphQL block, then `echo $(( $(date +%s) - 2 )) > /tmp/copilot-review-nested-push-epoch.NUMBER`). With no prior Copilot review the baseline file lands empty (the empty string); step (g)'s poll documents this as the "any non-empty review id passes" case.
-   - **Request the review.** Run step (f) (mode-aware: `app` mode calls the `request_copilot_review` MCP tool then verifies `reviewRequests.nodes`; `collaborator` mode runs the REST re-request). The **Re-review unavailable** stop condition applies if `app` mode finds no `request_copilot_review` MCP tool, same as in the loop.
-   - **Poll for the first review.** Run step (g)'s poll, treating the bootstrap like Path A for (g)'s exit handling (a requested review that must arrive). On **NEW_REVIEW**, fall into the iteration loop at step (a) and process whatever threads the first review produced; if that review carries zero unresolved Copilot threads, the run is an immediate success: print the step (h) summary with `unresolved_before` and `unresolved_after` both `0` (net resolved `0`, since the bootstrap review itself is the only data point and it already converged) and exit. On **TIMEOUT**, fire the **No response** stop condition (the requested review never arrived).
+   - **Request the review.** Run step (f) (mode-aware: both modes try the REST re-request first with the mode's login form and verify via GraphQL `reviewRequests.nodes`; `app` mode falls back to the `request_copilot_review` MCP tool on a genuine 422). The **Re-review unavailable** stop condition applies if `app` mode's REST attempt genuinely 422s and no `request_copilot_review` MCP tool is available, same as in the loop.
+   - **Poll for the first review.** Run step (g)'s poll, treating the bootstrap like Path A for (g)'s exit handling (a requested review that must arrive). On **NEW_REVIEW**, parse the review body's suppressed-comments block per step (g) (the bootstrap review can carry its findings there and nowhere else), then fall into the iteration loop at step (a) and process whatever threads the first review produced; if that review carries zero unresolved Copilot threads, the run is an immediate success: print the step (h) summary with `unresolved_before` and `unresolved_after` both `0` (net resolved `0`, since the bootstrap review itself is the only data point and it already converged) and exit. On **TIMEOUT**, fire the **No response** stop condition (the requested review never arrived).
    - **Iteration accounting.** The bootstrap reuses step (g)'s existing counter handling and adds no increment of its own: a clean first review exits with the counter still at 0; a first review with threads takes step (g)'s `NEW_REVIEW` branch, which increments the counter to 1 and loops to step (a) exactly as any review cycle would. The bootstrap therefore never costs a cap slot beyond the review cycle it initiates.
 
    If either query shows existing Copilot activity (any unresolved Copilot thread, or any prior Copilot review), skip the bootstrap and enter the loop normally at step (a).
@@ -315,7 +315,13 @@ Use the same GraphQL query as Steps step 3 above. Filter to threads where `isRes
 
 Record the count of unresolved threads fetched here as `unresolved_before` for this iteration; step (h) uses it (paired with `unresolved_after`, computed in step (g) or (f.5)) to track net progress for the **Diminishing returns** stop condition.
 
-**Immediate-success short-circuit (first iteration only).** If this is the very first iteration (counter still at 0 entering step (a)) and `unresolved_before` is `0`, the PR is already converged from a prior run: pre-flight step 5's bootstrap only fires when the PR has *no* prior Copilot review at all, so a PR with prior Copilot activity but zero current unresolved threads reaches step (a) directly with nothing to do. Skip straight to "After the loop" (Convergence) with `unresolved_before` and `unresolved_after` both `0`, rather than falling through to Path B's re-request-and-poll for threads that don't exist and wasting up to 10 minutes confirming nothing.
+**Immediate-success short-circuit (first iteration only, guarded on HEAD).** If this is the very first iteration (counter still at 0 entering step (a)) and `unresolved_before` is `0`, the PR *may* already be converged from a prior run: pre-flight step 5's bootstrap only fires when the PR has *no* prior Copilot review at all, so a PR with prior Copilot activity but zero current unresolved threads reaches step (a) directly with nothing to do. But "zero unresolved threads" alone is not convergence: it is also what a **stale baseline** looks like: Copilot last reviewed an older HEAD, everything from that review was addressed, and commits have landed since that Copilot has never seen (a merge bringing another PR's commits onto the branch, a manual push between runs). Observed 2026-08-14 on `nihldev/tecpan#285`: Copilot's most recent review was ~3 hours old and pre-dated a 17-commit merge, with zero unresolved threads; the fresh review this guard forces was the only pass that caught a real defect every local review skill had missed. Guard on HEAD before declaring convergence. Query both sides **fresh, here**: the pre-flight values are a snapshot, and a push or a Copilot review can land between pre-flight and this moment. Fetch the current head (`gh pr view NUMBER --json headRefOid -q '.headRefOid'`) and re-run pre-flight step 3's reviews query, reading the `commit { oid }` of the **last** Copilot-authored node (`reviews(last: 20)` returns ascending chronological order, so the newest match is the last node, not the first; a jq pick like `map(select(.author.login == $bot)) | last` gets it). Then branch:
+
+- **SHAs match, zero unresolved threads**: genuinely converged. Skip straight to "After the loop" (Convergence) with `unresolved_before` and `unresolved_after` both `0`, rather than falling through to Path B's re-request-and-poll for threads that don't exist and wasting up to 10 minutes confirming nothing.
+- **SHAs differ but the tree is unchanged**: before requesting anything, compare the two commits locally (`git fetch origin <head-sha>` if either is absent, then `git diff --quiet <reviewed-sha> <head-sha>`). An empty tree diff means the head moved without changing anything Copilot has not seen (a merge that brought in only already-reviewed content, an empty commit); treat as the SHAs-match case and converge without the poll.
+- **SHAs differ and the tree changed; or the review's `commit` is null (the reviewed commit is gone from the branch); or no Copilot-authored review node exists on this PR at all** (possible when pre-flight's bot detection used the another-PR fallback): Copilot has not seen the current code, so a fresh review is required regardless of the zero count. Capture the baseline review id, poll-window epoch, and head (the same blocks as step (e) Path A step 1), run step (f) to request the review, then step (g) to poll. On `NEW_REVIEW` with unresolved threads, increment the counter and loop back to step (a) as any review cycle would. On `NEW_REVIEW` with **zero** unresolved threads, the forced review just confirmed convergence: exit straight to "After the loop" (Convergence). Do not loop back to step (a): with the counter now past zero, the run would fall through this short-circuit into Path B and burn a third request-and-poll on the same HEAD. On `TIMEOUT`, trigger **No response**: a review was explicitly requested against unreviewed code and never arrived.
+
+The same staleness can arrive mid-run: a concurrent writer can push to the branch between iterations. The two later convergence exits, step (f.5)'s "zero remaining" and step (g)'s "zero unresolved", therefore re-check the current `headRefOid` against the head their evidence is anchored to (step (g)'s review is already pinned to `push_head` by the poll's `commit { oid }` predicate; (f.5) compares against the head captured at the last step (e)). If the head has moved and its tree diff against the anchored head is non-empty, do not exit: treat it as a stale baseline and run this guard's request-and-poll branch.
 
 **Pre-check for already-handled threads.** Before running the validation passes, read the referenced file and decide whether the code already implements what Copilot asked for (because a prior iteration applied the fix but the resolve mutation never landed). If yes, classify the thread as `already-handled`, skip steps (b) and (c) for it, and let step (e) post a brief reply ("addressed in <commit-sha>") and re-fire the resolve mutation. This is what keeps a benign retry from tripping the **Cannot reproduce** stop condition in step (b)'s Pass 1.
 
@@ -383,14 +389,16 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
      ```bash
      echo $(( $(date +%s) - 2 )) > /tmp/copilot-review-nested-push-epoch.NUMBER
      ```
+   - **Capture the head the review must target.** After the commit (so it names the commit being pushed), write `git rev-parse HEAD > /tmp/copilot-review-nested-push-head.NUMBER`. Step (g)'s poll matches the new review's `commit { oid }` against this, so a concurrent review of some other commit (someone else's push to the branch, another session's request) is never credited to our push.
    - `git add` only the files we actually changed for this iteration (never `git add -A`).
    - Commit with a message of the form `chore(copilot): iter N, address <short summary>`.
    - Push: `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or any rebase flag. If the push fails on a hook (pre-push test, security check, lefthook stage, etc.), trigger the **Push hook failure** stop condition; do not silently retry, do not bypass with `--no-verify`, and do not "fix" unrelated test flakes inside this branch.
-2. **Both temp files are already written by the time the push completes** (step 1, above).
+2. **All three temp files are already written by the time the push completes** (step 1, above).
    The Bash tool spawns a fresh shell per invocation, so plain shell variables will not be visible to the step (g) script. Use the temp files, or inline the literal values into the step (g) script when you send it. Filenames are namespaced by PR number so concurrent nested runs on different PRs (e.g., separate worktrees) do not clobber each other; the narrower same-PR case (two runs targeting the same PR) is guarded separately by pre-flight step 4's same-PR lock.
 
-   We capture two values because step (g) needs both:
+   We capture three values because step (g) needs them all:
    - **`push_epoch`** (poll-window start, kept under that legacy name in the variable + temp-file path for backward compatibility with existing run-script copies; conceptually it is the lower bound for the (g) poll filter, applicable to both Path A after a push and Path B with no push) drives the 10-minute deadline math. We subtract 2 seconds when writing the file to absorb a sub-second race: jq's `fromdateiso8601` is second-precision, and a fast Copilot review submitted around the same moment as our `date +%s` call could land its `submittedAt` one second earlier and be falsely filtered out. Two seconds is conservative for plausible clock skew and still keeps the (g) poll's start before any meaningful new-review submission window.
+   - **`push_head`** pins the match to the commit we actually pushed (Path B: the unchanged HEAD): the poll's `commit { oid }` predicate rejects a review of any other commit, so a concurrent writer's review is never credited to this iteration.
    - **`baseline_id`** (from step 1, above) lets the poll match a *new* Copilot review unambiguously even when its `submittedAt` rounds down to the same second as `push_epoch`. Filtering on `submittedAt > push_epoch` alone misses same-second submissions (jq's `fromdateiso8601` is second-precision, and macOS `date` doesn't support sub-second `%N`). Filtering on `id != baseline_id` alone would re-match older Copilot reviews. Combining both (`submittedAt >= push_epoch AND id != baseline_id`) excludes pre-existing reviews and accepts same-second submissions. If there is no prior Copilot review, the baseline file holds the empty string and any non-empty review id passes.
 
    **Why `reviews(last: 20)` here, not a narrower window.** A narrower window can drop the most recent Copilot review on long-lived PRs: each `addPullRequestReviewThreadReply` in (e.3) can auto-vivify a separate viewer-authored review (see step (e.4) "Two auto-vivify modes"), and several review-state mutations can stack up between Copilot reviews. With `last: 5`, the most recent Copilot review can fall out of the window, the jq pipeline writes the empty string to the baseline file, and step (g)'s poll then cannot distinguish "new Copilot review submitted at the same second as `push_epoch`" from "no new review at all". `last: 20` keeps the actual baseline visible across realistic clutter. (Pre-flight step 3 uses the same `last: 20` window for the same robustness reason; see its no-Copilot-review fallback for the bootstrap case where this PR has no prior Copilot review at all.)
@@ -429,7 +437,7 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
 
 **Path B (no code changes; every thread was `already-handled` or `false positive`):**
 
-1. Skip commit/push (no new HEAD), but still capture the baseline Copilot-review id and the poll-window start epoch using the same two blocks as Path A step 1 (`push_epoch`, using the same `echo $(( $(date +%s) - 2 )) > /tmp/copilot-review-nested-push-epoch.NUMBER` capture; the variable and temp-file name keep the `push_epoch` / `push-epoch` legacy spelling). Step (g)'s poll runs on Path B too (see step 5).
+1. Skip commit/push (no new HEAD), but still capture the baseline Copilot-review id, the poll-window start epoch, and the head (`git rev-parse HEAD > /tmp/copilot-review-nested-push-head.NUMBER`; on Path B this is the unchanged HEAD a re-review would target) using the same blocks as Path A step 1 (`push_epoch` keeps the legacy spelling in the variable and temp-file name). Step (g)'s poll runs on Path B too (see step 5).
 2. Post the reply for each thread, varying by classification (use `addPullRequestReviewThreadReply` either way; same DO-NOT-USE callout applies):
    - **`already-handled`**: reply with a short body referencing the prior commit that actually addressed it. Find the commit via `git log "$(gh pr view --json baseRefName -q '.baseRefName')..HEAD" --oneline -- <file>` (scoped to this branch's commits, top entry is the most recent). Do not hardcode `main`: PRs targeting `develop`, `release/*`, or any other base branch would otherwise return wrong or empty commits.
    - **`false positive`**: before posting, check the thread's existing comments for a reply from the viewer that already cites the three passes (a prior dismissal whose resolve mutation silently failed, the same retry scenario the `already-handled` pre-check above guards against on the fix side). If found, skip posting a duplicate and proceed straight to the resolve mutation. Otherwise post the dismissal reply drafted in step (b) (citing the three passes and why the concern does not apply).
@@ -439,20 +447,30 @@ Order matters: land the code first, then talk about it. If we replied/resolved b
 
 #### f. Re-request Copilot review (mode-aware, verify-loud)
 
-Branch on `repo_mode` from pre-flight step 3.
+Branch on `repo_mode` from pre-flight step 3. Both modes use the same transport order (REST first), because the mode decides the login form, the read-back expectations, and the fallback path, never which transport is permitted. Two read-back traps make REST look broken in app mode when it is not, and together they are how the earlier "must NOT be used in app mode" claim got written; design around both:
+
+- **REST hides Bot reviewers on read-back.** After a successful POST, `GET /repos/{owner}/{repo}/pulls/{n}/requested_reviewers` returns `{"users":[],"teams":[]}`: the Bot reviewer is omitted entirely, so a REST read-back cannot distinguish success from a no-op. Verify via the GraphQL `reviewRequests` query below, never via REST.
+- **The `[bot]` suffix behaves differently per API.** REST's `reviewers[]` array requires the suffixed form (`copilot-pull-request-reviewer[bot]`); anything GraphQL-backed (including `gh pr edit --add-reviewer`) resolves logins through GraphQL, where the login is bare and the suffixed form fails with "Could not resolve user". The ergonomic `gh pr edit` route therefore fails for App-typed Copilot while the raw REST call works.
 
 **`app` mode (`__typename == "Bot"` in pre-flight):** auto-review on push is **not** guaranteed. Verified failure mode (2026-05-02 live run on `SymmetrySoftware/stl-poc#13`): push completed, `reviewRequests.nodes` came back empty, no auto-review fired, and step (g) would have timed out silently after 10 minutes. Do not skip the request.
 
-Explicitly request Copilot via the GitHub MCP tool:
+Try REST first, with the `[bot]`-suffixed login (substitute the verified bot login from pre-flight step 3 if it differs; verified working on an App-installed repo, `nihldev/tecpan#273`):
 
+```bash
+gh api -X POST "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
+  -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
 ```
-mcp__<github-server>__request_copilot_review
-params: { owner, repo, pullNumber }
-```
 
-The substitute for `<github-server>` depends on the active MCP server (e.g. `claude_ai_Github-Symmetry`, `claude_ai_Github-Gusto`). The REST endpoint `POST /repos/{owner}/{repo}/pulls/{n}/requested_reviewers` returns 422 "not a collaborator" for Bot reviewers and must NOT be used in app mode; the MCP tool wraps an internal Copilot-review-request endpoint that accepts Bot reviewers. If no `request_copilot_review` MCP tool is available on the active server, stop with **Re-review unavailable** and report; do not assume push alone will trigger a review.
+Branch on the response:
 
-After the MCP call returns success, **verify** Copilot is actually on the requested-reviewer list:
+| Outcome | Body contains | Action |
+|---|---|---|
+| 2xx | n/a | Verify via the GraphQL query below, then proceed to step (g). |
+| 422 | `already requested` (or similar "duplicate reviewer") | **Treat as success.** A pending request means a review is coming: often GitHub's own auto-request on PR open (the bootstrap case), a prior iteration's still-live request, or another session's. Do **not** DELETE + re-POST here: REST read-back cannot confirm what a DELETE actually did (trap 1), and cancelling a pending request can kill a review Copilot is already producing. Verify via the GraphQL query below and proceed to step (g). |
+| 422 | `not a collaborator` (or similar reviewer-rejection) | REST genuinely cannot request this reviewer here. Fall back to the GitHub MCP tool: `mcp__<github-server>__request_copilot_review` with `params: { owner, repo, pullNumber }` (the `<github-server>` substitute depends on the active MCP server, e.g. `claude_ai_Github-Symmetry`, `claude_ai_Github-Gusto`; the tool wraps an internal Copilot-review-request endpoint). If no such tool is available on the active server, stop with **Re-review unavailable** and report; do not assume push alone will trigger a review. |
+| Other (4xx/5xx) | n/a | Log warning. Proceed to step (g); the poll is the authoritative signal. |
+
+After the request returns success (REST 2xx or the MCP fallback), **verify** Copilot is actually on the requested-reviewer list, via GraphQL and never REST read-back (the first trap above):
 
 ```bash
 gh api graphql -f query='
@@ -473,7 +491,7 @@ gh api graphql -f query='
 ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
 ```
 
-If the verified Copilot bot login (from pre-flight step 3) is in `reviewRequests.nodes`, proceed to step (g). If not, log a warning ("MCP request_copilot_review returned success but reviewRequests does not include the bot") and proceed to step (g) anyway: the poll is the authoritative confirmation. **Step (g) is mandatory in app mode.** Skipping it on the assumption that the request "must have worked" is the regression earlier wording was written to prevent.
+If the verified Copilot bot login (from pre-flight step 3) is in `reviewRequests.nodes`, proceed to step (g). If not, log a warning ("reviewer request returned success but reviewRequests does not include the bot") and proceed to step (g) anyway: the poll is the authoritative confirmation. **Step (g) is mandatory in app mode.** Skipping it on the assumption that the request "must have worked" is the regression earlier wording was written to prevent.
 
 **`collaborator` mode:** try to trigger a new Copilot review by re-adding it to the requested reviewers list. Substitute the verified bot login from pre-flight step 3 if it differs from the default.
 
@@ -490,7 +508,7 @@ Inspect the response and branch:
 |---|---|---|
 | 2xx | n/a | Proceed to step (g). |
 | 422 | `already requested` (or similar "duplicate reviewer") | DELETE the reviewer, re-POST. Then proceed to step (g). |
-| 422 | `not a collaborator` | REST cannot request this reviewer. Possible causes: pre-flight mode detection was wrong (bot is App-typed), the bot lost collaborator status mid-run, or the login is otherwise ineligible. Log the outcome and proceed to step (g); the poll is the authoritative signal. Re-check pre-flight step 3 on the next run. |
+| 422 | `not a collaborator` | REST cannot request this reviewer under the bare login. Likeliest cause: pre-flight mode detection was wrong (bot is App-typed), so retry once with the `[bot]`-suffixed login per app mode above. If the suffixed retry succeeds, set `repo_mode = "app"` for the rest of this run (step (h)'s summary reports the corrected mode); do not keep re-discovering it every iteration. If the suffixed retry **also** 422s, REST cannot request this reviewer under either login form: stop with **Re-review unavailable** rather than polling for a review that was never accepted: a 10-minute TIMEOUT here would misreport as **No response**, which is reserved for a request that was accepted and never answered. |
 | Other (4xx/5xx) | n/a | Log warning. Proceed to step (g). |
 
 DELETE+POST retry pattern (only for the `already requested` case):
@@ -509,7 +527,7 @@ Do NOT trigger the **No response** stop condition based on this step's HTTP outc
 
 Reached on Path B after step (g) returns TIMEOUT (Copilot did not re-review the unchanged HEAD). On Path A, (g)'s NEW_REVIEW branch already re-fetches threads and (g)'s TIMEOUT branch triggers **No response**, so this step is Path B-only. Re-fetch reviewThreads (same query as step (a)) and count unresolved Copilot threads:
 
-- **Zero remaining**: success. Exit the loop. Print the iteration summary noting "resolve-only iteration, (g) timed out as expected, all Copilot threads now resolved".
+- **Zero remaining**: success, subject to step (a)'s mid-run stale-baseline re-check (compare the current `headRefOid` against the head captured at the last step (e); a moved head with a non-empty tree diff means a fresh review is needed, not an exit). If the re-check holds, exit the loop. Print the iteration summary noting "resolve-only iteration, (g) timed out as expected, all Copilot threads now resolved".
 - **One or more remaining** (rare: a resolve mutation failed again): record this count as `unresolved_after` for step (h)'s diminishing-returns tracking. Check stop conditions in this order, since both can be true in the same iteration and **Persistent resolve failure** is the more specific signal: first, if the same threads remain unresolved across two consecutive iterations, trigger **Persistent resolve failure**. Otherwise, check the **Diminishing returns** stop condition (below); if it does not fire either, increment the iteration counter and loop back to step (a).
 
 #### g. Wait for Copilot's response
@@ -527,32 +545,38 @@ We need to wait up to **10 minutes** for a new Copilot review. The harness's Bas
 # are namespaced by PR number; substitute NUMBER from pre-flight step 1.
 push_epoch=$(cat /tmp/copilot-review-nested-push-epoch.NUMBER 2>/dev/null)
 baseline_id=$(cat /tmp/copilot-review-nested-baseline-review-id.NUMBER 2>/dev/null)
+push_head=$(cat /tmp/copilot-review-nested-push-head.NUMBER 2>/dev/null)
 [ -n "$push_epoch" ] || { echo "push_epoch not set; capture it in step (e) before running"; exit 2; }
 case "$push_epoch" in
   ''|*[!0-9]*) echo "push_epoch is not a plain integer (\"$push_epoch\"); step (e)'s capture is corrupt"; exit 2 ;;
 esac
+[ -n "$push_head" ] || { echo "push_head not set; capture it in step (e) before running"; exit 2; }
 deadline=$(( push_epoch + 600 ))
 while [ $(date +%s) -lt $deadline ]; do
   latest=$(gh api graphql -f query='
     query($owner: String!, $repo: String!, $number: Int!) {
       repository(owner: $owner, name: $repo) {
         pullRequest(number: $number) {
-          reviews(last: 20) { nodes { id author { login } state submittedAt body } }
+          reviews(last: 20) { nodes { id author { login } state submittedAt body commit { oid } } }
         }
       }
     }
   ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER \
-    | jq -r --arg bot 'copilot-pull-request-reviewer' --arg baseline "$baseline_id" --argjson since "$push_epoch" '
+    | jq -r --arg bot 'copilot-pull-request-reviewer' --arg baseline "$baseline_id" --arg head "$push_head" --argjson since "$push_epoch" '
         .data.repository.pullRequest.reviews.nodes
         | map(select(
             (.author.login? // "") == $bot
             and (.id? // "") != $baseline
             and ((.submittedAt? // null) | type) == "string"
             and ((.submittedAt | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) >= $since)
+            and ((.commit.oid? // "") == $head)
             and ((.body? // "") | test("encountered an error and was unable to review"; "i") | not)
           ))
         | last // empty')
-  if [ -n "$latest" ]; then echo "NEW_REVIEW $latest"; exit 0; fi
+  if [ -n "$latest" ]; then
+    printf '%s' "$latest" > /tmp/copilot-review-nested-latest-review.NUMBER
+    echo "NEW_REVIEW $latest"; exit 0
+  fi
   sleep 30
 done
 echo "TIMEOUT"; exit 1
@@ -562,11 +586,15 @@ The `.author.login?` / `.id?` / `.submittedAt` guards (null-safe access, plus an
 
 **Errored reviews do not count as a response.** The `.body` exclusion (`test("encountered an error and was unable to review"; "i") | not`) filters out Copilot's error placeholder — a review it posts as `state: COMMENTED` with an *empty* thread set when its reviewer fails (e.g. a diff too large for it, or a service outage: `"Copilot encountered an error and was unable to review this pull request. You can try again by re-requesting a review."`). Without this filter that placeholder is indistinguishable from a genuine clean pass: same `COMMENTED` state, same new id/timestamp, zero unresolved threads — so the loop would **falsely converge** on a review that never actually happened. Excluding it here means a run where Copilot only ever errors yields no matching review, the poll TIMEOUTs, and Path A fires the **No response** stop condition — handing the call to the human (re-request, wait, or accept Copilot as unavailable for this PR) instead of silently reporting convergence. Verify the review *body*, never just its `state` and thread count.
 
+**Suppressed comments are invisible to the thread machinery, so read them out of the body.** A Copilot review can report "no new comments" while its body carries a collapsed `Suppressed comments (N)` block containing a real finding (observed 2026-08-14 on `nihldev/tecpan#273`). Suppressed comments never become review threads, so every thread-based step (fetch, validate, reply, resolve, the convergence check) steps straight over them, and a run can legitimately report convergence while a substantive comment sits unread in the review body. That is the same false-green class the errored-review filter above exists to catch, arriving through a different door.
+
+On **every** `NEW_REVIEW` (the normal loop, pre-flight step 5's bootstrap review, and step (a)'s guard-forced review alike), read the review body from `/tmp/copilot-review-nested-latest-review.NUMBER` (the poll script writes the matched review node there before echoing `NEW_REVIEW`; on the killed-script recovery path the re-query returns the body directly) and parse any suppressed-comments block. Route each **new** entry through step (b)'s three-pass validation and treat survivors as **adjacent findings** (they have no thread to reply to or resolve, so they flow into the handoff presentation like any other adjacent finding). Keep a per-run ledger at `/tmp/copilot-review-nested-suppressed-seen.NUMBER` (one line per entry: `file:line` plus the entry's first words) and skip entries already recorded there: suppressed entries carry no resolved state, so Copilot re-emits the same block on every review, and without the ledger each iteration re-pays three validation passes per entry and the human re-sees dismissed items. The validation is not optional: in the observed case Copilot's individual facts were correct but its conclusion inverted under validation (it cited the repo's single outlier file as the project norm), so surfacing the block without validating would have propagated a wrong conclusion.
+
 **Alternative**: `Monitor` the same script with an until-loop if you want streaming progress lines.
 
 Branch on the script's exit:
 
-- **Exit 0 (`NEW_REVIEW`)**: re-fetch reviewThreads. Record the resulting unresolved count as `unresolved_after` for step (h)'s diminishing-returns tracking. If any are unresolved, check the **Diminishing returns** stop condition (below); if it does not fire, increment iteration counter and loop back to (a). If zero unresolved, success: exit the loop (convergence).
+- **Exit 0 (`NEW_REVIEW`)**: re-fetch reviewThreads, and parse the review body's suppressed-comments block per above (its findings route through step (b) as adjacent findings). Record the resulting unresolved count as `unresolved_after` for step (h)'s diminishing-returns tracking. If any are unresolved, check the **Diminishing returns** stop condition (below); if it does not fire, increment iteration counter and loop back to (a). If zero unresolved, success: exit the loop (convergence), subject to step (a)'s mid-run stale-baseline re-check (the matched review is pinned to `push_head`, so only a head that moved *after* the push can invalidate it).
 - **Exit 1 (`TIMEOUT`) on Path A**: trigger the **No response** stop condition (Copilot did not review the new code).
 - **Exit 1 (`TIMEOUT`) on Path B**: fall through to step (f.5) for the resolved-thread sanity check; success if zero unresolved. Path B TIMEOUT is the expected outcome when no observable PR-state change triggered Copilot to re-review an unchanged HEAD; the resolves we already landed mean the loop has converged.
 - **Exit 2 (bad input)**: step (e) failed to capture `push_epoch`. Bug in our flow. Stop and surface the script's stderr.
@@ -574,25 +602,28 @@ Branch on the script's exit:
   ```bash
   push_epoch=$(cat /tmp/copilot-review-nested-push-epoch.NUMBER 2>/dev/null)
   baseline_id=$(cat /tmp/copilot-review-nested-baseline-review-id.NUMBER 2>/dev/null)
+  push_head=$(cat /tmp/copilot-review-nested-push-head.NUMBER 2>/dev/null)
   case "$push_epoch" in
     ''|*[!0-9]*) echo "push_epoch missing or not a plain integer (\"$push_epoch\"); cannot run the recovery query"; exit 2 ;;
   esac
+  [ -n "$push_head" ] || { echo "push_head missing; cannot run the recovery query"; exit 2; }
   gh api graphql -f query='
     query($owner: String!, $repo: String!, $number: Int!) {
       repository(owner: $owner, name: $repo) {
         pullRequest(number: $number) {
-          reviews(last: 20) { nodes { id author { login } state submittedAt body } }
+          reviews(last: 20) { nodes { id author { login } state submittedAt body commit { oid } } }
         }
       }
     }
   ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER \
-    | jq --arg bot 'copilot-pull-request-reviewer' --arg baseline "$baseline_id" --argjson since "$push_epoch" '
+    | jq --arg bot 'copilot-pull-request-reviewer' --arg baseline "$baseline_id" --arg head "$push_head" --argjson since "$push_epoch" '
         .data.repository.pullRequest.reviews.nodes
         | map(select(
             (.author.login? // "") == $bot
             and (.id? // "") != $baseline
             and ((.submittedAt? // null) | type) == "string"
             and ((.submittedAt | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) >= $since)
+            and ((.commit.oid? // "") == $head)
             and ((.body? // "") | test("encountered an error and was unable to review"; "i") | not)
           ))'
   ```
@@ -610,7 +641,7 @@ After each iteration, print a short summary:
 - Threads addressed (counts by classification: valid / already-handled / false positive / adjacent finding)
 - Commit SHA pushed (Path A only; `n/a` on Path B)
 - Test command run + result (Path A only; `n/a` on Path B since no code changed)
-- Re-review request status: both paths. In `app` mode, report the outcome of step (f)'s `request_copilot_review` MCP call plus the `reviewRequests.nodes` verification result; in `collaborator` mode, report the actual HTTP outcome from step (f). On Path B, also note whether step (g) returned NEW_REVIEW (Copilot re-reviewed unchanged HEAD) or TIMEOUT (the expected case that falls through to (f.5)).
+- Re-review request status: both paths. In `app` mode, report which transport step (f) used (REST first, or the MCP fallback after a genuine 422), its outcome, and the `reviewRequests.nodes` verification result; in `collaborator` mode, report the actual HTTP outcome from step (f). On Path B, also note whether step (g) returned NEW_REVIEW (Copilot re-reviewed unchanged HEAD) or TIMEOUT (the expected case that falls through to (f.5)).
 - **Unresolved threads: `<unresolved_before>` before → `<unresolved_after>` after (net resolved: `<unresolved_before - unresolved_after>`).** This is the running record the **Diminishing returns** stop condition (below) reads across the last 3 iterations.
 
 This is what I scroll back through to audit the run.
@@ -634,7 +665,7 @@ If any condition fires, **stop**. Print the latest iteration table, name the con
 | **Cannot reproduce** | Issue is not reproducible and the proposed fix is non-trivial. |
 | **Migrations / data / destructive ops** | Schema migrations, data backfills, deletes, drops, or anything irreversible. Always human-driven. |
 | **No response** | 10-minute poll window in step (g) expires with no new Copilot review. |
-| **Re-review unavailable** | Step (f) `app` mode found no `request_copilot_review` MCP tool on the active server, so we cannot trigger a Copilot review and step (g)'s poll would never see one. |
+| **Re-review unavailable** | No transport can request a Copilot review, so step (g)'s poll would never see one. `app` mode: the REST attempt genuinely 422'd ("not a collaborator") AND no `request_copilot_review` MCP tool is available on the active server. `collaborator` mode: both the bare and `[bot]`-suffixed logins 422'd. A missing MCP tool alone does not fire this: REST is tried first. |
 | **Pending reply unsubmittable** | A pending review owned by the viewer cannot be submitted via `submitPullRequestReview` in step (e.4), so replies posted in (e.3) would remain invisible to GitHub, Copilot, and humans. |
 | **Conflicting signals** | Copilot's later review contradicts an earlier one we already addressed. Pause to decide which to honor. |
 
@@ -665,7 +696,7 @@ These hold at every step:
 - **Never** create or merge the PR itself; those stay reserved human (or invoking-skill) actions. Nested mode pushes commits to the existing PR's branch but otherwise never touches the PR's lifecycle state, with one narrow exception: marking the PR ready for review, which this loop may do only at convergence, only after the explicit per-run confirmation described in "After the loop" below. Never automatically, never on a diminishing-returns/stop-condition/iteration-cap exit, and never for create or merge; those stay absolute.
 - **Never** skip step (g) after a Path-A push, with one narrowly-scoped exception: the **Partial scope creep recipe** step 3 *defers* (f) and (g) only for the pre-decision handoff pause, while the loop waits for the user's three-choice answer. The exception ends there; it does **not** exempt the iteration from the post-push poll. Because the recipe's step 1 ran a full Path A push for the in-scope threads, that pushed code must still be confirmed by an (f) + (g) cycle before the loop terminates: option (a) satisfies this by resuming into a fresh Path A, and options (b) and (c) must run the poll explicitly before ending. The deferral never covers the case where in-scope code was pushed and the loop would otherwise terminate without a post-push review. Outside that pre-decision pause, the 10-minute poll is the only authoritative signal that Copilot has (or has not) reviewed. App-mode auto-review, step (f)'s HTTP outcome, prior iterations' patterns, and elapsed iteration count are not substitutes. Confirmation bias from a long successful run is the failure mode this invariant catches. **Path B also runs (g)** even though HEAD is unchanged: Copilot can re-review unchanged HEAD on PR-state changes (description/title/label edits, replies, resolves), and the (g) TIMEOUT branch falls through to (f.5) safely on Path B.
 - **Never** leave replies in a pending review. `addPullRequestReviewThreadReply` may auto-vivify a pending review owned by the viewer when none is in progress; step (e.4) submits it before resolving threads. A run that completes with replies still pending is a silent failure: GitHub, Copilot, and humans see no replies, and the next iteration polls Copilot reviewing against a state where it has no record of our responses (confirmation-bias path: looks fine, isn't).
-- **Never** trust an external-effect step's happy-path response without re-querying state. After step (f)'s `request_copilot_review` MCP call, verify the bot is on `reviewRequests.nodes`; after step (e.3)'s reply mutation, verify zero pending reviews owned by the viewer remain. Both bugs that motivated this section's wording (2026-05-02 live run on `SymmetrySoftware/stl-poc#13`) returned success and looked fine.
+- **Never** trust an external-effect step's happy-path response without re-querying state. After step (f)'s reviewer request (REST or the MCP fallback), verify the bot is on `reviewRequests.nodes` via GraphQL (REST read-back omits Bot reviewers entirely, so it cannot serve as the verification); after step (e.3)'s reply mutation, verify zero pending reviews owned by the viewer remain. Both bugs that motivated this section's wording (2026-05-02 live run on `SymmetrySoftware/stl-poc#13`) returned success and looked fine.
 
 ### After the loop
 

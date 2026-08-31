@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 # Contract-consistency checker for the dotfiles-local review command files
-# (panel-review, peer-review, copilot-review). Greps them for cross-file
-# invariants that must stay aligned: the three-bucket presentation contract,
-# the panel-pairing/copilot-pairing retirement into --nested, and
-# copilot-review's mark-ready confirmation gate. Runs as a lefthook
-# pre-commit job filtered to roles/claude/files/commands/*.md.
+# (panel-review, peer-review, copilot-review, code-review) and the tracked
+# global CLAUDE.md they share contracts with. Asserted invariant classes:
+# the three-bucket presentation contract (and code-review's deliberate
+# inverse of it: severity tiers, no buckets), the panel-pairing /
+# copilot-pairing retirement into --nested, copilot-review's mark-ready
+# confirmation gate, code-review's review-submission gate, the /code-review
+# option-set literals mirrored in CLAUDE.md, the code-review/panel-review
+# backend-resolver sync lines, and the Slack notification contract. Runs as
+# a lefthook pre-commit job (glob in lefthook.yml: the command files,
+# CLAUDE.md, this script, and its fixture suite) and in CI alongside
+# skill-contracts-test.sh, which plants drifts to prove these checks fire.
 #
 # The spec-driven pipeline skills (orchestrate, execute-task, spec-draft,
 # spec-kickoff, polish, self-review, resume) moved to the planwright plugin,
@@ -13,6 +19,7 @@
 set -euo pipefail
 
 CMDS="roles/claude/files/commands"
+GLOBAL_MD="roles/claude/files/CLAUDE.md"
 errors=0
 
 err() { echo "ERROR: $1"; errors=$((errors + 1)); }
@@ -121,6 +128,7 @@ severity_checks=(
   "**Concerns**"
   "**Suggestions**"
   "**Nits**"
+  "each as its own table in fixed order: Blockers, Concerns, Suggestions, Nits"
 )
 if [ -f "$CMDS/code-review.md" ]; then
   for phrase in "${severity_checks[@]}"; do
@@ -132,6 +140,83 @@ else
   err "code-review.md referenced by severity_checks but does not exist at $CMDS/code-review.md"
 fi
 
+# code-review presentation contract: severity-grouped, deliberately NOT the
+# three-bucket categorization. The declaring sentence must not silently
+# invert, and the retired bucket must not sneak in here either (this file is
+# outside bucket_files, so the sweep above does not cover it).
+if [ -f "$CMDS/code-review.md" ]; then
+  if ! grep -qF 'does **not** use the three-bucket categorization' "$CMDS/code-review.md"; then
+    err "code-review.md missing its no-bucket-categorization sentence"
+  fi
+  if grep -q 'Agent-resolvable' "$CMDS/code-review.md"; then
+    err "code-review.md references the retired Agent-resolvable bucket"
+  fi
+else
+  err "code-review.md referenced by the no-bucket-categorization check but does not exist at $CMDS/code-review.md"
+fi
+
+# The /code-review option sets are stated verbatim in both CLAUDE.md and the
+# command file; two copies of one contract, so both must carry the literals.
+optset_checks=(
+  "Post inline / Post as PR-level / Defer to follow-up / Dismiss"
+  "Post all inline / Post all as PR-level / Defer all to follow-up / Dismiss all / Pick individually"
+)
+[ -f "$CMDS/code-review.md" ] || err "code-review.md referenced by optset_checks but does not exist at $CMDS/code-review.md"
+[ -f "$GLOBAL_MD" ] || err "CLAUDE.md referenced by optset_checks but does not exist at $GLOBAL_MD"
+for phrase in "${optset_checks[@]}"; do
+  if [ -f "$CMDS/code-review.md" ] && ! grep -qF "$phrase" "$CMDS/code-review.md"; then
+    err "code-review.md missing option-set literal: \"$phrase\""
+  fi
+  if [ -f "$GLOBAL_MD" ] && ! grep -qF "$phrase" "$GLOBAL_MD"; then
+    err "CLAUDE.md missing /code-review option-set literal: \"$phrase\""
+  fi
+done
+
+# Backend-resolver sync: code-review.md mirrors panel-review.md's Pre-flight
+# resolver line for line (the trailing case mapping is code-review-only).
+# These are the shared load-bearing lines; a drift in either file breaks the
+# documented sync invariant.
+resolver_lines=(
+  'alias_file="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"'
+  '[ -n "$from_file" ]'
+  'hostname | grep -q panela'
+)
+for f in code-review.md panel-review.md; do
+  if [ -f "$CMDS/$f" ]; then
+    for lineph in "${resolver_lines[@]}"; do
+      if ! grep -qF "$lineph" "$CMDS/$f"; then
+        err "$f missing shared resolver line: \"$lineph\""
+      fi
+    done
+  else
+    err "$f referenced by resolver_lines but does not exist at $CMDS/$f"
+  fi
+done
+
+# Submit-gate safety anchor for code-review.md. The command submits the
+# review to GitHub itself, which is its one outward mutation of someone
+# else's PR; the sentences gating that submission on an explicit human
+# verdict, and keeping unapproved comments out of it, must not silently
+# drift or disappear. Same posture as copilot-review's mark-ready anchor.
+submit_gate_checks=(
+  "never submit any review without an explicitly chosen verdict"
+  "never choose approval on my behalf"
+  "deferred and dismissed items are never posted"
+)
+if [ -f "$CMDS/code-review.md" ]; then
+  # Whitespace-normalized match: these sentences sit inside hard-wrapped
+  # paragraphs, so a routine reflow must not break the anchor.
+  normalized="$(tr -s '[:space:]' ' ' < "$CMDS/code-review.md")"
+  for phrase in "${submit_gate_checks[@]}"; do
+    case "$normalized" in
+      *"$phrase"*) ;;
+      *) err "code-review.md missing expected submit-gate sentence: \"$phrase\"" ;;
+    esac
+  done
+else
+  err "code-review.md referenced by submit_gate_checks but does not exist at $CMDS/code-review.md"
+fi
+
 # Slack notification contract. Any command citing the shared mechanism must cite
 # a heading that actually resolves, and must carry the exact sign-off, because
 # both reach a colleague rather than staying in the repo.
@@ -140,7 +225,6 @@ fi
 # there is invisible in review and lands in someone's DMs.
 SIGNOFF='– clanky'
 SLACK_SECTION='Slack Notifications (review workflows)'
-GLOBAL_MD="roles/claude/files/CLAUDE.md"
 slack_citers=""
 for path in "$CMDS"/*.md; do
   [ -f "$path" ] || continue
@@ -155,11 +239,35 @@ if [ -n "$slack_citers" ]; then
     err "commands cite \"$SLACK_SECTION\" but no such heading exists in $GLOBAL_MD"
   fi
   for f in $slack_citers; do
-    if ! grep -qF "$SIGNOFF" "$CMDS/$f"; then
+    # Every sign-off-shaped line must be exactly the canonical literal:
+    # EN DASH (U+2013), space, clanky, nothing decorating the name. Three
+    # counts, so one drifted occurrence among several correct ones is
+    # caught (a boolean grep would wave it through). The multibyte dashes
+    # appear only inside alternation groups, never a bracket expression: a
+    # byte-wise matcher (BSD grep in a non-UTF-8 locale) splits a bracketed
+    # multibyte character into garbage bytes, while alternation of literal
+    # strings stays byte-exact in any locale. The wrong-dash pattern
+    # requires the exact sign-off shape (line ends after clanky) so a prose
+    # bullet like "- clanky never ..." cannot false-positive; the residual
+    # blind spot (a wrong dash AND a decoration on the same line) is
+    # accepted for that. grep -c prints 0 on no matches (exit 1) and prints
+    # nothing on a read error (exit 2), so an empty capture means the file
+    # could not be read, not a clean pass.
+    exact=$(grep -cE '^[[:space:]]*– clanky[[:space:]]*$' "$CMDS/$f" || true)
+    wrongdash=$(grep -cE '^[[:space:]]*(-|—)[[:space:]]*clanky[[:space:]]*$' "$CMDS/$f" || true)
+    decorated=$(grep -cE '^[[:space:]]*–[[:space:]]*clanky[[:space:]]+[^[:space:]]' "$CMDS/$f" || true)
+    if [ -z "$exact" ] || [ -z "$wrongdash" ] || [ -z "$decorated" ]; then
+      err "$f: grep could not read the file while checking sign-offs"
+      continue
+    fi
+    if [ "$exact" -eq 0 ]; then
       err "$f cites the Slack section but carries no \"$SIGNOFF\" sign-off literal"
     fi
-    if grep -qE '^[-—] clanky *$' "$CMDS/$f"; then
-      err "$f signs off with a hyphen or em dash; the sign-off uses an EN DASH (U+2013)"
+    if [ "$wrongdash" -gt 0 ]; then
+      err "$f has a sign-off with a wrong dash (hyphen or em dash); every occurrence must be exactly \"$SIGNOFF\" on its own line"
+    fi
+    if [ "$decorated" -gt 0 ]; then
+      err "$f has a decoration after clanky; the sign-off is exactly \"$SIGNOFF\" on its own line with nothing after the name"
     fi
   done
 fi

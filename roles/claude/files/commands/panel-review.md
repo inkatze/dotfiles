@@ -30,8 +30,8 @@ Runs identically in both modes.
 3. **Detect the machine profile.** Driven by an untracked, machine-local signal so no
    employer identifiers live in this tracked, public file. Resolve **the dotfiles
    inventory alias**, the same indirection `scripts/playbook.sh` and fish
-   `conf.d/ollama.fish` already use, in the same order — with one deliberate divergence
-   from `ollama.fish`, spelled out below the snippet:
+   `conf.d/ollama.fish` already use, in the same order, with the deliberate
+   divergences spelled out below the snippet:
 
    ```bash
    alias_file="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"
@@ -46,8 +46,8 @@ Runs identically in both modes.
    fi
    ```
 
-   Three details are load-bearing, and each was got wrong in an earlier revision of this
-   block:
+   Several details are load-bearing, each of which an earlier revision of this
+   block got wrong:
 
    - **The `alt` hostname branch is not optional.** `playbook.sh` and `ollama.fish` both
      carry it, and the alias-file section of `CLAUDE.md` records that `alt` is the one
@@ -72,11 +72,13 @@ Runs identically in both modes.
    resolves correctly with nothing to remember. `PANEL_REVIEW_PROFILE` is still honored
    first as a per-run override; it is no longer the only signal.
 
-   Note the fallback direction differs from `ollama.fish` on purpose, and it is the one
-   deliberate divergence from the two siblings. There, an unresolved alias must set
-   nothing (a client that has not named itself should fail to reach a local daemon rather
-   than silently talk to a LAN address). Here it means `work`, matching `playbook.sh`,
-   because `work` is the host that does not write an alias file.
+   Note the fallback direction differs from `ollama.fish` on purpose. There, an
+   unresolved alias must set nothing (a client that has not named itself should fail to
+   reach a local daemon rather than silently talk to a LAN address). Here it means
+   `work`, matching `playbook.sh`, because `work` is the host that does not write an
+   alias file. It is not the only divergence: `DOTFILES_HOST_FILE` is honoured here and
+   by `playbook.sh` but not by `ollama.fish` (which hardcodes the path), and the alias
+   file's *contents* are tested here where both siblings test mere existence.
 
 4. **Resolve the backend set.** If `$ARGUMENTS` contains `--backends a,b,c`, use those (comma-separated). Otherwise use the profile table default:
 
@@ -91,8 +93,10 @@ Runs identically in both modes.
 
 5. **Verify each backend.** Stop with a specific install / auth message if any fails; do not silently drop a backend (the user expects the variance the backend provides).
 
-   - `codex`: `command -v codex` must succeed; `codex auth status` (or equivalent: query the codex CLI's own readiness probe) must report an authenticated session. If not authed, stop with `Codex CLI needs auth; run 'codex login'`. If not installed, stop with `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'` — and note that the Brewfile entry is a **cask**, so this route is macOS-only. On Linux nothing in the dotfiles installs codex; it is only ever reached there by an explicit `--backends codex`.
-   - `gemini`: `command -v gemini` must succeed. The `GEMINI_API_KEY` env var must be set (the dotfiles fish conf.d/gemini.fish exports it from `~/.gemini/.api-key`, which is written by `scripts/claude-gemini-auth-sync.sh` from the 1Password item declared in that script). The install route is platform-specific, so name the right one: on macOS `Gemini CLI not installed; mise run osx will install via Brewfile 'gemini-cli'`, on Linux `Gemini CLI not installed; mise run linux will install it (pinned in roles/linux/files/mise/linux.toml, installed from linux_mise_tools)`. If `GEMINI_API_KEY` is unset, stop with `Gemini CLI needs auth; run 'mise run osx' (macOS) or 'mise run linux' (Linux) to sync from 1Password, or set GEMINI_API_KEY manually`. On a headless host that sync reads the machine-local service-account token rather than the 1Password desktop app, and a service account cannot be granted Personal or Private, so the key item must live in a vault it can reach.
+   **Mind the shell split when probing.** The probes below are written in bash and must run in bash: wrapping them in `fish -c` breaks on the first `${VAR:-}` expansion (fish rejects that syntax outright, measured exit 127). What needs the mise-activated fish shell is *tool resolution and the key*: `gemini` is a mise-installed tool, so locate it with `fish -c 'mise which gemini'` rather than bare `command -v` in bash, and `GEMINI_API_KEY` is exported by fish `conf.d/gemini.fish`, so in a plain bash shell read it from `~/.gemini/.api-key` (the invocation snippet below shows the guarded read). Probing the wrong way round produces a confident "backend unavailable" stop for a backend that was ready the whole time, which is the skill working as designed on a wrong premise.
+
+   - `codex`: `fish -c 'mise which codex 2>/dev/null; or command -v codex'` must resolve; `codex login status` on current CLIs (or the equivalent readiness probe) must report an authenticated session, judged by exit status only. If not authed, stop with `Codex CLI needs auth; run 'codex login'`. If not installed, stop with `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'` (note the Brewfile entry is a **cask**, so this route is macOS-only). On Linux nothing in the dotfiles installs codex; it is only ever reached there by an explicit `--backends codex`.
+   - `gemini`: `fish -c 'mise which gemini'` must resolve (mise-installed, so a bare bash `command -v` can miss it). The `GEMINI_API_KEY` env var must be set, or `~/.gemini/.api-key` non-empty at mode 600/400 per the invocation snippet's guarded read (the dotfiles fish conf.d/gemini.fish exports it from `~/.gemini/.api-key`, which is written by `scripts/claude-gemini-auth-sync.sh` from the 1Password item declared in that script). The install route is platform-specific, so name the right one: on macOS `Gemini CLI not installed; mise run osx will install via Brewfile 'gemini-cli'`, on Linux `Gemini CLI not installed; mise run linux will install it (pinned in roles/linux/files/mise/linux.toml, installed from linux_mise_tools)`. If `GEMINI_API_KEY` is unset, stop with `Gemini CLI needs auth; run 'mise run osx' (macOS) or 'mise run linux' (Linux) to sync from 1Password, or set GEMINI_API_KEY manually`. On a headless host that sync reads the machine-local service-account token rather than the 1Password desktop app, and a service account cannot be granted Personal or Private, so the key item must live in a vault it can reach.
    - `qwen-coder` / `gpt-oss`: `curl -sf "${OLLAMA_BASE_URL:-http://localhost:11434}/api/tags"` must return a body containing the model name (`qwen2.5-coder:32b` or `gpt-oss:20b`). If the API does not respond, stop with `Ollama service not running; brew services start ollama` (on the work host; on personal/alt the dotfiles fish conf.d/ollama.fish points OLLAMA_BASE_URL at the work host's LAN IP, see dotfiles `CLAUDE.md` "Cross-host Ollama topology"). If the model is missing, stop with `Model not pulled; ollama pull <name>` (the dotfiles Ansible task pulls both on the work host by default; missing means an opt-out or the cross-host route is not configured).
    - `copilot`: `gh copilot --help` must succeed and the account must have quota. Stop if `gh` is not authenticated or `gh copilot` returns a quota-exhausted error.
 
@@ -150,13 +154,31 @@ Diff:
 
   ```bash
   scratch="$(mktemp -d)" || exit 1
-  trap 'rm -rf "$scratch"' EXIT INT TERM HUP
+  trap 'rm -rf "$scratch"' EXIT
+  trap 'exit 130' INT TERM HUP   # EXIT trap still runs; non-zero so an interrupt never reads as success
   prompt_file="$scratch/prompt.txt"
   # ... write the prompt into "$prompt_file" ...
-  ( cd "$scratch" && gemini -o text --skip-trust --approval-mode plan < "$prompt_file" )
+  gemini_bin="$(fish -c 'mise which gemini')" || exit 1
+  node_dir="$(fish -c 'dirname (mise which node 2>/dev/null; or command -v node)')" || exit 1
+  if [ -z "${GEMINI_API_KEY:-}" ]; then
+    k=~/.gemini/.api-key
+    case "$(stat -c %a "$k" 2>/dev/null || stat -f %Lp "$k" 2>/dev/null)" in
+      600|400) ;;
+      *) echo "gemini key file missing or not mode 600/400" >&2; exit 1 ;;
+    esac
+    GEMINI_API_KEY="$(cat "$k")" && [ -n "$GEMINI_API_KEY" ] || exit 1
+    export GEMINI_API_KEY
+  fi
+  ( cd "$scratch" && env PATH="$node_dir:$PATH" "$gemini_bin" -o text --skip-trust --approval-mode plan < "$prompt_file" )
+  backend_status=$?
+  [ "$backend_status" -eq 0 ] || { echo "gemini exited $backend_status; backend failure, not zero findings" >&2; exit "$backend_status"; }
   ```
 
-  Clean it up: the scratch directory holds the full diff, so leaving one behind per review accumulates copies of private source in `/tmp`. The `trap` above is the whole fix, and it covers `INT TERM HUP` as well as `EXIT` (matching `claude-gemini-auth-sync.sh`) because Ctrl-C during a multi-minute backend call is the likeliest way a run ends early. `|| exit 1` on the `mktemp -d` matters for the same reason a bare one does not: an unchecked failure leaves `$scratch` empty and everything after it operates on the wrong path.
+  The `mise which` resolution and the `env PATH=…` injection exist because of a measured exit-127 failure (Linux host, gemini-cli 0.54.4, repo under review pinning its own `node` in `.mise.toml`): mise scopes tools by the cwd's config ancestry, so the `cd` into the scratch directory drops a project-scoped `node` off `PATH`, and the gemini launcher (a `#!/bin/sh` wrapper that `exec`s `node`) dies with exit 127 before ever reaching the model. Two forms that look equivalent are not. Prepending to `PATH` *before* the `cd` does not survive: mise's hook fires on `cd` and rebuilds `PATH`, discarding the prepend (re-hit 2026-08-19 with exactly that workaround in place). A bash command-prefix assignment (`PATH=… cmd`) does work but has no fish equivalent, so it does not port. `env` sets the variable in the child's environment at exec time, after every hook has run, so nothing between the assignment and the exec can rebuild it away. Resolve both paths through `fish -c 'mise which …'` (where mise is activated) rather than bare `command -v`, which depends on the very `PATH` injection the `cd` destroys; the `command -v node` fallback covers a host whose node is not mise-managed. The `GEMINI_API_KEY` block closes the same gap for the key: fish `conf.d` exports it, so a plain-bash invocation must read `~/.gemini/.api-key` itself. The read is guarded the way `claude-gemini-auth-sync.sh` guards its token file: the mode must be 600 or 400 (enforced, not assumed) and an empty file is a failure, so an empty key can never slip past this gate and die mid-backend with a misleading auth error. Never echo the value. An alternative that sidesteps the interpreter question entirely is to not `cd` at all and hand gemini the scratch directory as its working directory via a CLI flag, if the current CLI supports one; verify before relying on it.
+
+  **Assert the backend actually ran.** The `backend_status` capture and branch are in the snippet, not optional prose: the status must be taken immediately after the subshell, before any pipe (piping the invocation into `tail` or `grep` replaces `$?` with the pipe's status, which is exactly how a 127 reads as a clean review), and a non-zero status is a hard backend failure under the non-recovery rule below. An empty stdout from a launcher that never executed must not parse as "no findings".
+
+  Clean it up: the scratch directory holds the full diff, so leaving one behind per review accumulates copies of private source in `/tmp`. The traps are split the same way `/code-review`'s snippet splits them, and the split is load-bearing: the `EXIT` trap does the cleanup, and the `INT TERM HUP` handler exits non-zero so that trap still runs and an interrupted call is never mistaken for a successful empty result. A combined `trap 'rm -rf …' EXIT INT TERM HUP` (this snippet's earlier shape) deletes the scratch on Ctrl-C and then *resumes* the script, leaving the remaining lines operating on a deleted directory. Ctrl-C during a multi-minute backend call is the likeliest way a run ends early. `|| exit 1` on the `mktemp -d` matters for the same reason a bare one does not: an unchecked failure leaves `$scratch` empty and everything after it operates on the wrong path.
 
   Both details are load-bearing, and the prompt file moves into the scratch directory with it (same as `/code-review`). `mktemp -d` rather than the `/tmp/panel-review-prompt.$$.txt` convention the Ollama backends below use: `/tmp` is world-writable, so making it the cwd would let anyone pre-plant `/tmp/GEMINI.md` or `/tmp/.gemini/settings.json` and have a `--skip-trust` run load it — relocating the trust rather than removing it. It also fixes the mode of the prompt file itself, which carries the whole diff of a private repo and is created world-readable under the default umask in `/tmp`. And the subshell because this session's shell keeps its working directory between tool calls, so a bare `cd` would leave every later `git` command in the review running outside the repo.
 
@@ -164,7 +186,8 @@ Diff:
 - **qwen-coder** and **gpt-oss** (Ollama): **prefer the HTTP API** for programmatic invocation. The base URL is read from `OLLAMA_BASE_URL` (set in fish conf.d/ollama.fish on personal/alt hosts to the work host's LAN IP) and falls back to `http://localhost:11434` on the work host itself. **Write the prompt file and run `curl` in the same `Bash` tool invocation**: the `Bash` tool spawns a fresh shell per call, so `$$` in a later call is a different PID than `$$` in an earlier one; if the write and the read land in separate tool calls, the `--rawfile` path silently points at a file that was never created and `jq` fails.
   ```bash
   scratch="$(mktemp -d)" || exit 1
-  trap 'rm -rf "$scratch"' EXIT INT TERM HUP
+  trap 'rm -rf "$scratch"' EXIT
+  trap 'exit 130' INT TERM HUP   # same split as the gemini snippet above; a combined trap resumes after deleting
   prompt_file="$scratch/prompt.txt"
   cat > "$prompt_file" <<'PROMPT_EOF'
   <the lens-walk prompt, with tooling output and diff appended>
@@ -352,6 +375,6 @@ The user's next move depends on the exit reason:
 
 ## Maintenance
 
-After completing the workflow, check if any part of these instructions seems outdated or misaligned with current tooling: backend CLI command syntax changes (Codex flags, Gemini trust/approval flags, Ollama API), new backend options worth adding, changes to model names / sizes, profile-table changes and new inventory aliases the table does not cover, divergence from `/code-review`'s backend resolution (that command mirrors this one, so this step 3 and its step 5b must stay in sync in both directions), drift from `/self-review`'s discovery shape (which this skill mirrors), changes to `Finding Categorization` thresholds, or stop-condition gaps revealed by a real nested run. If something looks off, flag it and offer a ready-to-use prompt to paste into a new dotfiles session to update this command.
+After completing the workflow, check if any part of these instructions seems outdated or misaligned with current tooling: backend CLI command syntax changes (Codex flags, Gemini trust/approval flags, Ollama API), new backend options worth adding, changes to model names / sizes, profile-table changes and new inventory aliases the table does not cover, divergence from `/code-review`'s backend resolution (that command mirrors this one, so its backend-resolution block and this file's Pre-flight item "Detect the machine profile" must stay in sync in both directions), drift from `/self-review`'s discovery shape (which this skill mirrors), changes to `Finding Categorization` thresholds, or stop-condition gaps revealed by a real nested run. If something looks off, flag it and offer a ready-to-use prompt to paste into a new dotfiles session to update this command.
 
 $ARGUMENTS

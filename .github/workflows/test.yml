@@ -6,6 +6,11 @@ on:
   push:
     branches: [main]
 
+# Least privilege for every job's ambient token: nothing in this workflow
+# writes to the repo, and the token below is only for API rate limits.
+permissions:
+  contents: read
+
 env:
   HOMEBREW_NO_AUTO_UPDATE: 1
   HOMEBREW_BUNDLE_MAS_SKIP: 1
@@ -46,6 +51,23 @@ jobs:
       # above.
       - name: Check for stale service declarations
         run: scripts/stale-declarations-test.sh
+
+  # The review-command contract checker's fixture suite. lefthook runs both
+  # scripts pre-commit, but a bypassed hook (--no-verify, web edits) would
+  # land unchecked without this; the suite is what proves each check class
+  # still catches a planted drift, and its baseline case already runs the
+  # checker itself against the unmutated tree. Its own job on Ubuntu, not a
+  # step in the macos lint job: the scripts are platform-neutral bash + grep
+  # + perl over tracked files, macos-latest is the scarce tier (see
+  # services-linux below), and lint gates the whole matrix while this gates
+  # nothing.
+  skill-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the contract fixture suite
+        run: roles/claude/files/scripts/skill-contracts-test.sh
 
   test:
     needs: lint

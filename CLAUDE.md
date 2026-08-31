@@ -81,6 +81,13 @@ repo does not mention.
 3. Commit and run Ansible (or wait for the next symlink task run).
 4. Verify in a fresh Claude session.
 
+Edits to the review command files, to `roles/claude/files/CLAUDE.md`, and to
+the checker itself are gated by `roles/claude/files/scripts/skill-contracts.sh`
+(pre-commit via lefthook, and in CI with its fixture suite
+`skill-contracts-test.sh`). It literal-matches load-bearing sentences, so a
+reword that trips it means the contract text moved: update the checker (and
+the fixture that plants a drift in that sentence) in the same commit.
+
 Hook logic lives in `roles/claude/files/scripts/` and is wired from
 `settings.json`. Skills are not managed by Ansible yet. Adding a new tracked
 directory requires a matching symlink task in `roles/claude/tasks/main.yml`.
@@ -259,7 +266,9 @@ revert the LaunchAgent edit, and SSH-tunnel from clients instead
 
 `/panel-review` and `/code-review` run their discovery pass through a
 non-Anthropic CLI. The machine picks the *default*; a run can still override it
-(`--backends` on either command, `PANEL_REVIEW_PROFILE` for the profile
+(`--backends` on either command, where `/code-review` accepts exactly one
+backend and `/panel-review` a comma-separated list, plus
+`PANEL_REVIEW_PROFILE` for the profile
 itself). `/panel-review` also accepts `qwen-coder`, `gpt-oss` and `copilot`
 via `--backends`; only the two below are ever chosen automatically.
 
@@ -299,7 +308,8 @@ the alias the rest of the repo already uses means the work host is right with
 nothing to remember, and a new host is wrong only if it has not declared
 itself, which is the same failure every other alias consumer has.
 
-The one deliberate divergence from `ollama.fish` is the fallback direction.
+The deliberate divergences from `ollama.fish` (there are several; the two
+above are the others) include the one that flips a fallback direction.
 There an unresolved alias must set nothing, so an unconfigured client gets a
 visible connection-refused instead of silently talking to a LAN address. Here
 it means `work`, matching `playbook.sh`, because `work` is the host that does
@@ -357,8 +367,10 @@ and the downgrade-before-abort ordering means a future version that stops
 aborting would otherwise run with that guard already stripped.
 
 What `--skip-trust` costs is worth stating precisely rather than either
-hand-waving or overstating it, because both commands run the CLI inside a
-working tree and `/code-review` runs it inside *someone else's* checked-out PR.
+hand-waving or overstating it, because the content under review is untrusted
+and for `/code-review` it is *someone else's* PR (fetched into a detached
+worktree; the CLI itself always runs from an empty scratch directory, never
+from any working tree).
 Folder trust is what gates the CLI loading project-supplied configuration from
 the current directory. A direct test on 0.54.4 (a `.gemini/settings.json`
 declaring an MCP server whose command writes a marker file, run under
@@ -433,6 +445,7 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
 | `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
 | `slack-users.json` | the `/code-review` and `/peer-review` commands | GitHub login → Slack user ID, so review notifications can find a person |
+| `code-review-egress.json` | the `/code-review` command | Repos approved for backend egress (`owner/repo` → backend), so the diff-upload consent is asked once per repo (mode 0600) |
 | `private-identifiers` | `scripts/gitleaks-identifier-rules.sh` | Private project identifiers the secret scanner's `private-project-identifier` rule is generated from, one per line (mode 0600) |
 
 None are created by Ansible and none live in the repo (`~/.config/kitty` is
@@ -458,6 +471,14 @@ beyond its owner, rather than emitting a rule set covering fewer identifiers
 than one that refuses to run. The mode is enforced rather than assumed, the
 same posture `scripts/ssh-lan-config-sync.sh` takes toward
 `op-service-account-token`, so `chmod 600` it on creation.
+
+`code-review-egress.json` is untracked for the same class of reason as
+`slack-users.json` below: it enumerates repos (employer and third-party
+names) this machine has approved for upload to an external model provider,
+which is a per-machine consent record, not repo content. `/code-review`
+creates it at 0600, writes it read-modify-write under a lock directory, and
+revoking an approval is deleting that repo's entry. Absent file means every
+repo asks once, which degrades visibly.
 
 `slack-users.json` is untracked for a different reason than the others: it is
 not a secret, but it holds *other people's* email-derived identities. This repo
