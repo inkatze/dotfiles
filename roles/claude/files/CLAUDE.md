@@ -354,10 +354,14 @@ The review workflows above are the convergence layer of a larger spec-driven pip
   functions below"). Never leave provenance in source: spec identifiers,
   task numbers, requirement and design IDs, PR links, and review history
   belong in the commit message and the spec files, which is where someone
-  goes looking for them. One line is usually enough; needing a paragraph is
-  a signal the code or the spec should carry it instead. When in doubt,
-  leave it out: an absent comment costs a reader one inference, a wrong or
-  stale one costs them their trust in every other comment nearby.
+  goes looking for them. One narrow exception: where the identifier is the
+  contract rather than a note about it, as in a test labelling which
+  requirement each case proves. A comment about why code was written
+  ("added for REQ-B1.2", "see the PR that changed this") is never that.
+  One line is usually enough; needing a paragraph is a signal the code or
+  the spec should carry it instead. When in doubt, leave it out: an absent
+  comment costs a reader one inference, a wrong or stale one costs them
+  their trust in every other comment nearby.
 - **Collapse important-but-bulky context.** When a comment, description, or
   PR body carries context worth keeping but too heavy to lead with, collapse
   it: state the one-line point first, then fold the supporting detail below
