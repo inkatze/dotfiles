@@ -351,7 +351,7 @@ The review workflows above are the convergence layer of a larger spec-driven pip
   bug being worked around, a contract a caller depends on), or a warning
   that prevents a plausible wrong edit. Never restate what the code says,
   and never narrate structure ("build the query", "now validate", "helper
-  functions below"). Never leave provenance in source: spec identifiers,
+  functions below"). Never leave provenance in a comment: spec identifiers,
   task numbers, requirement and design IDs, PR links, and review history
   belong in the commit message and the spec files, which is where someone
   goes looking for them. A narrow exception that does not generalize: a
