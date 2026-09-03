@@ -354,8 +354,8 @@ The review workflows above are the convergence layer of a larger spec-driven pip
   functions below"). Never leave provenance in source: spec identifiers,
   task numbers, requirement and design IDs, PR links, and review history
   belong in the commit message and the spec files, which is where someone
-  goes looking for them. A narrow exception, and only this one: a test may
-  label which requirement each case verifies, because the spec pins that
+  goes looking for them. A narrow exception that does not generalize: a
+  test may label which requirement it verifies, because the spec pins that
   requirement to its verification path and the label is that pin. Anywhere
   else the identifier is a note about why the code was written ("implements
   REQ-B1.2" over a function), which is what the commit message is for.
