@@ -16,6 +16,15 @@
             "command": "$HOME/.claude/scripts/path-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/worker-guard-gate.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [],
