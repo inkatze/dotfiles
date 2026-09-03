@@ -351,14 +351,15 @@ The review workflows above are the convergence layer of a larger spec-driven pip
   bug being worked around, a contract a caller depends on), or a warning
   that prevents a plausible wrong edit. Never restate what the code says,
   and never narrate structure ("build the query", "now validate", "helper
-  functions below"). Never leave provenance in a comment: spec identifiers,
-  task numbers, requirement and design IDs, PR links, and review history
-  belong in the commit message and the spec files, which is where someone
-  goes looking for them. A narrow exception that does not generalize: a
-  test may label which requirement it verifies, because the spec pins that
-  requirement to its verification path and the label is that pin. Anywhere
-  else the identifier is a note about why the code was written ("implements
-  REQ-B1.2" over a function), which is what the commit message is for.
+  functions below"). Never leave provenance in a checked-in comment: spec
+  identifiers, task numbers, requirement and design IDs, PR links, and
+  review history belong in the commit message and the spec files, which is
+  where someone goes looking for them. A narrow exception that does not
+  generalize: a test may label which requirement it verifies, because the
+  spec pins that requirement to its verification path and the label is that
+  pin. Anywhere else the identifier is a note about why the code was written
+  ("implements REQ-B1.2" over a function), which is what the commit message
+  is for.
   One line is usually enough; needing a paragraph is a signal the code or
   the spec should carry it instead. When in doubt, leave it out: an absent
   comment costs a reader one inference, a wrong or stale one costs them
