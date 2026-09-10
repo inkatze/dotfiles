@@ -395,9 +395,8 @@ The repo is split by platform via `os_family` guards in `main.yml`:
 
 Only one platform baseline runs on a given host; the other role is skipped
 whole by its `when:` guard, so adding `roles/linux/` left the Mac hosts'
-runs unchanged. The remaining roles (`kitty`, `fish`, `environments`,
-`tmux`, `ssh`, `git`, `claude`) are cross-platform config
-and run on every host; driving their first Linux run clean is the
+runs unchanged. The remaining roles (`kitty`, `fish`, `environments`, `tmux`, `ssh`,
+`git`, `claude`) are cross-platform config and run on every host; driving their first Linux run clean is the
 `specs/linux-migration` Task 7 stabilization loop, not the platform split
 itself.
 
@@ -515,6 +514,39 @@ Three consequences worth knowing before moving items around:
 To rotate: `op service-account create <name> --vault 'Dotfiles Service
 Account':read_items`, write the returned token to the file with `umask 077`,
 and never let it reach a terminal — it is printed exactly once.
+
+## The editor is not provisioned by a role any more
+
+`roles/neovim/` is gone and a replacement has not been chosen. In the
+meantime `EDITOR`, git's `core.editor`, and the `v` / `vim` / `nv` fish
+aliases all name **`vi`**, not `vim`: the Linux host carries only `vim.tiny`
+(exposed as `/usr/bin/vi` through `update-alternatives`), and macOS ships
+`/usr/bin/vi` as well, so `vi` is the one name that resolves on both.
+
+`vim-tiny` is declared in `linux_apt_packages` for that reason. It is
+priority:important, so the base system usually supplies it and the
+declaration looks redundant — until a minbase chroot or a cloud image does
+not, at which point the playbook reports success and `git commit` dies with
+"cannot run vi". The editor used to be guaranteed by the playbook that
+installed it; naming a binary nothing provisions gave that guarantee up.
+
+`nv` is a call site, not a convenience: `roles/fish/files/fish/functions/tm.fish`
+types that literal string into the left pane of every workspace it builds, so
+deleting the alias breaks eight tmux session functions and no search for
+`nvim` finds the cause.
+
+**The removal un-declared; it did not uninstall.** Nothing in the repo
+removes what the old role installed, so a Mac that ran it keeps `nvim` on
+PATH, its install tree under `~/.local`, its plugin tree, and the four
+Brewfile packages — with `~/.config/nvim` now dangling, since the symlink
+target went with the role. `brew bundle install` never removes, `mise
+install` never prunes, and the `default-*` package lists only apply when a
+runtime is newly installed. Only this Linux host was cleaned, and that was
+done by hand.
+
+The language servers the old config drove are still declared (`ruby-lsp`,
+`basedpyright`, `terraform-ls`, and about ten npm servers). That is a
+deliberate hold for whatever editor lands next, not an oversight.
 
 ## GitHub auth on a headless host
 
