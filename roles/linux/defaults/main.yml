@@ -26,6 +26,7 @@ linux_apt_packages:
   - silversearcher-ag  # ships /usr/bin/ag, used by FZF_DEFAULT_COMMAND
   - tree
   - unzip
+  - vim-tiny  # ships /usr/bin/vi, which EDITOR and git's core.editor name
   - wget
 
   # Shell
