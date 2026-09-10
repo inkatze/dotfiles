@@ -259,6 +259,7 @@ linux_mise_tools:
   - pipx:ansible-core
   - pipx:ansible-lint
   - gh
+  - lua-language-server
   # The Gemini CLI, this host's /panel-review and /code-review backend. Last in
   # the list only because it is the newest; unlike the pipx entries it has no
   # ordering constraint. Its npm backend needs no pre-installed node: mise

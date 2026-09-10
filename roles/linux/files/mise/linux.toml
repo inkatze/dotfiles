@@ -66,3 +66,10 @@ gemini = "0.54.4"
 # repo, which costs a root-added third-party source; mise gets there
 # user-level.
 gh = "2.96.0"
+
+# Consumed by the lua-lsp Claude Code plugin that roles/claude/files/settings.json
+# enables, not by any editor this repo ships. Ubuntu does not package it, so
+# mise's aqua backend is the only user-level route; the Macs get it from the
+# Brewfile. It fails silently when missing, presenting as "the Lua LSP just
+# does not start".
+lua-language-server = "3.18.2"
