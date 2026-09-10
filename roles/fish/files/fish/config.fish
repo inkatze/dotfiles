@@ -5,6 +5,7 @@ end
 
 alias c 'z'
 alias v 'vi'
+alias vim 'vi'
 alias tmux 'tmux -2'
 alias lg 'lazygit'
 # `sshc` used to hardcode a real LAN hostname; the target now comes from a
