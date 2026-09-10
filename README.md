@@ -176,36 +176,6 @@ Changes the default login shell to fish instead of bash.
 - `fish completions`: A file with a series of commands to add autocompletion the configured commands.
 - `fish_configs`: Contains a list of paths where fish's local configuration files exists.
 
-### Neovim
-
-The one true editor. Installs the `stable` release tarball under `~/.local`,
-links the binary and the config, then drives `nvim` headlessly to restore and
-install plugins. Plugins themselves are lazy.nvim's business, pinned by
-`roles/neovim/files/nvim/lazy-lock.json`.
-
-- `neovim_os_token` / `neovim_archive`: Build the `nvim-<os>-<arch>` release
-  asset name from the platform facts.
-- `neovim_install_dir`: Where the archive is extracted.
-- `neovim_release_base` / `neovim_download_url`: The release asset to fetch.
-- `neovim_archive_cache_dir` / `neovim_archive_cache`: Where the tarball is
-  kept between runs, so the extract can be skipped when the release has not
-  changed.
-- `neovim_install_needed`: Whether to replace the install directory this run.
-- `neovim_bin_link`: Where the binary is linked (`/usr/local/bin` on macOS,
-  `~/.local/bin` on Linux).
-- `neovim_bin`: The extracted binary, used by the tasks that drive nvim
-  headlessly.
-
-- `neovim_staging_dir`: Where the archive is extracted before being moved
-  into place.
-
-The install directory is **replaced, not written over**: the archive is
-extracted into staging and moved in with a rename. Neovim reorganises its
-runtime between releases, and `unarchive` on its own leaves everything
-upstream renamed or deleted still sitting on `runtimepath`, which
-`:checkhealth` reports as "Found old files in $VIMRUNTIME". Staging is what
-keeps a failed download or extract from leaving no editor behind at all.
-
 ### SSH
 
 Copy your ssh keys and configuration to your local machine.

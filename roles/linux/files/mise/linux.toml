@@ -42,24 +42,13 @@ uv = "0.11.32"
 # apt's ansible back in and undo the line above.
 "pipx:ansible-lint" = "26.6.0"
 
-# roles/neovim's lspconfig/lua.lua runs `cmd = { 'lua-language-server' }`
-# outright, so without this the Lua LSP simply never starts -- and it fails
-# silently, presenting as "completion doesn't work in Lua" with nothing naming
-# the missing binary. The Macs get it from the Brewfile; Ubuntu does not
-# package it at all, so mise (aqua backend) is the only user-level route.
-#
-# Linux-only on purpose: adding it to roles/environments/files/mise.toml would
-# shadow the Macs' Homebrew copy for no gain.
-lua-language-server = "3.18.2"
-
 # The Gemini CLI, this host's `/panel-review` and `/code-review` backend. The
 # Macs get it from the Brewfile (`brew "gemini-cli"`); apt has no package at
 # all, and mise's registry offers exactly one backend for it
 # (`npm:@google/gemini-cli`), so npm is the route rather than a preference.
 #
-# Linux-only, like lua-language-server above and for the same reason: adding it
-# to roles/environments/files/mise.toml would shadow the Macs' Homebrew copy for
-# no gain.
+# Linux-only on purpose: adding it to roles/environments/files/mise.toml would
+# shadow the Macs' Homebrew copy for no gain.
 #
 # Installed from linux_mise_tools like every other entry here, despite the npm
 # backend appearing to need a node this role installs nothing of. It does not:

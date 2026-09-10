@@ -259,7 +259,6 @@ linux_mise_tools:
   - pipx:ansible-core
   - pipx:ansible-lint
   - gh
-  - lua-language-server
   # The Gemini CLI, this host's /panel-review and /code-review backend. Last in
   # the list only because it is the newest; unlike the pipx entries it has no
   # ordering constraint. Its npm backend needs no pre-installed node: mise
@@ -302,12 +301,9 @@ linux_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
 # - macOS-only Brewfile entries with no Linux meaning: pinentry-mac, pngpaste,
 #   terminal-notifier, mas; plus gnu-tar and readline, since the GNU userland
 #   is native here.
-# - stylua: not packaged in Ubuntu, and not needed. It appears in the Neovim
-#   config only as a root-marker FILENAME (.stylua.toml in lspconfig/lua.lua's
-#   root_markers); nothing ever executes the binary, so its absence is inert.
-#   This line used to lump it together with lua-language-server under "install
-#   via mise if the Neovim Lua setup needs them" -- the two turned out to have
-#   opposite answers, which is why they are now separated.
+# - stylua: not packaged in Ubuntu, and nothing on this host invokes it. It
+#   stays in the Brewfile for the Macs; if a Lua formatter is ever wanted here,
+#   mise's aqua backend has it.
 #
 # Considered for the move to mise and deliberately KEPT in apt, with the
 # archive version measured on resolute against the current upstream release:

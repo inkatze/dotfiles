@@ -8,7 +8,6 @@ graphql-language-service-cli
 import-js
 intelephense
 mcp-hub
-neovim
 stylelint-lsp
 typescript
 typescript-language-server
