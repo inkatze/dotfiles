@@ -395,10 +395,10 @@ The repo is split by platform via `os_family` guards in `main.yml`:
 
 Only one platform baseline runs on a given host; the other role is skipped
 whole by its `when:` guard, so adding `roles/linux/` left the Mac hosts'
-runs unchanged. The remaining roles (`kitty`, `fish`, `environments`, `tmux`, `ssh`,
-`git`, `claude`) are cross-platform config and run on every host; driving their first Linux run clean is the
-`specs/linux-migration` Task 7 stabilization loop, not the platform split
-itself.
+runs unchanged. The remaining roles (`kitty`, `fish`, `environments`,
+`tmux`, `ssh`, `git`, `claude`) are cross-platform config and run on every
+host; driving their first Linux run clean is the `specs/linux-migration`
+Task 7 stabilization loop, not the platform split itself.
 
 `roles/services/` is the exception to those. It runs on every host and
 carries no `when:` in `main.yml`, but it is not the same role on both
@@ -530,10 +530,10 @@ not, at which point the playbook reports success and `git commit` dies with
 "cannot run vi". The editor used to be guaranteed by the playbook that
 installed it; naming a binary nothing provisions gave that guarantee up.
 
-`nv` is a call site, not a convenience: `roles/fish/files/fish/functions/tm.fish`
-types that literal string into the left pane of every workspace it builds, so
-deleting the alias breaks eight tmux session functions and no search for
-`nvim` finds the cause.
+`nv` is a call site, not a convenience: the `tm.fish` workspace functions
+type that literal string into the left pane of every session they build, so
+deleting the alias breaks eight of them and no search for `nvim` finds the
+cause.
 
 **The removal un-declared; it did not uninstall.** Nothing in the repo
 removes what the old role installed, so a Mac that ran it keeps `nvim` on
