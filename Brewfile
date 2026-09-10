@@ -40,7 +40,6 @@ brew "watchman"
 # LSP servers
 brew "ansible-lint"
 brew "vscode-langservers-extracted"
-brew "stylua"
 
 # Version manager
 brew "mise"

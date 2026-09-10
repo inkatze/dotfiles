@@ -301,9 +301,6 @@ linux_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
 # - macOS-only Brewfile entries with no Linux meaning: pinentry-mac, pngpaste,
 #   terminal-notifier, mas; plus gnu-tar and readline, since the GNU userland
 #   is native here.
-# - stylua: not packaged in Ubuntu, and nothing on this host invokes it. It
-#   stays in the Brewfile for the Macs; if a Lua formatter is ever wanted here,
-#   mise's aqua backend has it.
 #
 # Considered for the move to mise and deliberately KEPT in apt, with the
 # archive version measured on resolute against the current upstream release:

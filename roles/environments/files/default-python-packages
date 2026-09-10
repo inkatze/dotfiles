@@ -1,5 +1,4 @@
 ansible
 ansible-lint
 basedpyright
-msgpack
 uv
