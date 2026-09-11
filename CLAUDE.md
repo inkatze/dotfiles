@@ -141,6 +141,34 @@ Rigor` and `Refactor Instinct` rules in the user-global `CLAUDE.md`, both of
 which prefer tool-grounded findings over judgment. Behavior and extension live
 in the planwright repo; this repo only installs the plugin.
 
+### Worker guard gate hook
+
+`roles/claude/files/scripts/worker-guard-gate.sh` runs on `PreToolUse(Bash)`
+and delegates to planwright's `worker-command-guard.sh`, which auto-approves
+the routine commands a dispatched fleet worker runs. It resolves the plugin
+root at exec time (newest version in the marketplace cache), so plugin updates
+need no regeneration here.
+
+**It is user-scope on purpose, and the env gate is what makes that safe.** The
+script exits 0 immediately unless `PLANWRIGHT_WORKER_HANDLE` is set, the env
+contract planwright's launcher and liveness hooks already key on, so an
+interactive or tower session gets no widened permissions. The blast radius is
+enforced by that variable, not by where the file sits.
+
+It used to sit in a per-project `.claude/settings.local.json`, which is
+gitignored machine-local config, so every freshly created planwright worktree
+started without it and escalated every routine worker command to the operator.
+The scope was the mismatch: a per-machine lifetime placed per-project has to be
+recreated forever. Note that the SessionStart `worktree-bootstrap` hook cannot
+fix this from its side — settings are read at process startup, so anything it
+writes lands too late for the session that just started, and a dispatched
+worker runs once.
+
+**Both `PreToolUse` entries have to stay in the tracked `settings.json`.** The
+Ansible merge is `jq -s '.[0] * .[1]'`, and jq's `*` replaces arrays rather
+than appending them, so the managed `hooks.PreToolUse` array is the whole
+array: dropping the `Read|Edit|Write` entry would silently unwire `path-guard`.
+
 ## MCP server registration
 
 User-scope MCP servers live in `~/.claude.json` under `.mcpServers.<name>`.
