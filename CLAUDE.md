@@ -396,10 +396,9 @@ The repo is split by platform via `os_family` guards in `main.yml`:
 Only one platform baseline runs on a given host; the other role is skipped
 whole by its `when:` guard, so adding `roles/linux/` left the Mac hosts'
 runs unchanged. The remaining roles (`kitty`, `fish`, `environments`,
-`neovim`, `tmux`, `ssh`, `git`, `claude`) are cross-platform config
-and run on every host; driving their first Linux run clean is the
-`specs/linux-migration` Task 7 stabilization loop, not the platform split
-itself.
+`tmux`, `ssh`, `git`, `claude`) are cross-platform config and run on every
+host; driving their first Linux run clean is the `specs/linux-migration`
+Task 7 stabilization loop, not the platform split itself.
 
 `roles/services/` is the exception to those. It runs on every host and
 carries no `when:` in `main.yml`, but it is not the same role on both
@@ -516,42 +515,38 @@ To rotate: `op service-account create <name> --vault 'Dotfiles Service
 Account':read_items`, write the returned token to the file with `umask 077`,
 and never let it reach a terminal — it is printed exactly once.
 
-## Neovim: the install replaces, it does not overlay
+## The editor is not provisioned by a role any more
 
-The `neovim` role installs the `stable` release tarball under `~/.local`. It
-**removes and re-creates** the install directory rather than extracting over
-it, and that is the whole point of the extra tasks: `unarchive` on its own
-leaves behind everything upstream renamed or deleted, and those orphans stay
-on `runtimepath`. Neovim reorganises its runtime between releases often
-enough that this compounds. By the time it was noticed, 155 stale files had
-accumulated since 2023 and `:checkhealth` was reporting an `$VIMRUNTIME`
-"old files" error plus ten provider healthcheck crashes, where superseded
-health modules were still being loaded and called a `vim.health` API that no
-longer exists.
+`roles/neovim/` is gone and a replacement has not been chosen. In the
+meantime `EDITOR`, git's `core.editor`, and the `v` / `vim` / `nv` fish
+aliases all name **`vi`**, not `vim`: the Linux host carries only `vim.tiny`
+(exposed as `/usr/bin/vi` through `update-alternatives`), and macOS ships
+`/usr/bin/vi` as well, so `vi` is the one name that resolves on both.
 
-Two consequences worth knowing before editing the role:
+`vim-tiny` is declared in `linux_apt_packages` for that reason. It is
+priority:important, so the base system usually supplies it and the
+declaration looks redundant — until a minbase chroot or a cloud image does
+not, at which point the playbook reports success and `git commit` dies with
+"cannot run vi". The editor used to be guaranteed by the playbook that
+installed it; naming a binary nothing provisions gave that guarantee up.
 
-- **The extract is conditional, and deliberately so.** `stable` is a moving
-  tag with no version string to compare against without fetching, so the
-  tarball is cached under `~/.cache/dotfiles` and `get_url` (`force: true`)
-  reports changed only when the bytes differ. Wiping unconditionally would
-  make the role report changed on every single run.
-- **It stages before it swaps.** The archive is extracted into a staging
-  directory beside the install directory and moved into place with a rename.
-  Removing first and then failing the extract would leave no editor at all
-  and a dangling `/usr/local/bin/nvim`, which is a bad trade for saving two
-  tasks.
+`nv` is a call site, not a convenience: the `tm.fish` workspace functions
+type that literal string into the left pane of every session they build, so
+deleting the alias breaks eight of them and no search for `nvim` finds the
+cause.
 
-`:checkhealth` on a healthy install still reports a handful of warnings that
-are **not** worth chasing: nvim 0.12 creates an empty `vim.pack` plugin
-directory on every startup, which lazy.nvim reports as "found existing
-packages" and `vim.pack` reports as a missing lockfile. The headless Copilot
-"LSP client not available" error is likewise an artifact of there being no
-buffer to attach to; it attaches normally in a real session.
+**The removal un-declared; it did not uninstall.** Nothing in the repo
+removes what the old role installed, so a Mac that ran it keeps `nvim` on
+PATH, its install tree under `~/.local`, its plugin tree, and the four
+Brewfile packages — with `~/.config/nvim` now dangling, since the symlink
+target went with the role. `brew bundle install` never removes, `mise
+install` never prunes, and the `default-*` package lists only apply when a
+runtime is newly installed. Only this Linux host was cleaned, and that was
+done by hand.
 
-Java is the one language whose LSP is macOS-only. `jdtls` comes from the
-Brewfile, there is no apt package and no mise backend for it, and
-`ftplugin/java.lua` skips itself where the launcher is absent.
+The language servers the old config drove are still declared (`ruby-lsp`,
+`basedpyright`, `terraform-ls`, and about ten npm servers). That is a
+deliberate hold for whatever editor lands next, not an oversight.
 
 ## GitHub auth on a headless host
 

@@ -49,10 +49,6 @@ run = "./scripts/playbook.sh -t tmux"
 description = "Configure fish shell"
 run = "./scripts/playbook.sh -t fish"
 
-[tasks.neovim]
-description = "Configure neovim"
-run = "./scripts/playbook.sh -t neovim"
-
 [tasks.environments]
 description = "Install language runtimes via mise"
 run = "./scripts/playbook.sh -t environments"

@@ -26,6 +26,7 @@ linux_apt_packages:
   - silversearcher-ag  # ships /usr/bin/ag, used by FZF_DEFAULT_COMMAND
   - tree
   - unzip
+  - vim-tiny  # ships /usr/bin/vi, which EDITOR and git's core.editor name
   - wget
 
   # Shell
@@ -302,12 +303,6 @@ linux_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
 # - macOS-only Brewfile entries with no Linux meaning: pinentry-mac, pngpaste,
 #   terminal-notifier, mas; plus gnu-tar and readline, since the GNU userland
 #   is native here.
-# - stylua: not packaged in Ubuntu, and not needed. It appears in the Neovim
-#   config only as a root-marker FILENAME (.stylua.toml in lspconfig/lua.lua's
-#   root_markers); nothing ever executes the binary, so its absence is inert.
-#   This line used to lump it together with lua-language-server under "install
-#   via mise if the Neovim Lua setup needs them" -- the two turned out to have
-#   opposite answers, which is why they are now separated.
 #
 # Considered for the move to mise and deliberately KEPT in apt, with the
 # archive version measured on resolute against the current upstream release:

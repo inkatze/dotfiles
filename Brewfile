@@ -37,16 +37,12 @@ brew "ruby-build"
 brew "libsodium"
 brew "watchman"
 
-# LSP servers
+# Linters and language servers
 brew "ansible-lint"
-brew "efm-langserver"
-# Replaces the hand-built ~/dev/eclipse.jdt.ls checkout ftplugin/java.lua used
-# to point at. There is no apt package and no mise backend for it, so the
-# Linux host has no java LSP and the ftplugin skips itself there.
-brew "jdtls"
+# Not editor tooling despite the neighbours: roles/claude/files/settings.json
+# enables the lua-lsp Claude Code plugin on both platforms, and that plugin
+# shells out to this binary. It fails silently when absent.
 brew "lua-language-server"
-brew "vscode-langservers-extracted"
-brew "stylua"
 
 # Version manager
 brew "mise"

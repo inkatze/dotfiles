@@ -4,12 +4,11 @@ for abbr_name in (abbr --list)
 end
 
 alias c 'z'
-alias v 'vim'
-alias vi 'nvim'
-alias vim 'nvim'
-alias nv 'nvim'
-alias nvh 'nvim +checkhealth'
-alias nvi 'nvim'
+alias v 'vi'
+alias vim 'vi'
+# tm.fish sends this literal string to eight tmux panes; it is a call site, not
+# a convenience.
+alias nv 'vi'
 alias tmux 'tmux -2'
 alias lg 'lazygit'
 # `sshc` used to hardcode a real LAN hostname; the target now comes from a
@@ -49,7 +48,7 @@ if status --is-login
     # Unix and C stuff
     set -xg LC_ALL en_US.UTF-8
     set -xg CODESET UTF-8
-    set -xg EDITOR nvim
+    set -xg EDITOR vi
     set -xg FZF_DEFAULT_COMMAND 'bash -c "ag --files-with-matches --column --no-heading --nocolor --smart-case --ignore *.rbi --ignore node_modules"'
     # Homebrew-provided library prefixes. Empty on Linux (no brew), where the
     # system toolchain already resolves these; every consumer below that would

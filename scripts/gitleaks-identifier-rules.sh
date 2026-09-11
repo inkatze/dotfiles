@@ -76,7 +76,7 @@ ERROR: the identifier source file is absent: $source_file
 Refusing to generate a narrower rule set (REQ-D1.4). Create it, mode 0600,
 with one identifier per line:
 
-    umask 077 && \$EDITOR "$source_file"
+    umask 077 && vi -n "$source_file"   # -n: no swapfile beside the secret
 
 It is machine-local and untracked by design (D-9); its contents must not
 reach this repo outside the block this script generates.
