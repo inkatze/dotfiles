@@ -37,13 +37,12 @@ brew "ruby-build"
 brew "libsodium"
 brew "watchman"
 
-# LSP servers
+# Linters and language servers
 brew "ansible-lint"
 # Not editor tooling despite the neighbours: roles/claude/files/settings.json
 # enables the lua-lsp Claude Code plugin on both platforms, and that plugin
 # shells out to this binary. It fails silently when absent.
 brew "lua-language-server"
-brew "vscode-langservers-extracted"
 
 # Version manager
 brew "mise"

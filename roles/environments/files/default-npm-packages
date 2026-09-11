@@ -1,15 +1,3 @@
-@angular/language-server
-@angular/language-service@next
-@ansible/ansible-language-server
-@tailwindcss/language-server
-bash-language-server
-diagnostic-languageserver
-graphql-language-service-cli
 import-js
-intelephense
-stylelint-lsp
 typescript
-typescript-language-server
-vscode-langservers-extracted
-yaml-language-server
 yarn

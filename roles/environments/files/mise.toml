@@ -6,8 +6,6 @@ java = "microsoft-21.0.7"
 erlang = "28.3"
 elixir = "1.19.4-otp-28"
 terraform = "1.14.8"
-terraform-ls = '0.36.4'
-lua = "5.1.5"
 rust = "stable"
 
 # Not a runtime, and the one entry here that another tool depends on rather than
