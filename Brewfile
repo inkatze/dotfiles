@@ -87,7 +87,15 @@ mas "Spark", id: 6445813049
 mas "Xcode", id: 497799835
 
 # Common casks (all hosts)
-cask "1password"
+# The 1Password desktop app is deliberately absent here. On the `work` host it
+# is an MDM-forced install (munki `GustoManagedManifest`), so `brew bundle`
+# aborts with "It seems there is already an App at
+# /Applications/1Password.app" and takes the whole `osx` role down with it.
+# The unmanaged hosts carry the cask in their own Brewfile instead.
+#
+# The CLI is a separate cask that munki does not ship on any host, so it stays
+# common: roles/osx (health-signal Pushover sync) and roles/ssh both probe for
+# `op` and degrade visibly when it is missing.
 cask "1password-cli"
 cask "firefox"
 cask "font-fantasque-sans-mono"
@@ -95,5 +103,8 @@ cask "font-fira-code-nerd-font"
 cask "keycastr"
 cask "kitty"
 cask "logi-options+"
-cask "microsoft-office"
+# Microsoft Office is not installed on the `work` host: the company provides its
+# own productivity suite, and the cask is a `.pkg` that needs sudo, which a
+# `brew bundle` run from the playbook cannot supply non-interactively. Lives in
+# the per-host Brewfiles instead.
 cask "notion"
