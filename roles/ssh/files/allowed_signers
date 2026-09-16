@@ -21,4 +21,14 @@ jd@inkatze.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDIPhdB4wgtCiFle6S9MCTy+T+zR
 jd@inkatze.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBMjfsL7zpAkA78PYllq8F5c21x6SMhzV58OPnGRVqh1
 
 # work
-jd@inkatze.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOaYvh+yCSvLD5eN+F7fxL0xA9drJJgEDprwmVfsuPvd
+#
+# Replaced when the work host was rebuilt on new hardware. `roles/git` generates
+# ~/.ssh/id_signing per machine and never copies it, so a replacement machine is
+# a new key even though the alias is unchanged. The previous key
+# (SHA256:0hQ14y2ahaJx2kno79T/k0Bh9XRYNrljNYEbSjiqN3w) was dropped rather than
+# kept alongside: commits it signed no longer verify locally, reporting "No
+# principal matched". That is a deliberate trade, taken because one line per
+# host reads better than an accumulating list of retired hardware. Restore the
+# old line if verifying that history locally ever matters. GitHub's badge is a
+# separate store and is unaffected either way.
+jd@inkatze.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINuTACYByEKweyTTbICwLTdivlSTY5+L8RoZzuhToBy+
