@@ -2,6 +2,13 @@
 lefthook = "2.0.4"
 gitleaks = "8.30.0"
 shellcheck = "0.11.0"
+# The fourth linter lefthook's pre-commit hook runs, and the only one that was
+# never pinned anywhere. It came from no host's tooling at all: the Brewfile
+# does not carry it, apt is not asked for it, and the copy that exists on a Mac
+# is vendored unlinked inside ansible-lint's libexec. So `mise run lint` and
+# every commit touching a *.yml died with "yamllint: command not found" on a
+# fresh checkout. CI never caught it because the workflow pip-installs its own.
+yamllint = "1.38.0"
 
 [tasks.lint]
 description = "Run all linters (yamllint, ansible-lint, syntax-check)"
