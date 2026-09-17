@@ -52,6 +52,27 @@
     - lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [osx, health]
 
+# `copy` does not create parent directories, and ~/.config/dotfiles is the one
+# directory the README says Ansible does NOT manage -- every other file in it
+# (host, ssh-host, kitty-ssh.conf, op-service-account-token) is written by hand.
+# pushover-credentials is the exception: this role generates it, so this role
+# has to own the directory too. On an established machine the bug never showed
+# up, because the directory already existed for the hand-written files; on a
+# fresh host the copy below dies with "Destination directory ... does not
+# exist" and takes the whole play with it.
+#
+# 0700 because this directory holds secrets -- this file, and on headless hosts
+# op-service-account-token. A machine where it already exists is left alone.
+- name: Ensure the machine-local config directory exists
+  ansible.builtin.file:
+    path: "{{ osx_health_credentials_file | dirname }}"
+    state: directory
+    mode: "0700"
+  when:
+    - osx_health_op_probe.rc == 0
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
+  tags: [osx, health]
+
 # no_log on the task above keeps the values out of playbook output; 0600 keeps
 # them off other users' reach. They are application credentials rather than
 # account credentials -- the api token identifies this sending application and
