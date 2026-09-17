@@ -4,10 +4,12 @@ brew "docker"
 brew "docker-compose"
 
 # Personal machine casks
+cask "1password"
 cask "cyberduck"
 cask "dbeaver-community"
 cask "google-chrome"
 cask "gcloud-cli"
+cask "microsoft-office"
 cask "openemu@experimental"
 cask "steam"
 cask "transmission"

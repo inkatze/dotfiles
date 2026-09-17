@@ -25,5 +25,26 @@ else
     echo "playbook.sh: if this is not the work host, export DOTFILES_HOST or write the alias to ${HOST_OVERRIDE_FILE}." >&2
 fi
 
+# Machine-local 1Password account selector, same shape as the host alias above.
+#
+# `op` infers the account when exactly one is configured, which is why nothing
+# here ever needed it. A host with two -- a company tenant alongside the
+# personal account, which is the normal state of a managed work Mac -- makes
+# every `op` call fail with "multiple accounts found. Use the --account flag or
+# set the OP_ACCOUNT environment variable". That is four call sites: the GitHub
+# MCP PAT sync, the Pushover credential read in roles/osx, and the `op` probes
+# in roles/claude and roles/ssh. Exporting once here covers all of them rather
+# than threading --account through each.
+#
+# Untracked for the REQ-F1.1 reason the rest of these files exist: the value
+# names an employer's 1Password tenant. Absent file means nothing is exported
+# and single-account hosts behave exactly as before; an already-exported
+# OP_ACCOUNT wins, so a one-off run can override it.
+OP_ACCOUNT_FILE="${DOTFILES_OP_ACCOUNT_FILE:-$HOME/.config/dotfiles/op-account}"
+if [[ -z "${OP_ACCOUNT:-}" && -f "$OP_ACCOUNT_FILE" ]]; then
+    OP_ACCOUNT="$(tr -d '[:space:]' <"$OP_ACCOUNT_FILE")"
+    export OP_ACCOUNT
+fi
+
 echo "Running on host: $current_host"
 exec ansible-playbook -l "$current_host" main.yml "$@"

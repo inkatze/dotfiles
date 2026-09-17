@@ -55,11 +55,64 @@
     - osx_ollama_service_state.stdout != 'started'
   tags: [osx, ollama]
 
+# Homebrew renamed its generated LaunchAgent plists from
+# `homebrew.mxcl.<formula>` to `sh.brew.<formula>`, so a Mac that has only ever
+# run current Homebrew has no `homebrew.mxcl.ollama.plist` at all.
+#
+# Hardcoding the old name did not fail loudly, which is what made it dangerous.
+# PlistBuddy CREATES a missing file rather than erroring, so the read below
+# fell through its own `failed_when: false`, the set task wrote OLLAMA_HOST
+# into a *stub* carrying no Label and no ProgramArguments, and `launchctl
+# bootstrap` on that stub died with "Bootstrap failed: 5: Input/output error".
+# The real service meanwhile kept running untouched on 127.0.0.1, so the work
+# host silently served nothing to the personal/alt Ollama clients -- the entire
+# point of this block. Resolve the label from whichever plist brew actually
+# generated instead, newest naming first, and fail loudly when neither is
+# present rather than conjuring a stub to bootstrap.
+- name: Locate the Ollama LaunchAgent plist
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      for label in sh.brew.ollama homebrew.mxcl.ollama; do
+        if [ -f "$HOME/Library/LaunchAgents/${label}.plist" ]; then
+          printf '%s\n' "$label"
+          exit 0
+        fi
+      done
+      echo "no Ollama LaunchAgent plist found; did 'brew services start ollama' run?" >&2
+      exit 1
+  register: osx_ollama_label
+  changed_when: false
+  when: inventory_hostname == 'work'
+  tags: [osx, ollama]
+
+# Clean up after the bug described above. Only removes a file that is provably
+# the stub -- brew is generating the new name AND the old file carries no
+# `Label` key, which no real brew-generated plist ever omits. An old Homebrew
+# where `homebrew.mxcl.ollama.plist` IS the live service is untouched, because
+# then it is the resolved label and this task is skipped.
+- name: Remove the stale Ollama LaunchAgent stub
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      stub="$HOME/Library/LaunchAgents/homebrew.mxcl.ollama.plist"
+      [ -f "$stub" ] || exit 9
+      /usr/libexec/PlistBuddy -c "Print :Label" "$stub" >/dev/null 2>&1 && exit 9
+      launchctl bootout "gui/$(id -u)/homebrew.mxcl.ollama" 2>/dev/null || true
+      rm -f "$stub"
+  register: osx_ollama_stub_removed
+  changed_when: osx_ollama_stub_removed.rc == 0
+  failed_when: osx_ollama_stub_removed.rc not in [0, 9]
+  when:
+    - inventory_hostname == 'work'
+    - osx_ollama_label.stdout | default('') == 'sh.brew.ollama'
+  tags: [osx, ollama]
+
 - name: Read current OLLAMA_HOST from Ollama LaunchAgent plist
   ansible.builtin.command:
     cmd: >-
       /usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:OLLAMA_HOST"
-      {{ ansible_facts.env.HOME }}/Library/LaunchAgents/homebrew.mxcl.ollama.plist
+      {{ ansible_facts.env.HOME }}/Library/LaunchAgents/{{ osx_ollama_label.stdout }}.plist
   register: osx_ollama_host_current
   failed_when: false
   changed_when: false
@@ -70,7 +123,7 @@
   ansible.builtin.shell:
     cmd: |
       set -o pipefail
-      plist="{{ ansible_facts.env.HOME }}/Library/LaunchAgents/homebrew.mxcl.ollama.plist"
+      plist="{{ ansible_facts.env.HOME }}/Library/LaunchAgents/{{ osx_ollama_label.stdout }}.plist"
       if /usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:OLLAMA_HOST" "$plist" >/dev/null 2>&1; then
         /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:OLLAMA_HOST 0.0.0.0:11434" "$plist"
       else
@@ -99,9 +152,9 @@
   ansible.builtin.shell:
     cmd: |
       set -o pipefail
-      plist="{{ ansible_facts.env.HOME }}/Library/LaunchAgents/homebrew.mxcl.ollama.plist"
+      plist="{{ ansible_facts.env.HOME }}/Library/LaunchAgents/{{ osx_ollama_label.stdout }}.plist"
       uid="$(id -u)"
-      launchctl bootout "gui/$uid/homebrew.mxcl.ollama" 2>/dev/null || true
+      launchctl bootout "gui/$uid/{{ osx_ollama_label.stdout }}" 2>/dev/null || true
       launchctl bootstrap "gui/$uid" "$plist"
   when:
     - inventory_hostname == 'work'
