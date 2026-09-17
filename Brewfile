@@ -1,5 +1,8 @@
 # Core utilities
 brew "ack"
+# gtimeout, which planwright's ready-guard hook requires to bound its GitHub
+# queries; with no bounding binary it refuses every draft->ready flip.
+brew "coreutils"
 brew "fd"
 brew "fzf"
 brew "fzy"
