@@ -16,9 +16,10 @@ test -r $__fish_config_dir/themes/catppuccin-mocha.theme || exit 0
 set -qU fish_color_command && exit 0
 
 # Usable now; persisting needs a terminal, so it stays a hint. On stderr because
-# `fish -i -c` is interactive and callers capture its stdout. Only when the
-# theme applied: a failure prints its own error, and saying "not persisted"
-# over it would describe the wrong problem.
+# `fish -i -c` is interactive and callers capture its stdout. Gated on choose
+# reporting success, so a theme it cannot find prints its own error rather than
+# a misleading "not persisted"; a corrupt-but-present file reports success and
+# still gets the hint.
 if fish_config theme choose catppuccin-mocha
     echo "fish: theme not persisted on this host. Run: fish_config theme save catppuccin-mocha" >&2
 end
