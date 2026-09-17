@@ -15,8 +15,10 @@
 # (fisher owns that directory), so tracked config cannot point at them. And
 # fish 4.9 answers `theme choose` by setting each variable to a deferred
 # `--theme=<name>` reference that only the interactive highlighter resolves:
-# fish_indent --ansi renders uncoloured, and the indirection costs ~17ms of
-# every shell startup where these assignments cost nothing measurable.
+# fish_indent --ansi renders uncoloured, and the indirection measured ~17ms of
+# every shell startup on 4.9.3 where these assignments cost nothing measurable.
+# fish's own documentation calls `theme save` "not recommended", so declaring
+# the values is the supported direction rather than a workaround.
 #
 # Global, not universal, so this file stays the single source of truth and
 # shadows any stale universal variable a host still carries. The cost of that
@@ -25,15 +27,26 @@
 # fish_config will appear to do nothing until this file changes too. Edit here
 # instead.
 #
-# Only the theme's dark variant is carried. `fish_config theme choose` picks
-# between light and dark by querying the terminal background, which inlining
-# gives up; every host here runs a dark terminal, and the universal variables
-# this replaces were dark-only as well, so nothing regresses.
+# Only the theme's dark variant is carried. A theme file may hold light, dark
+# and unknown variants, and `theme choose` applies the one matching
+# fish_terminal_color_theme -- which fish populates from the terminal's
+# background-colour reply, and re-applies whenever it changes. Inlining gives
+# up that live switch. Every host here runs a dark terminal and the universal
+# variables this replaces were dark-only too, so nothing regresses today; a
+# light terminal would need the other variant pasted in.
 #
-# The variables fish documents but this file leaves alone keep fish's own
-# defaults, matching the upstream theme, which does not set them either.
-# fish_color_builtin and fish_color_function are deliberate: fish falls back to
-# fish_color_command for both, so setting them would only restate it.
+# The variables this file leaves alone are not thereby fish's defaults: an
+# unset variable resolves to whatever is still in scope, which on a host
+# carrying leftover universals is that universal, not the built-in default.
+# fish_color_valid_path, fish_color_cwd_root and fish_color_history_current are
+# in exactly that state on the Linux host. Their universals happen to equal
+# fish's defaults, so nothing looks wrong -- but the set below is the part that
+# is actually pinned, and the rest is only as predictable as the host's
+# fish_variables. The upstream theme does not set them either.
+#
+# fish_color_builtin and fish_color_function are a different case, and are
+# omitted on purpose: fish falls back to fish_color_command for both, so
+# setting them would only restate it.
 set -g fish_color_normal cdd6f4
 set -g fish_color_command 89b4fa
 set -g fish_color_param f2cdcd
