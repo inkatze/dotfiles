@@ -69,6 +69,9 @@ jobs:
       - name: Run the contract fixture suite
         run: roles/claude/files/scripts/skill-contracts-test.sh
 
+      - name: Run the settings-merge fixture suite
+        run: scripts/claude-settings-merge-test.sh
+
   test:
     needs: lint
     runs-on: macos-latest
