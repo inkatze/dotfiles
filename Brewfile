@@ -1,5 +1,8 @@
 # Core utilities
 brew "ack"
+# gtimeout, which planwright's ready-guard hook requires to bound its GitHub
+# queries. macOS ships no timeout binary under either name.
+brew "coreutils"
 brew "fd"
 brew "fzf"
 brew "fzy"
