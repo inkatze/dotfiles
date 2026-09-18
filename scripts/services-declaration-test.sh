@@ -427,7 +427,7 @@ assert_all_skipped "macos-content-skips-on-linux" "$tasks_dir/darwin.yml" \
     "Debian" "the role's macOS-only content"
 
 # The guard above is only worth having if it covers the task that motivated it:
-# the `~/.my.cnf` symlink carried no `when:` at all and so ran on the Linux
+# the `~/.my.cnf` task carried no `when:` at all and so ran on the Linux
 # host. Named explicitly because Task 7 asserts this exact file's absence on
 # the host, and because a recap-wide `ok=0` would still pass if this task were
 # dropped from the role rather than guarded. Asserted as "the task ran and
@@ -436,7 +436,7 @@ mycnf_out="$workdir/macos-content-skips-on-linux.out"
 if ! grep -q 'my\.cnf' "$tasks_dir/darwin.yml" 2>/dev/null; then
     fail "my-cnf-guarded" "no ~/.my.cnf task in darwin.yml; Task 7 asserts this file's absence"
 elif [[ ! -s "$mycnf_out" ]] ||
-    ! grep -A1 'TASK \[Symlink my\.cnf\]' "$mycnf_out" | grep -q '^skipping:'; then
+    ! grep -A1 'TASK \[Apply the client defaults to my\.cnf\]' "$mycnf_out" | grep -q '^skipping:'; then
     fail "my-cnf-guarded" "the ~/.my.cnf task did not report skipping on a Debian host"
 else
     pass "my-cnf-guarded" "the ~/.my.cnf task was reached and skipped on Debian"

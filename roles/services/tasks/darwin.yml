@@ -2,7 +2,7 @@
 
 # The role's pre-existing macOS-only content, unchanged in substance and now
 # guarded to the platform it was always written for (specs/dev-services,
-# REQ-B1.4). It ran everywhere before: the my.cnf symlink below carried no
+# REQ-B1.4). It ran everywhere before: the my.cnf task below carried no
 # `when:` at all, so the Linux host got a ~/.my.cnf pointing at Homebrew paths
 # for a MySQL it does not have. D-1 argued the guard is a correction the role
 # needs regardless of the declared layer; this is that correction.
@@ -12,11 +12,31 @@
 - name: Configure the macOS-only services
   when: ansible_facts.os_family == "Darwin"
   block:
-    - name: Symlink my.cnf
+    - name: Check what owns my.cnf
+      ansible.builtin.stat:
+        path: "{{ ansible_facts.env.HOME }}/.my.cnf"
+        follow: false
+      register: services_my_cnf
+      tags: [services]
+
+    # An earlier run of this role pointed ~/.my.cnf at the repo, and a client
+    # password added there would land in a public checkout.
+    - name: Replace a repo-owned my.cnf symlink with a real file
       ansible.builtin.file:
-        src: "{{ ansible_facts.env.PWD }}/roles/services/files/my.cnf"
-        dest: "{{ ansible_facts.env.HOME }}/.my.cnf"
-        state: link
+        path: "{{ ansible_facts.env.HOME }}/.my.cnf"
+        state: absent
+      when:
+        - services_my_cnf.stat.islnk | default(false)
+        - services_my_cnf.stat.lnk_source | default('') is search('/roles/services/files/my\.cnf$')
+      tags: [services]
+
+    - name: Apply the client defaults to my.cnf
+      ansible.builtin.blockinfile:
+        path: "{{ ansible_facts.env.HOME }}/.my.cnf"
+        block: "{{ lookup('ansible.builtin.file', 'my.cnf') }}"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK (dotfiles)"
+        create: true
+        mode: "0600"
       tags: [services]
 
     - name: Start colima service

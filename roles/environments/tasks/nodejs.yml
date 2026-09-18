@@ -1,10 +1,28 @@
 ---
 
-- name: Symlink npmrc
+- name: Check what owns npmrc
+  ansible.builtin.stat:
+    path: "{{ ansible_facts.env.HOME }}/.npmrc"
+    follow: false
+  register: environments_npmrc
+
+# An earlier run of this role pointed ~/.npmrc at the repo, and npm writes
+# through a symlink, so registry tokens would land in a public checkout.
+- name: Replace a repo-owned npmrc symlink with a real file
   ansible.builtin.file:
-    src: "{{ ansible_facts.env.PWD }}/roles/environments/files/npmrc"
-    dest: "{{ ansible_facts.env.HOME }}/.npmrc"
-    state: link
+    path: "{{ ansible_facts.env.HOME }}/.npmrc"
+    state: absent
+  when:
+    - environments_npmrc.stat.islnk | default(false)
+    - environments_npmrc.stat.lnk_source | default('') is search('/roles/environments/files/npmrc$')
+
+- name: Apply the npm defaults to npmrc
+  ansible.builtin.blockinfile:
+    path: "{{ ansible_facts.env.HOME }}/.npmrc"
+    block: "{{ lookup('ansible.builtin.file', 'npmrc') }}"
+    marker: "; {mark} ANSIBLE MANAGED BLOCK (dotfiles)"
+    create: true
+    mode: "0600"
 
 - name: Symlink importjs.js
   ansible.builtin.file:
