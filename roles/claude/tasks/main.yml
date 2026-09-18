@@ -192,8 +192,12 @@
 # planwright is the extraction of pair-flow's generalizable core, now a public
 # Claude Code plugin. We install it through the standard marketplace flow rather
 # than vendoring a copy or running its ~/.claude/ writer: add the repo as a
-# marketplace, then install the plugin (both named planwright). HTTPS source so
-# a fresh machine needs no SSH key now that the repo is public. The plugin
+# marketplace, then install the plugin (both named planwright). The owner/repo
+# shorthand is the form planwright's own README documents, and it needs no SSH
+# key now that the repo is public. Keep the two spellings in step: a source
+# added as a full HTTPS URL records a different source KIND, and the two are
+# compared by deep equality, so a machine holding one cannot add the other
+# without `claude plugin marketplace remove planwright` first. The plugin
 # auto-wires its own hooks (SessionStart tool-discovery, PostToolUse
 # tasks-pr-sync) via its hooks/hooks.json resolved against CLAUDE_PLUGIN_ROOT, so
 # settings.json no longer wires them by hand, and doctrine docs/scripts resolve
@@ -209,7 +213,7 @@
   ansible.builtin.command:
     cmd: >-
       {{ ansible_facts.env.HOME }}/.local/bin/claude plugin marketplace add
-      https://github.com/inkatze/planwright.git
+      inkatze/planwright
   register: claude_planwright_marketplace
   changed_when: "'already' not in claude_planwright_marketplace.stdout"
   when: lookup('ansible.builtin.env', 'CI', default='') == ''
