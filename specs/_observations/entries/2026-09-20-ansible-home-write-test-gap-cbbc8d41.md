@@ -1,0 +1,1 @@
+- 2026-09-20 [dotfiles] no test harness in this repo isolates $HOME for an Ansible role that writes real dotfiles (stat/symlink-replace/blockinfile chains), so security-sensitive file-write behavior (credential paths, mode tightening, write-through prevention) is verified by hand rather than by an automated regression test
