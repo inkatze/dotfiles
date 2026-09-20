@@ -453,6 +453,12 @@ block. A symlink an earlier run of the role left behind is replaced with a
 real file first, matched on the repo-relative target so a symlink pointing
 anywhere else is never removed.
 
+The block lands at EOF, so on a key both sides set, ours wins over whatever
+the user already had. `npm config set` rewrites the whole file without
+preserving comments, stripping the markers; the next run re-appends the
+block once and is idempotent again after that. `mode: "0600"` is asserted
+unconditionally, so a looser pre-existing file gets tightened.
+
 Claude-related files live under `roles/claude/files/`; the tasks are in
 `roles/claude/tasks/`. That role is **cross-platform and unguarded**: Claude
 Code runs on macOS and Linux alike, and keeping this config inside the
