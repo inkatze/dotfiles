@@ -489,31 +489,28 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 | `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
 | `slack-users.json` | the `/code-review` and `/peer-review` commands | GitHub login → Slack user ID, so review notifications can find a person |
 | `code-review-egress.json` | the `/code-review` command | Repos approved for backend egress (`owner/repo` → backend), so the diff-upload consent is asked once per repo (mode 0600) |
-| `private-identifiers` | `scripts/gitleaks-identifier-rules.sh` | Private project identifiers the secret scanner's `private-project-identifier` rule is generated from, one per line (mode 0600) |
 
 None are created by Ansible and none live in the repo (`~/.config/kitty` is
 a symlink into it, which is why the kitty companion sits here instead).
 Each is optional; absence degrades visibly rather than silently.
 
-`private-identifiers` is the input to a *generator*, not to the hook. It is
-untracked for the same reason as `slack-users.json`: this repo is public and
-the identifiers name a private project, which `specs/dev-services` REQ-D1.1
-keeps out of every committed artifact but the scanner configuration. The
-generated rule block is committed, so the guard still works on a fresh
-checkout and in CI; the file is only needed to *regenerate* it:
+### The identifier guard is retired, and its tooling is still here
 
-```sh
-scripts/gitleaks-identifier-rules.sh --write   # after changing the set
-scripts/gitleaks-identifier-rules.sh --check   # assert the block is current
-```
+`scripts/gitleaks-identifier-rules.sh` generates secret-scanner rules that
+would block private project identifiers from entering commits. It is not
+wired into anything, and it should not be: `specs/dev-services` retired
+REQ-D1.2 through REQ-D1.5 on 2026-08-07, "withdrawn with no successor", and
+marked D-8 and D-9 superseded the same day. REQ-D1.1 — the prohibition itself
+— still binds, but by review rather than by hook, and enforcement belongs to
+the successor hygiene bundle that would also handle the identifiers already
+published here.
 
-Absence degrades visibly in the strong sense here: the generator refuses with
-a non-zero exit for a file that is absent, empty, unparseable, or readable
-beyond its owner, rather than emitting a rule set covering fewer identifiers
-(REQ-D1.4). A hygiene guard that quietly matches less than intended is worse
-than one that refuses to run. The mode is enforced rather than assumed, the
-same posture `scripts/ssh-lan-config-sync.sh` takes toward
-`op-service-account-token`, so `chmod 600` it on creation.
+The script survives the retirement, so it reads as live machinery waiting to
+be connected. It is not. Wiring it up without first amending that spec
+reverses a recorded decision, and doing the enforcement half alone leaves the
+files that already carry the identifiers permanently exempt — containment, not
+coverage, which is the half the successor bundle exists to avoid doing in
+isolation.
 
 `code-review-egress.json` is untracked for the same class of reason as
 `slack-users.json` below: it enumerates repos (employer and third-party
