@@ -231,64 +231,22 @@ Register it by hand when you want it, on the machine that wants it. If
 that ever becomes more than one machine, promote it: mirror the layout
 above rather than copying the registration around.
 
-## Cross-host Ollama topology
+## Ollama is no longer provisioned
 
-The `/panel-*` skills hit Ollama over HTTP. Only the `work` inventory host
-runs the daemon and pulls the 32B models; `personal` and `alt` are clients
-that route to it over the LAN.
+Nothing in this repo installs, serves or routes Ollama. The `work` host used to
+run the daemon bound to `0.0.0.0:11434` for `personal`/`alt` to reach over the
+LAN; that was dropped rather than moved, so there is no daemon host now. Removed
+together: the daemon/model tasks in `roles/osx/tasks/homebrew.yml`, `brew
+"ollama"`, and `roles/fish/files/ollama.fish` (whose symlink task is now an
+`absent` task, since `conf.d` is a symlink farm and a retired drop-in would
+otherwise dangle).
 
-| Host | Ollama daemon | Client env (set in `roles/fish/files/ollama.fish`) |
-|---|---|---|
-| `work` | Served, bound to `0.0.0.0:11434` via `OLLAMA_HOST` in `~/Library/LaunchAgents/homebrew.mxcl.ollama.plist` | unset (the `ollama` CLI and HTTP consumers fall back to `localhost:11434`) |
-| `personal`, `alt` | Not managed by Ansible | `OLLAMA_HOST=192.168.1.20:11434` (for the `ollama` CLI) and `OLLAMA_BASE_URL=http://192.168.1.20:11434` (for HTTP consumers like `/panel-*` skills) |
-
-`ollama.fish` decides which box it is on by resolving the same inventory
-alias `scripts/playbook.sh` does — the `DOTFILES_HOST` env var, else the
-untracked `~/.config/dotfiles/host` file, plus the residual `alt` hostname
-pattern that script still carries. Any alias other than `work` is a client.
-An **unresolved** alias sets neither variable, so the host falls back to
-`localhost:11434`: correct on `work`, and on an unconfigured client a
-visible connection-refused rather than a silent call to a LAN address.
-`personal` therefore now needs its alias file (or `DOTFILES_HOST=personal`)
-to get Ollama routing — it used to be matched by hostname.
-
-The migrated Linux host (`server`, `specs/linux-migration`) joins this
-topology as a **client**, same posture as `personal`/`alt`: `work` stays
-the sole daemon, and `server` routes to it over the LAN. The `linux` role
-does not manage an Ollama daemon (Ollama is not in the Linux baseline).
-`server` picks up its client env from the alias resolution above, since it
-already writes `~/.config/dotfiles/host` for `scripts/playbook.sh` — by
-declaration now, rather than by the accident of reusing the old Mac's
-hostname.
-
-The work host's IP is a DHCP reservation at `192.168.1.20`. Updates:
-
-- Change the IP: edit `roles/fish/files/ollama.fish`.
-- Move daemon to a different host: flip the `inventory_hostname == 'work'`
-  guards in `roles/osx/tasks/homebrew.yml` and change which alias the fish
-  snippet treats as the daemon host (it compares against `work`).
-
-`OLLAMA_HOST=0.0.0.0:11434` is persisted by injecting it into the brew-
-generated LaunchAgent plist with `PlistBuddy` (additive: existing tuning
-keys like `OLLAMA_FLASH_ATTENTION` are preserved). Ansible also runs
-`launchctl setenv` to apply the change to the current launchd session
-without waiting for a reboot, then reloads the LaunchAgent via
-`launchctl bootout` + `launchctl bootstrap` when the plist changed.
-**Do not use `brew services restart ollama` for this**: that command
-regenerates the plist from the formula's `service` block on every
-invocation, wiping any keys not baked into the formula
-(`OLLAMA_FLASH_ATTENTION` and `OLLAMA_KV_CACHE_TYPE` survive because the
-formula defines them; `OLLAMA_HOST` does not). Same hazard applies to
-`brew upgrade ollama`. Either way, re-run `mise run osx` to re-add the
-key.
-
-**Trust caveat:** Ollama has no auth. Binding to `0.0.0.0` exposes the
-daemon to everything on the LAN. Fine on a trusted home network; on
-untrusted networks, stop the service (`brew services stop ollama`) or
-revert the LaunchAgent edit, and SSH-tunnel from clients instead
-(`ssh -L 11434:localhost:11434 <work-host>` plus
-`OLLAMA_HOST=localhost:11434` and
-`OLLAMA_BASE_URL=http://localhost:11434` on the client).
+Consequence to know before reaching for it: `/panel-review` still *accepts*
+`qwen-coder` and `gpt-oss` via `--backends`, and they will now fail with
+connection-refused. The automatic choices (`codex` on `work`, `gemini`
+elsewhere) are unaffected. Restoring it means digging up the git history of
+this section, plus re-reading the LAN-exposure caveat that was here: Ollama
+has no auth, so binding `0.0.0.0` exposes it to the whole network.
 
 ## Review backends: codex vs gemini
 
@@ -336,12 +294,10 @@ the alias the rest of the repo already uses means the work host is right with
 nothing to remember, and a new host is wrong only if it has not declared
 itself, which is the same failure every other alias consumer has.
 
-The deliberate divergences from `ollama.fish` (there are several; the two
-above are the others) include the one that flips a fallback direction.
-There an unresolved alias must set nothing, so an unconfigured client gets a
-visible connection-refused instead of silently talking to a LAN address. Here
-it means `work`, matching `playbook.sh`, because `work` is the host that does
-not write an alias file.
+The fourth clause is the fallback direction: an unresolved alias must resolve
+to `work`, matching `playbook.sh`, because `work` is the host that does not
+write an alias file. Resolving it to nothing, or to any other alias, sends the
+work host to a backend it never logs into.
 
 **On Linux the CLI comes from mise**, because apt has no gemini package and
 mise's registry offers exactly one backend for it (`npm:@google/gemini-cli`).
@@ -418,7 +374,7 @@ The repo is split by platform via `os_family` guards in `main.yml`:
 
 | Role | Guard | Covers |
 |---|---|---|
-| `roles/osx/` | `ansible_os_family == "Darwin"` | Homebrew, macOS defaults, MCP + Ollama plumbing |
+| `roles/osx/` | `ansible_os_family == "Darwin"` | Homebrew, macOS defaults, MCP plumbing |
 | `roles/linux/` | `ansible_os_family == "Debian"` | apt baseline (fish, tmux, core CLI, `openssh-server`), mise, sshd hardening drop-in, Tailscale, 1Password CLI (`op`) |
 
 Only one platform baseline runs on a given host; the other role is skipped
@@ -483,7 +439,7 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 
 | File | Read by | Holds |
 |---|---|---|
-| `host` | `scripts/playbook.sh`, `roles/fish/files/ollama.fish`, the `/panel-review` and `/code-review` commands | This machine's inventory alias (`work`/`personal`/`alt`/`server`) |
+| `host` | `scripts/playbook.sh`, the `/panel-review` and `/code-review` commands | This machine's inventory alias (`work`/`personal`/`alt`/`server`) |
 | `ssh-host` | the `sshc` function in `roles/fish/files/fish/config.fish` | `kitten ssh` target hostname |
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
 | `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
