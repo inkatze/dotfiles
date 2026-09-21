@@ -36,7 +36,9 @@
     create: true
     insertbefore: BOF
     marker: "# {mark} dotfiles git role"
-    mode: "{{ [git_global_config_stat.stat.mode | default('0600'), '0600'] | min }}"
+    mode: >-
+      {{ '%04o' | format([git_global_config_stat.stat.mode | default('0600')
+      | int(base=8), '0600' | int(base=8)] | min) }}
     block: |
       [include]
           path = {{ git_tracked_config }}
@@ -182,7 +184,9 @@
 - name: Write machine-local git overrides
   ansible.builtin.copy:
     dest: "{{ git_local_config }}"
-    mode: "{{ [git_local_config_stat.stat.mode | default('0600'), '0600'] | min }}"
+    mode: >-
+      {{ '%04o' | format([git_local_config_stat.stat.mode | default('0600')
+      | int(base=8), '0600' | int(base=8)] | min) }}
     content: |
       # Managed by the dotfiles git role — do not edit by hand; the next
       # playbook run overwrites this file. Source: roles/git/defaults/main.yml.
