@@ -30,6 +30,8 @@
         - services_my_cnf.stat.lnk_source | default('') is search('/roles/services/files/my\.cnf$')
       tags: [services]
 
+    # blockinfile has no `follow` option, so it writes THROUGH a symlink. A
+    # link this role does not own has to be skipped outright.
     - name: Apply the client defaults to my.cnf
       ansible.builtin.blockinfile:
         path: "{{ ansible_facts.env.HOME }}/.my.cnf"
@@ -37,6 +39,20 @@
         marker: "# {mark} ANSIBLE MANAGED BLOCK (dotfiles)"
         create: true
         mode: "0600"
+      when: >-
+        not (services_my_cnf.stat.islnk | default(false))
+        or services_my_cnf.stat.lnk_source | default('') is search('/roles/services/files/my\.cnf$')
+      tags: [services]
+
+    - name: Report a foreign my.cnf symlink left untouched
+      ansible.builtin.debug:
+        msg: >-
+          ~/.my.cnf is a symlink to
+          {{ services_my_cnf.stat.lnk_source | default('?') }}, which this role
+          does not own, so the client defaults were not applied.
+      when:
+        - services_my_cnf.stat.islnk | default(false)
+        - services_my_cnf.stat.lnk_source | default('') is not search('/roles/services/files/my\.cnf$')
       tags: [services]
 
     - name: Start colima service

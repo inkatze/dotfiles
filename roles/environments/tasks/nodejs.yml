@@ -16,6 +16,9 @@
     - environments_npmrc.stat.islnk | default(false)
     - environments_npmrc.stat.lnk_source | default('') is search('/roles/environments/files/npmrc$')
 
+# blockinfile has no `follow` option, so it writes THROUGH a symlink. A link
+# this role does not own therefore has to be skipped outright, or the block
+# lands in whatever file another tool points this path at.
 - name: Apply the npm defaults to npmrc
   ansible.builtin.blockinfile:
     path: "{{ ansible_facts.env.HOME }}/.npmrc"
@@ -23,6 +26,20 @@
     marker: "; {mark} ANSIBLE MANAGED BLOCK (dotfiles)"
     create: true
     mode: "0600"
+  when: >-
+    not (environments_npmrc.stat.islnk | default(false))
+    or environments_npmrc.stat.lnk_source | default('') is search('/roles/environments/files/npmrc$')
+
+- name: Report a foreign npmrc symlink left untouched
+  ansible.builtin.debug:
+    msg: >-
+      ~/.npmrc is a symlink to
+      {{ environments_npmrc.stat.lnk_source | default('?') }}, which this role
+      does not own, so the npm defaults were not applied: no init.author.*,
+      loglevel or engine-strict.
+  when:
+    - environments_npmrc.stat.islnk | default(false)
+    - environments_npmrc.stat.lnk_source | default('') is not search('/roles/environments/files/npmrc$')
 
 - name: Symlink importjs.js
   ansible.builtin.file:
