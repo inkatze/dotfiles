@@ -244,9 +244,9 @@ otherwise dangle).
 Consequence to know before reaching for it: `/panel-review` still *accepts*
 `qwen-coder` and `gpt-oss` via `--backends`, and they will now fail with
 connection-refused. The automatic choices (`codex` on `work`, `gemini`
-elsewhere) are unaffected. Restoring it means the git history of this section,
-plus re-reading the LAN-exposure caveat that was here: Ollama has no auth, so
-binding `0.0.0.0` exposes it to the whole network.
+elsewhere) are unaffected. Restoring it means digging up the git history of
+this section, plus re-reading the LAN-exposure caveat that was here: Ollama
+has no auth, so binding `0.0.0.0` exposes it to the whole network.
 
 ## Review backends: codex vs gemini
 
