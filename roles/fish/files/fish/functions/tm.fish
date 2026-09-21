@@ -2,11 +2,6 @@ set -x WORKSPACE_WINDOW 'workspace'
 set -x DOT_SESSION 'dotfiles'
 set -x DOT_DIR $HOME'/dev/dotfiles'
 
-set -x ZP_SESSION 'zp'
-set -x ZP_DIR $HOME'/dev/zenpayroll'
-set -x ZP_BACKEND_SESSION 'backend'
-set -x ZP_SERVER_WINDOW 'server'
-
 set -x PBB_SESSION 'pbb'
 set -x PBB_DIR $HOME'/dev/payroll_building_blocks'
 set -x PBB_WINDOW 'workspace'
@@ -34,18 +29,6 @@ set -x WBS_BE_DIR $HOME'/dev/notification-service'
 set -x CMS_SESSION 'cms'
 set -x CMS_WINDOW 'workspace'
 set -x CMS_DIR $HOME'/dev/symmetry_content_manager'
-
-function panecount
-  set -xl session_name $argv[1]
-  set -xl window_name $argv[2]
-  set -xl expected_count $argv[3]
-
-  set -xl pane_count (tmux display-message -t $session_name':'$window_name -p '#{window_panes}')
-
-  if string match -q '*'$expected_count'*' $pane_count; return; end
-
-  return 1
-end
 
 function sessionavailable
   set -xl session_name $argv[1]
@@ -96,39 +79,6 @@ function tmdot
   echo 'Dotfiles: Workspace created'
 end
 
-function tmzp
-  if not test -d $ZP_DIR
-    set -xl clone_command "git clone git@github.com:Gusto/zenpayroll $ZP_DIR"
-    echo 'Zenpayroll: Project not installed'
-    echo $clone_command
-    return 1
-  end
-
-  if not windowavailable $ZP_SESSION $WORKSPACE_WINDOW
-    echo 'Zenpayroll: Workspace already created'
-    return 1
-  end
-
-  if sessionavailable $ZP_SESSION
-    tmux new-session -d -s $ZP_SESSION -n $WORKSPACE_WINDOW
-  else
-    tmux new-window -t $ZP_SESSION -n $WORKSPACE_WINDOW
-  end
-
-  set -xl target $ZP_SESSION':'$WORKSPACE_WINDOW
-  tmux split-window -t $target -h
-  tmux split-window -t $target -v
-  tmux setw synchronize-panes on
-  tmux send-keys -t $target 'cd '$ZP_DIR Enter
-  tmux send-keys -t $target 'mise install nodejs' Enter C-l
-  tmux setw synchronize-panes off
-  tmux send-keys -t $target'.bottom-right' 'arttime --nolearn --random -t "(ง •̀_•́)ง"' Enter
-  tmux send-keys -t $target'.left' 'nv' Enter
-  tmux select-pane -t $target'.left'
-
-  echo 'Zenpayroll: Workspace created'
-end
-
 function tmpbb
   if not test -d $PBB_DIR
     set -xl clone_command "git clone git@github.com:Gusto/payroll_building_blocks $PBB_DIR"
@@ -161,66 +111,6 @@ function tmpbb
   tmux select-pane -t $target'.left'
 
   echo 'PBB: Workspace created'
-end
-
-function stopservices
-  set -xl target $ZP_BACKEND_SESSION':'$ZP_SERVER_WINDOW
-  tmux setw synchronize-panes on
-  tmux send-keys -t $target C-c Enter C-l
-  tmux setw synchronize-panes off
-  echo 'Zenpayroll: Backend stopped'
-end
-
-function startsrvr
-  set -xl target $ZP_BACKEND_SESSION':'$ZP_SERVER_WINDOW
-  tmux select-pane -t $target'.top-left'
-  tmux setw synchronize-panes on
-  tmux send-keys -t $target 'cd '$ZP_DIR Enter
-  tmux send-keys -t $target 'mise install nodejs' Enter C-l
-  tmux setw synchronize-panes off
-  tmux send-keys -t $target'.top-left' 'brails s' Enter C-l
-  tmux send-keys -t $target'.top-right' 'bundle exec vite dev' C-l Enter
-  tmux send-keys -t $target'.bottom-left' 'bin/sidekiq' C-l Enter
-  tmux send-keys -t $target'.bottom-right' 'bin/run-hapii' C-l Enter
-  tmux select-pane -t $target'.top-left'
-  echo 'Zenpayroll: Backend started'
-end
-
-function tmzpsrvr
-  if not test -d $ZP_DIR
-    set -xl clone_command "git clone git@github.com:Gusto/zenpayroll $ZP_DIR"
-    echo 'Zenpayroll: Project not installed'
-    echo $clone_command
-    return 1
-  end
-
-  if not windowavailable $ZP_BACKEND_SESSION $ZP_SERVER_WINDOW
-    echo 'Zenpayroll: Backend already started'
-    return 1
-  end
-
-  if sessionavailable $ZP_BACKEND_SESSION
-    tmux new-session -d -s $ZP_BACKEND_SESSION -n $ZP_SERVER_WINDOW
-  else
-    tmux new-window -t $ZP_BACKEND_SESSION -n $ZP_SERVER_WINDOW
-  end
-
-  set -xl target $ZP_BACKEND_SESSION':'$ZP_SERVER_WINDOW
-  tmux split-window -t $target -h
-  tmux split-window -t $target -v
-  tmux split-window -t $target'.left' -v
-
-  startsrvr
-end
-
-function tmrssrvr
-  if not panecount $ZP_BACKEND_SESSION $ZP_SERVER_WINDOW 4
-    echo 'Zenpayroll: Backend not started'
-    return 1
-  end
-
-  stopservices
-  startsrvr
 end
 
 function tmpaycheckcity
@@ -431,12 +321,9 @@ function tm
 
   if test $session_name = 'dot'
     tmdot
-  else if test $session_name = 'zp'
-    tmzp
-  else if test $session_name = 'srvr'
-    tmzpsrvr
-  else if test $session_name = 'rssrvr'
-    tmrssrvr
+  else if contains $session_name 'zp' 'srvr' 'rssrvr'
+    echo "tmux: '$session_name' workspace retired"
+    return 1
   else if test $session_name = 'pbb'
     tmpbb
   else if test $session_name = 'pcc'

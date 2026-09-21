@@ -10,6 +10,7 @@ roles/fish/files/fish/completions
 roles/fish/files/fish/conf.d
 roles/fish/files/fish/functions/_*
 roles/fish/files/fish/functions/fisher.fish
+roles/fish/files/fish/functions/bass.fish
 .claude/
 mise.local.toml
 # planwright's per-spec orchestration runtime state (dispatch markers, lock).
