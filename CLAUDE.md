@@ -436,9 +436,10 @@ Task 7 stabilization loop, not the platform split itself.
 carries no `when:` in `main.yml`, but it is not the same role on both
 platforms: its two task files guard themselves. On Debian it provisions the
 declared dev-services layer (`specs/dev-services`); on Darwin it applies the
-role's older macOS-only content (the `~/.my.cnf` symlink, plus the colima
-steps on the `personal` host, which carry their own `inventory_hostname`
-guard) and provisions none of the declared services. The declaration is
+role's older macOS-only content (the `~/.my.cnf` client defaults, plus the
+colima steps on the `personal` host, which carry their own
+`inventory_hostname` guard) and provisions none of the declared services.
+The declaration is
 `roles/services/defaults/main.yml`, one entry per service carrying the
 package, the systemd unit, and the address and port the lifecycle verifies it
 on. Install, enable, start and verify are driven from that list and name no
@@ -446,6 +447,21 @@ service, so adding one is an entry there rather than an edit to a task file.
 A service needing more than that shared lifecycle names its own setup file in
 a `setup:` field, which is the only route into it; PostgreSQL's database role
 for the invoking account is today's only such case.
+
+**`~/.my.cnf` and `~/.npmrc` are applied to, not owned.** Their canonical
+content is credentials (a client password; registry `_authToken` lines), and
+writers resolve a symlink and write through to its target, so owning either
+path would make a public checkout the write target for a credentials file.
+Both roles instead insert this repo's defaults as a marked `blockinfile`
+block. A symlink an earlier run of the role left behind is replaced with a
+real file first, matched on the repo-relative target so a symlink pointing
+anywhere else is never removed.
+
+The block lands at EOF, so on a key both sides set, ours wins over whatever
+the user already had. `npm config set` rewrites the whole file without
+preserving comments, stripping the markers; the next run re-appends the
+block once and is idempotent again after that. `mode: "0600"` is asserted
+unconditionally, so a looser pre-existing file gets tightened.
 
 Claude-related files live under `roles/claude/files/`; the tasks are in
 `roles/claude/tasks/`. That role is **cross-platform and unguarded**: Claude
@@ -564,7 +580,7 @@ installed it; naming a binary nothing provisions gave that guarantee up.
 
 `nv` is a call site, not a convenience: the `tm.fish` workspace functions
 type that literal string into the left pane of every session they build, so
-deleting the alias breaks eight of them and no search for `nvim` finds the
+deleting the alias breaks seven of them and no search for `nvim` finds the
 cause.
 
 **The removal un-declared; it did not uninstall.** Nothing in the repo
