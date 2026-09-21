@@ -4,3 +4,5 @@ fish_plugins:
   - laughedelic/pisces
   - jethrokuan/z
   - catppuccin/fish
+  # Needed by work-init.fish for a non-fish (bash/zsh) pointer target.
+  - edc/bass
