@@ -33,7 +33,7 @@ tags = ["hostname", "req-f1.1"]
 # The second group below is a different exemption class and worth keeping
 # distinct: repo-owned FILENAMES that happen to end in a private-TLD label.
 # `internal-hostname` matches any dotted `<label>.local`-style string, and it
-# cannot tell a machine name from a path this repo declares itself. These four
+# cannot tell a machine name from a path this repo declares itself. These five
 # are files, not hosts:
 #
 #   ~/.ssh/config.local              machine-local ssh host aliases (roles/ssh)
@@ -44,6 +44,8 @@ tags = ["hostname", "req-f1.1"]
 #   .claude/settings.local.json      Claude Code's per-project local settings,
 #                                    the file `/config` writes an output-style
 #                                    or permission choice to
+#   ~/.gitconfig.local               machine-local git overrides (roles/git),
+#                                    written by the git role, not this repo
 #
 # Each is already referenced across tracked files (roles/ssh/README.md, both
 # CLAUDE.md copies, specs/pair-flow), so without this the rule blocks any commit
@@ -62,4 +64,5 @@ regexes = [
   '''^planwright\.local$''',
   '''^mise\.local$''',
   '''^settings\.local$''',
+  '''^gitconfig\.local$''',
 ]
