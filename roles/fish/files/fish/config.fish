@@ -111,9 +111,10 @@ if status --is-login
     set -xg MISE_HASHICORP_SKIP_VERIFY 1
 
     if test (uname) = Darwin
-        # Runtime bins are NOT prepended: mise owns node, ruby, python, go and
+        # Runtime bins are NOT prepended: mise owns node, ruby, python and
         # rust, and a prepend here outranks its shims when something activates
-        # them before this block runs.
+        # them before this block runs. Go is not mise-managed, so GOPATH/bin
+        # and GOROOT/bin stay, just appended like the rest.
         fish_add_path $HOME/.local/bin
         fish_add_path /usr/local/bin
         fish_add_path -a $SQLITE_PATH/bin
@@ -121,6 +122,8 @@ if status --is-login
         fish_add_path -a $POSTGRES_BIN
         fish_add_path -a $OPENSSL_PATH/bin
         fish_add_path -a $CARGO_BIN
+        fish_add_path -a $GOPATH/bin
+        fish_add_path -a $GOROOT/bin
         fish_add_path -a (brew --prefix)/bin
         fish_add_path -a (brew --prefix)/sbin
         fish_add_path -a $MARIADB_BIN_PATH
@@ -128,10 +131,12 @@ if status --is-login
     else
         # Same relative order as the Darwin arm, minus every Homebrew-provided
         # entry (those prefixes are empty here, so keeping them would prepend
-        # bare /bin, /sbin, ... to PATH).
+        # bare /bin, /sbin, ... to PATH). GOROOT is Darwin-only (line ~76), so
+        # there is no GOROOT/bin to add here.
         fish_add_path $HOME/.local/bin
         fish_add_path /usr/local/bin
         fish_add_path -a $CARGO_BIN
+        fish_add_path -a $GOPATH/bin
         fish_add_path -a /usr/bin
     end
 end
