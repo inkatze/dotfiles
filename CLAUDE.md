@@ -368,6 +368,61 @@ shell keeps its cwd between tool calls. From an empty directory the trust gate
 has nothing to act on. It does not cover user-level `~/.gemini/` config, which
 loads regardless of cwd.
 
+## `~/.gitconfig` is a real file, not a symlink
+
+The git role used to symlink `~/.gitconfig` at the tracked
+`roles/git/files/gitconfig`. `git config --global` follows that symlink and
+writes the *target* (measured, not assumed), so every `--global` write on the
+machine landed in this public repo: an external provisioner setting an author
+email, `gh auth setup-git`, `url.<host>.insteadOf`, `http.<url>.extraheader`
+(which carries a base64 credential), and `git maintenance start`, which records
+the absolute path of every repository it maintains. Inward it was just as bad:
+the link went up with `force: true`, clobbering a real `~/.gitconfig` another
+tool had written, with no warning.
+
+So the role now ensures `~/.gitconfig` is a real, untracked file holding one
+marker-delimited block:
+
+```
+# BEGIN dotfiles git role
+[include]
+    path = <clone>/roles/git/files/gitconfig
+# END dotfiles git role
+```
+
+`blockinfile`, because the marker is what makes the edit idempotent while
+keeping the role from owning anything else in the file. `git config --file`
+would need `--replace-all` not to duplicate the key on every run, and appends
+at the wrong end. **The position is the override order**: git takes a key's
+last-seen value, so the block goes at the top of the file and everything below
+it wins, including whatever `git config --global` appends later.
+
+Per-key declaration cannot replace any of this. `git config --global` writes
+unconditionally rather than consulting includes first, and multi-valued keys
+*accumulate*: declaring `credential.helper` does not override an external
+value, it adds a second helper that also receives every credential.
+
+Resolution chain, lowest precedence first:
+
+| File | Owner | Holds |
+|---|---|---|
+| `roles/git/files/gitconfig` | tracked | identity, aliases, shared defaults |
+| `~/.gitconfig.local` | the git role, rewritten on every run | host-resolved values: signer path, unattended key paths, credential helper |
+| `~/.gitconfig` | you, and every other tool on the machine | whatever `git config --global` writes |
+
+The last two are machine-local and untracked like the files under
+`~/.config/dotfiles/` below, but they sit in `$HOME` because git looks for them
+there. Both are asserted 0600, since a tool writing `--global` can put a
+credential in either; a re-run takes the tighter of 0600 and the current mode,
+so a file you tightened further stays that way.
+
+**Migration, on a host that ran the old role.** The symlink is replaced only
+when its target ends in `/roles/git/files/gitconfig` — a suffix match, because
+the link may name a different clone than the one running. Any other symlink
+belongs to another tool, so the role leaves it in place and reports it rather
+than writing through it into whatever it points at; add the include there by
+hand. A pre-existing real file keeps every key and only gains the block.
+
 ## A second config manager's shell init
 
 A managed host may carry its own provisioning system that wires only
@@ -478,6 +533,10 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 None are created by Ansible and none live in the repo (`~/.config/kitty` is
 a symlink into it, which is why the kitty companion sits here instead).
 Each is optional; absence degrades visibly rather than silently.
+
+`~/.gitconfig` and `~/.gitconfig.local` are machine-local in the same sense
+but are not listed here, because git only looks for them in `$HOME`. See
+`~/.gitconfig` is a real file, not a symlink above.
 
 ### The identifier guard is retired, and its tooling is still here
 

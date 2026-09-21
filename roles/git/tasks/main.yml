@@ -1,11 +1,59 @@
 ---
 
-- name: Symlink gitconfig
+- name: Inspect the global gitconfig
+  ansible.builtin.stat:
+    path: "{{ git_global_config }}"
+    follow: false
+  register: git_global_config_stat
+  check_mode: false
+  tags: [git]
+
+- name: Classify the global gitconfig
+  ansible.builtin.set_fact:
+    git_global_config_link: >-
+      {{ 'none' if not (git_global_config_stat.stat.islnk | default(false)) else
+         ('repo' if (git_global_config_stat.stat.lnk_target | default('')).endswith(git_tracked_config_suffix)
+          else 'foreign') }}
+  tags: [git]
+
+# This path used to BE the symlink, which made the repo the write target of
+# every `git config --global` on the machine. Suffix match, not equality: the
+# link may name a different clone than the one running now.
+- name: Replace the repo-owned gitconfig symlink with a real file
   ansible.builtin.file:
-    src: "{{ ansible_facts.env.PWD }}/roles/git/files/gitconfig"
-    dest: "{{ ansible_facts.env.HOME }}/.gitconfig"
-    state: link
-    force: true
+    path: "{{ git_global_config }}"
+    state: absent
+  when: git_global_config_link == 'repo'
+  tags: [git]
+
+# Marker-delimited, so a re-run neither duplicates the include nor touches a
+# key another tool wrote here. At the TOP of the file because git takes a
+# key's last-seen value: everything below the block, including whatever
+# `git config --global` appends later, wins over the repo's content.
+- name: Include the tracked gitconfig from the real global one
+  ansible.builtin.blockinfile:
+    path: "{{ git_global_config }}"
+    create: true
+    insertbefore: BOF
+    marker: "# {mark} dotfiles git role"
+    mode: >-
+      {{ '%04o' | format([git_global_config_stat.stat.mode | default('0600')
+      | int(base=8), '0600' | int(base=8)] | min) }}
+    block: |
+      [include]
+          path = {{ git_tracked_config }}
+  when: git_global_config_link != 'foreign'
+  tags: [git]
+
+- name: Report a foreign gitconfig symlink left untouched
+  ansible.builtin.debug:
+    msg: >-
+      {{ git_global_config }} is a symlink to
+      {{ git_global_config_stat.stat.lnk_target | default('?') }}, owned by
+      something other than this repo, so it was left alone. Add
+      "[include] path = {{ git_tracked_config }}" to it by hand, or replace it
+      with a real file and re-run.
+  when: git_global_config_link == 'foreign'
   tags: [git]
 
 # Generated per host, never copied between machines. `creates` is what keeps
@@ -119,13 +167,26 @@
   check_mode: false
   tags: [git]
 
+- name: Inspect the machine-local git overrides
+  ansible.builtin.stat:
+    path: "{{ git_local_config }}"
+  register: git_local_config_stat
+  check_mode: false
+  tags: [git]
+
 # The tracked gitconfig includes this file last, so it overrides both the signer
 # path and the signing key baked in above it. Written rather than symlinked
 # because the values are host-resolved, not repo content.
+#
+# 0600: these are host-specific keys that must not reach the repo, and that set
+# legitimately includes credential-bearing ones. The min() keeps a re-run from
+# loosening a mode its owner tightened.
 - name: Write machine-local git overrides
   ansible.builtin.copy:
-    dest: "{{ ansible_facts.env.HOME }}/.gitconfig.local"
-    mode: "0644"
+    dest: "{{ git_local_config }}"
+    mode: >-
+      {{ '%04o' | format([git_local_config_stat.stat.mode | default('0600')
+      | int(base=8), '0600' | int(base=8)] | min) }}
     content: |
       # Managed by the dotfiles git role — do not edit by hand; the next
       # playbook run overwrites this file. Source: roles/git/defaults/main.yml.
