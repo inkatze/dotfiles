@@ -118,7 +118,10 @@ jobs:
             brew_deps: "mas fish tmux"
             strict_idempotency: false
     name: test (${{ matrix.role }})
-    timeout-minutes: 30
+    # `osx`/`upgrade` run `brew bundle install` against the full common
+    # Brewfile (~50 formulae + casks, none needing a from-source build); cold,
+    # that consistently took ~28 minutes and blew the old 30-minute budget.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -134,6 +137,14 @@ jobs:
         run: |
           curl https://mise.run | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Homebrew downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/Homebrew
+          key: ${{ runner.os }}-brew-${{ hashFiles('Brewfile', 'Brewfile.*') }}
+          restore-keys: |
+            ${{ runner.os }}-brew-
 
       - name: Install brew dependencies
         if: matrix.brew_deps != ''
