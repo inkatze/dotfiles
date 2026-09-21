@@ -5,8 +5,7 @@
 # there is nothing loaded yet.
 #
 # `gui/$(id -u)` rather than the deprecated `launchctl load`: the modern domain
-# form is what works reliably under a GUI session, and it is the same
-# bootout/bootstrap pair the Ollama LaunchAgent reload in homebrew.yml uses.
+# form is what works reliably under a GUI session.
 - name: Reload the health-signal LaunchAgent
   ansible.builtin.shell:
     cmd: |
