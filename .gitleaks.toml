@@ -23,7 +23,7 @@ description = "Internal mDNS / private-TLD hostname (operational detail, REQ-F1.
 regex = '''\b[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.(?:local|lan|home|internal|corp)\b'''
 tags = ["hostname", "req-f1.1"]
 
-# Known-intentional value already documented in the repo's own topology.
+# Already-committed value that a frozen spec record still names.
 # A NEW LAN IP or internal hostname (e.g. the migrated Linux host's) still
 # fires; only this specific, already-committed value is exempt. Real machine
 # hostnames are deliberately NOT allowlisted: the internal-hostname rule only
@@ -51,10 +51,11 @@ tags = ["hostname", "req-f1.1"]
 # host called `<something>-config.local` still fires; adding a real machine name
 # here would defeat the backstop, which the note above forbids.
 [allowlist]
-description = "Documented Ollama reservation, plus repo-owned filenames the hostname rule cannot distinguish from hosts"
+description = "Retired LAN reservation still named in specs/, plus repo-owned filenames the hostname rule cannot distinguish from hosts"
 regexes = [
-  # Ollama work-host DHCP reservation, documented in CLAUDE.md /
-  # roles/fish/files/ollama.fish (Cross-host Ollama topology).
+  # Retired LAN reservation. Nothing provisions Ollama any more (CLAUDE.md,
+  # "Ollama is no longer provisioned"), but the frozen record in
+  # specs/pair-flow/research/panel-underuse.md still names this address.
   '''192\.168\.1\.20''',
   '''^config\.local$''',
   '''^config\.lan$''',
