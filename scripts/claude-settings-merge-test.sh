@@ -84,7 +84,26 @@ else
                    *) fail refuses-malformed "wrong message: $out" ;; esac
 fi
 
-# 8. a missing live file is created
+# 8. malformed tracked JSON refuses rather than clobbering the live file
+printf '{"hooks":{}}\n' >"$work/live.json"
+printf 'not json\n' >"$work/managed.json"
+before=$(cat "$work/live.json")
+if out=$("$merge" "$work/live.json" "$work/managed.json" 2>&1); then
+    fail refuses-malformed-tracked "exited 0 on malformed tracked JSON"
+else
+    case "$out" in
+        *"not valid JSON"*)
+            if [ "$before" = "$(cat "$work/live.json")" ]; then
+                ok refuses-malformed-tracked "refused, live file untouched"
+            else
+                fail refuses-malformed-tracked "refused but live file was modified"
+            fi
+            ;;
+        *) fail refuses-malformed-tracked "wrong message: $out" ;;
+    esac
+fi
+
+# 9. a missing live file is created
 printf '%s\n' "$MINE" >"$work/managed.json"
 rm -f "$work/live.json"
 if [ "$("$merge" "$work/live.json" "$work/managed.json")" = CHANGED ] && jq -e . "$work/live.json" >/dev/null; then
