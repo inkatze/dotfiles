@@ -10,6 +10,10 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 fails=0
 
+# GNU stat first: its -f is --file-system, so it "succeeds" on a format string
+# and never falls through to BSD's -f. BSD has no -c, so it errors and does.
+file_mode() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
+
 ok()   { printf 'ok[%s]: %s\n' "$1" "$2"; }
 fail() { printf 'FAIL[%s]: %s\n' "$1" "$2"; fails=$((fails + 1)); }
 
@@ -65,10 +69,10 @@ printf '%s\n' '{}' >"$work/live.json"
 printf '%s\n' "$MINE" >"$work/managed.json"
 chmod 644 "$work/live.json"
 "$merge" "$work/live.json" "$work/managed.json" >/dev/null
-if [ "$(stat -f '%Lp' "$work/live.json" 2>/dev/null || stat -c '%a' "$work/live.json")" = 600 ]; then
+if [ "$(file_mode "$work/live.json")" = 600 ]; then
     ok mode-asserted "settings file left at 0600"
 else
-    fail mode-asserted "mode is $(stat -f '%Lp' "$work/live.json" 2>/dev/null || stat -c '%a' "$work/live.json")"
+    fail mode-asserted "mode is $(file_mode "$work/live.json")"
 fi
 
 # 4. an undeclared event is left completely alone
