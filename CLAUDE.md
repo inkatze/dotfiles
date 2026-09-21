@@ -235,64 +235,22 @@ Register it by hand when you want it, on the machine that wants it. If
 that ever becomes more than one machine, promote it: mirror the layout
 above rather than copying the registration around.
 
-## Cross-host Ollama topology
+## Ollama is no longer provisioned
 
-The `/panel-*` skills hit Ollama over HTTP. Only the `work` inventory host
-runs the daemon and pulls the 32B models; `personal` and `alt` are clients
-that route to it over the LAN.
+Nothing in this repo installs, serves or routes Ollama. The `work` host used to
+run the daemon bound to `0.0.0.0:11434` for `personal`/`alt` to reach over the
+LAN; that was dropped rather than moved, so there is no daemon host now. Removed
+together: the daemon/model tasks in `roles/osx/tasks/homebrew.yml`, `brew
+"ollama"`, and `roles/fish/files/ollama.fish` (whose symlink task is now an
+`absent` task, since `conf.d` is a symlink farm and a retired drop-in would
+otherwise dangle).
 
-| Host | Ollama daemon | Client env (set in `roles/fish/files/ollama.fish`) |
-|---|---|---|
-| `work` | Served, bound to `0.0.0.0:11434` via `OLLAMA_HOST` in `~/Library/LaunchAgents/homebrew.mxcl.ollama.plist` | unset (the `ollama` CLI and HTTP consumers fall back to `localhost:11434`) |
-| `personal`, `alt` | Not managed by Ansible | `OLLAMA_HOST=192.168.1.20:11434` (for the `ollama` CLI) and `OLLAMA_BASE_URL=http://192.168.1.20:11434` (for HTTP consumers like `/panel-*` skills) |
-
-`ollama.fish` decides which box it is on by resolving the same inventory
-alias `scripts/playbook.sh` does — the `DOTFILES_HOST` env var, else the
-untracked `~/.config/dotfiles/host` file, plus the residual `alt` hostname
-pattern that script still carries. Any alias other than `work` is a client.
-An **unresolved** alias sets neither variable, so the host falls back to
-`localhost:11434`: correct on `work`, and on an unconfigured client a
-visible connection-refused rather than a silent call to a LAN address.
-`personal` therefore now needs its alias file (or `DOTFILES_HOST=personal`)
-to get Ollama routing — it used to be matched by hostname.
-
-The migrated Linux host (`server`, `specs/linux-migration`) joins this
-topology as a **client**, same posture as `personal`/`alt`: `work` stays
-the sole daemon, and `server` routes to it over the LAN. The `linux` role
-does not manage an Ollama daemon (Ollama is not in the Linux baseline).
-`server` picks up its client env from the alias resolution above, since it
-already writes `~/.config/dotfiles/host` for `scripts/playbook.sh` — by
-declaration now, rather than by the accident of reusing the old Mac's
-hostname.
-
-The work host's IP is a DHCP reservation at `192.168.1.20`. Updates:
-
-- Change the IP: edit `roles/fish/files/ollama.fish`.
-- Move daemon to a different host: flip the `inventory_hostname == 'work'`
-  guards in `roles/osx/tasks/homebrew.yml` and change which alias the fish
-  snippet treats as the daemon host (it compares against `work`).
-
-`OLLAMA_HOST=0.0.0.0:11434` is persisted by injecting it into the brew-
-generated LaunchAgent plist with `PlistBuddy` (additive: existing tuning
-keys like `OLLAMA_FLASH_ATTENTION` are preserved). Ansible also runs
-`launchctl setenv` to apply the change to the current launchd session
-without waiting for a reboot, then reloads the LaunchAgent via
-`launchctl bootout` + `launchctl bootstrap` when the plist changed.
-**Do not use `brew services restart ollama` for this**: that command
-regenerates the plist from the formula's `service` block on every
-invocation, wiping any keys not baked into the formula
-(`OLLAMA_FLASH_ATTENTION` and `OLLAMA_KV_CACHE_TYPE` survive because the
-formula defines them; `OLLAMA_HOST` does not). Same hazard applies to
-`brew upgrade ollama`. Either way, re-run `mise run osx` to re-add the
-key.
-
-**Trust caveat:** Ollama has no auth. Binding to `0.0.0.0` exposes the
-daemon to everything on the LAN. Fine on a trusted home network; on
-untrusted networks, stop the service (`brew services stop ollama`) or
-revert the LaunchAgent edit, and SSH-tunnel from clients instead
-(`ssh -L 11434:localhost:11434 <work-host>` plus
-`OLLAMA_HOST=localhost:11434` and
-`OLLAMA_BASE_URL=http://localhost:11434` on the client).
+Consequence to know before reaching for it: `/panel-review` still *accepts*
+`qwen-coder` and `gpt-oss` via `--backends`, and they will now fail with
+connection-refused. The automatic choices (`codex` on `work`, `gemini`
+elsewhere) are unaffected. Restoring it means digging up the git history of
+this section, plus re-reading the LAN-exposure caveat that was here: Ollama
+has no auth, so binding `0.0.0.0` exposes it to the whole network.
 
 ## Review backends: codex vs gemini
 
@@ -340,12 +298,10 @@ the alias the rest of the repo already uses means the work host is right with
 nothing to remember, and a new host is wrong only if it has not declared
 itself, which is the same failure every other alias consumer has.
 
-The deliberate divergences from `ollama.fish` (there are several; the two
-above are the others) include the one that flips a fallback direction.
-There an unresolved alias must set nothing, so an unconfigured client gets a
-visible connection-refused instead of silently talking to a LAN address. Here
-it means `work`, matching `playbook.sh`, because `work` is the host that does
-not write an alias file.
+The fourth clause is the fallback direction: an unresolved alias must resolve
+to `work`, matching `playbook.sh`, because `work` is the host that does not
+write an alias file. Resolving it to nothing, or to any other alias, sends the
+work host to a backend it never logs into.
 
 **On Linux the CLI comes from mise**, because apt has no gemini package and
 mise's registry offers exactly one backend for it (`npm:@google/gemini-cli`).
@@ -416,13 +372,96 @@ shell keeps its cwd between tool calls. From an empty directory the trust gate
 has nothing to act on. It does not cover user-level `~/.gemini/` config, which
 loads regardless of cwd.
 
+## `~/.gitconfig` is a real file, not a symlink
+
+The git role used to symlink `~/.gitconfig` at the tracked
+`roles/git/files/gitconfig`. `git config --global` follows that symlink and
+writes the *target* (measured, not assumed), so every `--global` write on the
+machine landed in this public repo: an external provisioner setting an author
+email, `gh auth setup-git`, `url.<host>.insteadOf`, `http.<url>.extraheader`
+(which carries a base64 credential), and `git maintenance start`, which records
+the absolute path of every repository it maintains. Inward it was just as bad:
+the link went up with `force: true`, clobbering a real `~/.gitconfig` another
+tool had written, with no warning.
+
+So the role now ensures `~/.gitconfig` is a real, untracked file holding one
+marker-delimited block:
+
+```
+# BEGIN dotfiles git role
+[include]
+    path = <clone>/roles/git/files/gitconfig
+# END dotfiles git role
+```
+
+`blockinfile`, because the marker is what makes the edit idempotent while
+keeping the role from owning anything else in the file. `git config --file`
+would need `--replace-all` not to duplicate the key on every run, and appends
+at the wrong end. **The position is the override order**: git takes a key's
+last-seen value, so the block goes at the top of the file and everything below
+it wins, including whatever `git config --global` appends later.
+
+Per-key declaration cannot replace any of this. `git config --global` writes
+unconditionally rather than consulting includes first, and multi-valued keys
+*accumulate*: declaring `credential.helper` does not override an external
+value, it adds a second helper that also receives every credential.
+
+Resolution chain, lowest precedence first:
+
+| File | Owner | Holds |
+|---|---|---|
+| `roles/git/files/gitconfig` | tracked | identity, aliases, shared defaults |
+| `~/.gitconfig.local` | the git role, rewritten on every run | host-resolved values: signer path, unattended key paths, credential helper |
+| `~/.gitconfig` | you, and every other tool on the machine | whatever `git config --global` writes |
+
+The last two are machine-local and untracked like the files under
+`~/.config/dotfiles/` below, but they sit in `$HOME` because git looks for them
+there. Both are asserted 0600, since a tool writing `--global` can put a
+credential in either; a re-run takes the tighter of 0600 and the current mode,
+so a file you tightened further stays that way.
+
+**Migration, on a host that ran the old role.** The symlink is replaced only
+when its target ends in `/roles/git/files/gitconfig` — a suffix match, because
+the link may name a different clone than the one running. Any other symlink
+belongs to another tool, so the role leaves it in place and reports it rather
+than writing through it into whatever it points at; add the include there by
+hand. A pre-existing real file keeps every key and only gains the block.
+
+## A second config manager's shell init
+
+A managed host may carry its own provisioning system that wires only
+`~/.bash_profile` and `~/.zshrc`. Since `roles/fish` makes fish the login
+shell, none of it loads: mise shims, fork-safety exports and tool completions
+all silently absent. `conf.d/work-init.fish` sources an init named by the
+machine-local `work-shell-init` pointer, so no real path enters this public
+repo. The pointer target dictates how it loads: a `.fish` target is sourced
+natively, anything else is treated as bash/zsh and replayed through
+`edc/bass`, since fish's own `source` cannot parse bash and bass cannot parse
+fish. `edc/bass` is declared as a fish plugin for the non-fish case.
+
+Two ordering rules that are load-bearing:
+
+**`GIT_DUET_GLOBAL false` is set after the source and outside the guard.** The
+sourced init sets it true, and `~/.gitconfig` resolves into this repo, so
+git-duet would publish colleagues' names and emails. Setting it before the
+source is overwritten; setting it inside the guard makes the protection depend
+on an unrelated file existing.
+
+**`config.fish` skips its own `mise activate` when the shims directory is
+already on `PATH`.** Hook mode and shims mode together put the install
+directories ahead of the shims, which defeats tooling that asserts a shim
+path. The check is on `PATH` itself rather than a sentinel variable, because
+"the init was sourced" is a weaker fact than "mise is active in shims mode".
+Relatedly, the login block appends rather than prepends runtime bins: a
+prepend there outranks the shims whenever something activates them first.
+
 ## Ansible role layout
 
 The repo is split by platform via `os_family` guards in `main.yml`:
 
 | Role | Guard | Covers |
 |---|---|---|
-| `roles/osx/` | `ansible_os_family == "Darwin"` | Homebrew, macOS defaults, MCP + Ollama plumbing |
+| `roles/osx/` | `ansible_os_family == "Darwin"` | Homebrew, macOS defaults, MCP plumbing |
 | `roles/linux/` | `ansible_os_family == "Debian"` | apt baseline (fish, tmux, core CLI, `openssh-server`), mise, sshd hardening drop-in, Tailscale, 1Password CLI (`op`) |
 
 Only one platform baseline runs on a given host; the other role is skipped
@@ -487,37 +526,39 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 
 | File | Read by | Holds |
 |---|---|---|
-| `host` | `scripts/playbook.sh`, `roles/fish/files/ollama.fish`, the `/panel-review` and `/code-review` commands | This machine's inventory alias (`work`/`personal`/`alt`/`server`) |
+| `host` | `scripts/playbook.sh`, the `/panel-review` and `/code-review` commands | This machine's inventory alias (`work`/`personal`/`alt`/`server`) |
 | `ssh-host` | the `sshc` function in `roles/fish/files/fish/config.fish` | `kitten ssh` target hostname |
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
 | `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
 | `slack-users.json` | the `/code-review` and `/peer-review` commands | GitHub login → Slack user ID, so review notifications can find a person |
 | `code-review-egress.json` | the `/code-review` command | Repos approved for backend egress (`owner/repo` → backend), so the diff-upload consent is asked once per repo (mode 0600) |
-| `private-identifiers` | `scripts/gitleaks-identifier-rules.sh` | Private project identifiers the secret scanner's `private-project-identifier` rule is generated from, one per line (mode 0600) |
+| `work-shell-init` | `roles/fish/files/work-init.fish` | Absolute path of a shell init to source from fish, for anything a second config manager wires only into bash/zsh |
 
 None are created by Ansible and none live in the repo (`~/.config/kitty` is
 a symlink into it, which is why the kitty companion sits here instead).
 Each is optional; absence degrades visibly rather than silently.
 
-`private-identifiers` is the input to a *generator*, not to the hook. It is
-untracked for the same reason as `slack-users.json`: this repo is public and
-the identifiers name a private project, which `specs/dev-services` REQ-D1.1
-keeps out of every committed artifact but the scanner configuration. The
-generated rule block is committed, so the guard still works on a fresh
-checkout and in CI; the file is only needed to *regenerate* it:
+`~/.gitconfig` and `~/.gitconfig.local` are machine-local in the same sense
+but are not listed here, because git only looks for them in `$HOME`. See
+`~/.gitconfig` is a real file, not a symlink above.
 
-```sh
-scripts/gitleaks-identifier-rules.sh --write   # after changing the set
-scripts/gitleaks-identifier-rules.sh --check   # assert the block is current
-```
+### The identifier guard is retired, and its tooling is still here
 
-Absence degrades visibly in the strong sense here: the generator refuses with
-a non-zero exit for a file that is absent, empty, unparseable, or readable
-beyond its owner, rather than emitting a rule set covering fewer identifiers
-(REQ-D1.4). A hygiene guard that quietly matches less than intended is worse
-than one that refuses to run. The mode is enforced rather than assumed, the
-same posture `scripts/ssh-lan-config-sync.sh` takes toward
-`op-service-account-token`, so `chmod 600` it on creation.
+`scripts/gitleaks-identifier-rules.sh` generates secret-scanner rules that
+would block private project identifiers from entering commits. It is not
+wired into anything, and it should not be: `specs/dev-services` retired
+REQ-D1.2 through REQ-D1.5 on 2026-08-07, "withdrawn with no successor", and
+marked D-8 and D-9 superseded the same day. REQ-D1.1 — the prohibition itself
+— still binds, but by review rather than by hook, and enforcement belongs to
+the successor hygiene bundle that would also handle the identifiers already
+published here.
+
+The script survives the retirement, so it reads as live machinery waiting to
+be connected. It is not. Wiring it up without first amending that spec
+reverses a recorded decision, and doing the enforcement half alone leaves the
+files that already carry the identifiers permanently exempt — containment, not
+coverage, which is the half the successor bundle exists to avoid doing in
+isolation.
 
 `code-review-egress.json` is untracked for the same class of reason as
 `slack-users.json` below: it enumerates repos (employer and third-party
