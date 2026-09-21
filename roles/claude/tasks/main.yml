@@ -46,10 +46,10 @@
 # see scripts/claude-settings-merge.sh.
 - name: Ensure Claude settings.json contains managed settings
   ansible.builtin.command:
-    cmd: >-
-      {{ ansible_facts.env.PWD }}/scripts/claude-settings-merge.sh
-      {{ ansible_facts.env.HOME }}/.claude/settings.json
-      {{ ansible_facts.env.PWD }}/roles/claude/files/settings.json
+    argv:
+      - "{{ ansible_facts.env.PWD }}/scripts/claude-settings-merge.sh"
+      - "{{ ansible_facts.env.HOME }}/.claude/settings.json"
+      - "{{ ansible_facts.env.PWD }}/roles/claude/files/settings.json"
   register: claude_settings
   changed_when: "'CHANGED' in claude_settings.stdout"
   tags: [claude]
