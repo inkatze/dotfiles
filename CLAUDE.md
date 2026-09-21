@@ -412,6 +412,31 @@ shell keeps its cwd between tool calls. From an empty directory the trust gate
 has nothing to act on. It does not cover user-level `~/.gemini/` config, which
 loads regardless of cwd.
 
+## A second config manager's shell init
+
+A managed host may carry its own provisioning system that wires only
+`~/.bash_profile` and `~/.zshrc`. Since `roles/fish` makes fish the login
+shell, none of it loads: mise shims, fork-safety exports and tool completions
+all silently absent. `conf.d/work-init.fish` sources an init named by the
+machine-local `work-shell-init` pointer, so no real path enters this public
+repo, and `edc/bass` is declared because such an init is usually bash.
+
+Two ordering rules that are load-bearing:
+
+**`GIT_DUET_GLOBAL false` is set after the source and outside the guard.** The
+sourced init sets it true, and `~/.gitconfig` resolves into this repo, so
+git-duet would publish colleagues' names and emails. Setting it before the
+source is overwritten; setting it inside the guard makes the protection depend
+on an unrelated file existing.
+
+**`config.fish` skips its own `mise activate` when the shims directory is
+already on `PATH`.** Hook mode and shims mode together put the install
+directories ahead of the shims, which defeats tooling that asserts a shim
+path. The check is on `PATH` itself rather than a sentinel variable, because
+"the init was sourced" is a weaker fact than "mise is active in shims mode".
+Relatedly, the login block appends rather than prepends runtime bins: a
+prepend there outranks the shims whenever something activates them first.
+
 ## Ansible role layout
 
 The repo is split by platform via `os_family` guards in `main.yml`:
@@ -474,6 +499,7 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 | `slack-users.json` | the `/code-review` and `/peer-review` commands | GitHub login → Slack user ID, so review notifications can find a person |
 | `code-review-egress.json` | the `/code-review` command | Repos approved for backend egress (`owner/repo` → backend), so the diff-upload consent is asked once per repo (mode 0600) |
 | `private-identifiers` | `scripts/gitleaks-identifier-rules.sh` | Private project identifiers the secret scanner's `private-project-identifier` rule is generated from, one per line (mode 0600) |
+| `work-shell-init` | `roles/fish/files/work-init.fish` | Absolute path of a shell init to source from fish, for anything a second config manager wires only into bash/zsh |
 
 None are created by Ansible and none live in the repo (`~/.config/kitty` is
 a symlink into it, which is why the kitty companion sits here instead).

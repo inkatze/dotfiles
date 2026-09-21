@@ -111,18 +111,17 @@ if status --is-login
     set -xg MISE_HASHICORP_SKIP_VERIFY 1
 
     if test (uname) = Darwin
-        fish_add_path $PYENV_ROOT/bin
-        fish_add_path $SQLITE_PATH/bin
-        fish_add_path -m $MYSQL_BIN_PATH
-        fish_add_path $GOPATH/bin
-        fish_add_path $GOROOT/bin
-        fish_add_path $CARGO_BIN
-        fish_add_path $POSTGRES_BIN
+        # Runtime bins are NOT prepended: mise owns node, ruby, python, go and
+        # rust, and a prepend here outranks its shims when something activates
+        # them before this block runs.
         fish_add_path $HOME/.local/bin
         fish_add_path /usr/local/bin
-        fish_add_path -m $OPENSSL_PATH/bin
+        fish_add_path -a $SQLITE_PATH/bin
+        fish_add_path -a $MYSQL_BIN_PATH
+        fish_add_path -a $POSTGRES_BIN
+        fish_add_path -a $OPENSSL_PATH/bin
+        fish_add_path -a $CARGO_BIN
         fish_add_path -a (brew --prefix)/bin
-        fish_add_path -a (brew --prefix)/sbin
         fish_add_path -a (brew --prefix)/sbin
         fish_add_path -a $MARIADB_BIN_PATH
         fish_add_path -a /usr/bin
@@ -130,11 +129,9 @@ if status --is-login
         # Same relative order as the Darwin arm, minus every Homebrew-provided
         # entry (those prefixes are empty here, so keeping them would prepend
         # bare /bin, /sbin, ... to PATH).
-        fish_add_path $PYENV_ROOT/bin
-        fish_add_path $GOPATH/bin
-        fish_add_path $CARGO_BIN
         fish_add_path $HOME/.local/bin
         fish_add_path /usr/local/bin
+        fish_add_path -a $CARGO_BIN
         fish_add_path -a /usr/bin
     end
 end
@@ -153,7 +150,10 @@ starship init fish | source
 status --is-interactive; and test -f $HOME/.config/op/plugins.sh; and source $HOME/.config/op/plugins.sh
 status --is-interactive; and direnv hook fish | source
 
-status --is-interactive; mise activate fish | source
+# Hook mode, unless mise is already active in shims mode. Both at once puts
+# the install dirs ahead of the shims, which silently defeats tooling that
+# asserts a shim path.
+string match -q "*/mise/shims*" "$PATH"; or mise activate fish | source
 status --is-interactive; and mise completion fish > ~/.config/fish/completions/mise.fish
 
 # Fish Theme

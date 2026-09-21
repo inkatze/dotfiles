@@ -4,3 +4,5 @@ fish_plugins:
   - laughedelic/pisces
   - jethrokuan/z
   - catppuccin/fish
+  # Required by the init conf.d/work-init.fish sources, which is usually bash.
+  - edc/bass
