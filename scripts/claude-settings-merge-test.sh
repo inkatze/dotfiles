@@ -50,6 +50,27 @@ else
     fail shared-group-survives "got $(jq -c '[.hooks.PreToolUse[].hooks[].command]' "$work/live.json")"
 fi
 
+# 3b. our own hook recorded with an expanded $HOME is still recognised as ours,
+#     rather than kept as foreign and then duplicated by the tracked copy
+EXPANDED="{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"Bash\",\"hooks\":[{\"type\":\"command\",\"command\":\"$HOME/.claude/scripts/path-guard.sh\"}]}]}}"
+run "$EXPANDED" "$MINE" >/dev/null
+if [ "$(jq '[.hooks.PreToolUse[].hooks[].command] | length' "$work/live.json")" = 1 ]; then
+    ok expanded-home-owned "an expanded-path copy of our hook is not duplicated"
+else
+    fail expanded-home-owned "got $(jq -c '[.hooks.PreToolUse[].hooks[].command]' "$work/live.json")"
+fi
+
+# 3c. the live file's mode is asserted, not inherited from whatever wrote it
+printf '%s\n' '{}' >"$work/live.json"
+printf '%s\n' "$MINE" >"$work/managed.json"
+chmod 644 "$work/live.json"
+"$merge" "$work/live.json" "$work/managed.json" >/dev/null
+if [ "$(stat -f '%Lp' "$work/live.json" 2>/dev/null || stat -c '%a' "$work/live.json")" = 600 ]; then
+    ok mode-asserted "settings file left at 0600"
+else
+    fail mode-asserted "mode is $(stat -f '%Lp' "$work/live.json" 2>/dev/null || stat -c '%a' "$work/live.json")"
+fi
+
 # 4. an undeclared event is left completely alone
 run '{"hooks":{"PostToolUseFailure":[{"matcher":"","hooks":[{"type":"command","command":"/opt/vendor/agent hook"}]}]}}' "$MINE" >/dev/null
 if jq -e '.hooks.PostToolUseFailure[0].hooks[0].command == "/opt/vendor/agent hook"' "$work/live.json" >/dev/null; then

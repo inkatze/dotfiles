@@ -22,8 +22,14 @@ fi
 jq -e . "$live" >/dev/null 2>&1 || { echo "FAILED: live settings is not valid JSON: $live" >&2; exit 2; }
 jq -e . "$managed" >/dev/null 2>&1 || { echo "FAILED: tracked settings is not valid JSON: $managed" >&2; exit 3; }
 
-updated=$(jq -n --slurpfile l "$live" --slurpfile m "$managed" '
-  def owned: (.command // "") | startswith("$HOME/.claude/scripts/");
+# $HOME is passed in because a hook command may be recorded either as the
+# literal "$HOME/..." the tracked file uses or already expanded; missing the
+# expanded form would treat our own entry as foreign and then duplicate it.
+updated=$(jq -n --slurpfile l "$live" --slurpfile m "$managed" --arg home "$HOME" '
+  def owned:
+    (.command // "") as $c
+    | ($c | startswith("$HOME/.claude/scripts/"))
+      or ($c | startswith($home + "/.claude/scripts/"));
   def strip_ours: (.hooks // []) | map(select(owned | not));
   ($l[0]) as $live | ($m[0]) as $mgd
   | ($live.hooks // {}) as $lh
@@ -49,6 +55,9 @@ if [ "$(cat "$live")" = "$updated" ]; then
 else
     tmp=$(mktemp "${live}.XXXXXX")
     printf '%s\n' "$updated" >"$tmp"
+    # 0600 asserted, not inherited: this file carries an `env` block, and mktemp
+    # would hand its own 0600 to the result silently anyway.
+    chmod 600 "$tmp"
     mv "$tmp" "$live"
     echo CHANGED
 fi
