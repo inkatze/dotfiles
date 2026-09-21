@@ -419,7 +419,10 @@ A managed host may carry its own provisioning system that wires only
 shell, none of it loads: mise shims, fork-safety exports and tool completions
 all silently absent. `conf.d/work-init.fish` sources an init named by the
 machine-local `work-shell-init` pointer, so no real path enters this public
-repo, and `edc/bass` is declared because such an init is usually bash.
+repo. The pointer target dictates how it loads: a `.fish` target is sourced
+natively, anything else is treated as bash/zsh and replayed through
+`edc/bass`, since fish's own `source` cannot parse bash and bass cannot parse
+fish. `edc/bass` is declared as a fish plugin for the non-fish case.
 
 Two ordering rules that are load-bearing:
 

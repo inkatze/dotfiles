@@ -157,8 +157,9 @@ status --is-interactive; and direnv hook fish | source
 
 # Hook mode, unless mise is already active in shims mode. Both at once puts
 # the install dirs ahead of the shims, which silently defeats tooling that
-# asserts a shim path.
-string match -q "*/mise/shims*" "$PATH"; or mise activate fish | source
+# asserts a shim path. Matched per PATH entry (not the flattened string) so
+# an unrelated entry that merely contains "mise/shims" can't false-positive.
+string match -q '*/mise/shims' -- $PATH; or mise activate fish | source
 status --is-interactive; and mise completion fish > ~/.config/fish/completions/mise.fish
 
 # Fish Theme
