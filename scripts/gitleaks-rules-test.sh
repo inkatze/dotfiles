@@ -5,8 +5,8 @@
 #   2. flags a NEW internal (.local/.lan/.home/.internal/.corp) hostname,
 #   3. passes clean content (loopback + public IP + ordinary prose),
 #   4. does NOT flag the repo's known-intentional allowlisted values
-#      (the documented Ollama work-host reservation and the existing
-#      macOS hostnames).
+#      (the retired LAN reservation a frozen spec record still names, and
+#      the existing macOS hostnames).
 #
 # Extended by specs/dev-services Task 1 (D-8, D-9) for the private
 # project identifier rules, which are the same class of rule and so extend
@@ -108,7 +108,7 @@ assert_clean "clean" "$d"
 
 # 4. Allowlisted known-intentional repo values must not fire.
 d="$workdir/allowlist"; mkdir -p "$d"
-printf 'Ollama work host reservation 192.168.1.20\nhosts crojtini and panela\n' >"$d/notes.md"
+printf 'retired LAN reservation 192.168.1.20\nhosts crojtini and panela\n' >"$d/notes.md"
 assert_clean "allowlist" "$d"
 
 # ---------------------------------------------------------------------------

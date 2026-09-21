@@ -70,7 +70,6 @@ brew "mysql@8.0"
 brew "postgresql@18"
 
 # AI tools (panel review / pairing backends)
-brew "ollama"
 brew "gemini-cli"
 cask "codex"
 

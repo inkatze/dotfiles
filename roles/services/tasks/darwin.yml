@@ -62,9 +62,9 @@
         - services_colima_config.stat.exists
       tags: [services, colima]
 
-    # brew services restart is safe for colima (unlike ollama): colima's formula
-    # service block is a bare `colima start -f` with no custom plist keys to lose on
-    # regeneration. The restart makes `colima start` re-read the edited colima.yaml.
+    # brew services restart is safe here: colima's formula service block is a bare
+    # `colima start -f`, so plist regeneration loses no custom keys. The restart
+    # makes `colima start` re-read the edited colima.yaml.
     - name: Restart colima to apply mountInotify change
       ansible.builtin.command:
         cmd: brew services restart colima
