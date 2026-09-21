@@ -98,3 +98,12 @@ cask "logi-options+"
 #
 # Notion is absent for the same reason as 1Password: a managed install on
 # `work` makes `brew bundle` abort on the cask.
+
+# MAS CLI and the App Store apps this host wants. Keynote and Pages use their
+# universal ADAM IDs; the retired Mac-only listings (409183694, 409201541) make
+# `mas info` fail and take the whole run down. Both are no-ops where macOS ships
+# them preinstalled.
+brew "mas"
+mas "Keynote", id: 361285480
+mas "Pages", id: 361309726
+mas "Xcode", id: 497799835

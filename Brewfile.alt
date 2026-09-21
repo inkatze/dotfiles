@@ -11,15 +11,13 @@ cask "spotify"
 cask "sublime-text"
 cask "sublime-text2"
 
-# App Store apps. The ID pins are explained in Brewfile.personal.
-brew "mas"
+# Personal App Store apps, kept off the work host by preference rather than by
+# any technical limit: `mas` works there, and the shared Brewfile carries the
+# work-relevant entries.
 mas "Black Out", id: 1319884285
 mas "Fantastical", id: 975937182
 mas "Flycut", id: 442160987
-mas "Keynote", id: 361285480
 mas "Lungo", id: 1263070803
 mas "MindNode 5", id: 1289197285
 mas "Moneywiz", id: 1511185140
-mas "Pages", id: 361309726
 mas "Spark", id: 6445813049
-mas "Xcode", id: 497799835
