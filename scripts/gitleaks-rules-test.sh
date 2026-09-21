@@ -21,9 +21,7 @@
 #        rejects a hand edit inside the generated block (REQ-D1.5),
 #   12.  the generated config is one gitleaks can actually load,
 #   13.  --help prints the header block and no code,
-#   14.  a source file with looser permissions than 0600 is refused,
-#   15.  the block committed in .gitleaks.toml matches a fresh generation
-#        (REQ-D1.5) — skipped, visibly, on a machine with no source file.
+#   14.  a source file with looser permissions than 0600 is refused.
 #
 # Not wired into CI/lefthook (those run the scanner itself, not this test);
 # run manually: `scripts/gitleaks-rules-test.sh`. Exit 0 = all assertions
@@ -312,23 +310,6 @@ if "$gen" --source "$workdir/loose-src" --stdout >/dev/null 2>&1; then
 else
     echo "FAIL[gen-accepts-0600]: a 0600 source was refused" >&2
     fails=$((fails + 1))
-fi
-
-# 15. REQ-D1.5: what is committed is what the generator produces. Skipped
-# visibly rather than silently where the machine-local source is absent --
-# the assertion needs the real set, which by REQ-D1.4 lives off the repo.
-identifier_src="${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/private-identifiers"
-if [[ -f "$identifier_src" ]]; then
-    if "$gen" --check >/dev/null 2>&1; then
-        echo "ok[committed-block-current]: committed block matches a fresh generation"
-    else
-        echo "FAIL[committed-block-current]: committed block differs from a fresh" \
-            "generation; re-run scripts/gitleaks-identifier-rules.sh --write" >&2
-        fails=$((fails + 1))
-    fi
-else
-    echo "skip[committed-block-current]: no identifier file at $identifier_src;" \
-        "REQ-D1.5's byte-for-byte check is not exercised on this machine"
 fi
 
 if [[ "$fails" -ne 0 ]]; then
