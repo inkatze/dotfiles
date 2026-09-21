@@ -61,4 +61,5 @@ regexes = [
   '''^planwright\.local$''',
   '''^mise\.local$''',
   '''^settings\.local$''',
+  '''^gitconfig\.local$''',
 ]
