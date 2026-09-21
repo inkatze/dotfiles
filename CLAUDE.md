@@ -576,7 +576,7 @@ installed it; naming a binary nothing provisions gave that guarantee up.
 
 `nv` is a call site, not a convenience: the `tm.fish` workspace functions
 type that literal string into the left pane of every session they build, so
-deleting the alias breaks eight of them and no search for `nvim` finds the
+deleting the alias breaks seven of them and no search for `nvim` finds the
 cause.
 
 **The removal un-declared; it did not uninstall.** Nothing in the repo
