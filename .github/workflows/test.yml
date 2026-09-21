@@ -119,9 +119,12 @@ jobs:
             strict_idempotency: false
     name: test (${{ matrix.role }})
     # `osx`/`upgrade` run `brew bundle install` against the full common
-    # Brewfile (~50 formulae + casks, none needing a from-source build); cold,
-    # that consistently took ~28 minutes and blew the old 30-minute budget.
-    timeout-minutes: 60
+    # Brewfile (~50 formulae + casks, none needing a from-source build).
+    # Measured: a cold cache took over 60 minutes and still hadn't finished,
+    # with Ansible's `command` module buffering all output until the task
+    # ends -- so the "Warm Homebrew bundle" step below runs the same install
+    # as a plain step instead, which streams real per-package progress.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -152,6 +155,16 @@ jobs:
 
       - name: Ensure /usr/local/bin exists
         run: sudo mkdir -p /usr/local/bin && sudo chown "$USER" /usr/local/bin
+
+      # Does the same install the role's own Ansible task does, but as a
+      # plain step so its output streams live instead of being buffered
+      # until the task ends. Once this finishes, the role's own brew bundle
+      # tasks find everything already installed and are fast.
+      - name: Warm Homebrew bundle
+        if: matrix.role == 'osx' || matrix.role == 'upgrade'
+        run: |
+          brew bundle install --no-upgrade --file=Brewfile --verbose
+          brew bundle install --no-upgrade --file=Brewfile.work --verbose
 
       - name: Run ${{ matrix.role }} tasks
         run: mise run ${{ matrix.role }}
