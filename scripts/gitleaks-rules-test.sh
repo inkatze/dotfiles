@@ -43,6 +43,10 @@ if ! command -v gitleaks >/dev/null 2>&1; then
     exit 1
 fi
 
+# A mise shim resolves its version from the cwd, and the cases below cd into
+# temp dirs where this repo's pin is invisible.
+gitleaks_bin=$(mise which gitleaks 2>/dev/null || command -v gitleaks)
+
 fails=0
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
@@ -54,7 +58,7 @@ scan_dir() {
     local dir="$1" cfg="${2:-$config}" report
     report="$workdir/report.json"
     local rc=0
-    gitleaks dir "$dir" --config "$cfg" --no-banner \
+    "$gitleaks_bin" dir "$dir" --config "$cfg" --no-banner \
         --report-format json --report-path "$report" >/dev/null 2>&1 || rc=$?
     if [[ -s "$report" ]]; then
         grep -o '"RuleID": *"[^"]*"' "$report" | sed 's/.*"\([^"]*\)"$/\1/' | sort -u
@@ -193,7 +197,7 @@ scan_staged() {
     local repo="$1" cfg="$2" report="$workdir/staged.json" rc=0
     rm -f "$report"
     (
-        cd "$repo" && gitleaks git --staged --no-banner --config "$cfg" \
+        cd "$repo" && "$gitleaks_bin" git --staged --no-banner --config "$cfg" \
             --report-format json --report-path "$report" >/dev/null 2>&1
     ) || rc=$?
     if [[ -s "$report" ]]; then
@@ -276,7 +280,7 @@ fi
 # certify a block gitleaks cannot parse; the hook would then fail open-ended
 # for everyone on the next commit.
 rt_gen --write >/dev/null 2>&1
-if (cd "$rt" && gitleaks git --staged --no-banner \
+if (cd "$rt" && "$gitleaks_bin" git --staged --no-banner \
     --config "$rt/.gitleaks.toml" >/dev/null 2>&1); then
     echo "ok[gen-config-loads]: gitleaks accepted the generated config"
 else
