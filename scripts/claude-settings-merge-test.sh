@@ -40,7 +40,17 @@ else
     fail empty-removes-only-ours "got $(jq -c '[.hooks.PreToolUse[].hooks[].command]' "$work/live.json")"
 fi
 
-# 3. an undeclared event is left completely alone
+# 3. a foreign hook sharing a matcher group with ours survives, only the
+#    owned entry is stripped from that group
+SHARED_GROUP='{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"$HOME/.claude/scripts/path-guard.sh"},{"type":"command","command":"/opt/vendor/agent hook"}]}]}}'
+run "$SHARED_GROUP" "$MINE" >/dev/null
+if [ "$(jq -c '[.hooks.PreToolUse[].hooks[].command]' "$work/live.json")" = '["/opt/vendor/agent hook","$HOME/.claude/scripts/path-guard.sh"]' ]; then
+    ok shared-group-survives "foreign entry in a shared matcher group is not dropped with ours"
+else
+    fail shared-group-survives "got $(jq -c '[.hooks.PreToolUse[].hooks[].command]' "$work/live.json")"
+fi
+
+# 4. an undeclared event is left completely alone
 run '{"hooks":{"PostToolUseFailure":[{"matcher":"","hooks":[{"type":"command","command":"/opt/vendor/agent hook"}]}]}}' "$MINE" >/dev/null
 if jq -e '.hooks.PostToolUseFailure[0].hooks[0].command == "/opt/vendor/agent hook"' "$work/live.json" >/dev/null; then
     ok undeclared-untouched "PostToolUseFailure survived"
@@ -48,7 +58,7 @@ else
     fail undeclared-untouched "undeclared event was modified"
 fi
 
-# 4. non-hook keys still merge with `*`, and app-owned keys survive
+# 5. non-hook keys still merge with `*`, and app-owned keys survive
 run '{"theme":"dark","hooks":{}}' '{"outputStyle":"compact","hooks":{}}' >/dev/null
 if jq -e '.theme == "dark" and .outputStyle == "compact"' "$work/live.json" >/dev/null; then
     ok scalar-merge "app-owned theme kept, managed outputStyle applied"
@@ -56,7 +66,7 @@ else
     fail scalar-merge "scalar merge lost a key"
 fi
 
-# 5. idempotent: a second run reports OK and changes nothing
+# 6. idempotent: a second run reports OK and changes nothing
 first=$(cat "$work/live.json")
 status=$("$merge" "$work/live.json" "$work/managed.json")
 if [ "$status" = OK ] && [ "$first" = "$(cat "$work/live.json")" ]; then
@@ -65,7 +75,7 @@ else
     fail idempotent "status=$status, file changed=$([ "$first" = "$(cat "$work/live.json")" ] && echo no || echo yes)"
 fi
 
-# 6. malformed live JSON refuses rather than clobbering
+# 7. malformed live JSON refuses rather than clobbering
 printf 'not json\n' >"$work/live.json"
 if out=$("$merge" "$work/live.json" "$work/managed.json" 2>&1); then
     fail refuses-malformed "exited 0 on malformed live JSON"
@@ -74,9 +84,7 @@ else
                    *) fail refuses-malformed "wrong message: $out" ;; esac
 fi
 
-# 7. a missing live file is created
-rm -f "$work/live.json"
-run "$MINE" "$MINE" >/dev/null 2>&1 || true
+# 8. a missing live file is created
 printf '%s\n' "$MINE" >"$work/managed.json"
 rm -f "$work/live.json"
 if [ "$("$merge" "$work/live.json" "$work/managed.json")" = CHANGED ] && jq -e . "$work/live.json" >/dev/null; then

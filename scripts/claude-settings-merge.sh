@@ -23,7 +23,8 @@ jq -e . "$live" >/dev/null 2>&1 || { echo "FAILED: live settings is not valid JS
 jq -e . "$managed" >/dev/null 2>&1 || { echo "FAILED: tracked settings is not valid JSON: $managed" >&2; exit 3; }
 
 updated=$(jq -n --slurpfile l "$live" --slurpfile m "$managed" '
-  def ours: (.hooks // []) | any((.command // "") | startswith("$HOME/.claude/scripts/"));
+  def owned: (.command // "") | startswith("$HOME/.claude/scripts/");
+  def strip_ours: (.hooks // []) | map(select(owned | not));
   ($l[0]) as $live | ($m[0]) as $mgd
   | ($live.hooks // {}) as $lh
   | ($mgd.hooks  // {}) as $mh
@@ -32,7 +33,10 @@ updated=$(jq -n --slurpfile l "$live" --slurpfile m "$managed" '
       reduce ((($lh | keys_unsorted) + ($mh | keys_unsorted)) | unique)[] as $k ({};
         .[$k] = (
           if ($mh | has($k))
-          then (($lh[$k] // []) | map(select(ours | not))) + ($mh[$k])
+          then (
+            ($lh[$k] // [])
+            | map(.hooks = strip_ours | select((.hooks // []) | length > 0))
+          ) + ($mh[$k])
           else $lh[$k]
           end
         )
