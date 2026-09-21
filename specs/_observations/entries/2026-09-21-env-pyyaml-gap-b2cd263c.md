@@ -1,0 +1,1 @@
+- 2026-09-21 [dotfiles] scripts/stale-declarations-test.sh fails in this session's environment with PyYAML unavailable for python3; pre-existing, unrelated to the claude-hooks-additive-merge branch (confirmed the file is untouched by the branch's diff).
