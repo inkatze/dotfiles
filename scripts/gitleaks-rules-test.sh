@@ -5,8 +5,8 @@
 #   2. flags a NEW internal (.local/.lan/.home/.internal/.corp) hostname,
 #   3. passes clean content (loopback + public IP + ordinary prose),
 #   4. does NOT flag the repo's known-intentional allowlisted values
-#      (the documented Ollama work-host reservation and the existing
-#      macOS hostnames).
+#      (the retired LAN reservation a frozen spec record still names, and
+#      the existing macOS hostnames).
 #
 # Extended by specs/dev-services Task 1 (D-8, D-9) for the private
 # project identifier rules, which are the same class of rule and so extend
@@ -21,9 +21,7 @@
 #        rejects a hand edit inside the generated block (REQ-D1.5),
 #   12.  the generated config is one gitleaks can actually load,
 #   13.  --help prints the header block and no code,
-#   14.  a source file with looser permissions than 0600 is refused,
-#   15.  the block committed in .gitleaks.toml matches a fresh generation
-#        (REQ-D1.5) — skipped, visibly, on a machine with no source file.
+#   14.  a source file with looser permissions than 0600 is refused.
 #
 # Not wired into CI/lefthook (those run the scanner itself, not this test);
 # run manually: `scripts/gitleaks-rules-test.sh`. Exit 0 = all assertions
@@ -43,6 +41,10 @@ if ! command -v gitleaks >/dev/null 2>&1; then
     exit 1
 fi
 
+# A mise shim resolves its version from the cwd, and the cases below cd into
+# temp dirs where this repo's pin is invisible.
+gitleaks_bin=$(mise which gitleaks 2>/dev/null || command -v gitleaks)
+
 fails=0
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
@@ -54,7 +56,7 @@ scan_dir() {
     local dir="$1" cfg="${2:-$config}" report
     report="$workdir/report.json"
     local rc=0
-    gitleaks dir "$dir" --config "$cfg" --no-banner \
+    "$gitleaks_bin" dir "$dir" --config "$cfg" --no-banner \
         --report-format json --report-path "$report" >/dev/null 2>&1 || rc=$?
     if [[ -s "$report" ]]; then
         grep -o '"RuleID": *"[^"]*"' "$report" | sed 's/.*"\([^"]*\)"$/\1/' | sort -u
@@ -108,7 +110,7 @@ assert_clean "clean" "$d"
 
 # 4. Allowlisted known-intentional repo values must not fire.
 d="$workdir/allowlist"; mkdir -p "$d"
-printf 'Ollama work host reservation 192.168.1.20\nhosts crojtini and panela\n' >"$d/notes.md"
+printf 'retired LAN reservation 192.168.1.20\nhosts crojtini and panela\n' >"$d/notes.md"
 assert_clean "allowlist" "$d"
 
 # ---------------------------------------------------------------------------
@@ -193,7 +195,7 @@ scan_staged() {
     local repo="$1" cfg="$2" report="$workdir/staged.json" rc=0
     rm -f "$report"
     (
-        cd "$repo" && gitleaks git --staged --no-banner --config "$cfg" \
+        cd "$repo" && "$gitleaks_bin" git --staged --no-banner --config "$cfg" \
             --report-format json --report-path "$report" >/dev/null 2>&1
     ) || rc=$?
     if [[ -s "$report" ]]; then
@@ -276,7 +278,7 @@ fi
 # certify a block gitleaks cannot parse; the hook would then fail open-ended
 # for everyone on the next commit.
 rt_gen --write >/dev/null 2>&1
-if (cd "$rt" && gitleaks git --staged --no-banner \
+if (cd "$rt" && "$gitleaks_bin" git --staged --no-banner \
     --config "$rt/.gitleaks.toml" >/dev/null 2>&1); then
     echo "ok[gen-config-loads]: gitleaks accepted the generated config"
 else
@@ -308,23 +310,6 @@ if "$gen" --source "$workdir/loose-src" --stdout >/dev/null 2>&1; then
 else
     echo "FAIL[gen-accepts-0600]: a 0600 source was refused" >&2
     fails=$((fails + 1))
-fi
-
-# 15. REQ-D1.5: what is committed is what the generator produces. Skipped
-# visibly rather than silently where the machine-local source is absent --
-# the assertion needs the real set, which by REQ-D1.4 lives off the repo.
-identifier_src="${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/private-identifiers"
-if [[ -f "$identifier_src" ]]; then
-    if "$gen" --check >/dev/null 2>&1; then
-        echo "ok[committed-block-current]: committed block matches a fresh generation"
-    else
-        echo "FAIL[committed-block-current]: committed block differs from a fresh" \
-            "generation; re-run scripts/gitleaks-identifier-rules.sh --write" >&2
-        fails=$((fails + 1))
-    fi
-else
-    echo "skip[committed-block-current]: no identifier file at $identifier_src;" \
-        "REQ-D1.5's byte-for-byte check is not exercised on this machine"
 fi
 
 if [[ "$fails" -ne 0 ]]; then

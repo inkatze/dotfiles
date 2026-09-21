@@ -44,10 +44,17 @@
     mode: "0755"
   tags: [fish]
 
-- name: Symlink ollama.fish into fish conf.d
+# conf.d is a symlink farm, so a retired drop-in dangles until removed.
+- name: Remove dangling ollama.fish symlink (Ollama retirement cleanup)
   ansible.builtin.file:
-    src: "{{ ansible_facts.env.PWD }}/roles/fish/files/ollama.fish"
-    dest: "{{ ansible_facts.env.HOME }}/.config/fish/conf.d/ollama.fish"
+    path: "{{ ansible_facts.env.HOME }}/.config/fish/conf.d/ollama.fish"
+    state: absent
+  tags: [fish]
+
+- name: Symlink work-init.fish into fish conf.d
+  ansible.builtin.file:
+    src: "{{ ansible_facts.env.PWD }}/roles/fish/files/work-init.fish"
+    dest: "{{ ansible_facts.env.HOME }}/.config/fish/conf.d/work-init.fish"
     state: link
   tags: [fish]
 

@@ -1,5 +1,21 @@
 ---
 
+# A real file the role only adds an [include] to, never a symlink at the tracked
+# config: `git config --global` follows a symlink and writes its TARGET, so a
+# symlink here makes this public repo the write target of every --global write on
+# the machine.
+git_global_config: "{{ ansible_facts.env.HOME }}/.gitconfig"
+
+# Host-resolved values, written by the role and included by the tracked config.
+git_local_config: "{{ ansible_facts.env.HOME }}/.gitconfig.local"
+
+# role_path, not the playbook's cwd, so the include keeps naming this clone.
+git_tracked_config: "{{ role_path }}/files/gitconfig"
+
+# What a ~/.gitconfig symlink left by the old role ends with. Matched as a
+# suffix so a link into some other clone of this repo is still recognised.
+git_tracked_config_suffix: /roles/git/files/gitconfig
+
 # Which hosts sign commits with their own on-disk key instead of routing through
 # the 1Password desktop app.
 #

@@ -7,7 +7,7 @@ Same Discovery + Validation rigor as `/self-review`. The backends provide the di
 You want a `/self-review` shape but with one or more external models contributing findings. Common cases:
 
 - ChatGPT Enterprise users on a work repo (Codex CLI as a fast frontier-OpenAI backend).
-- Personal repos (local Ollama models from different lineages: Alibaba's Qwen2.5-Coder, OpenAI's gpt-oss).
+- Personal repos (Gemini CLI, keyed from 1Password by the dotfiles sync).
 - Any time you want a non-Anthropic angle without paying GitHub Copilot's per-request quota.
 
 For the standard Claude-only review, use `/self-review`. For autonomous looping (review, apply, re-review until convergence, draining only Auto-applicable items) instead of one interactive pass, pass `--nested`; see "Invocation modes" below. `--nested` is also what makes this skill a *nestable* review skill for planwright's `review_sequence` config knob (an ordered list of `--nested`-invocable review skills that `/execute-task`'s convergence phase runs; the default is `[polish]`), so you can add `panel-review` alongside or instead of `/polish --nested` there.
@@ -29,9 +29,9 @@ Runs identically in both modes.
 2. **(Optional) Jira ticket** (same as `/self-review` step 2).
 3. **Detect the machine profile.** Driven by an untracked, machine-local signal so no
    employer identifiers live in this tracked, public file. Resolve **the dotfiles
-   inventory alias**, the same indirection `scripts/playbook.sh` and fish
-   `conf.d/ollama.fish` already use, in the same order, with the deliberate
-   divergences spelled out below the snippet:
+   inventory alias**, the same indirection `scripts/playbook.sh` already uses,
+   in the same order, with the deliberate divergences spelled out below the
+   snippet:
 
    ```bash
    alias_file="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"
@@ -49,8 +49,8 @@ Runs identically in both modes.
    Several details are load-bearing, each of which an earlier revision of this
    block got wrong:
 
-   - **The `alt` hostname branch is not optional.** `playbook.sh` and `ollama.fish` both
-     carry it, and the alias-file section of `CLAUDE.md` records that `alt` is the one
+   - **The `alt` hostname branch is not optional.** `playbook.sh` carries it, and
+     the alias-file section of `CLAUDE.md` records that `alt` is the one
      host still matched by hostname (only `personal` was made to name itself). Drop it and
      an `alt` Mac with no alias file resolves to `work`, so it reaches for `codex` on a
      machine that never logs into codex — the same class of bug this whole resolver
@@ -63,6 +63,9 @@ Runs identically in both modes.
    - **`DOTFILES_HOST_FILE` is honoured**, because `playbook.sh` honours it. A host that
      relocates its alias file would otherwise have `playbook.sh` and this resolver
      disagree about which machine it is.
+   - **An unresolved alias must resolve to `work`**, matching `playbook.sh`, because
+     `work` is the host that does not write an alias file. Resolving it to nothing, or
+     to any other alias, sends the work host to a backend it never logs into.
 
    **This replaces a `PANEL_REVIEW_PROFILE`-only lookup that defaulted to `personal`,
    and the default was the bug.** Nothing in the dotfiles repo ever sets that variable,
@@ -71,14 +74,6 @@ Runs identically in both modes.
    alias file is the signal the rest of the repo already keys on, so the work host now
    resolves correctly with nothing to remember. `PANEL_REVIEW_PROFILE` is still honored
    first as a per-run override; it is no longer the only signal.
-
-   Note the fallback direction differs from `ollama.fish` on purpose. There, an
-   unresolved alias must set nothing (a client that has not named itself should fail to
-   reach a local daemon rather than silently talk to a LAN address). Here it means
-   `work`, matching `playbook.sh`, because `work` is the host that does not write an
-   alias file. It is not the only divergence: `DOTFILES_HOST_FILE` is honoured here and
-   by `playbook.sh` but not by `ollama.fish` (which hardcodes the path), and the alias
-   file's *contents* are tested here where both siblings test mere existence.
 
 4. **Resolve the backend set.** If `$ARGUMENTS` contains `--backends a,b,c`, use those (comma-separated). Otherwise use the profile table default:
 
@@ -89,7 +84,7 @@ Runs identically in both modes.
 
    An alias not in the table resolves to `gemini`, the non-work default.
 
-   Supported backends: `codex`, `gemini`, `qwen-coder`, `gpt-oss`, `copilot`. `copilot` is **opt-in only** via `--backends`; do not auto-include it (the GitHub quota is the original constraint and including it implicitly defeats the point). `deepseek-r1` was retired: it is a reasoning model that emits `<think>` chain-of-thought blocks the panel prompt cannot reliably suppress, and ~2x wall-clock vs `qwen-coder`. `gpt-oss:20b` replaces it as a different-lineage second slot (OpenAI training, instruction-tuned, no reasoning trace). The Ollama models remain available via `--backends` for variance panels when wanted.
+   Supported backends: `codex`, `gemini`, `qwen-coder`, `gpt-oss`, `copilot`. `copilot` is **opt-in only** via `--backends`; do not auto-include it (the GitHub quota is the original constraint and including it implicitly defeats the point). `deepseek-r1` was retired: it is a reasoning model that emits `<think>` chain-of-thought blocks the panel prompt cannot reliably suppress, and ~2x wall-clock vs `qwen-coder`. `gpt-oss:20b` replaces it as a different-lineage second slot (OpenAI training, instruction-tuned, no reasoning trace). `qwen-coder` and `gpt-oss` are still accepted via `--backends`, but nothing in the dotfiles provisions Ollama any more, so they reach a daemon only if you run one yourself (see dotfiles `CLAUDE.md` "Ollama is no longer provisioned").
 
 5. **Verify each backend.** Stop with a specific install / auth message if any fails; do not silently drop a backend (the user expects the variance the backend provides).
 
@@ -97,7 +92,7 @@ Runs identically in both modes.
 
    - `codex`: `fish -c 'mise which codex 2>/dev/null; or command -v codex'` must resolve; `codex login status` on current CLIs (or the equivalent readiness probe) must report an authenticated session, judged by exit status only. If not authed, stop with `Codex CLI needs auth; run 'codex login'`. If not installed, stop with `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'` (note the Brewfile entry is a **cask**, so this route is macOS-only). On Linux nothing in the dotfiles installs codex; it is only ever reached there by an explicit `--backends codex`.
    - `gemini`: `fish -c 'mise which gemini'` must resolve (mise-installed, so a bare bash `command -v` can miss it). The `GEMINI_API_KEY` env var must be set, or `~/.gemini/.api-key` non-empty at mode 600/400 per the invocation snippet's guarded read (the dotfiles fish conf.d/gemini.fish exports it from `~/.gemini/.api-key`, which is written by `scripts/claude-gemini-auth-sync.sh` from the 1Password item declared in that script). The install route is platform-specific, so name the right one: on macOS `Gemini CLI not installed; mise run osx will install via Brewfile 'gemini-cli'`, on Linux `Gemini CLI not installed; mise run linux will install it (pinned in roles/linux/files/mise/linux.toml, installed from linux_mise_tools)`. If `GEMINI_API_KEY` is unset, stop with `Gemini CLI needs auth; run 'mise run osx' (macOS) or 'mise run linux' (Linux) to sync from 1Password, or set GEMINI_API_KEY manually`. On a headless host that sync reads the machine-local service-account token rather than the 1Password desktop app, and a service account cannot be granted Personal or Private, so the key item must live in a vault it can reach.
-   - `qwen-coder` / `gpt-oss`: `curl -sf "${OLLAMA_BASE_URL:-http://localhost:11434}/api/tags"` must return a body containing the model name (`qwen2.5-coder:32b` or `gpt-oss:20b`). If the API does not respond, stop with `Ollama service not running; brew services start ollama` (on the work host; on personal/alt the dotfiles fish conf.d/ollama.fish points OLLAMA_BASE_URL at the work host's LAN IP, see dotfiles `CLAUDE.md` "Cross-host Ollama topology"). If the model is missing, stop with `Model not pulled; ollama pull <name>` (the dotfiles Ansible task pulls both on the work host by default; missing means an opt-out or the cross-host route is not configured).
+   - `qwen-coder` / `gpt-oss`: `curl -sf "${OLLAMA_BASE_URL:-http://localhost:11434}/api/tags"` must return a body containing the model name (`qwen2.5-coder:32b` or `gpt-oss:20b`). Nothing in the dotfiles installs, serves or routes Ollama, and no host sets `OLLAMA_BASE_URL`, so the probe hits `localhost` unless you export it. If the API does not respond, stop with `No Ollama daemon reachable; start one and set OLLAMA_BASE_URL, or pick another backend`. If the model is missing, stop with `Model not pulled; ollama pull <name>`.
    - `copilot`: `gh copilot --help` must succeed and the account must have quota. Stop if `gh` is not authenticated or `gh copilot` returns a quota-exhausted error.
 
 **Nested-only additions** (run these after the five items above, only when `--nested` was passed):
@@ -183,7 +178,7 @@ Diff:
   Both details are load-bearing, and the prompt file moves into the scratch directory with it (same as `/code-review`). `mktemp -d` rather than the `/tmp/panel-review-prompt.$$.txt` convention the Ollama backends below use: `/tmp` is world-writable, so making it the cwd would let anyone pre-plant `/tmp/GEMINI.md` or `/tmp/.gemini/settings.json` and have a `--skip-trust` run load it — relocating the trust rather than removing it. It also fixes the mode of the prompt file itself, which carries the whole diff of a private repo and is created world-readable under the default umask in `/tmp`. And the subshell because this session's shell keeps its working directory between tool calls, so a bare `cd` would leave every later `git` command in the review running outside the repo.
 
   The point of all this: the diff and tooling output reach the model on **stdin**, so the working tree never needs to be the cwd, and from an empty directory `--skip-trust` has nothing to trust — no `.gemini/settings.json`, project hooks, skills, or `GEMINI.md` can load from the tree at all. A direct test on 0.54.4 showed a project-supplied MCP server was *not* executed under `--skip-trust --approval-mode plan`, so this is defence in depth rather than a patched hole. Note what it does not cover: user-level `~/.gemini/` config still loads, and plan mode still permits read tools, so the model can still pull files from the tree by absolute path. Prefer `--skip-trust` over exporting `GEMINI_CLI_TRUST_WORKSPACE=true`: the flag is per-invocation, while the env var trusts every directory for every later gemini run in that shell.
-- **qwen-coder** and **gpt-oss** (Ollama): **prefer the HTTP API** for programmatic invocation. The base URL is read from `OLLAMA_BASE_URL` (set in fish conf.d/ollama.fish on personal/alt hosts to the work host's LAN IP) and falls back to `http://localhost:11434` on the work host itself. **Write the prompt file and run `curl` in the same `Bash` tool invocation**: the `Bash` tool spawns a fresh shell per call, so `$$` in a later call is a different PID than `$$` in an earlier one; if the write and the read land in separate tool calls, the `--rawfile` path silently points at a file that was never created and `jq` fails.
+- **qwen-coder** and **gpt-oss** (Ollama): **prefer the HTTP API** for programmatic invocation. The base URL is read from `OLLAMA_BASE_URL` (nothing in the dotfiles sets it; export it to reach a daemon elsewhere) and falls back to `http://localhost:11434`. **Write the prompt file and run `curl` in the same `Bash` tool invocation**: the `Bash` tool spawns a fresh shell per call, so `$$` in a later call is a different PID than `$$` in an earlier one; if the write and the read land in separate tool calls, the `--rawfile` path silently points at a file that was never created and `jq` fails.
   ```bash
   scratch="$(mktemp -d)" || exit 1
   trap 'rm -rf "$scratch"' EXIT
