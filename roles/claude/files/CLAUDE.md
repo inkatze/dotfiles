@@ -72,6 +72,28 @@ When creating git commits:
 When pushing:
 - MUST always specify the remote and branch explicitly: `git push origin branch-name`
 - Never use bare `git push` without arguments
+- Never push to `main` or any other protected branch, with or without `--force`
+
+Rewriting history is allowed. Rebase, amend, squash and fixup are ordinary tools
+and you may use them on a local or feature branch, including rebasing a local
+`main` onto its upstream. What is forbidden is *publishing* a rewrite: never
+force-push, and never push to a protected branch at all. On a shared feature
+branch, check whether anyone else is working from it before rewriting; a rewrite
+someone has already pulled costs them a recovery.
+
+Some workflows still want new-commits-only for their own reasons (a review loop
+that keeps each iteration separately revertible, for instance). That is a local
+choice those workflows state themselves, not a repo-wide prohibition.
+
+## Pull Request Lifecycle
+
+Open pull requests as drafts. Marking one ready for review is mine to request
+and yours to perform: when I ask, flip it, provided its conditions are met (CI
+green, the review cadence the PR calls for actually run, and the branch current
+with its base). If a condition is unmet, say which one instead of flipping.
+
+Do not flip a PR ready on your own initiative, and do not hand the flip back to
+me as a manual step once I have asked for it.
 
 ## Plan Mode & Implementation
 
@@ -331,7 +353,7 @@ The review workflows above are the convergence layer of a larger spec-driven pip
 
 **The skills planwright supplies (pipeline order):** `/spec-draft` (elicit the four-file bundle), `/spec-kickoff` (walk to mutual understanding and sign off the kickoff brief; flips Draft → Active), `/orchestrate` (stateless step machine: pick the next ready task or bundle, create/reuse a worktree, dispatch execution), `/execute-task` (test-first execution workhorse converging via `/polish`, then a draft PR), and the read-only `/resume`, `/spec-walkthrough`, and `/drain`. `/self-review` and `/polish` (the convergence skills referenced in Review Workflows above) come from planwright too, as do the skills outside the pipeline order: `/builder` (detect a project's stack and recommend or apply planwright's mechanical quality guards) and `/offload` (dispatch a free-form piece of work to the smallest sufficient execution backend). Customize without editing planwright core via its overlay mechanism (config in `planwright.yml` layers, doctrine shadowing, catalog appends); see planwright's `docs/overlays.md`.
 
-**Hard invariants.** Never auto-merge (merge is a reserved human action, permanent, not deferred). Never act on a non-Active spec (no bypass flag). Never auto-chain `/orchestrate` into `/spec-kickoff`. Never force-push, amend, squash, or rebase; create new commits only.
+**Hard invariants.** Never auto-merge (merge is a reserved human action, permanent, not deferred). Never act on a non-Active spec (no bypass flag). Never auto-chain `/orchestrate` into `/spec-kickoff`. Never publish a history rewrite: no force-push, and no push to a protected branch (see `Git Conventions`, which allows rewriting local and feature-branch history). Note that planwright's own guards are stricter than this: its worker and tower deny-lists refuse `git rebase` and `git commit --amend` outright, so a dispatched worker cannot rewrite history even locally. Relaxing that is a change to planwright's REQ-J1.4, not to this file.
 
 ## Writing Style
 - Avoid em-dashes in prose unless strictly necessary. Use commas, parentheses, colons, or separate sentences instead.

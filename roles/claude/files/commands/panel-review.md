@@ -305,7 +305,7 @@ Land the code, then move on. **Do not push**; nested mode is local-only, the inv
 
 1. `git add` only the files actually changed (never `git add -A`).
 2. Commit with a message of the form `chore(panel): iter N, <short summary>` (e.g., `chore(panel): iter 1, drop unused imports and fix typos`).
-3. Do **not** amend, squash, or rebase. Each iteration is its own commit so you can inspect and revert per-iteration if needed.
+3. Keep each iteration as its own commit: do not fold them together with an amend or squash, so any single iteration stays separately inspectable and revertible. This is the loop's own requirement, not a general ban on rewriting history.
 
 #### e. Iteration summary
 
@@ -346,7 +346,7 @@ These hold at every step:
 - **Never** route a finding to Auto-applicable without a specific rule citation. "I am sure this is a typo" does not qualify; "ruff F401: imported but unused" does. The rule citation must come from the project tooling run in step (a), not from a backend's free-form recommendation.
 - **Never** silently drop a backend that failed in step (a). The user picked the backend set; partial runs hide which variance source went missing.
 - **Never** modify CI configuration, `.env`, secrets, or lockfiles, even on a tool's recommendation.
-- **Never** amend, squash, or rebase commits.
+- **Never** fold this loop's iteration commits together, per step (d); and never force-push or push to a protected branch.
 - **Never** post anything to chat platforms, tickets, or any remote system.
 - **Never** skip step (c.4) (wider test / lint / type-check run). A "simple" fix that breaks an unrelated test is the failure mode this guards against.
 - **Never** trust the iteration counter alone for cap enforcement; verify at the top of the iteration via the explicit cap check.

@@ -674,7 +674,7 @@ When an iteration's threads split between in-scope (lines this PR introduced or 
 These hold at every step:
 - **Never** `git push --force` or `--force-with-lease`.
 - **Never** silently retry a failed `git push` or bypass with `--no-verify`. Trigger the **Push hook failure** stop condition with a brief diagnosis instead.
-- **Never** amend, squash, or rebase commits already pushed.
+- **Never** rewrite a commit already pushed to this PR's branch. Copilot's review threads anchor to commit SHAs, so a rewrite orphans the threads you are replying to; that is this loop's reason, distinct from the repo-wide rule, which only forbids publishing a rewrite.
 - **Never** resolve a thread without an explanatory reply.
 - **Never** skip the failing-test-first step on a behavior-changing fix.
 - **Never** commit or touch files outside the PR's diff to "fix" something we noticed in passing. Surface it as an adjacent finding for human review instead.
