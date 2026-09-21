@@ -116,4 +116,6 @@ cask "logi-options+"
 # own productivity suite, and the cask is a `.pkg` that needs sudo, which a
 # `brew bundle` run from the playbook cannot supply non-interactively. Lives in
 # the per-host Brewfiles instead.
-cask "notion"
+#
+# Notion is absent for the same reason as 1Password: a managed install on
+# `work` makes `brew bundle` abort on the cask.
