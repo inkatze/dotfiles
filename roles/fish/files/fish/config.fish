@@ -6,7 +6,7 @@ end
 alias c 'z'
 alias v 'vi'
 alias vim 'vi'
-# tm.fish sends this literal string to eight tmux panes; it is a call site, not
+# tm.fish sends this literal string to seven tmux panes; it is a call site, not
 # a convenience.
 alias nv 'vi'
 alias tmux 'tmux -2'

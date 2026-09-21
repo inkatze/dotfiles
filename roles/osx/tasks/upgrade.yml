@@ -62,7 +62,11 @@
   ansible.builtin.command:
     cmd: mas upgrade
   register: osx_mas_upgrade_status
-  changed_when: "'Nothing found to upgrade' not in osx_mas_upgrade_status.stdout"
+  # rc first: a host with no App Store apps has no `mas`, and the stdout test
+  # alone reads that failure as a change on every run.
+  changed_when:
+    - osx_mas_upgrade_status.rc == 0
+    - "'Nothing found to upgrade' not in osx_mas_upgrade_status.stdout"
   failed_when: false
   when: lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [upgrade]
