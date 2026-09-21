@@ -5,10 +5,6 @@
 # three casks that used to collide with it -- 1password, microsoft-office and
 # notion -- live in Brewfile.personal / Brewfile.alt instead.
 #
-# The personal App Store apps live there too, by preference rather than by any
-# limit here: `mas` works on this host and the shared Brewfile carries the
-# work-relevant entries.
-#
 # Keep this file even while empty: roles/osx/tasks/homebrew.yml runs
 # `brew bundle install --file=Brewfile.{{ inventory_hostname }}` unconditionally,
 # so deleting it fails the play rather than skipping the step.

@@ -74,6 +74,27 @@ brew "ollama"
 brew "gemini-cli"
 cask "codex"
 
+# MAS CLI
+brew "mas"
+
+# Common MAS apps (all hosts)
+mas "Black Out", id: 1319884285
+mas "Fantastical", id: 975937182
+mas "Flycut", id: 442160987
+# Keynote and Pages moved to their universal ADAM IDs. Apple retired the
+# Mac-only listings (Keynote 409183694, Pages 409201541) when the iWork apps
+# became universal; `mas info` on either now returns "No apps found in the App
+# Store for ADAM ID", which fails the line and takes the whole `brew bundle`
+# task down with it. The IDs below are what `mas list` reports for the copies
+# macOS 27 ships preinstalled, so these entries are no-ops on a current Mac.
+mas "Keynote", id: 361285480
+mas "Lungo", id: 1263070803
+mas "MindNode 5", id: 1289197285
+mas "Moneywiz", id: 1511185140
+mas "Pages", id: 361309726
+mas "Spark", id: 6445813049
+mas "Xcode", id: 497799835
+
 # Common casks (all hosts)
 # The 1Password desktop app is deliberately absent here. On the `work` host it
 # is an MDM-forced install (munki `GustoManagedManifest`), so `brew bundle`
@@ -98,12 +119,3 @@ cask "logi-options+"
 #
 # Notion is absent for the same reason as 1Password: a managed install on
 # `work` makes `brew bundle` abort on the cask.
-
-# MAS CLI and the App Store apps this host wants. Keynote and Pages use their
-# universal ADAM IDs; the retired Mac-only listings (409183694, 409201541) make
-# `mas info` fail and take the whole run down. Both are no-ops where macOS ships
-# them preinstalled.
-brew "mas"
-mas "Keynote", id: 361285480
-mas "Pages", id: 361309726
-mas "Xcode", id: 497799835
