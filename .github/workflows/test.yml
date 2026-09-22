@@ -65,7 +65,7 @@ jobs:
   # still catches a planted drift, and its baseline case already runs the
   # checker itself against the unmutated tree. Its own job on Ubuntu, not a
   # step in the macos lint job: the scripts are platform-neutral bash + grep
-  # + perl over tracked files, macos-latest is the scarce tier (see
+  # + perl + jq over tracked files, macos-latest is the scarce tier (see
   # services-linux below), and lint gates the whole matrix while this gates
   # nothing.
   skill-contracts:
@@ -75,6 +75,9 @@ jobs:
 
       - name: Run the contract fixture suite
         run: roles/claude/files/scripts/skill-contracts-test.sh
+
+      - name: Run the settings-merge fixture suite
+        run: scripts/claude-settings-merge-test.sh
 
   test:
     needs: lint

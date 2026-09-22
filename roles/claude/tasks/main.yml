@@ -39,25 +39,17 @@
     state: link
   tags: [claude]
 
-# A jq merge rather than a symlink: Claude Code writes to this file itself
+# A merge rather than a symlink: Claude Code writes to this file itself
 # (theme, onboarding state, per-project trust), so a symlink would have the app
 # editing tracked repo content, and a wholesale copy would discard what the app
-# legitimately owns. The merge asserts the managed keys and leaves the rest.
+# legitimately owns. Hook arrays merge by ownership rather than replacement —
+# see scripts/claude-settings-merge.sh.
 - name: Ensure Claude settings.json contains managed settings
-  ansible.builtin.shell:
-    cmd: |
-      set -e
-      file="{{ ansible_facts.env.HOME }}/.claude/settings.json"
-      managed="{{ ansible_facts.env.PWD }}/roles/claude/files/settings.json"
-      [ ! -f "$file" ] && echo '{}' > "$file"
-      current=$(cat "$file")
-      updated=$(jq -s '.[0] * .[1]' "$file" "$managed")
-      if [ "$current" = "$updated" ]; then
-        echo "OK"
-      else
-        echo "$updated" > "$file"
-        echo "CHANGED"
-      fi
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_facts.env.PWD }}/scripts/claude-settings-merge.sh"
+      - "{{ ansible_facts.env.HOME }}/.claude/settings.json"
+      - "{{ ansible_facts.env.PWD }}/roles/claude/files/settings.json"
   register: claude_settings
   changed_when: "'CHANGED' in claude_settings.stdout"
   tags: [claude]

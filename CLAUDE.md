@@ -97,8 +97,10 @@ directory requires a matching symlink task in `roles/claude/tasks/main.yml`.
 1. Write the script under `roles/claude/files/scripts/` and `chmod +x` it.
 2. Reference it from `roles/claude/files/settings.json` under `hooks.<Event>`
    via `$HOME/.claude/scripts/<name>.sh`.
-3. To remove an existing hook event, set its array to `[]` in the tracked
-   `settings.json` so the jq merge overwrites the materialized entry.
+3. To remove a hook this repo installed, drop it from the tracked
+   `settings.json` (or set the event's array to `[]`). Only entries invoking
+   `$HOME/.claude/scripts/` are rebuilt from the tracked file; anything else
+   on that event is left in place.
 
 ### Per-repo worktree bootstrap hook
 
@@ -164,10 +166,12 @@ fix this from its side — settings are read at process startup, so anything it
 writes lands too late for the session that just started, and a dispatched
 worker runs once.
 
-**Both `PreToolUse` entries have to stay in the tracked `settings.json`.** The
-Ansible merge is `jq -s '.[0] * .[1]'`, and jq's `*` replaces arrays rather
-than appending them, so the managed `hooks.PreToolUse` array is the whole
-array: dropping the `Read|Edit|Write` entry would silently unwire `path-guard`.
+**Both `PreToolUse` entries have to stay in the tracked `settings.json`.**
+`scripts/claude-settings-merge.sh` rebuilds the entries this repo owns from the
+tracked file on every run, so dropping the `Read|Edit|Write` entry there
+silently unwires `path-guard`. Hooks *other* tools install on the same event
+are preserved — that is the merge's whole point — but ours exist only as long
+as the tracked file declares them.
 
 ## MCP server registration
 
