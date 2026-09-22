@@ -92,16 +92,20 @@ has_line "$target" '^Host testbox 10\.9\.9\.9$' "alias+ip line rendered"
 has_line "$target" '^    User tester$' "user rendered"
 has_line "$target" '^    Hostname testbox\.local$' "hostname rendered"
 lacks_line "$target" '\{\{' "no unsubstituted expressions"
+# GNU stat first: its -f is --file-system, so it "succeeds" on a format string
+# and never falls through to BSD's -f. BSD has no -c, so it errors and does.
+file_stat() { fmt_gnu="$1"; fmt_bsd="$2"; shift 2; stat -c "$fmt_gnu" "$@" 2>/dev/null || stat -f "$fmt_bsd" "$@"; }
+
 if [ -f "$target" ] && grep -v '^[[:space:]]*#' "$target" | grep -q 'op://'; then
   ko "unresolved reference survived on a config line"
 else
   ok "no unresolved references on config lines"
 fi
-[ -f "$target" ] && [ "$(stat -c '%a' "$target")" = "600" ] && ok "mode 0600" || ko "mode is $(stat -c '%a' "$target" 2>/dev/null)"
-[ "$(stat -c '%a' "$HOME/.ssh")" = "700" ] && ok ".ssh mode 0700" || ko ".ssh mode wrong"
+[ -f "$target" ] && [ "$(file_stat '%a' '%Lp' "$target")" = "600" ] && ok "mode 0600" || ko "mode is $(file_stat '%a' '%Lp' "$target")"
+[ "$(file_stat '%a' '%Lp' "$HOME/.ssh")" = "700" ] && ok ".ssh mode 0700" || ko ".ssh mode wrong"
 
 echo "3. re-run with no change -> OK, idempotent"
-before="$(stat -c '%Y %s' "$target")"
+before="$(file_stat '%Y %s' '%m %z' "$target")"
 if out="$("$subject" 2>&1)"; then
   case "$out" in
     OK:*) ok "reported OK" ;;
@@ -110,7 +114,7 @@ if out="$("$subject" 2>&1)"; then
 else
   ko "expected success, got: $out"
 fi
-[ "$(stat -c '%Y %s' "$target")" = "$before" ] && ok "file untouched" || ko "file rewritten on no-op run"
+[ "$(file_stat '%Y %s' '%m %z' "$target")" = "$before" ] && ok "file untouched" || ko "file rewritten on no-op run"
 
 echo "4. unresolved reference -> FAILED, existing file preserved"
 new_sandbox; install_fake_op

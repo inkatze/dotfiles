@@ -52,6 +52,12 @@ run = "./scripts/playbook.sh -t ssh"
 description = "Configure tmux"
 run = "./scripts/playbook.sh -t tmux"
 
+# Not reachable through `osx`: the claude role's tasks are tagged `claude`, so
+# without this a Claude config change applies through no entry point at all.
+[tasks.claude]
+description = "Configure Claude Code"
+run = "./scripts/playbook.sh -t claude"
+
 [tasks.fish]
 description = "Configure fish shell"
 run = "./scripts/playbook.sh -t fish"
