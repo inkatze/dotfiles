@@ -239,6 +239,12 @@
       {% endif %}
   tags: [git]
 
+- name: Check for the company-provisioned signing key
+  ansible.builtin.stat:
+    path: "{{ git_work_signing_key }}.pub"
+  register: git_work_key_stat
+  tags: [git]
+
 - name: Write the work identity override
   ansible.builtin.copy:
     dest: "{{ git_work_config }}"
@@ -249,6 +255,15 @@
       # roles/git/files/gitconfig.
       [user]
           email = {{ git_work_email }}
+      {% if git_work_key_stat.stat.exists %}
+      # The public half is named on purpose: ssh-keygen reads an encrypted
+      # private key only by prompting, and routes to the agent when given the
+      # public one instead.
+      [user]
+          signingkey = {{ git_work_signing_key }}.pub
+      [gpg "ssh"]
+          program = {{ ansible_facts.env.PWD }}/roles/git/files/git-sign-work
+      {% endif %}
   when: git_work_email | length > 0
   tags: [git]
 
@@ -259,6 +274,46 @@
     path: "{{ git_work_config }}"
     state: absent
   when: git_work_email | length == 0
+  tags: [git]
+
+# Two things this role cannot do itself, reported rather than assumed: GitHub's
+# signing registration is an account change, and the key must be in the launchd
+# agent for git-sign-work to reach it. Both are silent failures otherwise — the
+# first reads as an unverified badge, the second as a signing error per commit.
+- name: Check whether the work signing key is loaded in an agent
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      sock=$(launchctl print "gui/$(id -u)/com.openssh.ssh-agent" 2>/dev/null |
+      awk -F'= ' '/path = .*Listeners/ {print $2; exit}');
+      test -S "$sock" || exit 1;
+      fp=$(ssh-keygen -lf {{ (git_work_signing_key ~ '.pub') | quote }} | awk '{print $2}');
+      SSH_AUTH_SOCK="$sock" ssh-add -l | grep -qF "$fp"
+    executable: /bin/bash
+  register: git_work_key_loaded
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when:
+    - git_work_email | length > 0
+    - git_work_key_stat.stat.exists
+  tags: [git]
+
+- name: Explain how to finish enabling work-scoped signing
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'Work commits sign with the company key.' }}
+      {{ 'It is NOT loaded in the launchd ssh-agent, so signing in work
+          repositories will fail: run `ssh-add --apple-use-keychain '
+          ~ git_work_signing_key ~ '` once and the passphrase persists across
+          reboots.' if git_work_key_loaded.rc | default(1) != 0 else
+         'It is loaded in the launchd ssh-agent, so no passphrase is needed.' }}
+      Separately, register its public half on GitHub as a SIGNING key (Settings,
+      SSH and GPG keys, New SSH key, type Signing) or work commits read as
+      unverified there; this role cannot make account changes.
+  when:
+    - git_work_email | length > 0
+    - git_work_key_stat.stat.exists
   tags: [git]
 
 - name: Symlink gitignore
