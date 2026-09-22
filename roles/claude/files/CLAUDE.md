@@ -72,14 +72,24 @@ When creating git commits:
 When pushing:
 - MUST always specify the remote and branch explicitly: `git push origin branch-name`
 - Never use bare `git push` without arguments
-- Never push to `main` or any other protected branch, with or without `--force`
+- Never push to `main` or any other protected branch, with or without `--force`.
+  If you cannot determine whether a branch is protected, treat it as protected.
+- Never delete a remote branch (`git push origin --delete <branch>`, or a
+  `:<branch>` refspec). That destroys published work without needing a
+  force-push, so the rule above does not reach it.
 
 Rewriting history is allowed. Rebase, amend, squash and fixup are ordinary tools
 and you may use them on a local or feature branch, including rebasing a local
-`main` onto its upstream. What is forbidden is *publishing* a rewrite: never
-force-push, and never push to a protected branch at all. On a shared feature
-branch, check whether anyone else is working from it before rewriting; a rewrite
-someone has already pulled costs them a recovery.
+`main` onto its upstream. What is forbidden is *publishing* a rewrite, and that
+turns on the effect rather than the flag: no `--force`, no `--force-with-lease`,
+no `+` refspec, no push-time force configuration, and no push to a protected
+branch. If a push would not fast-forward the remote, it publishes a rewrite
+whatever spelling got it there.
+
+On a shared feature branch, do not rewrite at all unless I say so. Check whether
+anyone else is working from it — another worktree, a dispatched agent, a
+colleague — and branch instead if they are; a rewrite someone has already
+pulled costs them a recovery.
 
 Some workflows still want new-commits-only for their own reasons (a review loop
 that keeps each iteration separately revertible, for instance). That is a local
@@ -91,6 +101,11 @@ Open pull requests as drafts. Marking one ready for review is mine to request
 and yours to perform: when I ask, flip it, provided its conditions are met (CI
 green, the review cadence the PR calls for actually run, and the branch current
 with its base). If a condition is unmet, say which one instead of flipping.
+
+Evaluate those conditions against the PR's current head immediately before the
+flip rather than against an earlier inspection: a base that moved or a new
+commit invalidates a check that was green minutes ago. A condition you cannot
+confirm counts as unmet.
 
 Do not flip a PR ready on your own initiative, and do not hand the flip back to
 me as a manual step once I have asked for it.
