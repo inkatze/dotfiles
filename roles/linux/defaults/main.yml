@@ -233,8 +233,8 @@ linux_apt_packages:
   #
   #   dropbear-bin    The SSH server binary and dropbearkey. Taken from apt on
   #                   purpose -- it is the network-facing half, so it belongs on
-  #                   the unattended-upgrades patch stream. Only the ~60 lines
-  #                   of dracut glue are ours.
+  #                   the unattended-upgrades patch stream. Only the
+  #                   dracut glue is ours.
   #   dracut-network  Supplies dracut's `network` module, without which the
   #                   initrd has no ip= handling and dropbear would start on a
   #                   host with no address.
