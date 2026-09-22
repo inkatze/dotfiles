@@ -427,6 +427,52 @@ belongs to another tool, so the role leaves it in place and reports it rather
 than writing through it into whatever it points at; add the include there by
 hand. A pre-existing real file keeps every key and only gains the block.
 
+### Four signing keys, and why this Mac carries two of them
+
+The account holds four SSH signing registrations, one per signing identity
+rather than one per person:
+
+| Registration | Key | Signs |
+|---|---|---|
+| `Public signing key` | the 1Password-held RSA key | `personal` and `alt`, which are not in `git_unattended_signing_hosts` |
+| `Linux Home Box` | the `server` host's generated key | that host |
+| `work id_signing` | the `work` host's generated key | repositories on that Mac outside the work directory prefix |
+| `work id_ed25519` | the company-provisioned key | repositories under that prefix (see the includeIf in `roles/git/files/gitconfig`) |
+
+The two named `id_signing` are different keys. `roles/git` generates one per
+host and never copies it, which is the point: one machine's key being
+compromised does not implicate another's.
+
+**Rejected, so it is not re-litigated: folding the work Mac's own key into the
+company one.** It would take the account to three registrations, and the host
+to one key, with no prompt either way. Three reasons not to. Personal commits
+would then be signed by a key the employer provisioned, which is the wrong
+direction for attributing your own work — more so with a move to
+company-managed accounts expected. Every commit on the host would depend on the
+launchd agent holding that key, where today losing it breaks only work
+repositories. And it cuts against the separation this role already keeps
+between authentication and signing, for the same reason: revoking one identity
+should not cost another.
+
+The company key is encrypted and unusable by `ssh-keygen` from disk, which is
+why work repositories reach it through the agent rather than by path. Signing
+with a public-key path is what routes to the agent; a private-key path prompts.
+
+Each generated key is minted once, guarded by `creates:`, because without that
+every run would mint a new one and change the signing identity under both
+GitHub and `allowed_signers`. So a host that has never run the role has no key,
+and one that has keeps the same key until the file is removed.
+
+**Where 1Password still earns its place**, given neither Mac signs with it any
+more: it holds the key that authenticates to GitHub, so every push and fetch
+over SSH uses it, as does every SSH session to another host. It also signs
+commits on the hosts absent from `git_unattended_signing_hosts`. Authentication
+is the far more frequent operation, which is why an approval click is tolerable
+there and was not for signing. The failure mode to recognise: a locked app
+still *lists* its keys, so `ssh-add -l` looks healthy while pushes fail with
+`Permission denied (publickey)` and commits fail with `failed to write commit
+object`.
+
 ## A second config manager's shell init
 
 A managed host may carry its own provisioning system that wires only
