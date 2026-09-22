@@ -43,10 +43,16 @@ git_tracked_config_suffix: /roles/git/files/gitconfig
 #                                  buffer"
 #   ssh-keygen -Y sign via agent   blocks until killed, waiting for a click
 #
-# On a laptop you are sitting at, that approval is a shrug. On an always-on
-# headless host that commits unattended it is fatal: after every reboot, commits
-# fail until somebody unlocks a GUI that may not even be running. It is also
-# simply friction anywhere you commit often.
+# On an always-on headless host that commits unattended this is fatal: after
+# every reboot, commits fail until somebody unlocks a GUI that may not even be
+# running.
+#
+# It is NOT the reason a laptop is listed, and an earlier version of this
+# comment claimed it was. Measured on the work Mac with the app unlocked,
+# signing through 1Password returns immediately and prompts for nothing. The
+# reason that survives measurement is narrower: an on-disk key means a locked
+# app stops pushes but not commits, so local work continues and lands at the
+# next unlock.
 #
 # THE FIX. Listed hosts sign with an on-disk ed25519 key that `ssh-keygen` uses
 # directly -- no daemon, no GUI, no network, no approval.

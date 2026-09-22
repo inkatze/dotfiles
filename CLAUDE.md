@@ -447,12 +447,20 @@ where today losing it breaks only work repositories. And it cuts against the
 separation this role already keeps between authentication and signing, for the
 same reason: revoking one identity should not cost another.
 
-**Whether a host belongs on that list at all is worth more scepticism than it
-got.** The headless host's case is strong: a desktop approval it cannot grant
-makes unattended commits impossible. A laptop's case is only that a prompt is
-friction, which the comment above the list itself calls "a shrug" — and the
-cost is a key plus two registration steps that, left undone, produce commits
-that sign cleanly and read as unverified everywhere.
+**A laptop's reason for being on that list is not the one the list's own
+comment gives.** That comment cites an interactive approval per key use,
+measured on the headless host. On a Mac with the app unlocked, signing through
+1Password returns immediately with no prompt at all, so "friction anywhere you
+commit often" does not describe this host.
+
+The reason that does hold is narrower: with an on-disk key, a locked 1Password
+stops pushes but not commits, so work continues locally and lands when the app
+is next unlocked. With 1Password signing, a locked app stops both. That is the
+whole of it — worth the key, but not worth the broader claim.
+
+What it costs is a key plus two registration steps, and leaving either undone
+produces commits that sign cleanly and read as unverified everywhere, which is
+how this host spent a day before anyone noticed.
 
 The company key is encrypted and unusable by `ssh-keygen` from disk, which is
 why work repositories reach it through the agent rather than by path. Signing
