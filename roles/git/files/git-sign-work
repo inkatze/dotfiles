@@ -1,0 +1,24 @@
+#!/bin/sh
+# Signs work-repository commits with the company-provisioned key, which lives in
+# the macOS launchd ssh-agent rather than 1Password's.
+#
+# Only this invocation is redirected. `ssh` keeps whatever SSH_AUTH_SOCK and
+# IdentityAgent already say, so authentication continues through 1Password
+# untouched -- which is the point of doing it here rather than moving the
+# environment. git reaches this through gpg.ssh.program in the work-scoped
+# include, so personal repositories never call it.
+#
+# The socket name is randomised per boot, so it is resolved at each call rather
+# than recorded anywhere. Signing needs the key present in that agent; a
+# passphrase-protected key cannot be read from disk by ssh-keygen unaided.
+set -eu
+
+sock=$(launchctl print "gui/$(id -u)/com.openssh.ssh-agent" 2>/dev/null |
+    awk -F'= ' '/path = .*Listeners/ {print $2; exit}')
+
+if [ -z "${sock:-}" ] || [ ! -S "$sock" ]; then
+    echo "git-sign-work: no launchd ssh-agent socket found; cannot sign with the work key" >&2
+    exit 1
+fi
+
+exec env SSH_AUTH_SOCK="$sock" ssh-keygen "$@"
