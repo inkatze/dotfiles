@@ -6,6 +6,12 @@ on:
   push:
     branches: [main]
 
+# `main` keys on run_id so its runs are never cancelled: each merge's run is the
+# record for a distinct commit, unlike a branch's superseded pushes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.run_id || github.ref }}
+  cancel-in-progress: true
+
 # Least privilege for every job's ambient token: nothing in this workflow
 # writes to the repo, and the token below is only for API rate limits.
 permissions:
