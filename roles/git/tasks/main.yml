@@ -239,6 +239,28 @@
       {% endif %}
   tags: [git]
 
+- name: Write the work identity override
+  ansible.builtin.copy:
+    dest: "{{ git_work_config }}"
+    mode: "0600"
+    content: |
+      # Managed by the dotfiles git role — do not edit by hand. Included only
+      # for repositories under the work directory prefix; see the includeIf in
+      # roles/git/files/gitconfig.
+      [user]
+          email = {{ git_work_email }}
+  when: git_work_email | length > 0
+  tags: [git]
+
+# Absent rather than left behind: a stale file would keep applying a work
+# identity after the machine-local source was deliberately removed.
+- name: Remove the work identity override when no work email is configured
+  ansible.builtin.file:
+    path: "{{ git_work_config }}"
+    state: absent
+  when: git_work_email | length == 0
+  tags: [git]
+
 - name: Symlink gitignore
   ansible.builtin.file:
     src: "{{ ansible_facts.env.PWD }}/roles/git/files/gitignore"

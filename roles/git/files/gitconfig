@@ -116,3 +116,11 @@
 # host that has not run the role yet degrades to the macOS default.
 [include]
     path = ~/.gitconfig.local
+
+# Work repositories commit under a different identity. The directory prefix is
+# generic, but the address is not, so it lives in an untracked file the git role
+# writes from a machine-local source; a host without that source gets no file
+# and git ignores the missing include. Placed after [user] above so it overrides
+# the default email, and before ~/.gitconfig, which still wins over everything.
+[includeIf "gitdir/i:~/workspace/"]
+    path = ~/.gitconfig.work
