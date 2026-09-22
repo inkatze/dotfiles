@@ -9,6 +9,15 @@ git_global_config: "{{ ansible_facts.env.HOME }}/.gitconfig"
 # Host-resolved values, written by the role and included by the tracked config.
 git_local_config: "{{ ansible_facts.env.HOME }}/.gitconfig.local"
 
+# Read from a machine-local file because this repo is public and the address
+# names an employer. Empty or absent disables the conditional include entirely,
+# so a host that never set it keeps one identity.
+git_work_config: "{{ ansible_facts.env.HOME }}/.gitconfig.work"
+git_work_email: >-
+  {{ lookup('ansible.builtin.file',
+            ansible_facts.env.HOME ~ '/.config/dotfiles/git-work-email',
+            errors='ignore') | default('', true) | trim }}
+
 # role_path, not the playbook's cwd, so the include keeps naming this clone.
 git_tracked_config: "{{ role_path }}/files/gitconfig"
 
