@@ -6,7 +6,7 @@
 #   Run: scripts/ansible-idempotency-gate.sh [run.log]      # stdin if omitted
 #   Exit 0 = converged. 1 = did not converge. 2 = could not tell.
 #
-# Why a script rather than the four lines of inline shell the macOS matrix
+# Why a script rather than the inline shell the macOS matrix
 # uses. That form greps the output for `changed=[1-9]` and fails if it finds
 # one, which is correct as far as it goes and stops exactly one step short:
 # `changed=0` is also what a run reports when it selected no tasks at all.

@@ -131,7 +131,7 @@ if status --is-login
     else
         # Same relative order as the Darwin arm, minus every Homebrew-provided
         # entry (those prefixes are empty here, so keeping them would prepend
-        # bare /bin, /sbin, ... to PATH). GOROOT is Darwin-only (line ~76), so
+        # bare /bin, /sbin, ... to PATH). GOROOT is Darwin-only, so
         # there is no GOROOT/bin to add here.
         fish_add_path $HOME/.local/bin
         fish_add_path /usr/local/bin
@@ -169,8 +169,8 @@ set -xg SPACEFISH_CHAR_SUFFIX '  '
 # Stabilize SSH_AUTH_SOCK for tmux sessions via a fixed symlink.
 # When reconnecting SSH, the new socket is symlinked to a stable path so
 # existing tmux panes don't get a stale SSH_AUTH_SOCK. Always prefer the
-# 1Password agent (the real key source) and NEVER capture the empty macOS
-# launchd agent (0 keys) — capturing it breaks auth + op-ssh-sign signing.
+# 1Password agent (the real key source) and NEVER capture the macOS launchd
+# agent — capturing it breaks auth + op-ssh-sign signing.
 # Mirrors the IdentityAgent logic in ~/.ssh/config.
 # The 1Password agent socket lives in a different place per platform: a Group
 # Container on macOS, ~/.1password/agent.sock on Linux. The launchd guard

@@ -50,7 +50,7 @@
         label: "{{ item.name }}"
 
     # Where the shared lifecycle stops and the per-service half begins (D-5,
-    # REQ-B1.3). The four steps above generalise because they are identical
+    # REQ-B1.3). The steps above generalise because they are identical
     # for every service; cluster initialisation and authentication posture are
     # not, so forcing them into the declaration would produce a schema that is
     # a union of unrelated fields. What the declaration carries instead is a
