@@ -13,6 +13,12 @@ git_local_config: "{{ ansible_facts.env.HOME }}/.gitconfig.local"
 # names an employer. Empty or absent disables the conditional include entirely,
 # so a host that never set it keeps one identity.
 git_work_config: "{{ ansible_facts.env.HOME }}/.gitconfig.work"
+
+# The company-provisioned key. Work commits sign with it so they already carry
+# the identity a company-managed account will attribute on, ahead of the move to
+# one. Encrypted and not readable by ssh-keygen unaided, so signing goes through
+# the launchd agent that holds it; git-sign-work resolves that socket per call.
+git_work_signing_key: "{{ ansible_facts.env.HOME }}/.ssh/id_ed25519"
 git_work_email: >-
   {{ lookup('ansible.builtin.file',
             ansible_facts.env.HOME ~ '/.config/dotfiles/git-work-email',

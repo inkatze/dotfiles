@@ -22,3 +22,6 @@ jd@inkatze.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBMjfsL7zpAkA78PYllq8F5c21x6S
 
 # work
 jd@inkatze.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGKeBHalUmuogZUtug094/9+jGeJXAj4bwtk3/7P32wv
+
+# work, company-provisioned key used for repositories under the work prefix
+jd@inkatze.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFYGvLVwTTFKdOztFPKKi1S6fqLKzDnKb9ACvi4fz09t
