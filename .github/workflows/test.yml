@@ -57,6 +57,11 @@ jobs:
       - name: Check for stale service declarations
         run: scripts/stale-declarations-test.sh
 
+      # Was asserted by nothing until now, so its Ubuntu-job assertion had gone
+      # stale unnoticed once a second job started running there.
+      - name: Run the services declaration suite
+        run: scripts/services-declaration-test.sh
+
       # The matrix only ever reads Brewfile and Brewfile.work, so nothing in CI
       # parses these two or the App Store entries they now hold. `list` reads
       # the file without installing from it.

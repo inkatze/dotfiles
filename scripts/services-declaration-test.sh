@@ -783,13 +783,20 @@ def bad(name, msg):
     failed.append(name)
 
 
-# Found by its runner rather than by its name, so the assertions below are
+# Found by what it does rather than by its name, so the assertions below are
 # about the property the requirement names and not about an identifier this
-# test and the workflow would have to agree on twice.
+# test and the workflow would have to agree on twice. Running on Ubuntu is no
+# longer enough to identify it on its own: other jobs run there too, and
+# selecting on the runner alone matched all of them.
+def runs_the_provisioning(job):
+    steps = "\n".join(str(s.get("run", "")) for s in (job.get("steps") or []))
+    return "-t services" in steps
+
+
 linux = {
     jid: job
     for jid, job in doc["jobs"].items()
-    if str(job.get("runs-on", "")).startswith("ubuntu")
+    if str(job.get("runs-on", "")).startswith("ubuntu") and runs_the_provisioning(job)
 }
 if len(linux) != 1:
     bad(
