@@ -13,7 +13,6 @@ permissions:
 
 env:
   HOMEBREW_NO_AUTO_UPDATE: 1
-  HOMEBREW_BUNDLE_MAS_SKIP: 1
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
@@ -118,13 +117,7 @@ jobs:
             brew_deps: "mas fish tmux"
             strict_idempotency: false
     name: test (${{ matrix.role }})
-    # `osx`/`upgrade` run `brew bundle install` against the full common
-    # Brewfile (~50 formulae + casks, none needing a from-source build).
-    # Measured: a cold cache took over 60 minutes and still hadn't finished,
-    # with Ansible's `command` module buffering all output until the task
-    # ends -- so the "Warm Homebrew bundle" step below runs the same install
-    # as a plain step instead, which streams real per-package progress.
-    timeout-minutes: 90
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -156,15 +149,16 @@ jobs:
       - name: Ensure /usr/local/bin exists
         run: sudo mkdir -p /usr/local/bin && sudo chown "$USER" /usr/local/bin
 
-      # Does the same install the role's own Ansible task does, but as a
-      # plain step so its output streams live instead of being buffered
-      # until the task ends. Once this finishes, the role's own brew bundle
-      # tasks find everything already installed and are fast.
-      - name: Warm Homebrew bundle
-        if: matrix.role == 'osx' || matrix.role == 'upgrade'
+      # HOMEBREW_BUNDLE_MAS_SKIP only matches names/ids split from its value
+      # (see Homebrew::Bundle::Skipper); it has no "skip everything" mode.
+      # A CI runner has no App Store session, so leaving this unset lets
+      # `brew bundle` attempt `mas install` for every mas entry (including
+      # Xcode) and hang indefinitely waiting on an authentication it can
+      # never get.
+      - name: Compute mas entries to skip
         run: |
-          brew bundle install --no-upgrade --file=Brewfile --verbose
-          brew bundle install --no-upgrade --file=Brewfile.work --verbose
+          ids=$(grep -ohE 'id:[[:space:]]*[0-9]+' Brewfile Brewfile.* | grep -oE '[0-9]+' | tr '\n' ' ')
+          echo "HOMEBREW_BUNDLE_MAS_SKIP=$ids" >> "$GITHUB_ENV"
 
       - name: Run ${{ matrix.role }} tasks
         run: mise run ${{ matrix.role }}
