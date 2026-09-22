@@ -62,6 +62,11 @@ git_tracked_config_suffix: /roles/git/files/gitconfig
 # is resolved by scripts/playbook.sh and passed as -l, so inventory_hostname is
 # authoritative here.
 #
+# Folding a listed host's generated key into a key provisioned for it by
+# someone else is rejected: it would sign personal commits with that key, and
+# make every commit depend on an agent holding it, where losing the agent today
+# costs only the repositories scoped to it.
+#
 # `personal` and `alt` are deliberately NOT listed. They keep using 1Password,
 # because switching a host over means registering its new public key on GitHub
 # before its commits read as Verified, and that is not a change to make to a
