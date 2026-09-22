@@ -13,7 +13,6 @@ permissions:
 
 env:
   HOMEBREW_NO_AUTO_UPDATE: 1
-  HOMEBREW_BUNDLE_MAS_SKIP: 1
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
@@ -118,7 +117,7 @@ jobs:
             brew_deps: "mas fish tmux"
             strict_idempotency: false
     name: test (${{ matrix.role }})
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -135,12 +134,31 @@ jobs:
           curl https://mise.run | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      - name: Cache Homebrew downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/Homebrew
+          key: ${{ runner.os }}-brew-${{ hashFiles('Brewfile', 'Brewfile.*') }}
+          restore-keys: |
+            ${{ runner.os }}-brew-
+
       - name: Install brew dependencies
         if: matrix.brew_deps != ''
         run: brew install ${{ matrix.brew_deps }}
 
       - name: Ensure /usr/local/bin exists
         run: sudo mkdir -p /usr/local/bin && sudo chown "$USER" /usr/local/bin
+
+      # HOMEBREW_BUNDLE_MAS_SKIP only matches names/ids split from its value
+      # (see Homebrew::Bundle::Skipper); it has no "skip everything" mode.
+      # A CI runner has no App Store session, so leaving this unset lets
+      # `brew bundle` attempt `mas install` for every mas entry (including
+      # Xcode) and hang indefinitely waiting on an authentication it can
+      # never get.
+      - name: Compute mas entries to skip
+        run: |
+          ids=$(grep -ohE 'id:[[:space:]]*[0-9]+' Brewfile Brewfile.* | grep -oE '[0-9]+' | tr '\n' ' ')
+          echo "HOMEBREW_BUNDLE_MAS_SKIP=$ids" >> "$GITHUB_ENV"
 
       - name: Run ${{ matrix.role }} tasks
         run: mise run ${{ matrix.role }}

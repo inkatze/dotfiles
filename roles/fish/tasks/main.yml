@@ -116,10 +116,20 @@
     state: link
   tags: [fish]
 
+- name: Check whether fisherman is installed
+  ansible.builtin.stat:
+    path: "{{ ansible_facts.env.HOME }}/.config/fish/functions/fisher.fish"
+  register: fish_fisherman_installed
+  tags: [upgrade]
+
+# Unlike the `[fish]` tasks above, `upgrade` can run on its own (this CI
+# matrix's `upgrade` entry does), so it cannot assume "Install fisherman" ran
+# first in the same invocation.
 - name: Update fisherman plugins
   ansible.builtin.shell:
     cmd: fisher update
     executable: "{{ fish_prefix }}/bin/fish"
+  when: fish_fisherman_installed.stat.exists
   changed_when: false
   tags: [upgrade]
 
