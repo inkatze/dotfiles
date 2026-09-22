@@ -52,6 +52,13 @@ run = "./scripts/playbook.sh -t ssh"
 description = "Configure tmux"
 run = "./scripts/playbook.sh -t tmux"
 
+# `osx` does not reach the claude role: its tasks are tagged `claude`, so a
+# Claude config change never applies through the platform entry point. This is
+# the only task that does.
+[tasks.claude]
+description = "Configure Claude Code"
+run = "./scripts/playbook.sh -t claude"
+
 [tasks.fish]
 description = "Configure fish shell"
 run = "./scripts/playbook.sh -t fish"

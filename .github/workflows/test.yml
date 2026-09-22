@@ -6,6 +6,15 @@ on:
   push:
     branches: [main]
 
+# One in-flight run per ref. Every push previously queued a fresh nine-job
+# macOS matrix without superseding its predecessor, so a few quick pushes to one
+# branch could pile up dozens of jobs on the scarce macos-latest tier and starve
+# the run that actually mattered. `main` is excluded from cancellation by keying
+# on run_id there, since each merge's run is the record for a distinct commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.run_id || github.ref }}
+  cancel-in-progress: true
+
 # Least privilege for every job's ambient token: nothing in this workflow
 # writes to the repo, and the token below is only for API rate limits.
 permissions:
