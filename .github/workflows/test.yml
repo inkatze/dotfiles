@@ -57,6 +57,12 @@ jobs:
       - name: Check for stale service declarations
         run: scripts/stale-declarations-test.sh
 
+      # Belongs in this job rather than skill-contracts: it drives
+      # ansible-playbook, and that job is deliberately a bare ubuntu runner
+      # with nothing but bash, grep, perl and jq.
+      - name: Run the credential-path guard suite
+        run: scripts/credential-path-guard-test.sh
+
       # Was asserted by nothing until now, so its Ubuntu-job assertion had gone
       # stale unnoticed once a second job started running there.
       - name: Run the services declaration suite
