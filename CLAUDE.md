@@ -245,12 +245,12 @@ together: the daemon/model tasks in `roles/osx/tasks/homebrew.yml`, `brew
 `absent` task, since `conf.d` is a symlink farm and a retired drop-in would
 otherwise dangle).
 
-Consequence to know before reaching for it: `/panel-review` still *accepts*
-`qwen-coder` and `gpt-oss` via `--backends`, and they will now fail with
-connection-refused. The automatic choices (`codex` on `work`, `gemini`
-elsewhere) are unaffected. Restoring it means digging up the git history of
-this section, plus re-reading the LAN-exposure caveat that was here: Ollama
-has no auth, so binding `0.0.0.0` exposes it to the whole network.
+The `qwen-coder` and `gpt-oss` backends `/panel-review` used to route to that
+daemon were removed with it, since without a daemon they could only fail with
+connection-refused. Restoring any of it means digging up the git history of
+this section and of `panel-review.md`, plus re-reading the LAN-exposure caveat
+that was here: Ollama has no auth, so binding `0.0.0.0` exposes it to the
+whole network.
 
 ## Review backends: codex vs gemini
 
@@ -259,8 +259,8 @@ non-Anthropic CLI. The machine picks the *default*; a run can still override it
 (`--backends` on either command, where `/code-review` accepts exactly one
 backend and `/panel-review` a comma-separated list, plus
 `PANEL_REVIEW_PROFILE` for the profile
-itself). `/panel-review` also accepts `qwen-coder`, `gpt-oss` and `copilot`
-via `--backends`; only the two below are ever chosen automatically.
+itself). `/panel-review` also accepts an opt-in `copilot` via `--backends`;
+only the two below are ever chosen automatically.
 
 | Alias | Backend | CLI comes from | Key comes from |
 |---|---|---|---|

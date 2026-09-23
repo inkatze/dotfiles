@@ -8,8 +8,8 @@ Before anything mutates branch state or messages anyone:
 
 - **Parse `$ARGUMENTS`.** It may carry a `--backends <name>` override
   (exactly one of `codex` or `gemini`; a comma-separated list is a
-  `/panel-review` spelling and an error here, and the Ollama / Copilot
-  backends stay `/panel-review`-only). Strip that flag and its value; the
+  `/panel-review` spelling and an error here, and the opt-in `copilot`
+  backend stays `/panel-review`-only). Strip that flag and its value; the
   first remaining token is the PR number or URL. A URL carries its own
   `owner/repo`: parse all three out, assert the number is digits only
   before it reaches any command, and use `-R "$owner/$repo"` on **every**
