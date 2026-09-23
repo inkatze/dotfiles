@@ -63,8 +63,7 @@ jobs:
       - name: Run the credential-path guard suite
         run: scripts/credential-path-guard-test.sh
 
-      # Same job and reason as the credential-path suite: it drives
-      # ansible-playbook.
+      # Needs ansible-playbook, which this job installs.
       - name: Run the planwright marketplace suite
         run: scripts/planwright-marketplace-test.sh
 

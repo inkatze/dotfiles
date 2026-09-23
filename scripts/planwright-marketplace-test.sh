@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
-# Fixture suite for the planwright marketplace migration in roles/claude.
-#
-# A host that recorded the marketplace under a different source (the full
-# HTTPS URL the role used to add) rejects the shorthand add outright, so the
-# role has to remove the stale record first. It must remove ONLY a stale one:
-# removing a matching record on every run would re-clone the marketplace each
-# time and report a change forever.
+# Fixture suite for roles/claude/tasks/planwright.yml: a stale marketplace
+# record is removed before the add, and only a stale one.
 #
 # Driven through ansible-playbook against a scratch HOME with a stub `claude`
 # that logs its arguments, since the decision is a Jinja expression over two
@@ -22,9 +17,8 @@ fails=0
 ok()   { printf 'ok[%s]: %s\n' "$1" "$2"; }
 fail() { printf 'FAIL[%s]: %s\n' "$1" "$2"; fails=$((fails + 1)); }
 
-# Playbook outside the repo so lefthook's repo-wide linters never see it; see
-# credential-path-guard-test.sh for why the roles tree is symlinked beside it.
 ln -s "$repo/roles" "$work/roles"
+# Outside the repo so lefthook's repo-wide linters never see it.
 play="$work/play.yml"
 cat >"$play" <<'YAML'
 - name: Exercise the planwright marketplace tasks
@@ -78,8 +72,6 @@ run_role() {
 
 removed() { grep -q 'marketplace remove planwright' "$1/calls"; }
 
-# 1. The legacy URL source in settings.json, the record the add is checked
-#    against, is removed before the add.
 h="$(fresh_home)"; seed "$h" "$legacy" "$legacy"; run_role "$h"
 if [ "$(sed -n 1p "$h/calls")" = "plugin marketplace remove planwright" ] &&
    [ "$(sed -n 2p "$h/calls")" = "plugin marketplace add inkatze/planwright" ]; then
@@ -88,7 +80,6 @@ else
     fail legacy-removed-first "calls: $(tr '\n' ';' <"$h/calls")"
 fi
 
-# 2. A stale record in only one of the two files is still acted on.
 h="$(fresh_home)"; seed "$h" "" "$legacy"; run_role "$h"
 if removed "$h"; then
     ok legacy-known-only "stale known_marketplaces.json record removed"
@@ -102,7 +93,7 @@ else
     fail legacy-settings-only "no removal with a stale settings.json record"
 fi
 
-# 3. A matching record is left alone, or every run re-clones and reports a change.
+# A matching record must survive, or every run re-clones and reports a change.
 h="$(fresh_home)"; seed "$h" "$current" "$current"; run_role "$h"
 if ! removed "$h"; then
     ok current-kept "matching source not removed"
@@ -110,7 +101,6 @@ else
     fail current-kept "a matching source was removed"
 fi
 
-# 4. A fresh host with neither file just adds.
 h="$(fresh_home)"; run_role "$h"
 if ! removed "$h"; then
     ok fresh-host "no removal without a recorded source"
@@ -118,7 +108,6 @@ else
     fail fresh-host "removed on a host with nothing recorded"
 fi
 
-# 5. Other marketplaces do not trigger it.
 h="$(fresh_home)"
 printf '{"extraKnownMarketplaces":{"other":{"source":%s}}}\n' "$legacy" >"$h/.claude/settings.json"
 run_role "$h"
@@ -128,9 +117,8 @@ else
     fail other-marketplace "removed planwright because of another marketplace"
 fi
 
-# 6. An empty record file reads as no record rather than aborting the role:
-#    slurp reports it as defined-but-empty content, which a plain default()
-#    lets through to from_json.
+# slurp reports an empty file as defined-but-empty content, which a plain
+# default() lets through to from_json.
 h="$(fresh_home)"; : >"$h/.claude/plugins/known_marketplaces.json"; run_role "$h"
 if ! removed "$h"; then
     ok empty-record-file "an empty known_marketplaces.json is treated as absent"

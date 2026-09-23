@@ -1,28 +1,12 @@
 ---
 
-# planwright is the extraction of pair-flow's generalizable core, now a public
-# Claude Code plugin. We install it through the standard marketplace flow rather
-# than vendoring a copy or running its ~/.claude/ writer: add the repo as a
-# marketplace, then install the plugin (both named planwright). The owner/repo
-# shorthand is the form planwright's own README documents, and it needs no SSH
-# key now that the repo is public. The plugin auto-wires its own hooks
-# (SessionStart tool-discovery, PostToolUse tasks-pr-sync) via its
-# hooks/hooks.json resolved against CLAUDE_PLUGIN_ROOT, so settings.json no
-# longer wires them by hand, and doctrine docs/scripts resolve plugin-relative
-# at runtime. Updates are handled by upgrade.yml via `claude plugin update`.
-# The migrated slash commands (orchestrate, execute-task, spec-kickoff,
-# spec-draft, self-review, polish, resume) are retired from the pair-flow
-# commands/ dir; planwright supplies them as skills. The review-workflow
-# commands planwright does not ship (panel-*, copilot-*, peer-review,
-# code-review) stay. CI-guarded because the matrix has no `claude` CLI.
+# Every task is CI-guarded: the matrix has no `claude` CLI.
 
-# Claude Code compares a marketplace's source by deep equality against the one
-# it already recorded, and a full HTTPS URL records a different source KIND
-# (`git`) than the shorthand (`github`). A machine provisioned before the role
-# switched spellings therefore rejects the add below outright, which also takes
-# the plugin install and everything after it in the run down with it. Reading
-# both records rather than one: `settings.json` is what the add is checked
-# against, and `known_marketplaces.json` is what `marketplace list` reports.
+# A host that recorded the marketplace under another source (the full HTTPS URL
+# this role used to add) rejects the shorthand add outright, taking the rest of
+# the role down with it. Claude Code compares sources by deep equality, so the
+# stale record has to be removed first, and only when it differs, or every run
+# re-clones the marketplace.
 - name: Read the recorded planwright marketplace sources
   ansible.builtin.slurp:
     path: "{{ item }}"
@@ -58,7 +42,6 @@
     - claude_planwright_recorded | reject('equalto', claude_planwright_source) | list | length > 0
   tags: [claude]
 
-# Both idempotent: rc 0 on re-run, output reports "already".
 - name: Add planwright plugin marketplace
   ansible.builtin.command:
     cmd: >-
