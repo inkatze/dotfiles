@@ -63,6 +63,10 @@ jobs:
       - name: Run the credential-path guard suite
         run: scripts/credential-path-guard-test.sh
 
+      # Needs ansible-playbook, which this job installs.
+      - name: Run the planwright marketplace suite
+        run: scripts/planwright-marketplace-test.sh
+
       # Was asserted by nothing until now, so its Ubuntu-job assertion had gone
       # stale unnoticed once a second job started running there.
       - name: Run the services declaration suite

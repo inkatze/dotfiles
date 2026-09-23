@@ -40,6 +40,12 @@ pre-commit:
       glob: "{roles/environments/tasks/nodejs.yml,roles/services/tasks/darwin.yml,\
         scripts/credential-path-guard-test.sh}"
       run: scripts/credential-path-guard-test.sh
+    planwright-marketplace:
+      # The suite is what notices the stale-source removal being dropped or
+      # loosened; the role alone still converges on a host already migrated.
+      glob: "{roles/claude/tasks/planwright.yml,roles/claude/defaults/main.yml,\
+        scripts/planwright-marketplace-test.sh}"
+      run: scripts/planwright-marketplace-test.sh
     fish-functions-ignore:
       # No glob, deliberately: the drift it catches is a plugin file sitting in
       # the working tree, which can be there with nothing in that directory
