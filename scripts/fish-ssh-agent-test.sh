@@ -83,6 +83,29 @@ else
     fail forwarded-only "auth_sock -> '$got'"
 fi
 
+# A login without forwarding can still arrive with macOS's launchd agent in
+# SSH_AUTH_SOCK. It holds no keys, so capturing it breaks auth and signing
+# for every shell that follows the link.
+h="$(fresh_home launchd)"
+mkdir -p "$work/com.apple.launchd.t"
+launchd="$work/com.apple.launchd.t/Listeners"; mksock "$launchd"
+prior="$work/launchd-prior.sock"; mksock "$prior"
+ln -s "$prior" "$h/.ssh/auth_sock"
+got="$(login "$h" "$launchd")"
+if [ "$(uname)" = Darwin ]; then
+    if [ "$got" = "$prior" ]; then
+        ok darwin-ignores-launchd "the launchd agent leaves the existing link alone"
+    else
+        fail darwin-ignores-launchd "auth_sock -> '$got'"
+    fi
+else
+    if [ ! -e "$h/.ssh/auth_sock" ] && [ ! -L "$h/.ssh/auth_sock" ]; then
+        ok linux-ignores-launchd "the launchd agent is treated as nothing forwarded"
+    else
+        fail linux-ignores-launchd "auth_sock -> '$got'"
+    fi
+fi
+
 if [ "$(uname)" != Darwin ]; then
     # With nothing forwarded, a link left on the local 1Password would hang
     # every ssh until a forwarded login repoints it; no link fails fast.
