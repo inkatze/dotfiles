@@ -5,7 +5,8 @@
 # local 1Password agent is for someone at this machine's screen. Over SSH on
 # Linux its approval prompt appears where nobody is looking, so the agent the
 # client forwarded must win; on macOS the local 1Password still wins, because
-# the launchd agent it would otherwise capture holds no keys.
+# the launchd agent it would otherwise capture holds none of the 1Password
+# keys.
 #
 # Runs the real config.fish in an interactive fish with a scratch HOME and
 # placeholder sockets, since the block only fires for interactive SSH logins.
@@ -84,8 +85,8 @@ else
 fi
 
 # A login without forwarding can still arrive with macOS's launchd agent in
-# SSH_AUTH_SOCK. It holds no keys, so capturing it breaks auth and signing
-# for every shell that follows the link.
+# SSH_AUTH_SOCK. It holds none of the 1Password keys, so capturing it breaks
+# auth and signing for every shell that follows the link.
 h="$(fresh_home launchd)"
 mkdir -p "$work/com.apple.launchd.t"
 launchd="$work/com.apple.launchd.t/Listeners"; mksock "$launchd"

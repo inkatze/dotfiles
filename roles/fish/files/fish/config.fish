@@ -169,7 +169,8 @@ set -xg SPACEFISH_CHAR_SUFFIX '  '
 # Stabilize SSH_AUTH_SOCK for tmux sessions via a fixed symlink.
 # When reconnecting SSH, the new socket is symlinked to a stable path so
 # existing tmux panes don't get a stale SSH_AUTH_SOCK. NEVER capture the macOS
-# launchd agent — it holds no keys, and capturing it breaks auth + op-ssh-sign.
+# launchd agent — it holds none of the 1Password keys, and capturing it breaks
+# auth + op-ssh-sign.
 # On macOS the local 1Password agent wins. On Linux the forwarded agent does:
 # the local 1Password app can only be approved at this machine's screen, which
 # nobody on an SSH login is looking at (same rule as the SSH_TTY guard on the
