@@ -48,8 +48,16 @@ login() {
     readlink "$1/.ssh/auth_sock"
 }
 
+# Bound at a short path and linked into place: the macOS 1Password path under
+# a runner's temp directory exceeds the 104-byte socket-path limit.
+fake_onep() {
+    mkdir -p "$(dirname "$1/$onep_rel")"
+    mksock "$work/onep-$2.sock"
+    ln -s "$work/onep-$2.sock" "$1/$onep_rel"
+}
+
 h="$(fresh_home both)"
-mkdir -p "$(dirname "$h/$onep_rel")"; mksock "$h/$onep_rel"
+fake_onep "$h" both
 fwd="$work/both-forwarded.sock"; mksock "$fwd"
 got="$(login "$h" "$fwd")"
 if [ "$(uname)" = Darwin ]; then
