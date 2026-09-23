@@ -12,11 +12,19 @@ hostname=$(hostname)
 # itself. `work` remains the default so a machine with no configuration (and
 # CI, which runs the roles on a throwaway runner) keeps working, but the
 # fallback warns rather than silently targeting the wrong inventory host.
+#
+# The file counts only when it names something: `-l ""` is no limit at all to
+# Ansible, so an empty or whitespace-only file would otherwise run every
+# inventory host's configuration against this machine.
 HOST_OVERRIDE_FILE="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"
+host_from_file=""
+if [[ -f "$HOST_OVERRIDE_FILE" ]]; then
+    host_from_file="$(tr -d '[:space:]' <"$HOST_OVERRIDE_FILE")"
+fi
 if [[ -n "${DOTFILES_HOST:-}" ]]; then
     current_host="$DOTFILES_HOST"
-elif [[ -f "$HOST_OVERRIDE_FILE" ]]; then
-    current_host="$(tr -d '[:space:]' <"$HOST_OVERRIDE_FILE")"
+elif [[ -n "$host_from_file" ]]; then
+    current_host="$host_from_file"
 elif [[ "$hostname" == *"$ALTHOST"* ]]; then
     current_host="alt"
 else
@@ -37,13 +45,16 @@ fi
 # than threading --account through each.
 #
 # Untracked for the REQ-F1.1 reason the rest of these files exist: the value
-# names an employer's 1Password tenant. Absent file means nothing is exported
-# and single-account hosts behave exactly as before; an already-exported
-# OP_ACCOUNT wins, so a one-off run can override it.
+# names an employer's 1Password tenant. An absent file means nothing is
+# exported and single-account hosts behave exactly as before, and an empty one
+# is treated the same rather than exported as an empty selector. An
+# already-exported OP_ACCOUNT wins, so a one-off run can override it.
 OP_ACCOUNT_FILE="${DOTFILES_OP_ACCOUNT_FILE:-$HOME/.config/dotfiles/op-account}"
 if [[ -z "${OP_ACCOUNT:-}" && -f "$OP_ACCOUNT_FILE" ]]; then
-    OP_ACCOUNT="$(tr -d '[:space:]' <"$OP_ACCOUNT_FILE")"
-    export OP_ACCOUNT
+    op_account_from_file="$(tr -d '[:space:]' <"$OP_ACCOUNT_FILE")"
+    if [[ -n "$op_account_from_file" ]]; then
+        export OP_ACCOUNT="$op_account_from_file"
+    fi
 fi
 
 echo "Running on host: $current_host"

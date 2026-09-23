@@ -30,8 +30,8 @@ Runs identically in both modes.
 3. **Detect the machine profile.** Driven by an untracked, machine-local signal so no
    employer identifiers live in this tracked, public file. Resolve **the dotfiles
    inventory alias**, the same indirection `scripts/playbook.sh` already uses,
-   in the same order, with the deliberate divergences spelled out below the
-   snippet:
+   in the same order, with `PANEL_REVIEW_PROFILE` as a per-run override ahead of
+   it:
 
    ```bash
    alias_file="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"
@@ -60,6 +60,8 @@ Runs identically in both modes.
      `work` and therefore resolves to `gemini`. Reproduced: an operator who `touch`es the
      alias file gets gemini on the work host, silently. Binding the branch to
      `[ -n "$from_file" ]` is what makes the documented `work` fallback reachable.
+     `playbook.sh` applies the same test, for a sharper reason: there an empty alias
+     becomes `ansible-playbook -l ""`, which Ansible reads as no limit at all.
    - **`DOTFILES_HOST_FILE` is honoured**, because `playbook.sh` honours it. A host that
      relocates its alias file would otherwise have `playbook.sh` and this resolver
      disagree about which machine it is.

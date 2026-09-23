@@ -273,12 +273,13 @@ order: `DOTFILES_HOST`, else `~/.config/dotfiles/host` (honouring
 `DOTFILES_HOST_FILE`), else the residual `alt` hostname match, else `work`.
 `PANEL_REVIEW_PROFILE` is honoured ahead of all of it as a per-run override.
 
-The commands are deliberately one notch stricter than `playbook.sh`: they take
-the alias file only when it has non-whitespace content. `playbook.sh` still
-tests mere existence, so a `touch`ed alias file there yields an empty
-`ansible-playbook -l ""`, which Ansible reads as *no limit* and runs every
-inventory host against this machine. Worth fixing there too; it is left alone
-here only because this change has no business editing the playbook entrypoint.
+Both the commands and `playbook.sh` take the alias file only when it has
+non-whitespace content; an empty or whitespace-only file falls through to the
+`alt` hostname match and then `work`, exactly as if it were absent. For
+`playbook.sh` that is a safety property, not a nicety: an empty alias would
+become `ansible-playbook -l ""`, which Ansible reads as *no limit* and runs
+every inventory host against this machine. `scripts/playbook-alias-test.sh`
+pins it.
 
 Three of those clauses are easy to drop, and the first cut of this change
 dropped all three. Without the `alt` hostname branch, an `alt` Mac (which
