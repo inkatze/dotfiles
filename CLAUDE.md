@@ -34,6 +34,14 @@ about scoping changes, writing comments, and verifying work. Output style is
 part of the system prompt and is read once per session, so a change needs
 `/clear` or a new session to take effect.
 
+**The status line is ours too, and it supplements rather than replaces.**
+`statusLine` in the tracked `settings.json` runs
+`roles/claude/files/scripts/statusline.sh`, which puts context usage at the
+bottom left. Claude Code's own "context left until auto-compact" warning
+still appears at the bottom right near compaction; it cannot be moved or
+turned off from here. The line stays blank in a folder whose trust dialog
+has not been accepted, and when `disableAllHooks` is set.
+
 One override worth knowing: picking a style through `/config` writes
 `outputStyle` to the project-level `.claude/settings.local.json`, which wins
 over this repo's global value for that project.
