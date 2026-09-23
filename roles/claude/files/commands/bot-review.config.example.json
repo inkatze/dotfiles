@@ -1,0 +1,34 @@
+{
+  "default": "example-reviewer",
+  "reviewers": {
+    "example-reviewer": {
+      "login_pattern": "example-review-bot\\[bot\\]",
+      "opt_in_label": "ai-review",
+      "opt_out_label": "no-ai-review",
+      "gating_checks": ["example-bot/review", "example-bot/quality-gate"],
+      "requirement_level_hint": "some vendors gate on an org/repo review-strictness setting that isn't exposed via API; note here where to check it by hand (dashboard URL or setting name), or null if not applicable. Report it alongside the opt-in label, never in place of it: an opt-in label has been observed running a review at a level that nominally excludes it.",
+      "addressed_marker_format": "<!-- bot-review-ack:{key} -->",
+      "finding_key_regex": null,
+      "build_id_regex": "Review ID: ([a-zA-Z0-9_-]+)",
+      "repo_config_path": ".example-bot.yaml",
+      "cli": {
+        "binary": "example-bot-cli",
+        "install_command": "npm install -g @example/bot-cli",
+        "local_invocation": "example-bot-cli --base {base} --head {head} --effort {effort}",
+        "timeout_seconds": 600,
+        "findings_output": "stdout-json",
+        "invocation_notes": "placeholder flags; run the real CLI's --help before first use and correct these"
+      }
+    },
+    "example-cli-only-reviewer": {
+      "cli": {
+        "binary": "another-bot-cli",
+        "install_command": "brew install another-bot-cli",
+        "local_invocation": "another-bot-cli review --base {base} --head {head}",
+        "timeout_seconds": 900,
+        "findings_output": "file:./another-bot-report.json",
+        "invocation_notes": "example of a reviewer with no hosted GitHub App at all, or one whose org has it blocked: cli-only is valid, no hosted keys required"
+      }
+    }
+  }
+}
