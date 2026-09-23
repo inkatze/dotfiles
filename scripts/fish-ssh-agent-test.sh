@@ -83,6 +83,33 @@ else
     fail forwarded-only "auth_sock -> '$got'"
 fi
 
+if [ "$(uname)" != Darwin ]; then
+    # With nothing forwarded, a link left on the local 1Password would hang
+    # every ssh until a forwarded login repoints it; no link fails fast.
+    h="$(fresh_home no-forward)"
+    fake_onep "$h" no-forward
+    ln -s "$h/$onep_rel" "$h/.ssh/auth_sock"
+    login "$h" "" >/dev/null
+    if [ ! -e "$h/.ssh/auth_sock" ] && [ ! -L "$h/.ssh/auth_sock" ]; then
+        ok linux-no-forward-unlinks "a login without forwarding drops the link"
+    else
+        fail linux-no-forward-unlinks "auth_sock -> '$(readlink "$h/.ssh/auth_sock")'"
+    fi
+
+    # A shell nested in an SSH login (a new tmux pane) already carries the
+    # stable path; treating that as "nothing forwarded" would drop the agent
+    # out from under the session.
+    h="$(fresh_home nested)"
+    fwd="$work/nested-forwarded.sock"; mksock "$fwd"
+    ln -s "$fwd" "$h/.ssh/auth_sock"
+    got="$(login "$h" "$h/.ssh/auth_sock")"
+    if [ "$got" = "$fwd" ]; then
+        ok nested-shell-keeps-link "a nested shell leaves the link alone"
+    else
+        fail nested-shell-keeps-link "auth_sock -> '$got'"
+    fi
+fi
+
 if [ "$fails" -eq 0 ]; then
     echo "fish-ssh-agent-test: all assertions hold"
 else

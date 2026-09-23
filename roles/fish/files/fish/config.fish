@@ -183,6 +183,10 @@ if status --is-interactive; and set -q SSH_CONNECTION
         ln -sf "$_onep_sock" ~/.ssh/auth_sock
     else if test -S "$SSH_AUTH_SOCK"; and not string match -q '*com.apple.launchd*' "$SSH_AUTH_SOCK"; and not string match -q '*/.ssh/auth_sock' "$SSH_AUTH_SOCK"
         ln -sf "$SSH_AUTH_SOCK" ~/.ssh/auth_sock
+    else if test (uname) != Darwin; and not string match -q '*/.ssh/auth_sock' "$SSH_AUTH_SOCK"
+        # Nothing forwarded: a link left on the local 1Password would hang
+        # every ssh on an approval nobody sees, so fail fast instead.
+        rm -f ~/.ssh/auth_sock
     end
     set -gx SSH_AUTH_SOCK ~/.ssh/auth_sock
 end
