@@ -40,6 +40,16 @@ pre-commit:
       glob: "{roles/environments/tasks/nodejs.yml,roles/services/tasks/darwin.yml,\
         scripts/credential-path-guard-test.sh}"
       run: scripts/credential-path-guard-test.sh
+    fish-functions-ignore:
+      # No glob, deliberately: the drift it catches is a plugin file sitting in
+      # the working tree, which can be there with nothing in that directory
+      # staged. A glob would run the check only on the commits that cannot have
+      # the problem yet.
+      #
+      # Not in CI either: a fresh checkout has no untracked files, so the
+      # assertion passes there by construction and would report coverage it
+      # does not have.
+      run: scripts/fish-functions-ignore-test.sh
     baseline-plaintext-guard:
       glob: "specs/metrics-baseline/snapshots/baseline-*"
       run: |
