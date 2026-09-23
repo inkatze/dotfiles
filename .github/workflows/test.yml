@@ -64,6 +64,10 @@ jobs:
         run: scripts/credential-path-guard-test.sh
 
       # Needs ansible-playbook, which this job installs.
+      - name: Run the git unattended-auth suite
+        run: scripts/git-unattended-auth-test.sh
+
+      # Needs ansible-playbook, which this job installs.
       - name: Run the planwright marketplace suite
         run: scripts/planwright-marketplace-test.sh
 
