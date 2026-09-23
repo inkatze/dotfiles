@@ -168,15 +168,14 @@ set -xg SPACEFISH_CHAR_SUFFIX '  '
 
 # Stabilize SSH_AUTH_SOCK for tmux sessions via a fixed symlink.
 # When reconnecting SSH, the new socket is symlinked to a stable path so
-# existing tmux panes don't get a stale SSH_AUTH_SOCK. Always prefer the
-# 1Password agent (the real key source) and NEVER capture the macOS launchd
-# agent — capturing it breaks auth + op-ssh-sign signing.
-# Mirrors the IdentityAgent logic in ~/.ssh/config.
-# The 1Password agent socket lives in a different place per platform: a Group
-# Container on macOS, ~/.1password/agent.sock on Linux. The launchd guard
-# below is macOS-only and simply never matches on Linux.
+# existing tmux panes don't get a stale SSH_AUTH_SOCK. NEVER capture the macOS
+# launchd agent — it holds no keys, and capturing it breaks auth + op-ssh-sign.
+# On macOS the local 1Password agent wins. On Linux the forwarded agent does:
+# the local 1Password app can only be approved at this machine's screen, which
+# nobody on an SSH login is looking at (same rule as the SSH_TTY guard on the
+# IdentityAgent blocks in ~/.ssh/config).
 if status --is-interactive; and set -q SSH_CONNECTION
-    set -l _onep_sock "$HOME/.1password/agent.sock"
+    set -l _onep_sock
     if test (uname) = Darwin
         set _onep_sock "$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
     end

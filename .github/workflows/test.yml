@@ -184,6 +184,11 @@ jobs:
           ids=$(grep -ohE 'id:[[:space:]]*[0-9]+' Brewfile Brewfile.* | grep -oE '[0-9]+' | tr '\n' ' ')
           echo "HOMEBREW_BUNDLE_MAS_SKIP=$ids" >> "$GITHUB_ENV"
 
+      # The only job with fish, and the only place the suite's macOS branch runs.
+      - name: Run the fish SSH-agent suite
+        if: matrix.role == 'fish'
+        run: scripts/fish-ssh-agent-test.sh
+
       - name: Run ${{ matrix.role }} tasks
         run: mise run ${{ matrix.role }}
 
