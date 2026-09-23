@@ -128,6 +128,16 @@ else
     fail other-marketplace "removed planwright because of another marketplace"
 fi
 
+# 6. An empty record file reads as no record rather than aborting the role:
+#    slurp reports it as defined-but-empty content, which a plain default()
+#    lets through to from_json.
+h="$(fresh_home)"; : >"$h/.claude/plugins/known_marketplaces.json"; run_role "$h"
+if ! removed "$h"; then
+    ok empty-record-file "an empty known_marketplaces.json is treated as absent"
+else
+    fail empty-record-file "removed on an empty record file"
+fi
+
 if [ "$fails" -eq 0 ]; then
     echo "planwright-marketplace-test: all assertions hold"
 else

@@ -42,11 +42,11 @@
   changed_when: true
   vars:
     claude_planwright_source: {source: github, repo: "{{ claude_planwright_repo }}"}
-    # base64 of "{}", standing in for a file that does not exist.
+    # base64 of "{}", standing in for a file that is absent or empty.
     claude_settings_record: >-
-      {{ claude_marketplace_records.results[0].content | default('e30=') | b64decode | from_json }}
+      {{ claude_marketplace_records.results[0].content | default('e30=', true) | b64decode | from_json }}
     claude_known_record: >-
-      {{ claude_marketplace_records.results[1].content | default('e30=') | b64decode | from_json }}
+      {{ claude_marketplace_records.results[1].content | default('e30=', true) | b64decode | from_json }}
     claude_settings_planwright: >-
       {{ (claude_settings_record.extraKnownMarketplaces | default({})).planwright | default({}) }}
     claude_planwright_recorded: >-
