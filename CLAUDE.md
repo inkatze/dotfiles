@@ -128,7 +128,7 @@ script before opening a repo you did not author.
 
 The SessionStart `tool-discovery` hook is supplied by the planwright plugin,
 not this repo. planwright installs as a Claude Code plugin (marketplace flow,
-see the planwright install task in `roles/claude/tasks/main.yml`), and the plugin
+see `roles/claude/tasks/planwright.yml`), and the plugin
 wires its own hooks via its `hooks/hooks.json` resolved against
 `CLAUDE_PLUGIN_ROOT`: `tool-discovery` on SessionStart and `tasks-pr-sync` on
 PostToolUse(Bash). The tracked `settings.json` therefore no longer wires

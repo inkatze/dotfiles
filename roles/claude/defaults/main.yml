@@ -1,0 +1,5 @@
+---
+# Must stay in owner/repo form: the migration task compares the recorded
+# source against a `github`-kind source built from this, so a full URL here
+# would never match and the marketplace would be removed on every run.
+claude_planwright_repo: inkatze/planwright
