@@ -154,7 +154,7 @@ Standalone: ask, same push-hook-failure handling as the sibling commands (never 
 
 ### 10. Reply to and resolve (or acknowledge) every disposed finding
 
-This is the requirement most worth enforcing: an unreplied finding is not handled, whatever bucket it started in. **Confirmed this is worth enforcing**: on a real bot, a finding that was replied-to and resolved was moved into a suppressed section on the next review ("won't be reposted"), rather than being re-raised. Skipping the reply on a finding you're keeping open forfeits that suppression and invites the bot to raise it again next pass.
+This is the requirement most worth enforcing: an unreplied finding is not handled, whatever bucket it started in. **Confirmed this is worth enforcing**: on a real bot, a finding that was replied-to and resolved was moved into a suppressed section on the next review, marked as not to be raised again, rather than being re-raised. Skipping the reply on a finding you're keeping open forfeits that suppression and invites the bot to raise it again next pass.
 
 **Already-handled pre-check, inline findings too.** Step 5 already does this for description-level findings (search for a posted ack marker before treating one as new); apply the same idea to inline findings, since a prior pass's `resolveReviewThread` mutation can fail silently (network blip, a stale or wrong threadId, a concurrent resolve) while its reply POST succeeded. Before triaging an inline finding, check whether the thread already carries a reply from the viewer. If so, do not post a second reply: just re-attempt the resolve mutation for that thread.
 
