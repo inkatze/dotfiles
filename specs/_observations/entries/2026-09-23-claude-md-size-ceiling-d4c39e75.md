@@ -1,0 +1,1 @@
+- 2026-09-23 [dotfiles] CLAUDE.md is ~700 lines against the 200-line ceiling specs/claude-context names, and that spec still cites roles/osx paths for the Claude role; the breach predates the status line PR (which added a paragraph) and is a candidate for the context spec to absorb.
