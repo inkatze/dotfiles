@@ -1,0 +1,1 @@
+- 2026-09-23 [dotfiles] playbook.sh drops an empty op-account file but passes an inherited OP_ACCOUNT="" through to op untouched (pinned by the suite as current behaviour). Whether op treats an empty selector as unset or as an error was never measured; if it errors, the file branch should also unset an inherited empty value.

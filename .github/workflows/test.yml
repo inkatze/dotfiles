@@ -104,6 +104,11 @@ jobs:
       - name: Run the settings-merge fixture suite
         run: scripts/claude-settings-merge-test.sh
 
+      # Here rather than in lint: it stubs ansible-playbook, so bash, coreutils,
+      # grep and awk are all it needs.
+      - name: Run the playbook alias suite
+        run: scripts/playbook-alias-test.sh
+
       # Here rather than in lint: bash, jq and git are all it needs.
       - name: Run the status line fixture suite
         run: scripts/claude-statusline-test.sh
