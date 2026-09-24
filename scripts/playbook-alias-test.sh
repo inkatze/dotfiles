@@ -131,6 +131,9 @@ else
     : >"$work/host"
     chmod 000 "$work/host"
     expect_limit env-skips-unreadable-file personal DOTFILES_HOST=personal
+    # Without the override, an unreadable file is a misconfiguration and the
+    # run stops there rather than falling through to another host.
+    expect_limit unreadable-file-aborts '<not run>'
     chmod 600 "$work/host"
 fi
 
