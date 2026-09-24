@@ -152,6 +152,10 @@ expect_fail retired-bucket-code-review \
   "echo 'Agent-resolvable' >> $CMDS/code-review.md" \
   "code-review.md references the retired Agent-resolvable bucket"
 
+expect_fail retired-bucket-bot-review \
+  "echo 'Agent-resolvable' >> $CMDS/bot-review.md" \
+  "bot-review.md references the retired Agent-resolvable bucket"
+
 expect_fail retired-file \
   "touch $CMDS/panel-pairing.md" \
   "was retired into --nested"
@@ -159,6 +163,19 @@ expect_fail retired-file \
 expect_fail mark-ready \
   "perl -pi -e 's/This confirmation-gated ready-flip is the only PR-lifecycle action this loop takes, and only on this exit path\\.//' $CMDS/copilot-review.md" \
   "mark-ready safety sentence"
+
+# --- bot-review's own single-mutation safety anchors ---
+expect_fail bot-review-safety-nested-apply \
+  "perl -pi -e 's/Never apply the code change in this bucket while nested\\.//' $CMDS/bot-review.md" \
+  "bot-review.md missing expected safety sentence"
+
+expect_fail bot-review-safety-never-mutate \
+  "perl -pi -e 's/force-push, push to a protected branch, mark the PR ready, or merge/land whatever it likes/' $CMDS/bot-review.md" \
+  "bot-review.md missing expected safety sentence"
+
+expect_fail bot-review-safety-no-speculative-label \
+  "perl -pi -e 's/Do not add the opt-in label speculatively//' $CMDS/bot-review.md" \
+  "bot-review.md missing expected safety sentence"
 
 # --- severity tiers: a word-presence anchor and the order-declaring sentence ---
 expect_fail severity-tier \

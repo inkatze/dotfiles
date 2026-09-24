@@ -119,6 +119,28 @@ else
   err "copilot-review.md referenced by mark_ready_checks but does not exist at $CMDS/copilot-review.md"
 fi
 
+# Single-mutation safety anchors for bot-review.md. It permits exactly three
+# PR-lifecycle mutations (a confirmation-gated opt-in label add, an applied
+# Auto-applicable fix, and a Needs-sign-off deferral reply) and forbids
+# everything else (auto-adding a label speculatively, applying a Needs-sign-off
+# code change while nested, force-pushing, merging, marking ready); these are
+# the same class of guarantee mark_ready_checks protects for copilot-review.md,
+# so bot-review.md gets the same drift protection.
+bot_review_safety_checks=(
+  "Never apply the code change in this bucket while nested."
+  "force-push, push to a protected branch, mark the PR ready, or merge"
+  "Do not add the opt-in label speculatively"
+)
+if [ -f "$CMDS/bot-review.md" ]; then
+  for phrase in "${bot_review_safety_checks[@]}"; do
+    if ! grep -qF "$phrase" "$CMDS/bot-review.md"; then
+      err "bot-review.md missing expected safety sentence: \"$phrase\""
+    fi
+  done
+else
+  err "bot-review.md referenced by bot_review_safety_checks but does not exist at $CMDS/bot-review.md"
+fi
+
 # Severity-tier contract for code-review.md. It is checked against its OWN
 # anchors rather than being added to bucket_checks: per CLAUDE.md, commands that
 # only draft output for elsewhere skip the finding categorization and present
