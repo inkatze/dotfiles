@@ -14,7 +14,7 @@ runtime:
 |---|---|---|
 | `~/.claude/CLAUDE.md` | `roles/claude/files/CLAUDE.md` | Symlink |
 | `~/.claude/commands/*` | `roles/claude/files/commands/` | Symlink |
-| `~/.claude/scripts/*` | `roles/claude/files/scripts/` | Symlink (hook scripts invoked from `settings.json`) |
+| `~/.claude/scripts/*` | `roles/claude/files/scripts/` | Symlink (scripts `settings.json` invokes: hooks, the status line) |
 | `~/.claude/output-styles/*` | `roles/claude/files/output-styles/` | Symlink (resolved by name from `outputStyle`) |
 | `~/.claude/settings.json` | `roles/claude/files/settings.json` | jq merge (not symlink) |
 
@@ -36,11 +36,15 @@ part of the system prompt and is read once per session, so a change needs
 
 **The status line is ours too, and it supplements rather than replaces.**
 `statusLine` in the tracked `settings.json` runs
-`roles/claude/files/scripts/statusline.sh`, which puts context usage at the
-bottom left. Claude Code's own "context left until auto-compact" warning
-still appears at the bottom right near compaction; it cannot be moved or
-turned off from here. The line stays blank in a folder whose trust dialog
-has not been accepted, and when `disableAllHooks` is set.
+`roles/claude/files/scripts/statusline.sh`, which prints the directory, git
+branch, model and context usage on its own row at the bottom. Claude Code's
+own "context left until auto-compact" warning still appears at the bottom
+right near compaction; it cannot be moved or turned off from here. The line
+stays blank in a folder whose trust dialog has not been accepted, and when
+`disableAllHooks` is true. Unlike a hook, `statusLine` is not owned by the
+merge, only carried by its `*` pass, so dropping the key from the tracked
+file leaves it live on every host: removing the status line means overriding
+the key, or editing each live `~/.claude/settings.json`.
 
 One override worth knowing: picking a style through `/config` writes
 `outputStyle` to the project-level `.claude/settings.local.json`, which wins
