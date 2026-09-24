@@ -32,12 +32,16 @@ fi
 # zero-width joiners) and line- and paragraph-separator characters are
 # stripped from every value, the branch included: a directory or branch name
 # is attacker-choosable text from a cloned repo, and the line goes straight
-# to the terminal.
+# to the terminal. The directory is cut to its last component before that
+# strip, so a name made only of stripped characters vanishes instead of
+# turning into its parent's.
 fields=$(printf '%s' "$input" | jq -r --arg branch "$raw_branch" '
-  def text: if type == "string" then gsub("[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}]"; "") else "" end;
-  [ ((.workspace.current_dir // .cwd) | text),
-    ($branch | text),
-    (.model.display_name | text),
+  def sanitized: if type == "string" then gsub("[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}]"; "") else "" end;
+  def basename: if type != "string" or . == "" then ""
+    else (sub("/+$"; "") | if . == "" then "/" else split("/") | last end) end;
+  [ ((.workspace.current_dir // .cwd) | basename | sanitized),
+    ($branch | sanitized),
+    (.model.display_name | sanitized),
     (.context_window.used_percentage
       | if type == "number" then floor | tostring else "" end)
   ] | join("\u001f")
@@ -47,9 +51,7 @@ IFS=$'\x1f' read -r dir branch model pct <<<"$fields"
 
 location=""
 if [ -n "$dir" ]; then
-    location="${dir%/}"
-    location="${location##*/}"
-    location="${location:-/}"
+    location="$dir"
     [ -n "$branch" ] && location="$location  $branch"
 fi
 

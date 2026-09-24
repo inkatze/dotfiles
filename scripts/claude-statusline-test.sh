@@ -133,6 +133,14 @@ mkdir -p "$work/xy"$'\n'
 check trailing-newline-dir-skips-neighbour-branch "xy · Opus 5.5" \
     "{\"workspace\":{\"current_dir\":\"$work/xy\\n\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
 
+# A last component made only of stripped characters must not collapse into
+# the parent's name beside the child's branch: the segment goes, whole.
+git init -q -b childbr "$work/xy/"$'\a'
+check control-only-basename-drops-location "Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$work/xy/\\u0007\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
+check double-trailing-slash "plain dir · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$plain//\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
+
 git -C "$repo" -c user.name=t -c user.email=t@t -c commit.gpgsign=false \
     commit -q --allow-empty --no-verify -m init
 git -C "$repo" checkout -q --detach
