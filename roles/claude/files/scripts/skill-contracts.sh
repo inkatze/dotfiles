@@ -6,7 +6,8 @@
 # the three-bucket presentation contract (and code-review's deliberate
 # inverse of it: severity tiers, no buckets), the panel-pairing /
 # copilot-pairing retirement into --nested, copilot-review's mark-ready
-# confirmation gate, code-review's review-submission gate, the /code-review
+# confirmation gate, bot-review's single-mutation safety sentences, JSON
+# validity of commands/*.json, code-review's review-submission gate, the /code-review
 # option-set literals mirrored in CLAUDE.md, the code-review/panel-review
 # backend-resolver sync lines, and the Slack notification contract. Runs as
 # a lefthook pre-commit job (glob in lefthook.yml: the command files,

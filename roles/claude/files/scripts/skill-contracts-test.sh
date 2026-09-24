@@ -152,6 +152,22 @@ expect_fail retired-bucket-code-review \
   "echo 'Agent-resolvable' >> $CMDS/code-review.md" \
   "code-review.md references the retired Agent-resolvable bucket"
 
+# A missing jq must be reported as missing, not as every config being invalid.
+setup
+nojq="$(mktemp -d)"
+for t in bash grep tr cat sort cksum find xargs basename dirname; do
+  p="$(command -v "$t")" && ln -s "$p" "$nojq/$t"
+done
+if out="$(cd "$tmp" && PATH="$nojq" bash roles/claude/files/scripts/skill-contracts.sh 2>&1)"; then
+  echo "FAIL missing-jq: checker passed without jq"; failures=$((failures + 1))
+elif ! printf '%s' "$out" | grep -qF "jq is required"; then
+  echo "FAIL missing-jq: expected \"jq is required\", got: $out"; failures=$((failures + 1))
+elif printf '%s' "$out" | grep -qF "is not valid JSON"; then
+  echo "FAIL missing-jq: still blamed the config"; failures=$((failures + 1))
+fi
+rm -rf "$nojq"
+teardown
+
 expect_fail example-config-json \
   "echo 'not json' >> $CMDS/bot-review.config.example.json" \
   "is not valid JSON"
