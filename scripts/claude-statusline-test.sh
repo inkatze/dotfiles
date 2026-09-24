@@ -9,6 +9,12 @@ set -uo pipefail
 # repo, and the fixture repo's commit below would land there instead.
 # shellcheck disable=SC2046
 unset $(git rev-parse --local-env-vars)
+# Fail closed: with those still set, the fixtures below would write into a
+# repository this suite does not own.
+if [ -n "${GIT_DIR:-}${GIT_INDEX_FILE:-}${GIT_WORK_TREE:-}" ]; then
+    printf 'claude-statusline-test: git environment still set; refusing to run fixtures\n' >&2
+    exit 2
+fi
 
 here="$(cd -- "$(dirname "$0")" && pwd -P)"
 statusline="$here/../roles/claude/files/scripts/statusline.sh"
@@ -135,6 +141,37 @@ if [ "$wired" = 'command $HOME/.claude/scripts/statusline.sh' ] && [ -x "$status
     ok wired "settings.json runs the executable script"
 else
     fail wired "settings.json statusLine is '$wired', script executable: $([ -x "$statusline" ] && echo yes || echo no)"
+fi
+
+# The suite's own safety, since CI has no hook environment to notice its
+# loss: re-run everything above with the hook's variables aimed at a
+# sacrificial repository and assert nothing there moved.
+if [ -z "${STATUSLINE_TEST_NESTED:-}" ]; then
+    outer="$work/outer"
+    git init -q -b main "$outer"
+    git -C "$outer" -c user.name=t -c user.email=t@t -c commit.gpgsign=false \
+        commit -q --allow-empty --no-verify -m base
+    outer_state() {
+        git -C "$outer" rev-parse HEAD
+        git -C "$outer" symbolic-ref HEAD
+        git -C "$outer" config core.bare
+        git -C "$outer" rev-list --count --all
+    }
+    before=$(outer_state)
+    if STATUSLINE_TEST_NESTED=1 GIT_DIR="$outer/.git" GIT_INDEX_FILE="$outer/.git/index" \
+        GIT_WORK_TREE="$outer" "$0" >"$work/nested.log" 2>&1; then
+        nested_rc=0
+    else
+        nested_rc=$?
+    fi
+    after=$(outer_state)
+    if [ "$nested_rc" -ne 0 ]; then
+        fail hook-env-isolated "nested run exited $nested_rc: $(tail -n 3 "$work/nested.log")"
+    elif [ "$before" != "$after" ]; then
+        fail hook-env-isolated "outer repo changed under a hook environment: $(printf '%s' "$after" | tr '\n' ' ')"
+    else
+        ok hook-env-isolated "fixtures stayed out of the repo the hook variables named"
+    fi
 fi
 
 if [ "$fails" -ne 0 ]; then
