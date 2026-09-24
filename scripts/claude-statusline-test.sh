@@ -9,8 +9,8 @@ set -uo pipefail
 # repo, and the fixture repo's commit below would land there instead.
 # shellcheck disable=SC2046
 unset $(git rev-parse --local-env-vars)
-# Fail closed: with any of those still set, the fixtures below would write
-# into a repository this suite does not own.
+# Fail closed: with any repository-locating variable still set, the fixtures
+# below would write into a repository this suite does not own.
 if [ -n "${GIT_DIR:-}${GIT_INDEX_FILE:-}${GIT_WORK_TREE:-}${GIT_COMMON_DIR:-}${GIT_OBJECT_DIRECTORY:-}${GIT_ALTERNATE_OBJECT_DIRECTORIES:-}" ]; then
     printf 'claude-statusline-test: git environment still set; refusing to run fixtures\n' >&2
     exit 2
@@ -22,6 +22,7 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 fails=0
 
+nl=$'\n'
 ok()   { printf 'ok[%s]: %s\n' "$1" "$2"; }
 fail() { printf 'FAIL[%s]: %s\n' "$1" "$2"; fails=$((fails + 1)); }
 
@@ -34,7 +35,7 @@ check() {
     got=$(printf '%s' "$3" | "$statusline" 2>"$work/stderr"; printf '\nrc=%s' "$?")
     rc=${got##*rc=}
     got=${got%$'\n'rc=*}
-    want="${2:+$2$'\n'}"
+    want="${2:+$2$nl}"
     if [ "$rc" -ne 0 ]; then
         fail "$1" "exited $rc: $(printf '%q' "$(cat "$work/stderr")")"
     elif [ -s "$work/stderr" ]; then
@@ -115,6 +116,8 @@ check strips-c1-controls "a2Jb · Opus 5.5" \
     '{"workspace":{"current_dir":"/tmp/a\u009b2Jb"},"model":{"display_name":"Opus 5.5"}}'
 check strips-line-separators "ab · Opus 5.5" \
     '{"workspace":{"current_dir":"/tmp/a\u2028b"},"model":{"display_name":"Opus\u2029 5.5"}}'
+check keeps-backslashes 'a\b · Opus\5.5' \
+    '{"workspace":{"current_dir":"/tmp/a\\b"},"model":{"display_name":"Opus\\5.5"}}'
 check strips-bidi-override "plain dir · Opus 5.5" \
     "{\"workspace\":{\"current_dir\":\"$plain\"},\"model\":{\"display_name\":\"O\\u202epus 5.5\"}}"
 hostile="$work/hostile"
@@ -140,6 +143,14 @@ check control-only-basename-drops-location "Opus 5.5" \
     "{\"workspace\":{\"current_dir\":\"$work/xy/\\u0007\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
 check double-trailing-slash "plain dir · Opus 5.5" \
     "{\"workspace\":{\"current_dir\":\"$plain//\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
+
+# A NUL cannot be in a real path: the branch lookup is skipped rather than
+# run on a truncated name or, through `git -C ""`, on the caller's directory.
+start_dir=$PWD
+cd "$other" || exit 1
+check nul-dir-skips-branch "myrepo · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$repo\\u0000\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
+cd "$start_dir" || exit 1
 
 git -C "$repo" -c user.name=t -c user.email=t@t -c commit.gpgsign=false \
     commit -q --allow-empty --no-verify -m init
@@ -171,11 +182,19 @@ if [ -z "${STATUSLINE_TEST_NESTED:-}" ]; then
     git init -q -b main "$outer"
     git -C "$outer" -c user.name=t -c user.email=t@t -c commit.gpgsign=false \
         commit -q --allow-empty --no-verify -m base
+    # One line per probe, so a probe that printed nothing shows as a gap.
+    outer_probes=(
+        "rev-parse HEAD"
+        "symbolic-ref HEAD"
+        "config core.bare"
+        "rev-list --count --all"
+    )
     outer_state() {
-        git -C "$outer" rev-parse HEAD
-        git -C "$outer" symbolic-ref HEAD
-        git -C "$outer" config core.bare
-        git -C "$outer" rev-list --count --all
+        local probe
+        for probe in "${outer_probes[@]}"; do
+            # shellcheck disable=SC2086 # each probe is a fixed argument list
+            git -C "$outer" $probe
+        done
         cksum <"$outer/.git/index"
     }
     before=$(outer_state 2>/dev/null)
@@ -183,10 +202,12 @@ if [ -z "${STATUSLINE_TEST_NESTED:-}" ]; then
         GIT_WORK_TREE="$outer" "$0" >"$work/nested.log" 2>&1
     nested_rc=$?
     after=$(outer_state 2>/dev/null)
-    if [ "$(printf '%s\n' "$before" | wc -l)" -ne 5 ]; then
+    if [ "$(printf '%s\n' "$before" | wc -l)" -ne $(( ${#outer_probes[@]} + 1 )) ]; then
         fail hook-env-isolated "sacrificial repo did not set up: $(printf '%q' "$before")"
     elif [ "$nested_rc" -ne 0 ]; then
-        fail hook-env-isolated "nested run exited $nested_rc: $(printf '%q' "$(grep -E '^FAIL|refusing' "$work/nested.log" | head -n 3)")"
+        reason=$(grep -E '^FAIL|refusing' "$work/nested.log" | head -n 3)
+        [ -n "$reason" ] || reason=$(tail -n 3 "$work/nested.log")
+        fail hook-env-isolated "nested run exited $nested_rc: $(printf '%q' "$reason")"
     elif [ "$before" != "$after" ]; then
         fail hook-env-isolated "outer repo changed under a hook environment: $(printf '%q' "$after")"
     else
