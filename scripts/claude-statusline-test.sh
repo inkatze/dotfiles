@@ -95,6 +95,24 @@ check strips-bel-del "xyz · Opus 5.5" \
     '{"workspace":{"current_dir":"/tmp/x\u0007y\u007fz"},"model":{"display_name":"Opus 5.5"}}'
 check strips-model-escape "plain dir · O[2Jpus" \
     "{\"workspace\":{\"current_dir\":\"$plain\"},\"model\":{\"display_name\":\"O\\u001b[2Jpus\"}}"
+# C1 controls (U+009B is a one-character CSI) and bidi overrides are not in
+# the C0 range, and git refnames admit both, so the branch is a second way in.
+check strips-c1-controls "a2Jb · Opus 5.5" \
+    '{"workspace":{"current_dir":"/tmp/a\u009b2Jb"},"model":{"display_name":"Opus 5.5"}}'
+check strips-bidi-override "plain dir · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$plain\"},\"model\":{\"display_name\":\"O\\u202epus 5.5\"}}"
+hostile="$work/hostile"
+git init -q -b $'evil\xc2\x9b2J' "$hostile"
+check strips-branch-controls "hostile  evil2J · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$hostile\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
+
+# The branch must come from the directory Claude Code named, not from the
+# neighbour its sanitized name happens to spell.
+newline_dir="$work/x"$'\n'"y"
+mkdir -p "$newline_dir"
+git init -q -b wrong-neighbour "$work/xy"
+check newline-dir-keeps-real-path "xy · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$work/x\\ny\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
 
 git -C "$repo" -c user.name=t -c user.email=t@t -c commit.gpgsign=false \
     commit -q --allow-empty --no-verify -m init
