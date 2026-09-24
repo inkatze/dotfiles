@@ -64,6 +64,10 @@ jobs:
         run: scripts/credential-path-guard-test.sh
 
       # Needs ansible-playbook, which this job installs.
+      - name: Run the git unattended-auth suite
+        run: scripts/git-unattended-auth-test.sh
+
+      # Needs ansible-playbook, which this job installs.
       - name: Run the planwright marketplace suite
         run: scripts/planwright-marketplace-test.sh
 
@@ -187,11 +191,6 @@ jobs:
         run: |
           ids=$(grep -ohE 'id:[[:space:]]*[0-9]+' Brewfile Brewfile.* | grep -oE '[0-9]+' | tr '\n' ' ')
           echo "HOMEBREW_BUNDLE_MAS_SKIP=$ids" >> "$GITHUB_ENV"
-
-      # The only job with fish, and the only place the suite's macOS branch runs.
-      - name: Run the fish SSH-agent suite
-        if: matrix.role == 'fish'
-        run: scripts/fish-ssh-agent-test.sh
 
       - name: Run ${{ matrix.role }} tasks
         run: mise run ${{ matrix.role }}

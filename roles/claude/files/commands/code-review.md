@@ -8,9 +8,11 @@ Before anything mutates branch state or messages anyone:
 
 - **Parse `$ARGUMENTS`.** It may carry a `--backends <name>` override
   (exactly one of `codex` or `gemini`; a comma-separated list is a
-  `/panel-review` spelling and an error here, and the Ollama / Copilot
-  backends stay `/panel-review`-only). Strip that flag and its value; the
-  first remaining token is the PR number or URL. A URL carries its own
+  `/panel-review` spelling and an error here, the opt-in `copilot`
+  backend stays `/panel-review`-only, and any other name is an error:
+  stop and name the two supported backends rather than guessing). Strip
+  that flag and its value; the first remaining token is the PR number or
+  URL. A URL carries its own
   `owner/repo`: parse all three out, assert the number is digits only
   before it reaches any command, and use `-R "$owner/$repo"` on **every**
   later `gh` call. If the URL's repo is not what this clone's `origin`
