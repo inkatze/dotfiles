@@ -80,13 +80,14 @@ jobs:
           brew bundle list --all --file=Brewfile.personal
           brew bundle list --all --file=Brewfile.alt
 
-  # The review-command contract checker's fixture suite. lefthook runs both
-  # scripts pre-commit, but a bypassed hook (--no-verify, web edits) would
-  # land unchecked without this; the suite is what proves each check class
-  # still catches a planted drift, and its baseline case already runs the
+  # The platform-neutral fixture suites: the review-command contract
+  # checker's, and the ones below it that need no Ansible. lefthook runs them
+  # pre-commit, but a bypassed hook (--no-verify, web edits) would land
+  # unchecked without this; each suite is what proves its check still catches
+  # a planted drift, and the contract suite's baseline case already runs the
   # checker itself against the unmutated tree. Its own job on Ubuntu, not a
-  # step in the macos lint job: the scripts are platform-neutral bash + grep
-  # + perl + jq over tracked files, macos-latest is the scarce tier (see
+  # step in the macos lint job: the scripts are bash plus coreutils, grep,
+  # perl and jq over tracked files, macos-latest is the scarce tier (see
   # services-linux below), and lint gates the whole matrix while this gates
   # nothing.
   skill-contracts:
@@ -100,8 +101,8 @@ jobs:
       - name: Run the settings-merge fixture suite
         run: scripts/claude-settings-merge-test.sh
 
-      # Here rather than in lint: it stubs ansible-playbook, so bash is all it
-      # needs.
+      # Here rather than in lint: it stubs ansible-playbook, so bash and
+      # coreutils are all it needs.
       - name: Run the playbook alias suite
         run: scripts/playbook-alias-test.sh
 

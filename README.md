@@ -43,7 +43,7 @@ optional, and its absence degrades visibly rather than silently.
 
 | File | Read by | Holds |
 |---|---|---|
-| `host` | `scripts/playbook.sh`, the `/panel-review` and `/code-review` commands | This machine's inventory alias: `work`, `personal`, `alt` or `server` |
+| `host` | `scripts/playbook.sh`, the `/panel-review` and `/code-review` commands | This machine's inventory alias: `work`, `personal`, `alt` or `server`. An empty or whitespace-only file counts as absent, since an empty alias would run every inventory host. |
 | `ssh-host` | the `sshc` fish function | Hostname `kitten ssh` connects to |
 | `kitty-ssh.conf` | kitty's `ssh.conf`, via `globinclude` | Host-specific kitty `ssh.conf` sections (see that file for an example) |
 | `op-account` | `scripts/playbook.sh` | The 1Password account (sign-in address or user id) every `op` call should use, e.g. `my.1password.com`. Only needed where `op account list` shows more than one account — the normal state of a work Mac that carries a company tenant alongside a personal one. With two accounts and no selection, `op` fails every read with "multiple accounts found", which takes down the GitHub MCP sync and the Pushover credential read. An absent or empty file exports nothing, so single-account hosts are unaffected; an already-exported `OP_ACCOUNT` wins. |
