@@ -24,9 +24,9 @@
       "cli": {
         "binary": "another-bot-cli",
         "install_command": "brew install another-bot-cli",
-        "local_invocation": "another-bot-cli review --base {base} --head {head}",
+        "local_invocation": "another-bot-cli review --base {base} --head {head} --output {output}",
         "timeout_seconds": 900,
-        "findings_output": "file:./another-bot-report.json",
+        "findings_output": "file:{output}/findings.json",
         "invocation_notes": "example of a reviewer with no hosted GitHub App at all, or one whose org has it blocked: cli-only is valid, no hosted keys required"
       }
     }
