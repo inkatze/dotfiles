@@ -1,0 +1,1 @@
+- 2026-09-23 [dotfiles] planwright check-obs.sh exits 1 on this repo because specs/_observations/decouple-review-tooling.md sits directly under the observations root rather than under entries/; pre-existing (landed in #110), so every observation-format check here fails before it looks at new fragments.
