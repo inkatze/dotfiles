@@ -97,7 +97,19 @@ expect_limit env-override personal DOTFILES_HOST=personal
 reset_files
 expect_limit absent-file work
 
-# 7. OP_ACCOUNT: an empty or whitespace-only file exports nothing, a populated
+# 7. DOTFILES_HOST is the escape hatch for a broken file, so the file is not
+#    read at all when it is set. Root reads a mode-000 file regardless.
+if [ "$(id -u)" -eq 0 ]; then
+    ok env-skips-unreadable-file "skipped: running as root"
+else
+    reset_files
+    : >"$work/host"
+    chmod 000 "$work/host"
+    expect_limit env-skips-unreadable-file personal DOTFILES_HOST=personal
+    chmod 600 "$work/host"
+fi
+
+# 8. OP_ACCOUNT: an empty or whitespace-only file exports nothing, a populated
 #    one exports its trimmed value, and an already-exported value wins.
 op_for() {
     limit_for "$@" >/dev/null

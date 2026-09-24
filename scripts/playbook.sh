@@ -16,9 +16,12 @@ hostname=$(hostname)
 # The file counts only when it names something: `-l ""` is no limit at all to
 # Ansible, so an empty or whitespace-only file would otherwise run every
 # inventory host's configuration against this machine.
+#
+# Read only when the env var is unset: under `set -e` an unreadable file would
+# otherwise abort the run that DOTFILES_HOST was exported to get around.
 HOST_OVERRIDE_FILE="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"
 host_from_file=""
-if [[ -f "$HOST_OVERRIDE_FILE" ]]; then
+if [[ -z "${DOTFILES_HOST:-}" && -f "$HOST_OVERRIDE_FILE" ]]; then
     host_from_file="$(tr -d '[:space:]' <"$HOST_OVERRIDE_FILE")"
 fi
 if [[ -n "${DOTFILES_HOST:-}" ]]; then
