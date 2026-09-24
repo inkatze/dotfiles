@@ -647,7 +647,10 @@ Two different credentials, because ssh and the API do not share one.
 `git_unattended_auth_hosts`. Register its public half on GitHub as an
 **Authentication** key (a separate entry type from the signing key), and make
 sure the remote is `ssh://`, since `core.sshCommand` does nothing for an `https://`
-remote.
+remote. That sshCommand sets `IdentitiesOnly=yes`, so ssh never offers the
+agent's keys: a 1Password agent with nobody at its screen blocks on an approval
+prompt rather than failing, which stalled fetches for minutes before the
+on-disk key was tried.
 
 **The gh CLI** needs a token, and there is no repo artifact for it: run
 

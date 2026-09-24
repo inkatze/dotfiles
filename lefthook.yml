@@ -40,6 +40,12 @@ pre-commit:
       glob: "{roles/environments/tasks/nodejs.yml,roles/services/tasks/darwin.yml,\
         scripts/credential-path-guard-test.sh}"
       run: scripts/credential-path-guard-test.sh
+    git-unattended-auth:
+      # The suite is what notices IdentitiesOnly being dropped; the role alone
+      # still converges, and the host only stalls once its agent is locked.
+      glob: "{roles/git/tasks/main.yml,roles/git/defaults/main.yml,\
+        scripts/git-unattended-auth-test.sh}"
+      run: scripts/git-unattended-auth-test.sh
     planwright-marketplace:
       # The suite is what notices the stale-source removal being dropped or
       # loosened; the role alone still converges on a host already migrated.
