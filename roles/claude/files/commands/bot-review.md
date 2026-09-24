@@ -24,6 +24,7 @@ Shape: a map of named reviewers plus a default, because one bot may not be insta
       "addressed_marker_format": "...",
       "finding_key_regex": "...",
       "build_id_regex": "...",
+      "repo_config_path": "...",
       "cli": { "binary": "...", "install_command": "...", "local_invocation": "...", "timeout_seconds": 600, "findings_output": "..." }
     }
   }
@@ -57,6 +58,8 @@ Read `--reviewer <name>`, `--local`, `--nested`, `--dry-run`, and `--base <ref>`
    If **none** of the three hold, the bot is almost certainly not installed for this org. Say so plainly, and if the selected reviewer has a `cli` configured, **offer** the local path instead (`y/N`; on yes, fall into "## Local mode" for this run). If it has no `cli` either, say plainly that there is no usable path for this reviewer on this repo, and stop. **Do not add the opt-in label speculatively** to see if it wakes something up that was never there: this exact mistake (build a workaround, when the fix was one label on an already-installed bot) is the origin story for this command; adding a label to an org where the bot has no App installed is the same mistake in reverse.
 
    If at least one signal holds, the bot is reachable; continue to step 3.
+
+   **Fourth, informational signal, never decisive: the reviewer's own repo-local config file.** If `repo_config_path` is configured, check whether it exists in the target repo (`gh api repos/<o>/<r>/contents/<repo_config_path>`; a 404 means it doesn't exist here, which is not itself a signal either way). If it exists, fetch and print its raw contents as an extra data point: a repo can carry a valid opt-in label and an installed App and still have this file disable the bot for itself, which the three signals above cannot catch (they detect *reachability*, not a repo-local override). This command does not parse the file: its schema is vendor-specific and none is configured here, so print it and let you read it rather than guessing at a field path that might not exist. Absence of the file, or of `repo_config_path` itself, means nothing beyond "no extra signal available" and never overrides the three-signal conclusion above.
 
 3. **Explain why a review might still look absent, on a repo where the bot is reachable.**
    - `opt_in_label` present → review is (or will be) active regardless of draft state or `opt_out_label`. Opt-in wins.
