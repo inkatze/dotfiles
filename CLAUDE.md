@@ -250,7 +250,9 @@ daemon were removed with it, since without a daemon they could only fail with
 connection-refused. Restoring any of it means digging up the git history of
 this section and of `panel-review.md`, plus re-reading the LAN-exposure caveat
 that was here: Ollama has no auth, so binding `0.0.0.0` exposes it to the
-whole network.
+whole network. The contract checker also refuses those two names (and
+`OLLAMA_BASE_URL`) in the command files and the tracked global `CLAUDE.md`, so
+restoring them means updating its retired-backend sweep in the same change.
 
 ## Review backends: codex vs gemini
 
