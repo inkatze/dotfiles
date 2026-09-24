@@ -144,7 +144,7 @@ expect_refused() {
     name="$1"
     shift
     got="$(limit_for "$@")"
-    if [ "$got" = "<not run>" ] && grep -q 'not a plain host name' "$work/stderr"; then
+    if [ "$got" = "<not run>" ] && grep -q 'refusing to run' "$work/stderr"; then
         ok "$name" "refused before ansible-playbook ran"
     else
         fail "$name" "expected a refusal, got -l '$got'"
@@ -180,6 +180,17 @@ expect_refused leading-hyphen-env DOTFILES_HOST=-v
 
 reset_files
 expect_refused negation-env DOTFILES_HOST='!work'
+
+# A group name is a plain name that still means several hosts.
+reset_files
+printf 'all\n' >"$work/host"
+expect_refused all-file
+
+reset_files
+expect_refused group-env DOTFILES_HOST=secrets
+
+reset_files
+expect_refused ungrouped-env DOTFILES_HOST=ungrouped
 
 # The accepted set must not widen under a UTF-8 locale.
 reset_files

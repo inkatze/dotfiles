@@ -52,6 +52,15 @@ if ! printf '%s' "$current_host" | LC_ALL=C grep -qE '^[A-Za-z0-9][A-Za-z0-9_-]*
     exit 1
 fi
 
+# A plain name can still be a group (`all`, `ungrouped`, `secrets`), which
+# widens the run to several hosts the same way. Only a host entry from the
+# inventory is accepted, read from the file so a new alias needs no edit here.
+inventory="$(cd -- "$(dirname "$0")/.." && pwd -P)/hosts"
+if ! awk '/^[^#[[:space:]]/ { print $1 }' "$inventory" | LC_ALL=C grep -qxF -- "$current_host"; then
+    LC_ALL=C printf 'playbook.sh: alias %q is not a host in %s; refusing to run.\n' "$current_host" "$inventory" >&2
+    exit 1
+fi
+
 # Machine-local 1Password account selector, same shape as the host alias above.
 #
 # `op` infers the account when exactly one is configured, which is why nothing
