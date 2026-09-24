@@ -71,6 +71,11 @@ if grep -q 'defaulting to' "$work/stderr"; then
 else
     fail empty-file-warns "no fallback warning on stderr"
 fi
+if grep -q 'exists but names no alias' "$work/stderr"; then
+    ok empty-file-named "the empty file is named on stderr"
+else
+    fail empty-file-named "stderr does not say the file was found empty"
+fi
 
 # 2. Same for whitespace only, which `tr -d '[:space:]'` also trims to nothing.
 reset_files
@@ -82,6 +87,11 @@ expect_limit whitespace-file work
 reset_files
 : >"$work/host"
 expect_limit empty-file-alt-hostname alt STUB_HOSTNAME=panela-mini
+if grep -q 'exists but names no alias' "$work/stderr"; then
+    ok empty-file-alt-hostname-named "the empty file is named even when alt resolves"
+else
+    fail empty-file-alt-hostname-named "alt fallback ignored the empty file silently"
+fi
 
 # 4. A file naming a host is used, trimmed.
 reset_files

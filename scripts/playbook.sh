@@ -23,6 +23,9 @@ HOST_OVERRIDE_FILE="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"
 host_from_file=""
 if [[ -z "${DOTFILES_HOST:-}" && -f "$HOST_OVERRIDE_FILE" ]]; then
     host_from_file="$(tr -d '[:space:]' <"$HOST_OVERRIDE_FILE")"
+    if [[ -z "$host_from_file" ]]; then
+        echo "playbook.sh: ${HOST_OVERRIDE_FILE} exists but names no alias; treating it as absent." >&2
+    fi
 fi
 if [[ -n "${DOTFILES_HOST:-}" ]]; then
     current_host="$DOTFILES_HOST"
