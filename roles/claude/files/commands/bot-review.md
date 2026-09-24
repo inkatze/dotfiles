@@ -38,7 +38,7 @@ If a required key for the invoked mode is missing on the selected reviewer, name
 
 ## Invocation modes
 
-Read `--reviewer <name>`, `--local`, `--nested`, and `--dry-run` from `$ARGUMENTS`. `--local` is mutually exclusive with `--nested` (the local CLI pass has no PR to loop against): if both are present, stop immediately and say so, the same never-silently-fall-back posture as the reviewer-validation rules above. `--dry-run` combines with either PR-drain mode.
+Read `--reviewer <name>`, `--local`, `--nested`, `--dry-run`, and `--base <ref>` (Local mode only, see there) from `$ARGUMENTS`. `--local` is mutually exclusive with `--nested` (the local CLI pass has no PR to loop against): if both are present, stop immediately and say so, the same never-silently-fall-back posture as the reviewer-validation rules above. `--dry-run` combines with either PR-drain mode.
 
 - **Standalone** (no flags): one interactive pass over "## Steps" below.
 - **`--nested`**: "## Nested loop" below, autonomous, bounded by an iteration cap and stop conditions.
@@ -52,7 +52,7 @@ Read `--reviewer <name>`, `--local`, `--nested`, and `--dry-run` from `$ARGUMENT
 2. **Availability detection, before anything else about labels or drafts.** A drain against a bot that was never installed on this org looks identical, from inside this command, to a drain against a bot that is installed but suppressed, and the fix for each is the opposite of the other. Check, in order:
    - Does any name in the selected reviewer's `gating_checks` appear at all in `gh pr checks <n>` (present, in any state, not necessarily passing)?
    - Has any comment on this PR (either endpoint, see Steps 1) ever been authored by a login matching `login_pattern`?
-   - Is `opt_in_label` even defined on the repo (`gh label list --search <opt_in_label>`), independent of whether it's applied to this PR?
+   - Is `opt_in_label` even defined on the repo? `--search` matches by substring, so a similarly-named label would falsely say yes: `gh label list --json name --jq '.[] | select(.name == "<opt_in_label>")'` for an exact match, independent of whether it's applied to this PR.
 
    If **none** of the three hold, the bot is almost certainly not installed for this org. Say so plainly, and if the selected reviewer has a `cli` configured, **offer** the local path instead (`y/N`; on yes, fall into "## Local mode" for this run). If it has no `cli` either, say plainly that there is no usable path for this reviewer on this repo, and stop. **Do not add the opt-in label speculatively** to see if it wakes something up that was never there: this exact mistake (build a workaround, when the fix was one label on an already-installed bot) is the origin story for this command; adding a label to an org where the bot has no App installed is the same mistake in reverse.
 
@@ -75,11 +75,11 @@ Read `--reviewer <name>`, `--local`, `--nested`, and `--dry-run` from `$ARGUMENT
 ### 1. Fetch both endpoints, always
 
 ```bash
-gh api repos/<o>/<r>/issues/<n>/comments
-gh api repos/<o>/<r>/pulls/<n>/comments
+gh api --paginate repos/<o>/<r>/issues/<n>/comments || { echo "fetch failed: issues/comments"; exit 1; }
+gh api --paginate repos/<o>/<r>/pulls/<n>/comments || { echo "fetch failed: pulls/comments"; exit 1; }
 ```
 
-Filter both to the selected reviewer: `author.login` matched against `login_pattern` as a regex. Count each source **before** any filtering by resolution state, and report both counts (`N_description-level` from `issues/comments`, `N_inline` from `pulls/comments`) up front, every run. A single-endpoint read that reports "3 findings" when the other endpoint carries 7 more is the exact failure this step exists to prevent; the two counts are the check on that, not the merged total.
+`--paginate` is not optional: `gh api` caps a single page well below what a long-running PR can accumulate, and an unpaginated read silently undercounts rather than erroring, which is exactly the single-endpoint failure step 1 exists to prevent. Filter both to the selected reviewer: `author.login` matched against `login_pattern` as a regex. Count each source **before** any filtering by resolution state, and report both counts (`N_description-level` from `issues/comments`, `N_inline` from `pulls/comments`) up front, every run. A single-endpoint read that reports "3 findings" when the other endpoint carries 7 more is the exact failure this step exists to prevent; the two counts are the check on that, not the merged total.
 
 ### 2. Fetch resolution state via GraphQL
 
@@ -102,7 +102,7 @@ gh api graphql -f query='
       }
     }
   }
-' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
+' -f owner='OWNER' -f repo='REPO' -F number=NUMBER || { echo "fetch failed: reviewThreads"; exit 1; }
 ```
 
 Build the map from the **first comment in each thread**: `comments.nodes[0].databaseId` (REST comment id) → `{threadId: id, isResolved}`. Neither REST endpoint knows about resolution; this query is the only source for it. The comment's REST `id` and the thread's `id` (the threadId) are different values on different objects; resolving with the wrong one fails confusingly rather than loudly, so keep them in clearly-named variables, never reuse one for the other. Drop any inline finding whose thread is already `isResolved: true` from further processing (already handled by a prior pass), but keep its count in the step-1 totals.
