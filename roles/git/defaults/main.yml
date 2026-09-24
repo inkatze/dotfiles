@@ -123,11 +123,13 @@ git_unattended_signing_key: "{{ ansible_facts.env.HOME }}/.ssh/id_signing"
 #
 # A NARROWER LIST THAN SIGNING ABOVE, deliberately. Signing through 1Password is
 # friction anywhere you commit often, which is why `work` is on that list.
-# Authentication is different: it only breaks where no agent is running at all.
-# `work` has a human and a working 1Password agent, so putting it here would
-# force it onto a key whose public half is not registered yet and break its
-# pushes for no gain. Adding a host here is one line plus the registration step
-# below.
+# Authentication is different: it only breaks where nobody is there to approve
+# the agent, whether because none is running or because its app is locked with
+# no one at the screen. `work` has a human and a working 1Password agent, so
+# putting it here would force it onto a key whose public half is not registered
+# yet and break its pushes for no gain. Listed hosts skip the agent entirely
+# (IdentitiesOnly), so a host belongs here only if it must push with no agent at
+# all. Adding one is one line plus the registration step below.
 git_unattended_auth_hosts:
   - server
 

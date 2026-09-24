@@ -1,1 +1,0 @@
-- 2026-09-23 [dotfiles] The planwright plugin update tasks (marketplace update + plugin update) live in roles/osx/tasks/upgrade.yml, which only runs on Darwin, so `mise run upgrade` on the Linux host never updates planwright; the install moved to the cross-platform claude role but its update path did not.
