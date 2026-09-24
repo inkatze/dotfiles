@@ -11,6 +11,7 @@
       "finding_key_regex": null,
       "build_id_regex": "Review ID: ([a-zA-Z0-9_-]+)",
       "repo_config_path": ".example-bot.yaml",
+      "reply_suffix": "[example-bot-ack]",
       "cli": {
         "binary": "example-bot-cli",
         "install_command": "npm install -g @example/bot-cli",

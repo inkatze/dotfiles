@@ -23,6 +23,7 @@ Shape: a map of named reviewers plus a default, because one bot may not be insta
       "finding_key_regex": "...",
       "build_id_regex": "...",
       "repo_config_path": "...",
+      "reply_suffix": "...",
       "cli": { "binary": "...", "install_command": "...", "local_invocation": "...", "timeout_seconds": 600, "findings_output": "...", "invocation_notes": "..." }
     }
   }
@@ -31,7 +32,9 @@ Shape: a map of named reviewers plus a default, because one bot may not be insta
 
 `cli.invocation_notes` is optional and purely for you: free-text reminders about the real CLI's flags. No step in this file reads it.
 
-**Select a reviewer** via `--reviewer <name>` from `$ARGUMENTS`, else `default`. If `--reviewer` names a key not present under `reviewers`, or if `default` itself doesn't name an existing key, stop and say so; do not guess or fall through to some other entry. **A reviewer entry needs only what its intended use requires**: hosted mechanics (`login_pattern`, `opt_in_label`, `opt_out_label`, `gating_checks`, `requirement_level_hint`, `addressed_marker_format`, `finding_key_regex`, `build_id_regex`, `repo_config_path`) with no `cli` is valid for a bot you never run locally; `cli` with no hosted mechanics is valid for a bot with no GitHub App at all, or one blocked by an org's policy, and is reachable only via `--local`.
+`reply_suffix` is optional: a vendor-specified tag appended as the last line of every reply to an inline finding (step 10), for bots that ask agent replies to carry one so they can tell agent replies apart. Omit it for a bot that asks for nothing.
+
+**Select a reviewer** via `--reviewer <name>` from `$ARGUMENTS`, else `default`. If `--reviewer` names a key not present under `reviewers`, or if `default` itself doesn't name an existing key, stop and say so; do not guess or fall through to some other entry. **A reviewer entry needs only what its intended use requires**: hosted mechanics (`login_pattern`, `opt_in_label`, `opt_out_label`, `gating_checks`, `requirement_level_hint`, `addressed_marker_format`, `finding_key_regex`, `build_id_regex`, `repo_config_path`, and the optional `reply_suffix`) with no `cli` is valid for a bot you never run locally; `cli` with no hosted mechanics is valid for a bot with no GitHub App at all, or one blocked by an org's policy, and is reachable only via `--local`.
 
 For a PR-drain mode (standalone, `--nested`, `--dry-run`) on a reviewer with no hosted mechanics configured, stop and say the selected reviewer has no hosted mechanics; suggest `--local` if it has a `cli`. For `--local` on a reviewer with no `cli` configured, stop and say the selected reviewer has no local CLI; suggest a drain mode if it has hosted mechanics. Do not silently fall back between the two.
 
@@ -168,6 +171,8 @@ This is the requirement most worth enforcing: an unreplied finding is not handle
 ```bash
 body=$(cat <<'EOF'
 REPLY_BODY (multi-line ok; backticks and $vars stay literal)
+
+REPLY_SUFFIX (the reviewer's reply_suffix, verbatim, as the final line; omit this line and the blank line above it when none is configured)
 EOF
 )
 gh api repos/<o>/<r>/pulls/<n>/comments/<comment_id>/replies -f body="$body" \
