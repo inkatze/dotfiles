@@ -19,6 +19,7 @@ trap 'exit 130' INT TERM HUP
 fails=0
 
 ok()   { printf 'ok[%s]: %s\n' "$1" "$2"; }
+skip() { printf 'skip[%s]: %s\n' "$1" "$2"; }
 fail() { printf 'FAIL[%s]: %s\n' "$1" "$2"; fails=$((fails + 1)); }
 
 mkdir -p "$work/bin"
@@ -34,17 +35,22 @@ SH
 chmod +x "$work/bin/ansible-playbook" "$work/bin/hostname"
 # Without both stubs in place, PATH would resolve to the real ansible-playbook
 # and the first case would provision this machine.
-[ -x "$work/bin/ansible-playbook" ] && [ -x "$work/bin/hostname" ] || exit 1
+[ -x "$work/bin/ansible-playbook" ] && [ -x "$work/bin/hostname" ] || {
+    echo "playbook-alias-test: stubs under $work/bin are not executable; refusing to run" >&2
+    exit 1
+}
 
 # Runs playbook.sh with a clean environment apart from what the case sets, then
 # prints the value passed to -l. A missing argv file means the stub never ran,
-# which is reported as such rather than as an empty limit.
+# which is reported as such rather than as an empty limit. The exit status
+# lands in a file, since the caller reads this through a substitution.
 limit_for() {
     rm -f "$work/argv" "$work/op"
     env -i PATH="$work/bin:$PATH" HOME="$work/home" \
         STUB_ARGV="$work/argv" STUB_OP_ACCOUNT="$work/op" \
         DOTFILES_HOST_FILE="$work/host" DOTFILES_OP_ACCOUNT_FILE="$work/op-account" \
         "$@" bash "$playbook" >/dev/null 2>"$work/stderr"
+    echo $? >"$work/rc"
     if [ ! -f "$work/argv" ]; then
         echo "<not run>"
         return
@@ -123,31 +129,57 @@ reset_files
 expect_limit absent-file work
 
 # 7. DOTFILES_HOST is the escape hatch for a broken file, so the file is not
-#    read at all when it is set. Root reads a mode-000 file regardless.
+#    read at all when it is set; without the override, an unreadable file is a
+#    misconfiguration and the run stops there rather than falling through to
+#    another host. The read guard itself needs no unreadable file: an empty one
+#    would print its notice if it were read.
+reset_files
+: >"$work/host"
+expect_limit env-skips-file-read personal DOTFILES_HOST=personal
+if grep -q 'names no alias' "$work/stderr"; then
+    fail env-skips-file-read-quiet "the file was read although DOTFILES_HOST is set"
+else
+    ok env-skips-file-read-quiet "the file was not read"
+fi
+
+# The stub never starting is the expected outcome here, so the exit status and
+# stderr have to say why, or any earlier abort would pass.
+expect_abort() {
+    name="$1" file="$2"
+    shift 2
+    got="$(limit_for "$@")"
+    if [ "$got" = "<not run>" ] && [ "$(cat "$work/rc")" -ne 0 ] && grep -qF "$file" "$work/stderr"; then
+        ok "$name" "aborted on $file with status $(cat "$work/rc")"
+    else
+        fail "$name" "expected an abort naming $file, got -l '$got' with status $(cat "$work/rc")"
+    fi
+}
+
+# Root reads a mode-000 file regardless, so these two cannot run there.
 if [ "$(id -u)" -eq 0 ]; then
-    ok env-skips-unreadable-file "skipped: running as root"
+    skip env-skips-unreadable-file "running as root"
+    skip unreadable-file-aborts "running as root"
 else
     reset_files
     : >"$work/host"
     chmod 000 "$work/host"
     expect_limit env-skips-unreadable-file personal DOTFILES_HOST=personal
-    # Without the override, an unreadable file is a misconfiguration and the
-    # run stops there rather than falling through to another host.
-    expect_limit unreadable-file-aborts '<not run>'
+    expect_abort unreadable-file-aborts "$work/host"
     chmod 600 "$work/host"
 fi
 
-# 8. A value Ansible would split into nothing is refused outright, whichever
-#    source it came from. `<not run>` means the stub never started, which is
-#    the only acceptable outcome here.
+# 8. Anything that is not a plain name, or not a host the inventory lists, is
+#    refused outright with a non-zero status, whichever source it came from;
+#    that includes values Ansible would split into nothing. `<not run>` means
+#    the stub never started, which is the only acceptable outcome here.
 expect_refused() {
     name="$1"
     shift
     got="$(limit_for "$@")"
-    if [ "$got" = "<not run>" ] && grep -q 'refusing to run' "$work/stderr"; then
+    if [ "$got" = "<not run>" ] && [ "$(cat "$work/rc")" -ne 0 ] && grep -q 'refusing to run' "$work/stderr"; then
         ok "$name" "refused before ansible-playbook ran"
     else
-        fail "$name" "expected a refusal, got -l '$got'"
+        fail "$name" "expected a refusal, got -l '$got' with status $(cat "$work/rc")"
     fi
 }
 
@@ -197,7 +229,9 @@ reset_files
 expect_refused non-ascii-utf8-env DOTFILES_HOST="$(printf 'caf\303\251')" LC_ALL=C.UTF-8
 
 # 9. OP_ACCOUNT: an empty or whitespace-only file exports nothing, a populated
-#    one exports its trimmed value, and an already-exported value wins.
+#    one exports its trimmed value, a non-empty already-exported value wins and
+#    an empty one falls through to the file. An unreadable file is skipped
+#    when OP_ACCOUNT is set and fatal otherwise, as for the host alias.
 op_for() {
     limit_for "$@" >/dev/null
     cat "$work/op" 2>/dev/null || echo "<not run>"
@@ -236,15 +270,15 @@ expect_op op-empty-env-uses-file my.1password.com OP_ACCOUNT=
 reset_files
 expect_op op-absent-file '<unset>'
 
-# An exported OP_ACCOUNT short-circuits the file read, so a broken file cannot
-# abort a run that already selected its account. Root reads it regardless.
 if [ "$(id -u)" -eq 0 ]; then
-    ok op-env-skips-unreadable-file "skipped: running as root"
+    skip op-env-skips-unreadable-file "running as root"
+    skip op-unreadable-file-aborts "running as root"
 else
     reset_files
     : >"$work/op-account"
     chmod 000 "$work/op-account"
     expect_op op-env-skips-unreadable-file other.1password.com OP_ACCOUNT=other.1password.com
+    expect_abort op-unreadable-file-aborts "$work/op-account"
     chmod 600 "$work/op-account"
 fi
 
