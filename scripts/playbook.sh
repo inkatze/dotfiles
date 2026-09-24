@@ -44,7 +44,7 @@ fi
 # above and still reaches it as no limit at all. An alias is a plain name;
 # anything else is refused rather than passed through.
 if [[ ! "$current_host" =~ ^[[:alnum:]_-]+$ ]]; then
-    echo "playbook.sh: alias '${current_host}' is not a plain host name; refusing to run." >&2
+    printf 'playbook.sh: alias %q is not a plain host name; refusing to run.\n' "$current_host" >&2
     exit 1
 fi
 
