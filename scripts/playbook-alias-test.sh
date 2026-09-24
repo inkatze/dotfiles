@@ -203,6 +203,18 @@ expect_op op-empty-env-uses-file my.1password.com OP_ACCOUNT=
 reset_files
 expect_op op-absent-file '<unset>'
 
+# An exported OP_ACCOUNT short-circuits the file read, so a broken file cannot
+# abort a run that already selected its account. Root reads it regardless.
+if [ "$(id -u)" -eq 0 ]; then
+    ok op-env-skips-unreadable-file "skipped: running as root"
+else
+    reset_files
+    : >"$work/op-account"
+    chmod 000 "$work/op-account"
+    expect_op op-env-skips-unreadable-file other.1password.com OP_ACCOUNT=other.1password.com
+    chmod 600 "$work/op-account"
+fi
+
 if [ "$fails" -eq 0 ]; then
     echo "playbook-alias-test: all assertions hold"
 else
