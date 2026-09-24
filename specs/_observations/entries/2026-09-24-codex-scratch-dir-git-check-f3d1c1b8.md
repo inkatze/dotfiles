@@ -1,0 +1,1 @@
+- 2026-09-24 [dotfiles] panel-review.md's codex backend runs from an empty mktemp scratch dir, but codex exec refuses a non-git cwd unless --skip-git-repo-check is passed (the codex analogue of gemini's --skip-trust); the documented invocation pattern omits it, so a first run fails with exit 1 before reviewing anything.
