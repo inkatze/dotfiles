@@ -14,8 +14,13 @@ raw_dir=$(printf '%s' "$input" | jq -r '
 
 branch=""
 if [ -n "$raw_dir" ]; then
-    # An inherited GIT_DIR (Claude started from a git hook) outranks -C.
-    branch=$(unset GIT_DIR GIT_WORK_TREE; git -C "$raw_dir" branch --show-current 2>/dev/null) || branch=""
+    # The repository-locating variables a git hook exports (Claude started
+    # from one inherits them) outrank -C.
+    branch=$(
+        unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR \
+            GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+        git -C "$raw_dir" branch --show-current 2>/dev/null
+    ) || branch=""
 fi
 
 # One jq pass for the display fields. The unit separator is not whitespace,

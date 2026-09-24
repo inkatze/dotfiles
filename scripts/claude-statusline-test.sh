@@ -53,6 +53,8 @@ other="$work/other"
 git init -q -b other-branch "$other"
 GIT_DIR="$other/.git" check ignores-inherited-git-dir "myrepo  feat/x" \
     "{\"workspace\":{\"current_dir\":\"$repo\"}}"
+GIT_OBJECT_DIRECTORY=/nonexistent check ignores-inherited-object-dir "myrepo  feat/x" \
+    "{\"workspace\":{\"current_dir\":\"$repo\"}}"
 
 check fractional-floors "myrepo  feat/x · Opus 5.5 · ctx 23%" \
     "{\"workspace\":{\"current_dir\":\"$repo\"},\"model\":{\"display_name\":\"Opus 5.5\"},\"context_window\":{\"used_percentage\":23.9}}"
