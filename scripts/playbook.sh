@@ -17,8 +17,9 @@ hostname=$(hostname)
 # Ansible, so an empty or whitespace-only file would otherwise run every
 # inventory host's configuration against this machine.
 #
-# Read only when the env var is unset: under `set -e` an unreadable file would
-# otherwise abort the run that DOTFILES_HOST was exported to get around.
+# Read only when the env var is unset or empty: under `set -e` an unreadable
+# file would otherwise abort the run that DOTFILES_HOST was exported to get
+# around.
 HOST_OVERRIDE_FILE="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"
 host_from_file=""
 if [[ -z "${DOTFILES_HOST:-}" && -f "$HOST_OVERRIDE_FILE" ]]; then
@@ -41,10 +42,13 @@ fi
 
 # Ansible splits a limit on `,` and `:` and drops the pieces that strip to
 # nothing, so a value such as `,` or a non-ASCII space survives the checks
-# above and still reaches it as no limit at all. An alias is a plain name;
-# anything else is refused rather than passed through.
-if [[ ! "$current_host" =~ ^[[:alnum:]_-]+$ ]]; then
-    printf 'playbook.sh: alias %q is not a plain host name; refusing to run.\n' "$current_host" >&2
+# above and still reaches it as no limit at all, and a leading `-` or `!`
+# reaches it as an option or a negation. An alias is a plain ASCII name;
+# anything else is refused rather than passed through. Pinned to the C locale
+# so the accepted set is the same under every LANG, and so the echoed value
+# comes back escaped rather than raw.
+if ! printf '%s' "$current_host" | LC_ALL=C grep -qE '^[A-Za-z0-9][A-Za-z0-9_-]*$'; then
+    LC_ALL=C printf 'playbook.sh: alias %q is not a plain host name; refusing to run.\n' "$current_host" >&2
     exit 1
 fi
 

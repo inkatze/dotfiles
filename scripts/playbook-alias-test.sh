@@ -155,9 +155,16 @@ reset_files
 printf ',\n' >"$work/host"
 expect_refused separator-only-file
 
+# Under a UTF-8 locale, so the escaping of the echoed value is exercised where
+# it would otherwise print raw.
 reset_files
 printf '\302\240\n' >"$work/host"
-expect_refused nbsp-only-file
+expect_refused nbsp-only-file LC_ALL=C.UTF-8
+if LC_ALL=C grep -q "$(printf '\302\240')" "$work/stderr"; then
+    fail nbsp-escaped "the refused value reached stderr as raw bytes"
+else
+    ok nbsp-escaped "the refused value is escaped on stderr"
+fi
 
 reset_files
 printf 'server\n' >"$work/host"
@@ -165,6 +172,18 @@ expect_refused whitespace-env DOTFILES_HOST=' '
 
 reset_files
 expect_refused separator-env DOTFILES_HOST=work,
+
+# A bad leading character: `-v` would reach ansible-playbook's option parser,
+# and `!work` is every host except work.
+reset_files
+expect_refused leading-hyphen-env DOTFILES_HOST=-v
+
+reset_files
+expect_refused negation-env DOTFILES_HOST='!work'
+
+# The accepted set must not widen under a UTF-8 locale.
+reset_files
+expect_refused non-ascii-utf8-env DOTFILES_HOST="$(printf 'caf\303\251')" LC_ALL=C.UTF-8
 
 # 9. OP_ACCOUNT: an empty or whitespace-only file exports nothing, a populated
 #    one exports its trimmed value, and an already-exported value wins.
