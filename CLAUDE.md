@@ -41,10 +41,11 @@ branch, model and context usage on its own row at the bottom. Claude Code's
 own "context left until auto-compact" warning still appears at the bottom
 right near compaction; it cannot be moved or turned off from here. The line
 stays blank in a folder whose trust dialog has not been accepted, and when
-`disableAllHooks` is true. Unlike a hook, `statusLine` is not owned by the
-merge, only carried by its `*` pass, so dropping the key from the tracked
-file leaves it live on every host: removing the status line means overriding
-the key, or editing each live `~/.claude/settings.json`.
+`disableAllHooks` is true. A hook is removed by declaring its event as `[]`
+in the tracked file; `statusLine` has no such handle, since the merge only
+carries it through the `*` pass, so dropping the key from the tracked file
+leaves it live on every host. Removing the status line means editing each
+live `~/.claude/settings.json`.
 
 One override worth knowing: picking a style through `/config` writes
 `outputStyle` to the project-level `.claude/settings.local.json`, which wins
