@@ -275,12 +275,21 @@ order: `DOTFILES_HOST`, else `~/.config/dotfiles/host` (honouring
 `DOTFILES_HOST_FILE`), else the residual `alt` hostname match, else `work`.
 `PANEL_REVIEW_PROFILE` is honoured ahead of all of it as a per-run override.
 
-The commands are deliberately one notch stricter than `playbook.sh`: they take
-the alias file only when it has non-whitespace content. `playbook.sh` still
-tests mere existence, so a `touch`ed alias file there yields an empty
+Both the commands and `playbook.sh` take the alias file only when it has
+non-whitespace content; an empty or whitespace-only file falls through to the
+`alt` hostname match and then `work`, as if it were absent (`playbook.sh` also
+says on stderr that the file names no alias). For `playbook.sh` that is a
+safety property, not a nicety: an empty alias would become
 `ansible-playbook -l ""`, which Ansible reads as *no limit* and runs every
-inventory host against this machine. Worth fixing there too; it is left alone
-here only because this change has no business editing the playbook entrypoint.
+inventory host against this machine. `playbook.sh` alone goes one step
+further than the commands: a resolved value, from the file or from
+`DOTFILES_HOST`, that is not a single plain ASCII name (letters, digits, `_`,
+`-`) or is not a host entry in `hosts` is refused outright with exit 1. That
+is what catches `,`, a non-breaking space, a leading `-` or `!`, and the
+group names `all`, `ungrouped` and `secrets`, each of which Ansible would
+widen to several hosts. The commands pass such a value through as a profile,
+which merely selects gemini. `scripts/playbook-alias-test.sh` pins the
+`playbook.sh` side of all of it.
 
 Three of those clauses are easy to drop, and the first cut of this change
 dropped all three. Without the `alt` hostname branch, an `alt` Mac (which
@@ -521,14 +530,18 @@ an untracked `~/.config/dotfiles/host` file naming the alias — so no real
 hostname is committed. `work` stays the fallback when nothing resolves (CI
 depends on it), but the fallback now warns on stderr so a machine that
 should have declared itself does not silently install another host's
-profile. One residual hostname pattern remains for `alt`; `personal` was
+profile. An empty or whitespace-only alias file counts as absent, and a
+resolved value that is not a plain ASCII name listed as a host in `hosts`
+(a group name like `all`, a pattern, an option-shaped `-v`) makes the script
+refuse to run rather than hand Ansible a limit that means more than one
+host. One residual hostname pattern remains for `alt`; `personal` was
 matched that way until the REQ-F1.1 cleanup and must now name itself.
 
 ### Machine-local files under `~/.config/dotfiles/`
 
 | File | Read by | Holds |
 |---|---|---|
-| `host` | `scripts/playbook.sh`, the `/panel-review` and `/code-review` commands | This machine's inventory alias (`work`/`personal`/`alt`/`server`) |
+| `host` | `scripts/playbook.sh`, the `/panel-review` and `/code-review` commands | This machine's inventory alias (`work`/`personal`/`alt`/`server`). An empty or whitespace-only file counts as absent |
 | `ssh-host` | the `sshc` function in `roles/fish/files/fish/config.fish` | `kitten ssh` target hostname |
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
 | `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |

@@ -52,6 +52,11 @@ pre-commit:
       glob: "{roles/claude/tasks/planwright.yml,roles/claude/defaults/main.yml,\
         scripts/planwright-marketplace-test.sh}"
       run: scripts/planwright-marketplace-test.sh
+    playbook-alias:
+      # The suite is what notices the empty-alias guard being dropped; the
+      # script alone still runs, just against every inventory host.
+      glob: "{scripts/playbook.sh,scripts/playbook-alias-test.sh}"
+      run: scripts/playbook-alias-test.sh
     fish-functions-ignore:
       # No glob, deliberately: the drift it catches is a plugin file sitting in
       # the working tree, which can be there with nothing in that directory

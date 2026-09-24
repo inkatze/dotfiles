@@ -12,11 +12,26 @@ hostname=$(hostname)
 # itself. `work` remains the default so a machine with no configuration (and
 # CI, which runs the roles on a throwaway runner) keeps working, but the
 # fallback warns rather than silently targeting the wrong inventory host.
+#
+# The file counts only when it names something: `-l ""` is no limit at all to
+# Ansible, so an empty or whitespace-only file would otherwise run every
+# inventory host's configuration against this machine.
+#
+# Read only when the env var is unset or empty: under `set -e` an unreadable
+# file would otherwise abort the run that DOTFILES_HOST was exported to get
+# around.
 HOST_OVERRIDE_FILE="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"
+host_from_file=""
+if [[ -z "${DOTFILES_HOST:-}" && -f "$HOST_OVERRIDE_FILE" ]]; then
+    host_from_file="$(tr -d '[:space:]' <"$HOST_OVERRIDE_FILE")"
+    if [[ -z "$host_from_file" ]]; then
+        echo "playbook.sh: ${HOST_OVERRIDE_FILE} exists but names no alias; treating it as absent." >&2
+    fi
+fi
 if [[ -n "${DOTFILES_HOST:-}" ]]; then
     current_host="$DOTFILES_HOST"
-elif [[ -f "$HOST_OVERRIDE_FILE" ]]; then
-    current_host="$(tr -d '[:space:]' <"$HOST_OVERRIDE_FILE")"
+elif [[ -n "$host_from_file" ]]; then
+    current_host="$host_from_file"
 elif [[ "$hostname" == *"$ALTHOST"* ]]; then
     current_host="alt"
 else
@@ -25,7 +40,29 @@ else
     echo "playbook.sh: if this is not the work host, export DOTFILES_HOST or write the alias to ${HOST_OVERRIDE_FILE}." >&2
 fi
 
-# Machine-local 1Password account selector, same shape as the host alias above.
+# Ansible splits a limit on `,` and `:` and drops the pieces that strip to
+# nothing, so a value such as `,` or a non-ASCII space survives the checks
+# above and still reaches it as no limit at all, and a leading `-` or `!`
+# reaches it as an option or a negation. An alias is a plain ASCII name;
+# anything else is refused rather than passed through. Pinned to the C locale
+# so the accepted set is the same under every LANG, and so the echoed value
+# comes back escaped rather than raw.
+if ! printf '%s' "$current_host" | LC_ALL=C grep -qE '^[A-Za-z0-9][A-Za-z0-9_-]*$'; then
+    LC_ALL=C printf 'playbook.sh: alias %q is not a plain host name; refusing to run.\n' "$current_host" >&2
+    exit 1
+fi
+
+# A plain name can still be a group (`all`, `ungrouped`, `secrets`), which
+# widens the run to several hosts the same way. Only a host entry from the
+# inventory is accepted, read from the file so a new alias needs no edit here.
+inventory="$(cd -- "$(dirname "$0")/.." && pwd -P)/hosts"
+if ! awk '/^[^#[[:space:]]/ { print $1 }' "$inventory" | LC_ALL=C grep -qxF -- "$current_host"; then
+    LC_ALL=C printf 'playbook.sh: alias %q is not a host in %s; refusing to run.\n' "$current_host" "$inventory" >&2
+    exit 1
+fi
+
+# Machine-local 1Password account selector: an untracked file with an env
+# override, like the host alias above, without its refusal or empty-file note.
 #
 # `op` infers the account when exactly one is configured, which is why nothing
 # here ever needed it. A host with two -- a company tenant alongside the
@@ -37,13 +74,16 @@ fi
 # than threading --account through each.
 #
 # Untracked for the REQ-F1.1 reason the rest of these files exist: the value
-# names an employer's 1Password tenant. Absent file means nothing is exported
-# and single-account hosts behave exactly as before; an already-exported
-# OP_ACCOUNT wins, so a one-off run can override it.
+# names an employer's 1Password tenant. An absent file means nothing is
+# exported and single-account hosts behave exactly as before, and an empty one
+# is treated the same rather than exported as an empty selector. An
+# already-exported OP_ACCOUNT wins, so a one-off run can override it.
 OP_ACCOUNT_FILE="${DOTFILES_OP_ACCOUNT_FILE:-$HOME/.config/dotfiles/op-account}"
 if [[ -z "${OP_ACCOUNT:-}" && -f "$OP_ACCOUNT_FILE" ]]; then
-    OP_ACCOUNT="$(tr -d '[:space:]' <"$OP_ACCOUNT_FILE")"
-    export OP_ACCOUNT
+    op_account_from_file="$(tr -d '[:space:]' <"$OP_ACCOUNT_FILE")"
+    if [[ -n "$op_account_from_file" ]]; then
+        export OP_ACCOUNT="$op_account_from_file"
+    fi
 fi
 
 echo "Running on host: $current_host"
