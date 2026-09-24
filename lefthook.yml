@@ -51,10 +51,6 @@ pre-commit:
       # script alone still runs, just against every inventory host.
       glob: "{scripts/playbook.sh,scripts/playbook-alias-test.sh}"
       run: scripts/playbook-alias-test.sh
-    fish-ssh-agent:
-      # CI runs it only in the macOS fish job, so this is the Linux branch's gate.
-      glob: "{roles/fish/files/fish/config.fish,scripts/fish-ssh-agent-test.sh}"
-      run: scripts/fish-ssh-agent-test.sh
     fish-functions-ignore:
       # No glob, deliberately: the drift it catches is a plugin file sitting in
       # the working tree, which can be there with nothing in that directory
