@@ -119,7 +119,36 @@ else
     chmod 600 "$work/host"
 fi
 
-# 8. OP_ACCOUNT: an empty or whitespace-only file exports nothing, a populated
+# 8. A value Ansible would split into nothing is refused outright, whichever
+#    source it came from. `<not run>` means the stub never started, which is
+#    the only acceptable outcome here.
+expect_refused() {
+    name="$1"
+    shift
+    got="$(limit_for "$@")"
+    if [ "$got" = "<not run>" ] && grep -q 'not a plain host name' "$work/stderr"; then
+        ok "$name" "refused before ansible-playbook ran"
+    else
+        fail "$name" "expected a refusal, got -l '$got'"
+    fi
+}
+
+reset_files
+printf ',\n' >"$work/host"
+expect_refused separator-only-file
+
+reset_files
+printf '\302\240\n' >"$work/host"
+expect_refused nbsp-only-file
+
+reset_files
+printf 'server\n' >"$work/host"
+expect_refused whitespace-env DOTFILES_HOST=' '
+
+reset_files
+expect_refused separator-env DOTFILES_HOST=work,
+
+# 9. OP_ACCOUNT: an empty or whitespace-only file exports nothing, a populated
 #    one exports its trimmed value, and an already-exported value wins.
 op_for() {
     limit_for "$@" >/dev/null

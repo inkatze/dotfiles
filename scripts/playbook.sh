@@ -39,6 +39,15 @@ else
     echo "playbook.sh: if this is not the work host, export DOTFILES_HOST or write the alias to ${HOST_OVERRIDE_FILE}." >&2
 fi
 
+# Ansible splits a limit on `,` and `:` and drops the pieces that strip to
+# nothing, so a value such as `,` or a non-ASCII space survives the checks
+# above and still reaches it as no limit at all. An alias is a plain name;
+# anything else is refused rather than passed through.
+if [[ ! "$current_host" =~ ^[[:alnum:]_-]+$ ]]; then
+    echo "playbook.sh: alias '${current_host}' is not a plain host name; refusing to run." >&2
+    exit 1
+fi
+
 # Machine-local 1Password account selector, same shape as the host alias above.
 #
 # `op` infers the account when exactly one is configured, which is why nothing
