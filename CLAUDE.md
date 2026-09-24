@@ -278,8 +278,10 @@ non-whitespace content; an empty or whitespace-only file falls through to the
 `alt` hostname match and then `work`, exactly as if it were absent. For
 `playbook.sh` that is a safety property, not a nicety: an empty alias would
 become `ansible-playbook -l ""`, which Ansible reads as *no limit* and runs
-every inventory host against this machine. `scripts/playbook-alias-test.sh`
-pins it.
+every inventory host against this machine. A value Ansible would split to
+nothing (`,`, or a non-breaking space, from the file or from `DOTFILES_HOST`)
+gets past the emptiness test and is refused outright instead.
+`scripts/playbook-alias-test.sh` pins both.
 
 Three of those clauses are easy to drop, and the first cut of this change
 dropped all three. Without the `alt` hostname branch, an `alt` Mac (which
