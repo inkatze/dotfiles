@@ -13,7 +13,7 @@ set -uo pipefail
 
 here="$(cd -- "$(dirname "$0")" && pwd -P)"
 playbook="$here/playbook.sh"
-work="$(mktemp -d)"
+work="$(mktemp -d)" || exit 1
 trap 'rm -rf "$work"' EXIT
 trap 'exit 130' INT TERM HUP
 fails=0
@@ -32,6 +32,9 @@ cat >"$work/bin/hostname" <<'SH'
 echo "${STUB_HOSTNAME:-ci-runner}"
 SH
 chmod +x "$work/bin/ansible-playbook" "$work/bin/hostname"
+# Without both stubs in place, PATH would resolve to the real ansible-playbook
+# and the first case would provision this machine.
+[ -x "$work/bin/ansible-playbook" ] && [ -x "$work/bin/hostname" ] || exit 1
 
 # Runs playbook.sh with a clean environment apart from what the case sets, then
 # prints the value passed to -l. A missing argv file means the stub never ran,
@@ -86,22 +89,34 @@ expect_limit whitespace-file work
 #    to work.
 reset_files
 : >"$work/host"
-expect_limit empty-file-alt-hostname alt STUB_HOSTNAME=panela-mini
+expect_limit empty-file-alt-hostname alt STUB_HOSTNAME=ci-panela-stub
 if grep -q 'exists but names no alias' "$work/stderr"; then
     ok empty-file-alt-hostname-named "the empty file is named even when alt resolves"
 else
     fail empty-file-alt-hostname-named "alt fallback ignored the empty file silently"
 fi
 
-# 4. A file naming a host is used, trimmed.
+# 4. A file naming a host is used, trimmed, with or without a trailing
+#    newline, and without the fallback warning.
 reset_files
 printf 'server\n' >"$work/host"
 expect_limit file-names-host server
+if grep -q 'defaulting to' "$work/stderr"; then
+    fail file-names-host-quiet "fallback warning printed although the file resolved"
+else
+    ok file-names-host-quiet "no fallback warning"
+fi
+reset_files
+printf 'server' >"$work/host"
+expect_limit file-no-newline server
 
-# 5. DOTFILES_HOST wins over the file.
+# 5. DOTFILES_HOST wins over the file, but an empty one falls through to it.
 reset_files
 printf 'server\n' >"$work/host"
 expect_limit env-override personal DOTFILES_HOST=personal
+reset_files
+printf 'server\n' >"$work/host"
+expect_limit env-empty-falls-through server DOTFILES_HOST=
 
 # 6. No file and no hostname match falls back to work.
 reset_files
@@ -180,6 +195,10 @@ expect_op op-file my.1password.com
 reset_files
 printf 'my.1password.com\n' >"$work/op-account"
 expect_op op-env-wins other.1password.com OP_ACCOUNT=other.1password.com
+
+reset_files
+printf 'my.1password.com\n' >"$work/op-account"
+expect_op op-empty-env-uses-file my.1password.com OP_ACCOUNT=
 
 reset_files
 expect_op op-absent-file '<unset>'
