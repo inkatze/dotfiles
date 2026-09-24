@@ -25,6 +25,17 @@ errors=0
 
 err() { echo "ERROR: $1"; errors=$((errors + 1)); }
 
+# JSON validity for any example config shipped alongside a command (currently
+# bot-review.config.example.json). Nothing else in this repo's CI or hooks
+# reads these files, so a malformed edit would otherwise go undetected until
+# someone tried to use it as a template.
+for f in "$CMDS"/*.json; do
+  [ -e "$f" ] || continue
+  if ! jq empty "$f" >/dev/null 2>&1; then
+    err "$f is not valid JSON"
+  fi
+done
+
 # Three-bucket presentation contract (Finding Categorization). Anchored to
 # each file's own specific declarative sentence rather than a shared
 # alternation-regex across files: a shared regex lets an unrelated match

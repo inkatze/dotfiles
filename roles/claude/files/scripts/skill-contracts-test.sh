@@ -152,6 +152,10 @@ expect_fail retired-bucket-code-review \
   "echo 'Agent-resolvable' >> $CMDS/code-review.md" \
   "code-review.md references the retired Agent-resolvable bucket"
 
+expect_fail example-config-json \
+  "echo 'not json' >> $CMDS/bot-review.config.example.json" \
+  "is not valid JSON"
+
 expect_fail retired-bucket-bot-review \
   "echo 'Agent-resolvable' >> $CMDS/bot-review.md" \
   "bot-review.md references the retired Agent-resolvable bucket"
