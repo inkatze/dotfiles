@@ -91,6 +91,17 @@ else
     fail scalar-merge "scalar merge lost a key"
 fi
 
+# 5b. a statusLine written by the app's /statusline gets our command, and is
+#     not mistaken for a hook: it lives outside .hooks, so `*` handles it, which
+#     also means keys only the app set (padding here) survive the merge
+run '{"statusLine":{"type":"command","command":"~/.claude/statusline.sh","padding":2},"hooks":{}}' \
+    '{"statusLine":{"type":"command","command":"$HOME/.claude/scripts/statusline.sh"},"hooks":{}}' >/dev/null
+if jq -e '.statusLine == {"type":"command","command":"$HOME/.claude/scripts/statusline.sh","padding":2}' "$work/live.json" >/dev/null; then
+    ok statusline-merge "tracked statusLine command applied, app-only padding kept"
+else
+    fail statusline-merge "got $(jq -c '.statusLine' "$work/live.json")"
+fi
+
 # 6. idempotent: a second run reports OK and changes nothing
 first=$(cat "$work/live.json")
 status=$("$merge" "$work/live.json" "$work/managed.json")

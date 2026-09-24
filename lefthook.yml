@@ -33,6 +33,12 @@ pre-commit:
       # would still report OK.
       glob: "{scripts/claude-settings-merge.sh,scripts/claude-settings-merge-test.sh,roles/claude/files/settings.json}"
       run: scripts/claude-settings-merge-test.sh
+    claude-statusline:
+      # settings.json is in the glob because the suite also asserts the
+      # statusLine wiring there; a broken one leaves the line blank, not red.
+      glob: "{roles/claude/files/scripts/statusline.sh,roles/claude/files/settings.json,\
+        scripts/claude-statusline-test.sh}"
+      run: scripts/claude-statusline-test.sh
     credential-path-guard:
       # The suite is what notices the guard being dropped; the role alone still
       # converges and reports success while writing into a foreign credentials

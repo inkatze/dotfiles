@@ -1,0 +1,1 @@
+- 2026-09-23 [dotfiles] scripts/claude-settings-merge.sh reads the live ~/.claude/settings.json, computes, then mv-renames; a Claude session writing settings in that window (e.g. /statusline) is overwritten. Pre-existing, now also covering statusLine; no lock or compare-and-swap.

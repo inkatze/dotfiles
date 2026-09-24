@@ -53,6 +53,10 @@
   },
   "alwaysThinkingEnabled": true,
   "outputStyle": "compact",
+  "statusLine": {
+    "type": "command",
+    "command": "$HOME/.claude/scripts/statusline.sh"
+  },
   "permissions": {
     "defaultMode": "auto",
     "allow": []
