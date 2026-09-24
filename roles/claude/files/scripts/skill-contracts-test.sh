@@ -134,6 +134,10 @@ expect_fail bucket-copilot-adjacent \
   "perl -pi -e 's/Three adjacent-findings tables/Adjacent-findings tables/' $CMDS/copilot-review.md" \
   "missing expected bucket-count sentence"
 
+expect_fail bucket-bot-review-tables \
+  "perl -pi -e 's/Present all three tables, in fixed order/Present the tables/' $CMDS/bot-review.md" \
+  "missing expected bucket-count sentence"
+
 # --- retired-bucket sweep: panel (original), copilot (bucket_files), and
 # code-review (its own separate guard outside bucket_files) ---
 expect_fail retired-bucket \

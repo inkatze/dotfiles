@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Contract-consistency checker for the dotfiles-local review command files
-# (panel-review, peer-review, copilot-review, code-review) and the tracked
-# global CLAUDE.md they share contracts with. Asserted invariant classes:
+# (panel-review, peer-review, copilot-review, code-review, bot-review) and
+# the tracked global CLAUDE.md they share contracts with. Asserted invariant
+# classes:
 # the three-bucket presentation contract (and code-review's deliberate
 # inverse of it: severity tiers, no buckets), the panel-pairing /
 # copilot-pairing retirement into --nested, copilot-review's mark-ready
@@ -51,6 +52,7 @@ bucket_checks=(
   "panel-review.md|bucket out of three: Auto-applicable, Needs sign-off, or Needs human judgment"
   "peer-review.md|the validated threads as three tables"
   "copilot-review.md|Three adjacent-findings tables"
+  "bot-review.md|Present all three tables, in fixed order"
 )
 # Derived from bucket_checks, not hand-maintained, so the Agent-resolvable
 # guard below can never drift out of sync with the files bucket_checks

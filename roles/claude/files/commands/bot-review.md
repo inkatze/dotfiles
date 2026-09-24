@@ -38,7 +38,7 @@ If a required key for the invoked mode is missing on the selected reviewer, name
 
 ## Invocation modes
 
-Read `--reviewer <name>`, `--local`, `--nested`, and `--dry-run` from `$ARGUMENTS`. `--local` is mutually exclusive with `--nested` (the local CLI pass has no PR to loop against). `--dry-run` combines with either PR-drain mode.
+Read `--reviewer <name>`, `--local`, `--nested`, and `--dry-run` from `$ARGUMENTS`. `--local` is mutually exclusive with `--nested` (the local CLI pass has no PR to loop against): if both are present, stop immediately and say so, the same never-silently-fall-back posture as the reviewer-validation rules above. `--dry-run` combines with either PR-drain mode.
 
 - **Standalone** (no flags): one interactive pass over "## Steps" below.
 - **`--nested`**: "## Nested loop" below, autonomous, bounded by an iteration cap and stop conditions.
@@ -54,7 +54,7 @@ Read `--reviewer <name>`, `--local`, `--nested`, and `--dry-run` from `$ARGUMENT
    - Has any comment on this PR (either endpoint, see Steps 1) ever been authored by a login matching `login_pattern`?
    - Is `opt_in_label` even defined on the repo (`gh label list --search <opt_in_label>`), independent of whether it's applied to this PR?
 
-   If **none** of the three hold, the bot is almost certainly not installed for this org. Say so plainly, and if the selected reviewer has a `cli` configured, **offer** the local path instead (`y/N`; on yes, fall into "## Local mode" for this run). **Do not add the opt-in label speculatively** to see if it wakes something up that was never there: this exact mistake (build a workaround, when the fix was one label on an already-installed bot) is the origin story for this command; adding a label to an org where the bot has no App installed is the same mistake in reverse.
+   If **none** of the three hold, the bot is almost certainly not installed for this org. Say so plainly, and if the selected reviewer has a `cli` configured, **offer** the local path instead (`y/N`; on yes, fall into "## Local mode" for this run). If it has no `cli` either, say plainly that there is no usable path for this reviewer on this repo, and stop. **Do not add the opt-in label speculatively** to see if it wakes something up that was never there: this exact mistake (build a workaround, when the fix was one label on an already-installed bot) is the origin story for this command; adding a label to an org where the bot has no App installed is the same mistake in reverse.
 
    If at least one signal holds, the bot is reachable; continue to step 3.
 
@@ -144,9 +144,15 @@ This is the requirement most worth enforcing: an unreplied finding is not handle
 
 **Re-fetch immediately before replying if any time has passed** (a push in between can change comment ids; a stale id 404s on the reply call). Get the current comment id for this anchor with a fresh `pulls/comments` call before posting.
 
+**Shell quoting rules** (same reasoning as `/peer-review` and `/copilot-review`'s replies, which have been bitten by this): a drafted reply body routinely contains backticks (code spans) and `$`-prefixed text (env vars, template placeholders) that a single-quoted `-f body='...'` breaks or mangles. Construct the body as an inline single-quoted bash heredoc (`<<'EOF'`) in the same `Bash` invocation that posts it, never a hand-typed `-f body='...'` literal. Both code blocks below (inline and description-level) follow this shape. Fall back to a temp file only when the body is genuinely too large to inline.
+
 **Inline findings:**
 ```bash
-gh api repos/<o>/<r>/pulls/<n>/comments/<comment_id>/replies -f body='REPLY_BODY'
+body=$(cat <<'EOF'
+REPLY_BODY (multi-line ok; backticks and $vars stay literal)
+EOF
+)
+gh api repos/<o>/<r>/pulls/<n>/comments/<comment_id>/replies -f body="$body"
 ```
 Then resolve, using the **threadId from the step-2 GraphQL map, never the comment id**:
 ```bash
@@ -159,11 +165,15 @@ gh api graphql -f query='
 
 **Description-level findings (no thread to resolve):** post a top-level comment embedding the ack marker with this finding's key:
 ```bash
-gh api repos/<o>/<r>/issues/<n>/comments -f body='REPLY_BODY
+body=$(cat <<'EOF'
+REPLY_BODY
 
-<!-- bot-review-ack:FINDING_KEY -->'
+<!-- bot-review-ack:FINDING_KEY -->
+EOF
+)
+gh api repos/<o>/<r>/issues/<n>/comments -f body="$body"
 ```
-(substitute the real `addressed_marker_format` from config; the literal above is illustrative). This is the only "resolved" signal that exists for a finding with no thread, so a later pass's step 5 depends on it being posted exactly as configured.
+(substitute the real `addressed_marker_format` from config; the marker literal above is illustrative). This is the only "resolved" signal that exists for a finding with no thread, so a later pass's step 5 depends on it being posted exactly as configured.
 
 **Rejections get a reply too**, explaining what was checked and why the concern doesn't apply (cite the three validation passes), same posting mechanics as an applied fix.
 
@@ -217,7 +227,7 @@ No PR, no `gh api` calls beyond none. Runs the selected reviewer's own pre-push 
 
 1. Resolve the selected reviewer's `cli.binary` on `PATH`; if missing, print `cli.install_command` and stop.
 2. Resolve base/head: base defaults to the PR's usual base branch (or a `--base <ref>` argument if given); head is the working tree as-is (uncommitted included).
-3. Invoke `cli.local_invocation` with `{base}`, `{head}`, and `{effort}` substituted, adapting flag names to the real CLI's current `--help` output before first use (the config's invocation string is illustrative, not verified against any specific CLI). Bound it with `cli.timeout_seconds`.
+3. Invoke `cli.local_invocation` with `{base}`, `{head}`, and `{effort}` substituted, adapting flag names to the real CLI's current `--help` output before first use (the config's invocation string is illustrative, not verified against any specific CLI). Bound it with `cli.timeout_seconds`. On a non-zero exit or a timeout, print stderr (or "timed out after `cli.timeout_seconds`s") and stop; do not proceed to step 4's parse against partial or absent output.
 4. Parse findings per `cli.findings_output` (e.g. `stdout-json`, or a `file:<path>` the CLI writes to). Present as `File:Line | Finding | Severity`; no bucket categorization here, since nothing is applied automatically in this mode.
 5. If the user wants a finding acted on, apply CLAUDE.md `Validation Rigor (Solutions)` the same as any other fix; there is no PR yet, so nothing gets replied to or resolved.
 
