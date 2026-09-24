@@ -20,18 +20,24 @@ ok()   { printf 'ok[%s]: %s\n' "$1" "$2"; }
 fail() { printf 'FAIL[%s]: %s\n' "$1" "$2"; fails=$((fails + 1)); }
 
 # check <name> <expected> <json>
+# An env prefix on the call (`GIT_DIR=... check ...`) reaches the script.
+# The exit status rides along after the output so that $(...) cannot eat a
+# missing or surplus newline: a non-empty line must be exactly one row.
 check() {
-    local out rc
-    out=$(printf '%s' "$3" | "$statusline" 2>"$work/stderr")
-    rc=$?
+    local got rc want
+    got=$(printf '%s' "$3" | "$statusline" 2>"$work/stderr"; printf '\nrc=%s' "$?")
+    rc=${got##*rc=}
+    got=${got%$'\n'rc=*}
+    want="${2:+$2$'\n'}"
     if [ "$rc" -ne 0 ]; then
-        fail "$1" "exited $rc"
+        fail "$1" "exited $rc: $(cat "$work/stderr")"
     elif [ -s "$work/stderr" ]; then
         fail "$1" "wrote to stderr: $(cat "$work/stderr")"
-    elif [ "$out" != "$2" ]; then
-        fail "$1" "expected '$2', got '$out'"
+    elif [ "$got" != "$want" ]; then
+        # %q, so a regression cannot write its escape bytes to the terminal.
+        fail "$1" "expected $(printf '%q' "$want"), got $(printf '%q' "$got")"
     else
-        ok "$1" "'$out'"
+        ok "$1" "'$2'"
     fi
 }
 
@@ -45,12 +51,8 @@ check full "myrepo  feat/x · Opus 5.5 · ctx 42%" \
 
 other="$work/other"
 git init -q -b other-branch "$other"
-out=$(printf '%s' "{\"workspace\":{\"current_dir\":\"$repo\"}}" | GIT_DIR="$other/.git" "$statusline")
-if [ "$out" = "myrepo  feat/x" ]; then
-    ok ignores-inherited-git-dir "'$out'"
-else
-    fail ignores-inherited-git-dir "expected 'myrepo  feat/x', got '$out'"
-fi
+GIT_DIR="$other/.git" check ignores-inherited-git-dir "myrepo  feat/x" \
+    "{\"workspace\":{\"current_dir\":\"$repo\"}}"
 
 check fractional-floors "myrepo  feat/x · Opus 5.5 · ctx 23%" \
     "{\"workspace\":{\"current_dir\":\"$repo\"},\"model\":{\"display_name\":\"Opus 5.5\"},\"context_window\":{\"used_percentage\":23.9}}"
@@ -63,6 +65,9 @@ check null-percentage "myrepo  feat/x · Opus 5.5" \
 
 check no-model "myrepo  feat/x · ctx 7%" \
     "{\"workspace\":{\"current_dir\":\"$repo\"},\"context_window\":{\"used_percentage\":7}}"
+
+check string-percentage "myrepo  feat/x · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$repo\"},\"model\":{\"display_name\":\"Opus 5.5\"},\"context_window\":{\"used_percentage\":\"42\"}}"
 
 check non-git-dir "plain dir · Opus 5.5 · ctx 0%" \
     "{\"workspace\":{\"current_dir\":\"$plain\"},\"model\":{\"display_name\":\"Opus 5.5\"},\"context_window\":{\"used_percentage\":0}}"
@@ -86,6 +91,10 @@ check no-dir-field "Opus 5.5 · ctx 42%" \
 # line goes straight to the terminal.
 check strips-control-chars "evil]0;pwnedname · Opus 5.5" \
     '{"workspace":{"current_dir":"/tmp/evil\u001b]0;pwnedname"},"model":{"display_name":"Opus 5.5"}}'
+check strips-bel-del "xyz · Opus 5.5" \
+    '{"workspace":{"current_dir":"/tmp/x\u0007y\u007fz"},"model":{"display_name":"Opus 5.5"}}'
+check strips-model-escape "plain dir · O[2Jpus" \
+    "{\"workspace\":{\"current_dir\":\"$plain\"},\"model\":{\"display_name\":\"O\\u001b[2Jpus\"}}"
 
 git -C "$repo" -c user.name=t -c user.email=t@t -c commit.gpgsign=false \
     commit -q --allow-empty --no-verify -m init
