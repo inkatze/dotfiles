@@ -16,23 +16,24 @@ raw_dir=$(printf '%s' "$input" | jq -j '
 ' 2>/dev/null) || raw_dir=""
 raw_dir=${raw_dir%x}
 
-branch=""
+raw_branch=""
 if [ -n "$raw_dir" ]; then
     # The repository-locating variables a git hook exports (Claude started
     # from one inherits them) outrank -C.
-    branch=$(
+    raw_branch=$(
         unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR \
             GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
         git -C "$raw_dir" branch --show-current 2>/dev/null
-    ) || branch=""
+    ) || raw_branch=""
 fi
 
 # One jq pass for the display fields. The unit separator is not whitespace,
 # so `read` keeps empty fields in place. Control, format (bidi overrides,
-# zero-width joiners) and line-separator characters are stripped from every
-# value, the branch included: a directory or branch name is attacker-choosable
-# text from a cloned repo, and the line goes straight to the terminal.
-fields=$(printf '%s' "$input" | jq -r --arg branch "$branch" '
+# zero-width joiners) and line- and paragraph-separator characters are
+# stripped from every value, the branch included: a directory or branch name
+# is attacker-choosable text from a cloned repo, and the line goes straight
+# to the terminal.
+fields=$(printf '%s' "$input" | jq -r --arg branch "$raw_branch" '
   def text: if type == "string" then gsub("[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}]"; "") else "" end;
   [ ((.workspace.current_dir // .cwd) | text),
     ($branch | text),
