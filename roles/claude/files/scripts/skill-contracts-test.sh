@@ -181,6 +181,11 @@ expect_fail bot-review-safety-no-speculative-label \
   "perl -pi -e 's/Do not add the opt-in label speculatively//' $CMDS/bot-review.md" \
   "bot-review.md missing expected safety sentence"
 
+# --- require_phrases' missing-file branch, shared by all its callers ---
+expect_fail require-phrases-missing-file \
+  "rm $CMDS/code-review.md" \
+  "code-review.md referenced by severity_checks but does not exist"
+
 # --- severity tiers: a word-presence anchor and the order-declaring sentence ---
 expect_fail severity-tier \
   "perl -pi -e 's/\\*\\*Nits\\*\\*/**Notes**/g' $CMDS/code-review.md" \
