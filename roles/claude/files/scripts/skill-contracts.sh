@@ -29,12 +29,16 @@ err() { echo "ERROR: $1"; errors=$((errors + 1)); }
 # bot-review.config.example.json). Nothing else in this repo's CI or hooks
 # reads these files, so a malformed edit would otherwise go undetected until
 # someone tried to use it as a template.
-for f in "$CMDS"/*.json; do
-  [ -e "$f" ] || continue
-  if ! jq empty "$f" >/dev/null 2>&1; then
-    err "$f is not valid JSON"
-  fi
-done
+if command -v jq >/dev/null 2>&1; then
+  for f in "$CMDS"/*.json; do
+    [ -e "$f" ] || continue
+    if ! jq empty "$f" >/dev/null 2>&1; then
+      err "$f is not valid JSON"
+    fi
+  done
+else
+  err "jq is required to validate $CMDS/*.json but is not on PATH"
+fi
 
 # Three-bucket presentation contract (Finding Categorization). Anchored to
 # each file's own specific declarative sentence rather than a shared
