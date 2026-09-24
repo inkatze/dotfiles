@@ -25,6 +25,21 @@ errors=0
 
 err() { echo "ERROR: $1"; errors=$((errors + 1)); }
 
+# require_phrases <file> <array-name> <label> <phrase>... : each phrase must appear verbatim in $CMDS/<file>.
+require_phrases() {
+  local file="$1" name="$2" label="$3" phrase
+  shift 3
+  if [ -f "$CMDS/$file" ]; then
+    for phrase in "$@"; do
+      if ! grep -qF "$phrase" "$CMDS/$file"; then
+        err "$file missing expected $label: \"$phrase\""
+      fi
+    done
+  else
+    err "$file referenced by $name but does not exist at $CMDS/$file"
+  fi
+}
+
 # JSON validity for any example config shipped alongside a command (currently
 # bot-review.config.example.json). Nothing else in this repo's CI or hooks
 # reads these files, so a malformed edit would otherwise go undetected until
@@ -124,15 +139,7 @@ mark_ready_checks=(
   "This confirmation-gated ready-flip is the only PR-lifecycle action this loop takes, and only on this exit path."
   "Never automatically, never on a diminishing-returns/stop-condition/iteration-cap exit, and never for create or merge"
 )
-if [ -f "$CMDS/copilot-review.md" ]; then
-  for phrase in "${mark_ready_checks[@]}"; do
-    if ! grep -qF "$phrase" "$CMDS/copilot-review.md"; then
-      err "copilot-review.md missing expected mark-ready safety sentence: \"$phrase\""
-    fi
-  done
-else
-  err "copilot-review.md referenced by mark_ready_checks but does not exist at $CMDS/copilot-review.md"
-fi
+require_phrases copilot-review.md mark_ready_checks "mark-ready safety sentence" "${mark_ready_checks[@]}"
 
 # Single-mutation safety anchors for bot-review.md. It permits exactly three
 # PR-lifecycle mutations (a confirmation-gated opt-in label add, an applied
@@ -146,15 +153,7 @@ bot_review_safety_checks=(
   "force-push, push to a protected branch, mark the PR ready, or merge"
   "Do not add the opt-in label speculatively"
 )
-if [ -f "$CMDS/bot-review.md" ]; then
-  for phrase in "${bot_review_safety_checks[@]}"; do
-    if ! grep -qF "$phrase" "$CMDS/bot-review.md"; then
-      err "bot-review.md missing expected safety sentence: \"$phrase\""
-    fi
-  done
-else
-  err "bot-review.md referenced by bot_review_safety_checks but does not exist at $CMDS/bot-review.md"
-fi
+require_phrases bot-review.md bot_review_safety_checks "safety sentence" "${bot_review_safety_checks[@]}"
 
 # Severity-tier contract for code-review.md. It is checked against its OWN
 # anchors rather than being added to bucket_checks: per CLAUDE.md, commands that
@@ -169,15 +168,7 @@ severity_checks=(
   "**Nits**"
   "each as its own table in fixed order: Blockers, Concerns, Suggestions, Nits"
 )
-if [ -f "$CMDS/code-review.md" ]; then
-  for phrase in "${severity_checks[@]}"; do
-    if ! grep -qF "$phrase" "$CMDS/code-review.md"; then
-      err "code-review.md missing expected severity tier: \"$phrase\""
-    fi
-  done
-else
-  err "code-review.md referenced by severity_checks but does not exist at $CMDS/code-review.md"
-fi
+require_phrases code-review.md severity_checks "severity tier" "${severity_checks[@]}"
 
 # code-review presentation contract: severity-grouped, deliberately NOT the
 # three-bucket categorization. The declaring sentence must not silently
