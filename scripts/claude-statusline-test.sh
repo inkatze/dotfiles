@@ -9,9 +9,9 @@ set -uo pipefail
 # repo, and the fixture repo's commit below would land there instead.
 # shellcheck disable=SC2046
 unset $(git rev-parse --local-env-vars)
-# Fail closed: with those still set, the fixtures below would write into a
-# repository this suite does not own.
-if [ -n "${GIT_DIR:-}${GIT_INDEX_FILE:-}${GIT_WORK_TREE:-}" ]; then
+# Fail closed: with any of those still set, the fixtures below would write
+# into a repository this suite does not own.
+if [ -n "${GIT_DIR:-}${GIT_INDEX_FILE:-}${GIT_WORK_TREE:-}${GIT_COMMON_DIR:-}${GIT_OBJECT_DIRECTORY:-}${GIT_ALTERNATE_OBJECT_DIRECTORIES:-}" ]; then
     printf 'claude-statusline-test: git environment still set; refusing to run fixtures\n' >&2
     exit 2
 fi
@@ -36,9 +36,9 @@ check() {
     got=${got%$'\n'rc=*}
     want="${2:+$2$'\n'}"
     if [ "$rc" -ne 0 ]; then
-        fail "$1" "exited $rc: $(cat "$work/stderr")"
+        fail "$1" "exited $rc: $(printf '%q' "$(cat "$work/stderr")")"
     elif [ -s "$work/stderr" ]; then
-        fail "$1" "wrote to stderr: $(cat "$work/stderr")"
+        fail "$1" "wrote to stderr: $(printf '%q' "$(cat "$work/stderr")")"
     elif [ "$got" != "$want" ]; then
         # %q, so a regression cannot write its escape bytes to the terminal.
         fail "$1" "expected $(printf '%q' "$want"), got $(printf '%q' "$got")"
@@ -61,6 +61,8 @@ GIT_DIR="$other/.git" check ignores-inherited-git-dir "myrepo  feat/x" \
     "{\"workspace\":{\"current_dir\":\"$repo\"}}"
 GIT_OBJECT_DIRECTORY=/nonexistent check ignores-inherited-object-dir "myrepo  feat/x" \
     "{\"workspace\":{\"current_dir\":\"$repo\"}}"
+GIT_COMMON_DIR=/nonexistent check ignores-inherited-common-dir "myrepo  feat/x" \
+    "{\"workspace\":{\"current_dir\":\"$repo\"}}"
 
 check fractional-floors "myrepo  feat/x · Opus 5.5 · ctx 23%" \
     "{\"workspace\":{\"current_dir\":\"$repo\"},\"model\":{\"display_name\":\"Opus 5.5\"},\"context_window\":{\"used_percentage\":23.9}}"
@@ -82,6 +84,10 @@ check non-git-dir "plain dir · Opus 5.5 · ctx 0%" \
 
 check cwd-fallback "plain dir · Opus 5.5" \
     "{\"cwd\":\"$plain\",\"model\":{\"display_name\":\"Opus 5.5\"}}"
+check cwd-fallback-branch "myrepo  feat/x · Opus 5.5" \
+    "{\"cwd\":\"$repo\",\"model\":{\"display_name\":\"Opus 5.5\"}}"
+check current-dir-wins "myrepo  feat/x" \
+    "{\"workspace\":{\"current_dir\":\"$repo\"},\"cwd\":\"$other\"}"
 
 check trailing-slash "plain dir · Opus 5.5" \
     "{\"workspace\":{\"current_dir\":\"$plain/\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
@@ -107,6 +113,8 @@ check strips-model-escape "plain dir · O[2Jpus" \
 # the C0 range, and git refnames admit both, so the branch is a second way in.
 check strips-c1-controls "a2Jb · Opus 5.5" \
     '{"workspace":{"current_dir":"/tmp/a\u009b2Jb"},"model":{"display_name":"Opus 5.5"}}'
+check strips-line-separators "ab · Opus 5.5" \
+    '{"workspace":{"current_dir":"/tmp/a\u2028b"},"model":{"display_name":"Opus\u2029 5.5"}}'
 check strips-bidi-override "plain dir · Opus 5.5" \
     "{\"workspace\":{\"current_dir\":\"$plain\"},\"model\":{\"display_name\":\"O\\u202epus 5.5\"}}"
 hostile="$work/hostile"
@@ -146,9 +154,10 @@ else
     fail wired "settings.json statusLine is '$wired', script executable: $([ -x "$statusline" ] && echo yes || echo no)"
 fi
 
-# The suite's own safety, since CI has no hook environment to notice its
-# loss: re-run everything above with the hook's variables aimed at a
-# sacrificial repository and assert nothing there moved.
+# The suite's own safety: CI has no hook environment, so nothing there would
+# notice the unset at the top going missing. Re-run everything above with the
+# hook's variables aimed at a sacrificial repository and assert nothing there
+# moved.
 if [ -z "${STATUSLINE_TEST_NESTED:-}" ]; then
     outer="$work/outer"
     git init -q -b main "$outer"
@@ -159,19 +168,19 @@ if [ -z "${STATUSLINE_TEST_NESTED:-}" ]; then
         git -C "$outer" symbolic-ref HEAD
         git -C "$outer" config core.bare
         git -C "$outer" rev-list --count --all
+        cksum <"$outer/.git/index"
     }
-    before=$(outer_state)
-    if STATUSLINE_TEST_NESTED=1 GIT_DIR="$outer/.git" GIT_INDEX_FILE="$outer/.git/index" \
-        GIT_WORK_TREE="$outer" "$0" >"$work/nested.log" 2>&1; then
-        nested_rc=0
-    else
-        nested_rc=$?
-    fi
-    after=$(outer_state)
-    if [ "$nested_rc" -ne 0 ]; then
-        fail hook-env-isolated "nested run exited $nested_rc: $(tail -n 3 "$work/nested.log")"
+    before=$(outer_state 2>/dev/null)
+    STATUSLINE_TEST_NESTED=1 GIT_DIR="$outer/.git" GIT_INDEX_FILE="$outer/.git/index" \
+        GIT_WORK_TREE="$outer" "$0" >"$work/nested.log" 2>&1
+    nested_rc=$?
+    after=$(outer_state 2>/dev/null)
+    if [ "$(printf '%s\n' "$before" | wc -l)" -ne 5 ]; then
+        fail hook-env-isolated "sacrificial repo did not set up: $(printf '%q' "$before")"
+    elif [ "$nested_rc" -ne 0 ]; then
+        fail hook-env-isolated "nested run exited $nested_rc: $(printf '%q' "$(grep -E '^FAIL|refusing' "$work/nested.log" | head -n 3)")"
     elif [ "$before" != "$after" ]; then
-        fail hook-env-isolated "outer repo changed under a hook environment: $(printf '%s' "$after" | tr '\n' ' ')"
+        fail hook-env-isolated "outer repo changed under a hook environment: $(printf '%q' "$after")"
     else
         ok hook-env-isolated "fixtures stayed out of the repo the hook variables named"
     fi
