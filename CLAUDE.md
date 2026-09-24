@@ -34,6 +34,10 @@ about scoping changes, writing comments, and verifying work. Output style is
 part of the system prompt and is read once per session, so a change needs
 `/clear` or a new session to take effect.
 
+One override worth knowing: picking a style through `/config` writes
+`outputStyle` to the project-level `.claude/settings.local.json`, which wins
+over this repo's global value for that project.
+
 **The status line is ours too, and it supplements rather than replaces.**
 `statusLine` in the tracked `settings.json` runs
 `roles/claude/files/scripts/statusline.sh`, which prints the directory, git
@@ -42,14 +46,10 @@ own "context left until auto-compact" warning still appears at the bottom
 right near compaction; it cannot be moved or turned off from here. The line
 stays blank in a folder whose trust dialog has not been accepted, and when
 `disableAllHooks` is true. A hook is removed by declaring its event as `[]`
-in the tracked file; `statusLine` has no such handle, since the merge only
-carries it through the `*` pass, so dropping the key from the tracked file
-leaves it live on every host. Removing the status line means editing each
-live `~/.claude/settings.json`.
-
-One override worth knowing: picking a style through `/config` writes
-`outputStyle` to the project-level `.claude/settings.local.json`, which wins
-over this repo's global value for that project.
+in the tracked file; `statusLine` has no such handle, since the merge treats
+it as an ordinary key that it only adds or overwrites and never removes, so
+dropping the key from the tracked file leaves it live on every host.
+Removing the status line means editing each live `~/.claude/settings.json`.
 
 ## Permissions three-layer model
 
