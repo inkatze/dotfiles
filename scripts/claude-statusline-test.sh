@@ -119,8 +119,11 @@ check strips-branch-controls "hostile  evil2J · Opus 5.5" \
 newline_dir="$work/x"$'\n'"y"
 mkdir -p "$newline_dir"
 git init -q -b wrong-neighbour "$work/xy"
-check newline-dir-keeps-real-path "xy · Opus 5.5" \
+check newline-dir-skips-neighbour-branch "xy · Opus 5.5" \
     "{\"workspace\":{\"current_dir\":\"$work/x\\ny\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
+mkdir -p "$work/xy"$'\n'
+check trailing-newline-dir-skips-neighbour-branch "xy · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$work/xy\\n\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
 
 git -C "$repo" -c user.name=t -c user.email=t@t -c commit.gpgsign=false \
     commit -q --allow-empty --no-verify -m init

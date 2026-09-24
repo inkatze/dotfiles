@@ -6,11 +6,15 @@ set -uo pipefail
 
 input=$(cat)
 
-# The branch lookup gets the path exactly as sent: sanitizing it first could
-# point git at a neighbouring directory that the stripped name spells.
-raw_dir=$(printf '%s' "$input" | jq -r '
-  (.workspace.current_dir // .cwd) | if type == "string" then . else "" end
+# The branch lookup gets the path exactly as sent: sanitizing it first, or
+# letting $(...) eat a trailing newline, could point git at a neighbouring
+# directory that the shortened name spells. The sentinel keeps the newline;
+# a NUL cannot be in a real path and bash would drop it, so it is refused.
+raw_dir=$(printf '%s' "$input" | jq -j '
+  ((.workspace.current_dir // .cwd)
+    | if type == "string" and (test("\u0000") | not) then . else "" end), "x"
 ' 2>/dev/null) || raw_dir=""
+raw_dir=${raw_dir%x}
 
 branch=""
 if [ -n "$raw_dir" ]; then
