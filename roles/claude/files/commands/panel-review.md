@@ -61,7 +61,10 @@ Runs identically in both modes.
      alias file gets gemini on the work host, silently. Binding the branch to
      `[ -n "$from_file" ]` is what makes the documented `work` fallback reachable.
      `playbook.sh` applies the same test, for a sharper reason: there an empty alias
-     becomes `ansible-playbook -l ""`, which Ansible reads as no limit at all.
+     becomes `ansible-playbook -l ""`, which Ansible reads as no limit at all. It then
+     goes further than this resolver does: a value that is not a plain ASCII name
+     listed in `hosts` is refused outright there, while here it simply becomes a
+     profile that selects gemini.
    - **`DOTFILES_HOST_FILE` is honoured**, because `playbook.sh` honours it. A host that
      relocates its alias file would otherwise have `playbook.sh` and this resolver
      disagree about which machine it is.

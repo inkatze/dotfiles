@@ -61,7 +61,8 @@ if ! awk '/^[^#[[:space:]]/ { print $1 }' "$inventory" | LC_ALL=C grep -qxF -- "
     exit 1
 fi
 
-# Machine-local 1Password account selector, same shape as the host alias above.
+# Machine-local 1Password account selector: an untracked file with an env
+# override, like the host alias above, without its refusal or empty-file note.
 #
 # `op` infers the account when exactly one is configured, which is why nothing
 # here ever needed it. A host with two -- a company tenant alongside the
