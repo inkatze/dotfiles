@@ -63,7 +63,7 @@ if ! awk '/^[^#[[:space:]]/ { print $1 }' "$inventory" | LC_ALL=C grep -qxF -- "
 fi
 
 # Machine-local 1Password account selector: an untracked file with an env
-# override, like the host alias above, without its refusal or empty-file note.
+# override, like the host alias above, without its empty-file note.
 #
 # `op` infers the account when exactly one is configured, which is why nothing
 # here ever needed it. A host with two -- a company tenant alongside the
@@ -83,6 +83,11 @@ OP_ACCOUNT_FILE="${DOTFILES_OP_ACCOUNT_FILE:-$HOME/.config/dotfiles/op-account}"
 if [[ -z "${OP_ACCOUNT:-}" && -f "$OP_ACCOUNT_FILE" ]]; then
     op_account_from_file="$(LC_ALL=C tr -d '[:space:]' <"$OP_ACCOUNT_FILE")"
     if [[ -n "$op_account_from_file" ]]; then
+        # A sign-in address, email or account ID; anything else would fail every op call confusingly.
+        if ! printf '%s' "$op_account_from_file" | LC_ALL=C grep -qE '^[A-Za-z0-9][A-Za-z0-9._@-]*$'; then
+            LC_ALL=C printf 'playbook.sh: %s holds %q, not a 1Password account; refusing to run.\n' "$OP_ACCOUNT_FILE" "$op_account_from_file" >&2
+            exit 1
+        fi
         export OP_ACCOUNT="$op_account_from_file"
     fi
 fi

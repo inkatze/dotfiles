@@ -229,7 +229,8 @@ reset_files
 expect_refused non-ascii-utf8-env DOTFILES_HOST="$(printf 'caf\303\251')" LC_ALL=C.UTF-8
 
 # 9. OP_ACCOUNT: an empty or whitespace-only file exports nothing, a populated
-#    one exports its trimmed value, a non-empty already-exported value wins and
+#    one exports its trimmed value unless that isn't an account name, in which
+#    case the run is refused, a non-empty already-exported value wins and
 #    an empty one falls through to the file. An unreadable file is skipped
 #    when OP_ACCOUNT is set and fatal otherwise, as for the host alias.
 op_for() {
@@ -269,6 +270,16 @@ expect_op op-empty-env-uses-file my.1password.com OP_ACCOUNT=
 
 reset_files
 expect_op op-absent-file '<unset>'
+
+# A populated file that isn't an account is refused, not exported, under a
+# UTF-8 locale too, where macOS tr would otherwise strip the NBSP.
+reset_files
+printf '\302\240\n' >"$work/op-account"
+expect_refused op-nbsp-only-file LC_ALL=C.UTF-8
+
+reset_files
+printf ',\n' >"$work/op-account"
+expect_refused op-separator-only-file
 
 if [ "$(id -u)" -eq 0 ]; then
     skip op-env-skips-unreadable-file "running as root"
