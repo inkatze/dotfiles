@@ -36,7 +36,7 @@ Runs identically in both modes.
    ```bash
    alias_file="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"
    from_file=""
-   [ -f "$alias_file" ] && from_file="$(tr -d '[:space:]' < "$alias_file")"
+   [ -f "$alias_file" ] && from_file="$(LC_ALL=C tr -d '[:space:]' < "$alias_file")"
 
    if   [ -n "${PANEL_REVIEW_PROFILE:-}" ]; then echo "$PANEL_REVIEW_PROFILE"  # explicit per-run override
    elif [ -n "${DOTFILES_HOST:-}" ];       then echo "$DOTFILES_HOST"
