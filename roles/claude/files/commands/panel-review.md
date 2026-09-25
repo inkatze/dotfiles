@@ -198,6 +198,11 @@ Diff:
 
   `-s` prints only the response. It may open with a one-line preamble before the table, so parse from the first table row. The diff goes to GitHub Copilot and uses the account's Copilot quota, which is why this backend is opt-in only.
 
+  What the sandbox does not cover:
+  - **Keep the prompt file outside `$scratch`** (its own `mktemp`), so the scratch dir holds only the payload. The prompt travels in argv, so it shows in `ps`; that's the lens prompt only, never the diff.
+  - **A hard link inside `$scratch` is followed**, unlike a symlink (which is refused). Planting one takes write access to the scratch dir, which `mktemp -d` limits to your user, so the reviewed diff can't create one.
+  - **User-level config in `~/.copilot/` (hooks included) still loads**, whatever the cwd, the same gap the gemini bullet notes for `~/.gemini/`.
+
 If a backend invocation **does not recover** (a final non-zero exit, empty or unparseable output, or auth lost with no successful retry), do **not** silently drop it: stop the run and surface the failure. Judge by the final outcome, not intermediate stderr: do **not** stop on transient quota / rate-limit / retry messages the backend CLI emits while it retries internally if it ultimately returns a valid result. The user invoked this skill specifically for the variance that backend provides; partial runs hide the fact that one source of variance went missing.
 
 ### 3. Merge backend findings
