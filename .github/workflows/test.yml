@@ -84,6 +84,11 @@ jobs:
           brew bundle list --all --file=Brewfile.personal
           brew bundle list --all --file=Brewfile.alt
 
+      # Also runs on Ubuntu below; macOS's BSD tr, libc locales and bash 3.2
+      # behave differently, and an NBSP case once passed there and failed here.
+      - name: Run the playbook alias suite (macOS)
+        run: scripts/playbook-alias-test.sh
+
   # The review-command contract checker's fixture suite. lefthook runs both
   # scripts pre-commit, but a bypassed hook (--no-verify, web edits) would
   # land unchecked without this; the suite is what proves each check class
@@ -104,8 +109,8 @@ jobs:
       - name: Run the settings-merge fixture suite
         run: scripts/claude-settings-merge-test.sh
 
-      # Here rather than in lint: it stubs ansible-playbook, so bash, coreutils,
-      # grep and awk are all it needs.
+      # It stubs ansible-playbook, so bash, coreutils, grep and awk are all it
+      # needs; lint runs it on macOS as well.
       - name: Run the playbook alias suite
         run: scripts/playbook-alias-test.sh
 
