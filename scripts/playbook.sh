@@ -11,10 +11,13 @@ escape() { printf '%s' "$1" | LC_ALL=C sed -n 'l' | LC_ALL=C sed 's/\$$//'; }
 # Whole-string match over an explicit list: grep tests each line, so an
 # embedded newline slipped a second pattern past it, and ranges follow LANG.
 alnum='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-# $2: characters allowed after the first; any `-` must come last.
+# $2: characters allowed after the first. A `-` anywhere else in a bracket
+# expression is a locale-dependent range, so it is moved to the end here.
 plain_name() {
+    local extra="${2//-/}"
+    [[ "$2" == *-* ]] && extra="$extra-"
     case "$1" in
-        '' | [!$alnum]* | *[!$alnum$2]*) return 1 ;;
+        '' | [!$alnum]* | *[!$alnum$extra]*) return 1 ;;
     esac
 }
 
@@ -59,7 +62,8 @@ fi
 # above and still reaches it as no limit at all, and a leading `-` or `!`
 # reaches it as an option or a negation. An alias is a plain ASCII name;
 # anything else is refused rather than passed through. The echoed value goes
-# through escape() so it never reaches the terminal raw.
+# through escape(), so no control byte reaches the terminal raw; an embedded
+# newline still splits the message across lines, and long values wrap.
 if ! plain_name "$current_host" '_-'; then
     printf 'playbook.sh: alias %s is not a plain host name; refusing to run.\n' "$(escape "$current_host")" >&2
     exit 1
