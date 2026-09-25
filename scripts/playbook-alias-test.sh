@@ -228,6 +228,15 @@ expect_refused ungrouped-env DOTFILES_HOST=ungrouped
 reset_files
 expect_refused non-ascii-utf8-env DOTFILES_HOST="$(printf 'caf\303\251')" LC_ALL=C.UTF-8
 
+# An escape sequence is the refused value that could actually drive the terminal.
+reset_files
+expect_refused esc-env DOTFILES_HOST="$(printf 'a\033[2Jb')"
+if LC_ALL=C grep -q "$(printf '\033')" "$work/stderr"; then
+    fail esc-escaped "a raw ESC reached stderr"
+else
+    ok esc-escaped "the ESC is escaped on stderr"
+fi
+
 # 9. OP_ACCOUNT: an empty or whitespace-only file exports nothing, a populated
 #    one exports its trimmed value unless that isn't an account name, in which
 #    case the run is refused, a non-empty already-exported value wins and
