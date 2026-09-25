@@ -26,7 +26,7 @@ pre-commit:
       # fixture suite both so its edits are validated and because the suite is
       # the only thing that notices a check class being deleted from the
       # checker (the checker alone still reports "all invariants hold").
-      glob: "roles/claude/files/{commands/*.md,CLAUDE.md,scripts/skill-contracts.sh,scripts/skill-contracts-test.sh}"
+      glob: "roles/claude/files/{commands/*.{md,json},CLAUDE.md,scripts/skill-contracts{.sh,-test.sh}}"
       run: roles/claude/files/scripts/skill-contracts.sh && roles/claude/files/scripts/skill-contracts-test.sh
     claude-settings-merge:
       # The suite is what notices a merge case being dropped; the script alone

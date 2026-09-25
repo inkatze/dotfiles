@@ -134,6 +134,10 @@ expect_fail bucket-copilot-adjacent \
   "perl -pi -e 's/Three adjacent-findings tables/Adjacent-findings tables/' $CMDS/copilot-review.md" \
   "missing expected bucket-count sentence"
 
+expect_fail bucket-bot-review-tables \
+  "perl -pi -e 's/Present all three tables, in fixed order/Present the tables/' $CMDS/bot-review.md" \
+  "missing expected bucket-count sentence"
+
 # --- retired-bucket sweep: panel (original), copilot (bucket_files), and
 # code-review (its own separate guard outside bucket_files) ---
 expect_fail retired-bucket \
@@ -147,6 +151,30 @@ expect_fail retired-bucket-copilot \
 expect_fail retired-bucket-code-review \
   "echo 'Agent-resolvable' >> $CMDS/code-review.md" \
   "code-review.md references the retired Agent-resolvable bucket"
+
+# A missing jq must be reported as missing, not as every config being invalid.
+setup
+nojq="$(mktemp -d)"
+for t in bash grep tr cat sort cksum find xargs basename dirname; do
+  p="$(command -v "$t")" && ln -s "$p" "$nojq/$t"
+done
+if out="$(cd "$tmp" && PATH="$nojq" bash roles/claude/files/scripts/skill-contracts.sh 2>&1)"; then
+  echo "FAIL missing-jq: checker passed without jq"; failures=$((failures + 1))
+elif ! printf '%s' "$out" | grep -qF "jq is required"; then
+  echo "FAIL missing-jq: expected \"jq is required\", got: $out"; failures=$((failures + 1))
+elif printf '%s' "$out" | grep -qF "is not valid JSON"; then
+  echo "FAIL missing-jq: still blamed the config"; failures=$((failures + 1))
+fi
+rm -rf "$nojq"
+teardown
+
+expect_fail example-config-json \
+  "echo 'not json' >> $CMDS/bot-review.config.example.json" \
+  "is not valid JSON"
+
+expect_fail retired-bucket-bot-review \
+  "echo 'Agent-resolvable' >> $CMDS/bot-review.md" \
+  "bot-review.md references the retired Agent-resolvable bucket"
 
 expect_fail retired-file \
   "touch $CMDS/panel-pairing.md" \
@@ -165,6 +193,24 @@ expect_fail retired-backend-name-global \
 expect_fail mark-ready \
   "perl -pi -e 's/This confirmation-gated ready-flip is the only PR-lifecycle action this loop takes, and only on this exit path\\.//' $CMDS/copilot-review.md" \
   "mark-ready safety sentence"
+
+# --- bot-review's own single-mutation safety anchors ---
+expect_fail bot-review-safety-nested-apply \
+  "perl -pi -e 's/Never apply the code change in this bucket while nested\\.//' $CMDS/bot-review.md" \
+  "bot-review.md missing expected safety sentence"
+
+expect_fail bot-review-safety-never-mutate \
+  "perl -pi -e 's/force-push, push to a protected branch, mark the PR ready, or merge/land whatever it likes/' $CMDS/bot-review.md" \
+  "bot-review.md missing expected safety sentence"
+
+expect_fail bot-review-safety-no-speculative-label \
+  "perl -pi -e 's/Do not add the opt-in label speculatively//' $CMDS/bot-review.md" \
+  "bot-review.md missing expected safety sentence"
+
+# --- require_phrases' missing-file branch, shared by all its callers ---
+expect_fail require-phrases-missing-file \
+  "rm $CMDS/code-review.md" \
+  "code-review.md referenced by severity_checks but does not exist"
 
 # --- severity tiers: a word-presence anchor and the order-declaring sentence ---
 expect_fail severity-tier \

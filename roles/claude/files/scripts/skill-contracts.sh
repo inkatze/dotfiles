@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Contract-consistency checker for the dotfiles-local review command files
-# (panel-review, peer-review, copilot-review, code-review) and the tracked
-# global CLAUDE.md they share contracts with. Asserted invariant classes:
+# (panel-review, peer-review, copilot-review, code-review, bot-review) and
+# the tracked global CLAUDE.md they share contracts with. Asserted invariant
+# classes:
 # the three-bucket presentation contract (and code-review's deliberate
 # inverse of it: severity tiers, no buckets), the panel-pairing /
 # copilot-pairing retirement into --nested, the retired Ollama backend
-# names, copilot-review's mark-ready
-# confirmation gate, code-review's review-submission gate, the /code-review
+# names, copilot-review's mark-ready confirmation gate, bot-review's
+# single-mutation safety sentences, JSON validity of commands/*.json,
+# code-review's review-submission gate, the /code-review
 # option-set literals mirrored in CLAUDE.md, the code-review/panel-review
 # backend-resolver sync lines, and the Slack notification contract. Runs as
 # a lefthook pre-commit job (glob in lefthook.yml: the command files,
@@ -24,6 +26,36 @@ GLOBAL_MD="roles/claude/files/CLAUDE.md"
 errors=0
 
 err() { echo "ERROR: $1"; errors=$((errors + 1)); }
+
+# require_phrases <file> <array-name> <label> <phrase>... : each phrase must appear verbatim in $CMDS/<file>.
+require_phrases() {
+  local file="$1" name="$2" label="$3" phrase
+  shift 3
+  if [ -f "$CMDS/$file" ]; then
+    for phrase in "$@"; do
+      if ! grep -qF "$phrase" "$CMDS/$file"; then
+        err "$file missing expected $label: \"$phrase\""
+      fi
+    done
+  else
+    err "$file referenced by $name but does not exist at $CMDS/$file"
+  fi
+}
+
+# JSON validity for any example config shipped alongside a command (currently
+# bot-review.config.example.json). Nothing else in this repo's CI or hooks
+# reads these files, so a malformed edit would otherwise go undetected until
+# someone tried to use it as a template.
+if command -v jq >/dev/null 2>&1; then
+  for f in "$CMDS"/*.json; do
+    [ -e "$f" ] || continue
+    if ! jq empty "$f" >/dev/null 2>&1; then
+      err "$f is not valid JSON"
+    fi
+  done
+else
+  err "jq is required to validate $CMDS/*.json but is not on PATH"
+fi
 
 # Three-bucket presentation contract (Finding Categorization). Anchored to
 # each file's own specific declarative sentence rather than a shared
@@ -52,6 +84,7 @@ bucket_checks=(
   "panel-review.md|bucket out of three: Auto-applicable, Needs sign-off, or Needs human judgment"
   "peer-review.md|the validated threads as three tables"
   "copilot-review.md|Three adjacent-findings tables"
+  "bot-review.md|Present all three tables, in fixed order"
 )
 # Derived from bucket_checks, not hand-maintained, so the Agent-resolvable
 # guard below can never drift out of sync with the files bucket_checks
@@ -122,15 +155,21 @@ mark_ready_checks=(
   "This confirmation-gated ready-flip is the only PR-lifecycle action this loop takes, and only on this exit path."
   "Never automatically, never on a diminishing-returns/stop-condition/iteration-cap exit, and never for create or merge"
 )
-if [ -f "$CMDS/copilot-review.md" ]; then
-  for phrase in "${mark_ready_checks[@]}"; do
-    if ! grep -qF "$phrase" "$CMDS/copilot-review.md"; then
-      err "copilot-review.md missing expected mark-ready safety sentence: \"$phrase\""
-    fi
-  done
-else
-  err "copilot-review.md referenced by mark_ready_checks but does not exist at $CMDS/copilot-review.md"
-fi
+require_phrases copilot-review.md mark_ready_checks "mark-ready safety sentence" "${mark_ready_checks[@]}"
+
+# Single-mutation safety anchors for bot-review.md. It permits exactly three
+# PR-lifecycle mutations (a confirmation-gated opt-in label add, an applied
+# Auto-applicable fix, and a Needs-sign-off deferral reply) and forbids
+# everything else (auto-adding a label speculatively, applying a Needs-sign-off
+# code change while nested, force-pushing, merging, marking ready); these are
+# the same class of guarantee mark_ready_checks protects for copilot-review.md,
+# so bot-review.md gets the same drift protection.
+bot_review_safety_checks=(
+  "Never apply the code change in this bucket while nested."
+  "force-push, push to a protected branch, mark the PR ready, or merge"
+  "Do not add the opt-in label speculatively"
+)
+require_phrases bot-review.md bot_review_safety_checks "safety sentence" "${bot_review_safety_checks[@]}"
 
 # Severity-tier contract for code-review.md. It is checked against its OWN
 # anchors rather than being added to bucket_checks: per CLAUDE.md, commands that
@@ -145,15 +184,7 @@ severity_checks=(
   "**Nits**"
   "each as its own table in fixed order: Blockers, Concerns, Suggestions, Nits"
 )
-if [ -f "$CMDS/code-review.md" ]; then
-  for phrase in "${severity_checks[@]}"; do
-    if ! grep -qF "$phrase" "$CMDS/code-review.md"; then
-      err "code-review.md missing expected severity tier: \"$phrase\""
-    fi
-  done
-else
-  err "code-review.md referenced by severity_checks but does not exist at $CMDS/code-review.md"
-fi
+require_phrases code-review.md severity_checks "severity tier" "${severity_checks[@]}"
 
 # code-review presentation contract: severity-grouped, deliberately NOT the
 # three-bucket categorization. The declaring sentence must not silently
