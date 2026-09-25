@@ -5,6 +5,19 @@ ALTHOST="panela"
 
 hostname=$(hostname)
 
+# Not printf %q: stock macOS bash 3.2 passes non-ASCII bytes through it raw.
+escape() { printf '%s' "$1" | LC_ALL=C sed -n 'l' | LC_ALL=C sed 's/\$$//'; }
+
+# Whole-string match over an explicit list: grep tests each line, so an
+# embedded newline slipped a second pattern past it, and ranges follow LANG.
+alnum='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+# $2: characters allowed after the first; any `-` must come last.
+plain_name() {
+    case "$1" in
+        '' | [!$alnum]* | *[!$alnum$2]*) return 1 ;;
+    esac
+}
+
 # Machine-local host-alias override: the DOTFILES_HOST env var, or an
 # untracked file naming this machine's inventory alias. This keeps a host's
 # real hostname out of this public repo (REQ-F1.1). The `personal` alias used
@@ -23,7 +36,8 @@ hostname=$(hostname)
 HOST_OVERRIDE_FILE="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"
 host_from_file=""
 if [[ -z "${DOTFILES_HOST:-}" && -f "$HOST_OVERRIDE_FILE" ]]; then
-    host_from_file="$(tr -d '[:space:]' <"$HOST_OVERRIDE_FILE")"
+    # C locale: macOS tr under UTF-8 strips NBSP as whitespace, hiding a malformed file.
+    host_from_file="$(LC_ALL=C tr -d '[:space:]' <"$HOST_OVERRIDE_FILE")"
     if [[ -z "$host_from_file" ]]; then
         echo "playbook.sh: ${HOST_OVERRIDE_FILE} exists but names no alias; treating it as absent." >&2
     fi
@@ -44,11 +58,10 @@ fi
 # nothing, so a value such as `,` or a non-ASCII space survives the checks
 # above and still reaches it as no limit at all, and a leading `-` or `!`
 # reaches it as an option or a negation. An alias is a plain ASCII name;
-# anything else is refused rather than passed through. Pinned to the C locale
-# so the accepted set is the same under every LANG, and so the echoed value
-# comes back escaped rather than raw.
-if ! printf '%s' "$current_host" | LC_ALL=C grep -qE '^[A-Za-z0-9][A-Za-z0-9_-]*$'; then
-    LC_ALL=C printf 'playbook.sh: alias %q is not a plain host name; refusing to run.\n' "$current_host" >&2
+# anything else is refused rather than passed through. The echoed value goes
+# through escape() so it never reaches the terminal raw.
+if ! plain_name "$current_host" '_-'; then
+    printf 'playbook.sh: alias %s is not a plain host name; refusing to run.\n' "$(escape "$current_host")" >&2
     exit 1
 fi
 
@@ -57,12 +70,12 @@ fi
 # inventory is accepted, read from the file so a new alias needs no edit here.
 inventory="$(cd -- "$(dirname "$0")/.." && pwd -P)/hosts"
 if ! awk '/^[^#[[:space:]]/ { print $1 }' "$inventory" | LC_ALL=C grep -qxF -- "$current_host"; then
-    LC_ALL=C printf 'playbook.sh: alias %q is not a host in %s; refusing to run.\n' "$current_host" "$inventory" >&2
+    printf 'playbook.sh: alias %s is not a host in %s; refusing to run.\n' "$(escape "$current_host")" "$inventory" >&2
     exit 1
 fi
 
 # Machine-local 1Password account selector: an untracked file with an env
-# override, like the host alias above, without its refusal or empty-file note.
+# override, like the host alias above, without its empty-file note.
 #
 # `op` infers the account when exactly one is configured, which is why nothing
 # here ever needed it. A host with two -- a company tenant alongside the
@@ -80,8 +93,13 @@ fi
 # already-exported OP_ACCOUNT wins, so a one-off run can override it.
 OP_ACCOUNT_FILE="${DOTFILES_OP_ACCOUNT_FILE:-$HOME/.config/dotfiles/op-account}"
 if [[ -z "${OP_ACCOUNT:-}" && -f "$OP_ACCOUNT_FILE" ]]; then
-    op_account_from_file="$(tr -d '[:space:]' <"$OP_ACCOUNT_FILE")"
+    op_account_from_file="$(LC_ALL=C tr -d '[:space:]' <"$OP_ACCOUNT_FILE")"
     if [[ -n "$op_account_from_file" ]]; then
+        # The forms op --account takes (shorthand, sign-in address, account or user ID); anything else fails every op call confusingly.
+        if ! plain_name "$op_account_from_file" '._@-'; then
+            printf 'playbook.sh: %s holds %s, not a 1Password account; refusing to run.\n' "$OP_ACCOUNT_FILE" "$(escape "$op_account_from_file")" >&2
+            exit 1
+        fi
         export OP_ACCOUNT="$op_account_from_file"
     fi
 fi
