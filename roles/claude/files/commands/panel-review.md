@@ -188,6 +188,7 @@ Diff:
   ( cd "$scratch" && "$copilot_bin" -s --available-tools view --deny-tool shell --deny-tool write \
       --disallow-temp-dir --disable-builtin-mcps -p "$(cat "$prompt_file")" )
   backend_status=$?
+  [ "$backend_status" -eq 0 ] || { echo "copilot exited $backend_status; backend failure, not zero findings" >&2; exit "$backend_status"; }
   ```
 
   Every flag is load-bearing, because the diff is untrusted and a prompt injection in it would otherwise drive the CLI's tools. Measured on Copilot CLI 1.0.88:
