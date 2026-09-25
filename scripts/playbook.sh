@@ -62,8 +62,9 @@ fi
 # above and still reaches it as no limit at all, and a leading `-` or `!`
 # reaches it as an option or a negation. An alias is a plain ASCII name;
 # anything else is refused rather than passed through. The echoed value goes
-# through escape(), so no control byte reaches the terminal raw; an embedded
-# newline still splits the message across lines, and long values wrap.
+# through escape(), so no control byte other than a newline reaches the
+# terminal raw; an embedded newline still splits the message, and long values
+# wrap.
 if ! plain_name "$current_host" '_-'; then
     printf 'playbook.sh: alias %s is not a plain host name; refusing to run.\n' "$(escape "$current_host")" >&2
     exit 1
