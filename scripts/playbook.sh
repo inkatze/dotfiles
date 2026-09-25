@@ -23,7 +23,8 @@ hostname=$(hostname)
 HOST_OVERRIDE_FILE="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"
 host_from_file=""
 if [[ -z "${DOTFILES_HOST:-}" && -f "$HOST_OVERRIDE_FILE" ]]; then
-    host_from_file="$(tr -d '[:space:]' <"$HOST_OVERRIDE_FILE")"
+    # C locale: macOS tr under UTF-8 strips NBSP as whitespace, hiding a malformed file.
+    host_from_file="$(LC_ALL=C tr -d '[:space:]' <"$HOST_OVERRIDE_FILE")"
     if [[ -z "$host_from_file" ]]; then
         echo "playbook.sh: ${HOST_OVERRIDE_FILE} exists but names no alias; treating it as absent." >&2
     fi
@@ -80,7 +81,7 @@ fi
 # already-exported OP_ACCOUNT wins, so a one-off run can override it.
 OP_ACCOUNT_FILE="${DOTFILES_OP_ACCOUNT_FILE:-$HOME/.config/dotfiles/op-account}"
 if [[ -z "${OP_ACCOUNT:-}" && -f "$OP_ACCOUNT_FILE" ]]; then
-    op_account_from_file="$(tr -d '[:space:]' <"$OP_ACCOUNT_FILE")"
+    op_account_from_file="$(LC_ALL=C tr -d '[:space:]' <"$OP_ACCOUNT_FILE")"
     if [[ -n "$op_account_from_file" ]]; then
         export OP_ACCOUNT="$op_account_from_file"
     fi
