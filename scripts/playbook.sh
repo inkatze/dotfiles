@@ -15,7 +15,7 @@ alnum='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 # expression is a locale-dependent range, so it is moved to the end here.
 plain_name() {
     local extra="${2//-/}"
-    [[ "$2" == *-* ]] && extra="$extra-"
+    if [[ "$2" == *-* ]]; then extra="$extra-"; fi
     case "$1" in
         '' | [!$alnum]* | *[!$alnum$extra]*) return 1 ;;
     esac
