@@ -275,7 +275,12 @@ non-Anthropic CLI. The machine picks the *default*; a run can still override it
 backend and `/panel-review` a comma-separated list, plus
 `PANEL_REVIEW_PROFILE` for the profile
 itself). `/panel-review` also accepts an opt-in `copilot` via `--backends`;
-only the two below are ever chosen automatically.
+only the two below are ever chosen automatically. That backend is the Copilot
+CLI allowed only its file viewer, confined to a scratch directory holding the
+diff (see `panel-review.md` for why each flag matters). `gh copilot` downloads
+it on first use (into
+`~/.local/share/gh/copilot`, outside the dotfiles); `/copilot-review` offers it
+as a fallback when the hosted review can't run.
 
 | Alias | Backend | CLI comes from | Key comes from |
 |---|---|---|---|
