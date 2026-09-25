@@ -83,7 +83,7 @@ OP_ACCOUNT_FILE="${DOTFILES_OP_ACCOUNT_FILE:-$HOME/.config/dotfiles/op-account}"
 if [[ -z "${OP_ACCOUNT:-}" && -f "$OP_ACCOUNT_FILE" ]]; then
     op_account_from_file="$(LC_ALL=C tr -d '[:space:]' <"$OP_ACCOUNT_FILE")"
     if [[ -n "$op_account_from_file" ]]; then
-        # A sign-in address, email or account ID; anything else would fail every op call confusingly.
+        # The forms op --account takes (shorthand, sign-in address, account or user ID); anything else fails every op call confusingly.
         if ! printf '%s' "$op_account_from_file" | LC_ALL=C grep -qE '^[A-Za-z0-9][A-Za-z0-9._@-]*$'; then
             LC_ALL=C printf 'playbook.sh: %s holds %q, not a 1Password account; refusing to run.\n' "$OP_ACCOUNT_FILE" "$op_account_from_file" >&2
             exit 1
