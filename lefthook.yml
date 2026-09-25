@@ -33,6 +33,12 @@ pre-commit:
       # would still report OK.
       glob: "{scripts/claude-settings-merge.sh,scripts/claude-settings-merge-test.sh,roles/claude/files/settings.json}"
       run: scripts/claude-settings-merge-test.sh
+    claude-statusline:
+      # settings.json is in the glob because the suite also asserts the
+      # statusLine wiring there; a broken one leaves the line blank, not red.
+      glob: "{roles/claude/files/scripts/statusline.sh,roles/claude/files/settings.json,\
+        scripts/claude-statusline-test.sh}"
+      run: scripts/claude-statusline-test.sh
     credential-path-guard:
       # The suite is what notices the guard being dropped; the role alone still
       # converges and reports success while writing into a foreign credentials
@@ -40,6 +46,23 @@ pre-commit:
       glob: "{roles/environments/tasks/nodejs.yml,roles/services/tasks/darwin.yml,\
         scripts/credential-path-guard-test.sh}"
       run: scripts/credential-path-guard-test.sh
+    git-unattended-auth:
+      # The suite is what notices IdentitiesOnly being dropped; the role alone
+      # still converges, and the host only stalls once its agent is locked.
+      glob: "{roles/git/tasks/main.yml,roles/git/defaults/main.yml,\
+        scripts/git-unattended-auth-test.sh}"
+      run: scripts/git-unattended-auth-test.sh
+    planwright-marketplace:
+      # The suite is what notices the stale-source removal being dropped or
+      # loosened; the role alone still converges on a host already migrated.
+      glob: "{roles/claude/tasks/planwright.yml,roles/claude/defaults/main.yml,\
+        scripts/planwright-marketplace-test.sh}"
+      run: scripts/planwright-marketplace-test.sh
+    playbook-alias:
+      # The suite is what notices the empty-alias guard being dropped; the
+      # script alone still runs, just against every inventory host.
+      glob: "{scripts/playbook.sh,scripts/playbook-alias-test.sh}"
+      run: scripts/playbook-alias-test.sh
     fish-functions-ignore:
       # No glob, deliberately: the drift it catches is a plugin file sitting in
       # the working tree, which can be there with nothing in that directory

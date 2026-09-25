@@ -5,9 +5,10 @@
 # classes:
 # the three-bucket presentation contract (and code-review's deliberate
 # inverse of it: severity tiers, no buckets), the panel-pairing /
-# copilot-pairing retirement into --nested, copilot-review's mark-ready
-# confirmation gate, bot-review's single-mutation safety sentences, JSON
-# validity of commands/*.json, code-review's review-submission gate, the /code-review
+# copilot-pairing retirement into --nested, the retired Ollama backend
+# names, copilot-review's mark-ready confirmation gate, bot-review's
+# single-mutation safety sentences, JSON validity of commands/*.json,
+# code-review's review-submission gate, the /code-review
 # option-set literals mirrored in CLAUDE.md, the code-review/panel-review
 # backend-resolver sync lines, and the Slack notification contract. Runs as
 # a lefthook pre-commit job (glob in lefthook.yml: the command files,
@@ -130,6 +131,20 @@ for retired in panel-pairing.md copilot-pairing.md; do
   if [ -f "$CMDS/$retired" ]; then
     err "$retired exists but was retired into --nested; remove it or update this guard if reintroducing it is intentional"
   fi
+done
+
+# Retired-backend sweep. The Ollama-backed qwen-coder / gpt-oss backends were
+# dropped from /panel-review along with the daemon that served them, and
+# OLLAMA_BASE_URL was the knob only they read; a name reappearing in a command
+# file or the tracked CLAUDE.md re-advertises a backend that can only fail
+# with connection-refused.
+for retired_name in qwen-coder gpt-oss OLLAMA_BASE_URL; do
+  for path in "$CMDS"/*.md "$GLOBAL_MD"; do
+    [ -f "$path" ] || continue
+    if grep -qF "$retired_name" "$path"; then
+      err "$(basename "$path") references the retired backend name '$retired_name'; nothing provisions Ollama any more (see the dotfiles CLAUDE.md), so remove it or update this sweep if reintroducing it is intentional"
+    fi
+  done
 done
 
 # Mark-ready safety anchor. copilot-review.md's nested loop may flip a PR

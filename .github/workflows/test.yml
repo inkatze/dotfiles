@@ -63,6 +63,14 @@ jobs:
       - name: Run the credential-path guard suite
         run: scripts/credential-path-guard-test.sh
 
+      # Needs ansible-playbook, which this job installs.
+      - name: Run the git unattended-auth suite
+        run: scripts/git-unattended-auth-test.sh
+
+      # Needs ansible-playbook, which this job installs.
+      - name: Run the planwright marketplace suite
+        run: scripts/planwright-marketplace-test.sh
+
       # Was asserted by nothing until now, so its Ubuntu-job assertion had gone
       # stale unnoticed once a second job started running there.
       - name: Run the services declaration suite
@@ -75,6 +83,11 @@ jobs:
         run: |
           brew bundle list --all --file=Brewfile.personal
           brew bundle list --all --file=Brewfile.alt
+
+      # Also runs on Ubuntu below; macOS's BSD tr, libc locales and bash 3.2
+      # behave differently, and an NBSP case once passed there and failed here.
+      - name: Run the playbook alias suite (macOS)
+        run: scripts/playbook-alias-test.sh
 
   # The review-command contract checker's fixture suite. lefthook runs both
   # scripts pre-commit, but a bypassed hook (--no-verify, web edits) would
@@ -95,6 +108,15 @@ jobs:
 
       - name: Run the settings-merge fixture suite
         run: scripts/claude-settings-merge-test.sh
+
+      # It stubs ansible-playbook, so bash, coreutils, grep and awk are all it
+      # needs; lint runs it on macOS as well.
+      - name: Run the playbook alias suite
+        run: scripts/playbook-alias-test.sh
+
+      # Here rather than in lint: bash, jq and git are all it needs.
+      - name: Run the status line fixture suite
+        run: scripts/claude-statusline-test.sh
 
   test:
     needs: lint

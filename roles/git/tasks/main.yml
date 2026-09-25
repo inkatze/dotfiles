@@ -200,18 +200,19 @@
           signingkey = {{ git_unattended_signing_key }}
       {% endif %}
       {% if git_authenticates_unattended | bool %}
-      # SSH pushes offer this host's own on-disk key rather than reaching for an
-      # agent that is not running on a headless boot. See
+      # SSH pushes offer this host's own on-disk key and never an agent's. See
       # roles/git/defaults/main.yml for why the agent path fails here.
       #
-      # IdentitiesOnly is deliberately NOT set. An agent, where one exists, is
-      # still tried first; this only adds an identity rather than replacing the
-      # set, so enabling a host that does have a working agent cannot break it.
+      # IdentitiesOnly, because ssh otherwise tries agent keys first, and an
+      # agent backed by a desktop app nobody is watching blocks on an approval
+      # prompt instead of failing, stalling every fetch and push before the
+      # on-disk key is reached. A host is only on this list because it must
+      # authenticate without an agent, so skipping one cannot break it.
       #
       # Only affects SSH remotes. An https:// remote ignores this entirely and
       # falls through to the credential helper below.
       [core]
-          sshCommand = ssh -i {{ git_unattended_auth_key }}
+          sshCommand = ssh -i {{ git_unattended_auth_key }} -o IdentitiesOnly=yes
       {% endif %}
       {% if git_gh_probe.rc == 0 %}
       # Credential helper for HTTPS remotes, and a fallback rather than the

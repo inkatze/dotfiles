@@ -1,0 +1,222 @@
+#!/usr/bin/env bash
+# Fixture suite for roles/claude/files/scripts/statusline.sh. Claude Code
+# leaves fields out or sends null early in a session (context_window before
+# the first API call, for one), so every segment has to vanish cleanly
+# instead of rendering "null" or failing the whole line.
+set -uo pipefail
+
+# Under a git hook (lefthook) GIT_DIR and GIT_INDEX_FILE point at the outer
+# repo, and the fixture repo's commit below would land there instead.
+# shellcheck disable=SC2046
+unset $(git rev-parse --local-env-vars)
+# Fail closed: with any repository-locating variable still set, the fixtures
+# below would write into a repository this suite does not own.
+if [ -n "${GIT_DIR:-}${GIT_INDEX_FILE:-}${GIT_WORK_TREE:-}${GIT_COMMON_DIR:-}${GIT_OBJECT_DIRECTORY:-}${GIT_ALTERNATE_OBJECT_DIRECTORIES:-}" ]; then
+    printf 'claude-statusline-test: git environment still set; refusing to run fixtures\n' >&2
+    exit 2
+fi
+
+here="$(cd -- "$(dirname "$0")" && pwd -P)"
+statusline="$here/../roles/claude/files/scripts/statusline.sh"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+fails=0
+
+nl=$'\n'
+ok()   { printf 'ok[%s]: %s\n' "$1" "$2"; }
+fail() { printf 'FAIL[%s]: %s\n' "$1" "$2"; fails=$((fails + 1)); }
+
+# check <name> <expected> <json>
+# An env prefix on the call (`GIT_DIR=... check ...`) reaches the script.
+# The exit status rides along after the output so that $(...) cannot eat a
+# missing or surplus newline: a non-empty line must be exactly one row.
+check() {
+    local got rc want
+    got=$(printf '%s' "$3" | "$statusline" 2>"$work/stderr"; printf '\nrc=%s' "$?")
+    rc=${got##*rc=}
+    got=${got%$'\n'rc=*}
+    want="${2:+$2$nl}"
+    if [ "$rc" -ne 0 ]; then
+        fail "$1" "exited $rc: $(printf '%q' "$(cat "$work/stderr")")"
+    elif [ -s "$work/stderr" ]; then
+        fail "$1" "wrote to stderr: $(printf '%q' "$(cat "$work/stderr")")"
+    elif [ "$got" != "$want" ]; then
+        # %q, so a regression cannot write its escape bytes to the terminal.
+        fail "$1" "expected $(printf '%q' "$want"), got $(printf '%q' "$got")"
+    else
+        ok "$1" "'$2'"
+    fi
+}
+
+repo="$work/myrepo"
+git init -q -b feat/x "$repo"
+plain="$work/plain dir"
+mkdir -p "$plain"
+
+check full "myrepo  feat/x · Opus 5.5 · ctx 42%" \
+    "{\"workspace\":{\"current_dir\":\"$repo\"},\"model\":{\"display_name\":\"Opus 5.5\"},\"context_window\":{\"used_percentage\":42,\"remaining_percentage\":58}}"
+
+other="$work/other"
+git init -q -b other-branch "$other"
+GIT_DIR="$other/.git" check ignores-inherited-git-dir "myrepo  feat/x" \
+    "{\"workspace\":{\"current_dir\":\"$repo\"}}"
+GIT_OBJECT_DIRECTORY=/nonexistent check ignores-inherited-object-dir "myrepo  feat/x" \
+    "{\"workspace\":{\"current_dir\":\"$repo\"}}"
+GIT_COMMON_DIR=/nonexistent check ignores-inherited-common-dir "myrepo  feat/x" \
+    "{\"workspace\":{\"current_dir\":\"$repo\"}}"
+
+check fractional-floors "myrepo  feat/x · Opus 5.5 · ctx 23%" \
+    "{\"workspace\":{\"current_dir\":\"$repo\"},\"model\":{\"display_name\":\"Opus 5.5\"},\"context_window\":{\"used_percentage\":23.9}}"
+
+check no-context-window "myrepo  feat/x · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$repo\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
+
+check null-percentage "myrepo  feat/x · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$repo\"},\"model\":{\"display_name\":\"Opus 5.5\"},\"context_window\":{\"used_percentage\":null}}"
+
+check no-model "myrepo  feat/x · ctx 7%" \
+    "{\"workspace\":{\"current_dir\":\"$repo\"},\"context_window\":{\"used_percentage\":7}}"
+
+check string-percentage "myrepo  feat/x · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$repo\"},\"model\":{\"display_name\":\"Opus 5.5\"},\"context_window\":{\"used_percentage\":\"42\"}}"
+
+check non-git-dir "plain dir · Opus 5.5 · ctx 0%" \
+    "{\"workspace\":{\"current_dir\":\"$plain\"},\"model\":{\"display_name\":\"Opus 5.5\"},\"context_window\":{\"used_percentage\":0}}"
+
+check cwd-fallback "plain dir · Opus 5.5" \
+    "{\"cwd\":\"$plain\",\"model\":{\"display_name\":\"Opus 5.5\"}}"
+check cwd-fallback-branch "myrepo  feat/x · Opus 5.5" \
+    "{\"cwd\":\"$repo\",\"model\":{\"display_name\":\"Opus 5.5\"}}"
+check current-dir-wins "myrepo  feat/x" \
+    "{\"workspace\":{\"current_dir\":\"$repo\"},\"cwd\":\"$other\"}"
+
+check trailing-slash "plain dir · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$plain/\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
+
+check root-dir "/ · Opus 5.5" \
+    '{"workspace":{"current_dir":"/"},"model":{"display_name":"Opus 5.5"}}'
+
+check missing-dir "gone · Opus 5.5 · ctx 42%" \
+    "{\"workspace\":{\"current_dir\":\"$work/gone\"},\"model\":{\"display_name\":\"Opus 5.5\"},\"context_window\":{\"used_percentage\":42}}"
+
+check no-dir-field "Opus 5.5 · ctx 42%" \
+    '{"model":{"display_name":"Opus 5.5"},"context_window":{"used_percentage":42}}'
+
+# A directory name is attacker-choosable content (a cloned repo), and the
+# line goes straight to the terminal.
+check strips-control-chars "evil]0;pwnedname · Opus 5.5" \
+    '{"workspace":{"current_dir":"/tmp/evil\u001b]0;pwnedname"},"model":{"display_name":"Opus 5.5"}}'
+check strips-bel-del "xyz · Opus 5.5" \
+    '{"workspace":{"current_dir":"/tmp/x\u0007y\u007fz"},"model":{"display_name":"Opus 5.5"}}'
+check strips-model-escape "plain dir · O[2Jpus" \
+    "{\"workspace\":{\"current_dir\":\"$plain\"},\"model\":{\"display_name\":\"O\\u001b[2Jpus\"}}"
+# C1 controls (U+009B is a one-character CSI) and bidi overrides are not in
+# the C0 range, and git refnames admit both, so the branch is a second way in.
+check strips-c1-controls "a2Jb · Opus 5.5" \
+    '{"workspace":{"current_dir":"/tmp/a\u009b2Jb"},"model":{"display_name":"Opus 5.5"}}'
+check strips-line-separators "ab · Opus 5.5" \
+    '{"workspace":{"current_dir":"/tmp/a\u2028b"},"model":{"display_name":"Opus\u2029 5.5"}}'
+check keeps-backslashes 'a\b · Opus\5.5' \
+    '{"workspace":{"current_dir":"/tmp/a\\b"},"model":{"display_name":"Opus\\5.5"}}'
+check strips-bidi-override "plain dir · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$plain\"},\"model\":{\"display_name\":\"O\\u202epus 5.5\"}}"
+hostile="$work/hostile"
+git init -q -b $'evil\xc2\x9b2J' "$hostile"
+check strips-branch-controls "hostile  evil2J · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$hostile\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
+
+# The branch must come from the directory Claude Code named, not from the
+# neighbour its sanitized name happens to spell.
+newline_dir="$work/x"$'\n'"y"
+mkdir -p "$newline_dir"
+git init -q -b wrong-neighbour "$work/xy"
+check newline-dir-skips-neighbour-branch "xy · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$work/x\\ny\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
+mkdir -p "$work/xy"$'\n'
+check trailing-newline-dir-skips-neighbour-branch "xy · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$work/xy\\n\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
+
+# A last component made only of stripped characters must not collapse into
+# the parent's name beside the child's branch: the segment goes, whole.
+git init -q -b childbr "$work/xy/"$'\a'
+check control-only-basename-drops-location "Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$work/xy/\\u0007\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
+check double-trailing-slash "plain dir · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$plain//\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
+
+# A NUL cannot be in a real path: the branch lookup is skipped rather than
+# run on a truncated name or, through `git -C ""`, on the caller's directory.
+start_dir=$PWD
+cd "$other" || exit 1
+check nul-dir-skips-branch "myrepo · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$repo\\u0000\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
+cd "$start_dir" || exit 1
+
+git -C "$repo" -c user.name=t -c user.email=t@t -c commit.gpgsign=false \
+    commit -q --allow-empty --no-verify -m init
+git -C "$repo" checkout -q --detach
+check detached-head "myrepo · Opus 5.5" \
+    "{\"workspace\":{\"current_dir\":\"$repo\"},\"model\":{\"display_name\":\"Opus 5.5\"}}"
+
+check empty-object "" '{}'
+check invalid-json "" 'not json'
+check empty-input "" ''
+
+# The wiring, since a renamed script or a dropped key leaves the status line
+# silently blank rather than failing anywhere.
+settings="$here/../roles/claude/files/settings.json"
+wired=$(jq -r '.statusLine | "\(.type) \(.command)"' "$settings")
+# shellcheck disable=SC2016 # the literal $HOME is what Claude Code's shell expands
+if [ "$wired" = 'command $HOME/.claude/scripts/statusline.sh' ] && [ -x "$statusline" ]; then
+    ok wired "settings.json runs the executable script"
+else
+    fail wired "settings.json statusLine is '$wired', script executable: $([ -x "$statusline" ] && echo yes || echo no)"
+fi
+
+# The suite's own safety: CI has no hook environment, so nothing there would
+# notice the unset at the top going missing. Re-run everything above with the
+# hook's variables aimed at a sacrificial repository and assert nothing there
+# moved.
+if [ -z "${STATUSLINE_TEST_NESTED:-}" ]; then
+    outer="$work/outer"
+    git init -q -b main "$outer"
+    git -C "$outer" -c user.name=t -c user.email=t@t -c commit.gpgsign=false \
+        commit -q --allow-empty --no-verify -m base
+    # One line per probe, so a probe that printed nothing shows as a gap.
+    outer_probes=(
+        "rev-parse HEAD"
+        "symbolic-ref HEAD"
+        "config core.bare"
+        "rev-list --count --all"
+    )
+    outer_state() {
+        local probe
+        for probe in "${outer_probes[@]}"; do
+            # shellcheck disable=SC2086 # each probe is a fixed argument list
+            git -C "$outer" $probe
+        done
+        cksum <"$outer/.git/index"
+    }
+    before=$(outer_state 2>/dev/null)
+    STATUSLINE_TEST_NESTED=1 GIT_DIR="$outer/.git" GIT_INDEX_FILE="$outer/.git/index" \
+        GIT_WORK_TREE="$outer" "$0" >"$work/nested.log" 2>&1
+    nested_rc=$?
+    after=$(outer_state 2>/dev/null)
+    if [ "$(printf '%s\n' "$before" | wc -l)" -ne $(( ${#outer_probes[@]} + 1 )) ]; then
+        fail hook-env-isolated "sacrificial repo did not set up: $(printf '%q' "$before")"
+    elif [ "$nested_rc" -ne 0 ]; then
+        reason=$(grep -E '^FAIL|refusing' "$work/nested.log" | head -n 3)
+        [ -n "$reason" ] || reason=$(tail -n 3 "$work/nested.log")
+        fail hook-env-isolated "nested run exited $nested_rc: $(printf '%q' "$reason")"
+    elif [ "$before" != "$after" ]; then
+        fail hook-env-isolated "outer repo changed under a hook environment: $(printf '%q' "$after")"
+    else
+        ok hook-env-isolated "fixtures stayed out of the repo the hook variables named"
+    fi
+fi
+
+if [ "$fails" -ne 0 ]; then
+    printf 'claude-statusline-test: %d assertion(s) failed\n' "$fails"
+    exit 1
+fi
+printf 'claude-statusline-test: all assertions hold\n'

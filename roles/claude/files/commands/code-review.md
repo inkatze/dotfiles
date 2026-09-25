@@ -8,9 +8,11 @@ Before anything mutates branch state or messages anyone:
 
 - **Parse `$ARGUMENTS`.** It may carry a `--backends <name>` override
   (exactly one of `codex` or `gemini`; a comma-separated list is a
-  `/panel-review` spelling and an error here, and the Ollama / Copilot
-  backends stay `/panel-review`-only). Strip that flag and its value; the
-  first remaining token is the PR number or URL. A URL carries its own
+  `/panel-review` spelling and an error here, the opt-in `copilot`
+  backend stays `/panel-review`-only, and any other name is an error:
+  stop and name the two supported backends rather than guessing). Strip
+  that flag and its value; the first remaining token is the PR number or
+  URL. A URL carries its own
   `owner/repo`: parse all three out, assert the number is digits only
   before it reaches any command, and use `-R "$owner/$repo"` on **every**
   later `gh` call. If the URL's repo is not what this clone's `origin`
@@ -225,7 +227,7 @@ b. **Backend mechanics (reference; executed once, in pre-flight).** Pre-flight a
    ```bash
    alias_file="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"
    from_file=""
-   [ -f "$alias_file" ] && from_file="$(tr -d '[:space:]' < "$alias_file")"
+   [ -f "$alias_file" ] && from_file="$(LC_ALL=C tr -d '[:space:]' < "$alias_file")"
 
    if   [ -n "${PANEL_REVIEW_PROFILE:-}" ]; then profile="$PANEL_REVIEW_PROFILE"  # explicit per-run override
    elif [ -n "${DOTFILES_HOST:-}" ];       then profile="$DOTFILES_HOST"
@@ -248,7 +250,7 @@ b. **Backend mechanics (reference; executed once, in pre-flight).** Pre-flight a
 
    This used to read `PANEL_REVIEW_PROFILE` alone and default to `personal`, which meant a work machine that had not exported that variable by hand (nothing in the dotfiles repo sets it) silently resolved to `gemini`. Keying on the alias file the rest of the repo already uses fixes that; the env var is still honored first as a per-run override.
 
-   Several details in the snippet are load-bearing, each of which an earlier revision got wrong: the `alt` hostname branch must stay (`playbook.sh` carries it, and an `alt` Mac legitimately has no alias file, so dropping it sends that host to `codex`, which it never logs into); the alias-file branch tests the trimmed *contents*, not `[ -f ]`, deliberately one notch stricter than `playbook.sh`'s existence test, because an empty or newline-only file otherwise yields an empty profile that falls to `gemini` instead of the documented `work`; `DOTFILES_HOST_FILE` is honoured because `playbook.sh` honours it; and an unresolved alias must resolve to `work`, matching `playbook.sh`, because `work` is the host that does not write an alias file, so resolving it to nothing or to any other alias sends the work host to a backend it never logs into.
+   Several details in the snippet are load-bearing, each of which an earlier revision got wrong: the `alt` hostname branch must stay (`playbook.sh` carries it, and an `alt` Mac legitimately has no alias file, so dropping it sends that host to `codex`, which it never logs into); the alias-file branch tests the trimmed *contents*, not `[ -f ]`, the same test `playbook.sh` applies, because an empty or newline-only file otherwise yields an empty profile that falls to `gemini` instead of the documented `work` (`playbook.sh` additionally refuses a value that is not a plain ASCII name listed in `hosts`, where this resolver only turns it into a profile that selects gemini); `DOTFILES_HOST_FILE` is honoured because `playbook.sh` honours it; and an unresolved alias must resolve to `work`, matching `playbook.sh`, because `work` is the host that does not write an alias file, so resolving it to nothing or to any other alias sends the work host to a backend it never logs into.
 
    Keep this block in sync with `/panel-review`'s Pre-flight item "Detect the machine profile" (not its Steps section's step 3, which is an unrelated merge step). The sync is **condition-identical, not token-identical**: the branch conditions match token for token, while the branch bodies deliberately differ (`echo` there, `profile=` assignment here, because the trailing `case "$profile"` mapping needs the variable) and that `case` mapping is code-review-only, gaining an arm whenever the profile table gains a non-gemini row. Do not "fix" one file's branch bodies into the other's shape.
 

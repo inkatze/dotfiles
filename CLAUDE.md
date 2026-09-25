@@ -14,7 +14,7 @@ runtime:
 |---|---|---|
 | `~/.claude/CLAUDE.md` | `roles/claude/files/CLAUDE.md` | Symlink |
 | `~/.claude/commands/*` | `roles/claude/files/commands/` | Symlink |
-| `~/.claude/scripts/*` | `roles/claude/files/scripts/` | Symlink (hook scripts invoked from `settings.json`) |
+| `~/.claude/scripts/*` | `roles/claude/files/scripts/` | Symlink (scripts `settings.json` invokes: hooks, the status line) |
 | `~/.claude/output-styles/*` | `roles/claude/files/output-styles/` | Symlink (resolved by name from `outputStyle`) |
 | `~/.claude/settings.json` | `roles/claude/files/settings.json` | jq merge (not symlink) |
 
@@ -37,6 +37,19 @@ part of the system prompt and is read once per session, so a change needs
 One override worth knowing: picking a style through `/config` writes
 `outputStyle` to the project-level `.claude/settings.local.json`, which wins
 over this repo's global value for that project.
+
+**The status line is ours too, and it supplements rather than replaces.**
+`statusLine` in the tracked `settings.json` runs
+`roles/claude/files/scripts/statusline.sh`, which prints the directory, git
+branch, model and context usage on its own row at the bottom. Claude Code's
+own "context left until auto-compact" warning still appears at the bottom
+right near compaction; it cannot be moved or turned off from here. The line
+stays blank in a folder whose trust dialog has not been accepted, and when
+`disableAllHooks` is true. A hook is removed by declaring its event as `[]`
+in the tracked file; `statusLine` has no such handle, since the merge treats
+it as an ordinary key that it only adds or overwrites and never removes, so
+dropping the key from the tracked file leaves it live on every host.
+Removing the status line means editing each live `~/.claude/settings.json`.
 
 ## Permissions three-layer model
 
@@ -128,7 +141,7 @@ script before opening a repo you did not author.
 
 The SessionStart `tool-discovery` hook is supplied by the planwright plugin,
 not this repo. planwright installs as a Claude Code plugin (marketplace flow,
-see the planwright install task in `roles/claude/tasks/main.yml`), and the plugin
+see `roles/claude/tasks/planwright.yml`), and the plugin
 wires its own hooks via its `hooks/hooks.json` resolved against
 `CLAUDE_PLUGIN_ROOT`: `tool-discovery` on SessionStart and `tasks-pr-sync` on
 PostToolUse(Bash). The tracked `settings.json` therefore no longer wires
@@ -245,12 +258,14 @@ together: the daemon/model tasks in `roles/osx/tasks/homebrew.yml`, `brew
 `absent` task, since `conf.d` is a symlink farm and a retired drop-in would
 otherwise dangle).
 
-Consequence to know before reaching for it: `/panel-review` still *accepts*
-`qwen-coder` and `gpt-oss` via `--backends`, and they will now fail with
-connection-refused. The automatic choices (`codex` on `work`, `gemini`
-elsewhere) are unaffected. Restoring it means digging up the git history of
-this section, plus re-reading the LAN-exposure caveat that was here: Ollama
-has no auth, so binding `0.0.0.0` exposes it to the whole network.
+The `qwen-coder` and `gpt-oss` backends `/panel-review` used to route to that
+daemon were removed with it, since without a daemon they could only fail with
+connection-refused. Restoring any of it means digging up the git history of
+this section and of `panel-review.md`, plus re-reading the LAN-exposure caveat
+that was here: Ollama has no auth, so binding `0.0.0.0` exposes it to the
+whole network. The contract checker also refuses those two names (and
+`OLLAMA_BASE_URL`) in the command files and the tracked global `CLAUDE.md`, so
+restoring them means updating its retired-backend sweep in the same change.
 
 ## Review backends: codex vs gemini
 
@@ -259,8 +274,8 @@ non-Anthropic CLI. The machine picks the *default*; a run can still override it
 (`--backends` on either command, where `/code-review` accepts exactly one
 backend and `/panel-review` a comma-separated list, plus
 `PANEL_REVIEW_PROFILE` for the profile
-itself). `/panel-review` also accepts `qwen-coder`, `gpt-oss` and `copilot`
-via `--backends`; only the two below are ever chosen automatically.
+itself). `/panel-review` also accepts an opt-in `copilot` via `--backends`;
+only the two below are ever chosen automatically.
 
 | Alias | Backend | CLI comes from | Key comes from |
 |---|---|---|---|
@@ -273,12 +288,21 @@ order: `DOTFILES_HOST`, else `~/.config/dotfiles/host` (honouring
 `DOTFILES_HOST_FILE`), else the residual `alt` hostname match, else `work`.
 `PANEL_REVIEW_PROFILE` is honoured ahead of all of it as a per-run override.
 
-The commands are deliberately one notch stricter than `playbook.sh`: they take
-the alias file only when it has non-whitespace content. `playbook.sh` still
-tests mere existence, so a `touch`ed alias file there yields an empty
+Both the commands and `playbook.sh` take the alias file only when it has
+non-whitespace content; an empty or whitespace-only file falls through to the
+`alt` hostname match and then `work`, as if it were absent (`playbook.sh` also
+says on stderr that the file names no alias). For `playbook.sh` that is a
+safety property, not a nicety: an empty alias would become
 `ansible-playbook -l ""`, which Ansible reads as *no limit* and runs every
-inventory host against this machine. Worth fixing there too; it is left alone
-here only because this change has no business editing the playbook entrypoint.
+inventory host against this machine. `playbook.sh` alone goes one step
+further than the commands: a resolved value, from the file or from
+`DOTFILES_HOST`, that is not a single plain ASCII name (letters, digits, `_`,
+`-`) or is not a host entry in `hosts` is refused outright with exit 1. That
+is what catches `,`, a non-breaking space, a leading `-` or `!`, and the
+group names `all`, `ungrouped` and `secrets`, each of which Ansible would
+widen to several hosts. The commands pass such a value through as a profile,
+which merely selects gemini. `scripts/playbook-alias-test.sh` pins the
+`playbook.sh` side of all of it.
 
 Three of those clauses are easy to drop, and the first cut of this change
 dropped all three. Without the `alt` hostname branch, an `alt` Mac (which
@@ -519,14 +543,18 @@ an untracked `~/.config/dotfiles/host` file naming the alias — so no real
 hostname is committed. `work` stays the fallback when nothing resolves (CI
 depends on it), but the fallback now warns on stderr so a machine that
 should have declared itself does not silently install another host's
-profile. One residual hostname pattern remains for `alt`; `personal` was
+profile. An empty or whitespace-only alias file counts as absent, and a
+resolved value that is not a plain ASCII name listed as a host in `hosts`
+(a group name like `all`, a pattern, an option-shaped `-v`) makes the script
+refuse to run rather than hand Ansible a limit that means more than one
+host. One residual hostname pattern remains for `alt`; `personal` was
 matched that way until the REQ-F1.1 cleanup and must now name itself.
 
 ### Machine-local files under `~/.config/dotfiles/`
 
 | File | Read by | Holds |
 |---|---|---|
-| `host` | `scripts/playbook.sh`, the `/panel-review` and `/code-review` commands | This machine's inventory alias (`work`/`personal`/`alt`/`server`) |
+| `host` | `scripts/playbook.sh`, the `/panel-review` and `/code-review` commands | This machine's inventory alias (`work`/`personal`/`alt`/`server`). An empty or whitespace-only file counts as absent |
 | `ssh-host` | the `sshc` function in `roles/fish/files/fish/config.fish` | `kitten ssh` target hostname |
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
 | `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
@@ -646,7 +674,10 @@ Two different credentials, because ssh and the API do not share one.
 `git_unattended_auth_hosts`. Register its public half on GitHub as an
 **Authentication** key (a separate entry type from the signing key), and make
 sure the remote is `ssh://`, since `core.sshCommand` does nothing for an `https://`
-remote.
+remote. That sshCommand sets `IdentitiesOnly=yes`, so ssh never offers the
+agent's keys: a 1Password agent with nobody at its screen blocks on an approval
+prompt rather than failing, which stalled fetches for minutes before the
+on-disk key was tried.
 
 **The gh CLI** needs a token, and there is no repo artifact for it: run
 

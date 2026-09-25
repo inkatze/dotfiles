@@ -1,0 +1,61 @@
+---
+
+# Every task is CI-guarded: the matrix has no `claude` CLI.
+
+# A host that recorded the marketplace under another source (the full HTTPS URL
+# this role used to add) rejects the shorthand add outright, taking the rest of
+# the role down with it. Claude Code compares sources by deep equality, so the
+# stale record has to be removed first, and only when it differs, or every run
+# re-clones the marketplace.
+- name: Read the recorded planwright marketplace sources
+  ansible.builtin.slurp:
+    path: "{{ item }}"
+  loop:
+    - "{{ ansible_facts.env.HOME }}/.claude/settings.json"
+    - "{{ ansible_facts.env.HOME }}/.claude/plugins/known_marketplaces.json"
+  register: claude_marketplace_records
+  failed_when: false
+  when: lookup('ansible.builtin.env', 'CI', default='') == ''
+  tags: [claude]
+
+# Removing the marketplace keeps the plugin's enabledPlugins entry, and the
+# install task below puts the plugin itself back, so nothing is lost.
+- name: Remove a planwright marketplace recorded under a different source
+  ansible.builtin.command:
+    cmd: "{{ ansible_facts.env.HOME }}/.local/bin/claude plugin marketplace remove planwright"
+  changed_when: true
+  vars:
+    claude_planwright_source: {source: github, repo: "{{ claude_planwright_repo }}"}
+    # base64 of "{}", standing in for a file that is absent or empty.
+    claude_settings_record: >-
+      {{ claude_marketplace_records.results[0].content | default('e30=', true) | b64decode | from_json }}
+    claude_known_record: >-
+      {{ claude_marketplace_records.results[1].content | default('e30=', true) | b64decode | from_json }}
+    claude_settings_planwright: >-
+      {{ (claude_settings_record.extraKnownMarketplaces | default({})).planwright | default({}) }}
+    claude_planwright_recorded: >-
+      {{ [claude_settings_planwright.source | default(none),
+          (claude_known_record.planwright | default({})).source | default(none)]
+         | select | list }}
+  when:
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
+    - claude_planwright_recorded | reject('equalto', claude_planwright_source) | list | length > 0
+  tags: [claude]
+
+- name: Add planwright plugin marketplace
+  ansible.builtin.command:
+    cmd: >-
+      {{ ansible_facts.env.HOME }}/.local/bin/claude plugin marketplace add
+      {{ claude_planwright_repo }}
+  register: claude_planwright_marketplace
+  changed_when: "'already' not in claude_planwright_marketplace.stdout"
+  when: lookup('ansible.builtin.env', 'CI', default='') == ''
+  tags: [claude]
+
+- name: Install planwright plugin
+  ansible.builtin.command:
+    cmd: "{{ ansible_facts.env.HOME }}/.local/bin/claude plugin install planwright@planwright --scope user"
+  register: claude_planwright_install
+  changed_when: "'already' not in claude_planwright_install.stdout"
+  when: lookup('ansible.builtin.env', 'CI', default='') == ''
+  tags: [claude]

@@ -1,0 +1,4 @@
+---
+# Must stay in owner/repo form: the migration task compares against a
+# `github`-kind source built from it, so a URL would remove it on every run.
+claude_planwright_repo: inkatze/planwright

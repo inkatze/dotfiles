@@ -180,6 +180,16 @@ expect_fail retired-file \
   "touch $CMDS/panel-pairing.md" \
   "was retired into --nested"
 
+# --- retired-backend sweep: a command file and the tracked CLAUDE.md, since
+# the sweep covers both ---
+expect_fail retired-backend-name \
+  "echo 'qwen-coder' >> $CMDS/panel-review.md" \
+  "retired backend name"
+
+expect_fail retired-backend-name-global \
+  "echo 'OLLAMA_BASE_URL' >> roles/claude/files/CLAUDE.md" \
+  "retired backend name"
+
 expect_fail mark-ready \
   "perl -pi -e 's/This confirmation-gated ready-flip is the only PR-lifecycle action this loop takes, and only on this exit path\\.//' $CMDS/copilot-review.md" \
   "mark-ready safety sentence"
