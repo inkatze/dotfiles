@@ -1,0 +1,1 @@
+- 2026-09-25 [dotfiles] scripts/playbook.sh plain_name now moves a dash in its extra-characters argument to the end, but ], ^, ! and backslash are still bracket-expression specials there; both current callers pass literals without them, so a new caller adding one would change the match silently rather than fail.
