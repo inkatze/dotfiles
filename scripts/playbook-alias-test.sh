@@ -213,6 +213,11 @@ expect_refused leading-hyphen-env DOTFILES_HOST=-v
 reset_files
 expect_refused negation-env DOTFILES_HOST='!work'
 
+# A valid first line must not carry a second pattern past a line-oriented
+# check: `work<LF>all` reaches Ansible as every host.
+reset_files
+expect_refused newline-env DOTFILES_HOST="$(printf 'work\nall')"
+
 # A group name is a plain name that still means several hosts.
 reset_files
 printf 'all\n' >"$work/host"

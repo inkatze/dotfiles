@@ -8,6 +8,16 @@ hostname=$(hostname)
 # Not printf %q: stock macOS bash 3.2 passes non-ASCII bytes through it raw.
 escape() { printf '%s' "$1" | LC_ALL=C sed -n 'l' | LC_ALL=C sed 's/\$$//'; }
 
+# Whole-string match over an explicit list: grep tests each line, so an
+# embedded newline slipped a second pattern past it, and ranges follow LANG.
+alnum='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+# $2: characters allowed after the first; any `-` must come last.
+plain_name() {
+    case "$1" in
+        '' | [!$alnum]* | *[!$alnum$2]*) return 1 ;;
+    esac
+}
+
 # Machine-local host-alias override: the DOTFILES_HOST env var, or an
 # untracked file naming this machine's inventory alias. This keeps a host's
 # real hostname out of this public repo (REQ-F1.1). The `personal` alias used
@@ -48,10 +58,9 @@ fi
 # nothing, so a value such as `,` or a non-ASCII space survives the checks
 # above and still reaches it as no limit at all, and a leading `-` or `!`
 # reaches it as an option or a negation. An alias is a plain ASCII name;
-# anything else is refused rather than passed through. Pinned to the C locale
-# so the accepted set is the same under every LANG; the echoed value goes
+# anything else is refused rather than passed through. The echoed value goes
 # through escape() so it never reaches the terminal raw.
-if ! printf '%s' "$current_host" | LC_ALL=C grep -qE '^[A-Za-z0-9][A-Za-z0-9_-]*$'; then
+if ! plain_name "$current_host" '_-'; then
     printf 'playbook.sh: alias %s is not a plain host name; refusing to run.\n' "$(escape "$current_host")" >&2
     exit 1
 fi
@@ -87,7 +96,7 @@ if [[ -z "${OP_ACCOUNT:-}" && -f "$OP_ACCOUNT_FILE" ]]; then
     op_account_from_file="$(LC_ALL=C tr -d '[:space:]' <"$OP_ACCOUNT_FILE")"
     if [[ -n "$op_account_from_file" ]]; then
         # The forms op --account takes (shorthand, sign-in address, account or user ID); anything else fails every op call confusingly.
-        if ! printf '%s' "$op_account_from_file" | LC_ALL=C grep -qE '^[A-Za-z0-9][A-Za-z0-9._@-]*$'; then
+        if ! plain_name "$op_account_from_file" '._@-'; then
             printf 'playbook.sh: %s holds %s, not a 1Password account; refusing to run.\n' "$OP_ACCOUNT_FILE" "$(escape "$op_account_from_file")" >&2
             exit 1
         fi
