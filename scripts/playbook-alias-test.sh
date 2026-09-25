@@ -276,6 +276,11 @@ expect_op op-absent-file '<unset>'
 reset_files
 printf '\302\240\n' >"$work/op-account"
 expect_refused op-nbsp-only-file LC_ALL=C.UTF-8
+if LC_ALL=C grep -q "$(printf '\302\240')" "$work/stderr"; then
+    fail op-nbsp-escaped "the refused value reached stderr as raw bytes"
+else
+    ok op-nbsp-escaped "the refused value is escaped on stderr"
+fi
 
 reset_files
 printf ',\n' >"$work/op-account"
