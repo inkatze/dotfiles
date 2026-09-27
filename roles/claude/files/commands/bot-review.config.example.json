@@ -18,7 +18,7 @@
         "local_invocation": "example-bot-cli --base {base} --head {head} --effort {effort}",
         "timeout_seconds": 600,
         "findings_output": "stdout-json",
-        "findings_jq": "[.findings[] | {file: .path, line: .line, finding: .message, severity: .severity, rule: .check}]",
+        "findings_jq": "[(.items // [])[] | {file: .location, line: .row, finding: .text, severity: .level, rule: .id}]",
         "default_effort": "medium",
         "invocation_notes": "placeholder flags and findings_jq; run the real CLI's --help and inspect one real findings file before first use, then correct both"
       }
@@ -30,7 +30,7 @@
         "local_invocation": "another-bot-cli review --base {base} --head {head} --output {output}",
         "timeout_seconds": 900,
         "findings_output": "file:{output}/findings.json",
-        "findings_jq": "[.results[] | {file: .location.file, line: .location.line, finding: .title, severity: .level, rule: null}]",
+        "findings_jq": "[(.results // [])[] | {file: .location.file, line: .location.line, finding: .title, severity: .level, rule: null}]",
         "invocation_notes": "example of a reviewer with no hosted GitHub App at all, or one whose org has it blocked: cli-only is valid, no hosted keys required"
       }
     }

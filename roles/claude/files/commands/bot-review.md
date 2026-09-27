@@ -42,7 +42,7 @@ If a required key for the invoked mode is missing on the selected reviewer, name
 
 ## Invocation modes
 
-Read `--reviewer <name>`, `--local`, `--nested`, `--dry-run`, and `--effort <value>` (forwarded by `--local`, see there) from `$ARGUMENTS`. `--local` is mutually exclusive with `--nested` (`--nested` here loops the PR drain, not the local pass): if both are present, stop immediately and say so, the same never-silently-fall-back posture as the reviewer-validation rules above. `--dry-run` combines with either PR-drain mode.
+Read `--reviewer <name>`, `--local`, `--nested`, `--dry-run`, and `--effort <value>` (forwarded by `--local`, see there) from `$ARGUMENTS`; a `--base` stops the run in any mode. `--local` combined with `--nested` forwards both to `/panel-review` (see there). `--dry-run` combines with either PR-drain mode; with `--local` it stops, per "## Local mode".
 
 - **Standalone** (no flags): one interactive pass over "## Steps" below.
 - **`--nested`**: "## Nested loop" below, autonomous, bounded by an iteration cap and stop conditions.
@@ -60,7 +60,7 @@ Read `--reviewer <name>`, `--local`, `--nested`, `--dry-run`, and `--effort <val
 
    **A failed check is not the same as a check that ran and found nothing.** If any of the three `gh` calls itself errors (network, auth, rate limit) rather than returning a clean empty/negative result, do not fold that into "signal absent": surface the failed call and stop, or retry once, before concluding anything about installation. Only a call that *ran* and returned nothing counts toward the "none of the three hold" conclusion below.
 
-   If **none** of the three hold, the bot is almost certainly not installed for this org. Say so plainly, and if the selected reviewer has a `cli` configured, **offer** the local path instead (`y/N`; on yes, hand off per "## Local mode" for this run; on no, stop — there is nothing else for a PR-drain mode to do against a bot that isn't reachable). If it has no `cli` either, say plainly that there is no usable path for this reviewer on this repo, and stop. **Do not add the opt-in label speculatively** to see if it wakes something up that was never there: this exact mistake (build a workaround, when the fix was one label on an already-installed bot) is the origin story for this command; adding a label to an org where the bot has no App installed is the same mistake in reverse.
+   If **none** of the three hold, the bot is almost certainly not installed for this org. Say so plainly, and if the selected reviewer has a `cli` configured, **offer** the local path instead (`y/N`; on yes, hand off per "## Local mode" for this run, forwarding `--nested` if this is a nested drain; on no, stop — there is nothing else for a PR-drain mode to do against a bot that isn't reachable). If it has no `cli` either, say plainly that there is no usable path for this reviewer on this repo, and stop. **Do not add the opt-in label speculatively** to see if it wakes something up that was never there: this exact mistake (build a workaround, when the fix was one label on an already-installed bot) is the origin story for this command; adding a label to an org where the bot has no App installed is the same mistake in reverse.
 
    If at least one signal holds, the bot is reachable; continue to step 3.
 
@@ -261,7 +261,12 @@ Per iteration: run "## Steps" 1-7. **If no unresolved finding survives step 2 an
 
 ## Local mode (`--local`)
 
-The local reviewer CLI is a `/panel-review` backend: run `/panel-review --backends reviewer:<name>`, which gives its findings the same merge, three-pass validation, bucket triage, and `--nested` loop as any other backend. `--local` here is kept as an alias for that call with the selected reviewer's name, forwarding `--effort <value>` when given. It is still mutually exclusive with `--nested` (for a loop, call `/panel-review --backends reviewer:<name> --nested` directly), and `--base` is not accepted: `/panel-review` takes the base from the branch the way `/self-review` does, so a `--base` here stops the run and says so.
+The local reviewer CLI is a `/panel-review` backend: run `/panel-review --backends reviewer:<name>`, which gives its findings the same merge, three-pass validation, bucket triage, and `--nested` loop as any other backend. `--local` here is an alias for that call with the selected reviewer's name, and nothing more:
+
+- It forwards `--effort <value>` and `--nested` when given. Standalone, the handoff lands in `/panel-review`'s interactive pass, which asks before applying anything and ends by offering to commit, push, and open or update a PR; `--nested` lands in its local-only loop instead.
+- `--dry-run` has no `/panel-review` counterpart, so `--local --dry-run` stops and says so rather than running a pass that may offer to push. For the same reason, Pre-flight step 2's offer under `--dry-run` prints the `/panel-review` command it would run and stops.
+- `--base` is not accepted in any mode (`/panel-review` takes the base from the branch the way `/self-review` does), so a `--base` stops the run and says so.
+- `/panel-review` requires the reviewer key to match `^[A-Za-z0-9_-]+$` and the `cli` block to carry `findings_jq`; an entry written for the old local mode needs that key added before its first handoff.
 
 ## Naming
 

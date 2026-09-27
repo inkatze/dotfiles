@@ -9,7 +9,7 @@ Before anything mutates branch state or messages anyone:
 - **Parse `$ARGUMENTS`.** It may carry a `--backends <name>` override
   (exactly one of `codex` or `gemini`; a comma-separated list is a
   `/panel-review` spelling and an error here, the opt-in `copilot`
-  backend stays `/panel-review`-only, and any other name is an error:
+  and `reviewer:<name>` backends stay `/panel-review`-only, and any other name is an error:
   stop and name the two supported backends rather than guessing). Strip
   that flag and its value; the first remaining token is the PR number or
   URL. A URL carries its own
