@@ -173,15 +173,25 @@ bot_review_safety_checks=(
 require_phrases bot-review.md bot_review_safety_checks "safety sentence" "${bot_review_safety_checks[@]}"
 
 # Containment for panel-review's reviewer:<name> backend, which runs a vendor
-# CLI from the repo root rather than an empty scratch dir. These snippet lines
-# are what keep it bounded, argv-only (no eval), cleaned up, and from reading a
-# silent or partial run as zero findings.
+# CLI from the repo root rather than an empty scratch dir. Each anchor pins the
+# guard itself, not just its message: bounded with a kill-after, argv built by
+# a whitespace split (no eval, no globbing), the resolved binary exec'd, the
+# split EXIT/INT traps, and the empty, multi-document and row-shape stops that
+# keep a silent or partial run from reading as zero findings.
 reviewer_backend_checks=(
-  '"$tbin" "$secs" "${argv[@]}" < /dev/null'
+  '"$tbin" -k 30 "$secs" "${argv[@]}" < /dev/null'
+  "IFS=\$' \\t' read -r -a words <<< \"\$tpl\""
+  'argv[0]="$bin_abs"'
   "trap 'rm -rf \"\$work\"' EXIT"
-  'reviewer CLI exited 0 but left no findings'
+  '[ -f "$src" ] && [ -s "$src" ] || { echo "reviewer CLI exited 0 but left no findings'
+  "jq -e -s 'length == 1' \"\$src\""
+  'cli.findings_jq must yield one array of {file, line, finding, severity, rule}'
 )
 require_phrases panel-review.md reviewer_backend_checks "reviewer-backend containment line" "${reviewer_backend_checks[@]}"
+# The combined trap shape resumes after Ctrl-C with $work already deleted.
+if [ -f "$CMDS/panel-review.md" ] && grep -qF "trap 'rm -rf \"\$work\"' EXIT INT" "$CMDS/panel-review.md"; then
+  err "panel-review.md combines the reviewer backend's EXIT and INT traps; keep them split"
+fi
 
 # Severity-tier contract for code-review.md. It is checked against its OWN
 # anchors rather than being added to bucket_checks: per CLAUDE.md, commands that

@@ -208,16 +208,36 @@ expect_fail bot-review-safety-no-speculative-label \
   "bot-review.md missing expected safety sentence"
 
 # --- panel-review's reviewer:<name> backend containment ---
-expect_fail reviewer-backend-unbounded \
-  "perl -pi -e 's/\"\\\$tbin\" \"\\\$secs\" //' $CMDS/panel-review.md" \
+expect_fail reviewer-backend-no-kill-after \
+  "perl -pi -e 's/ -k 30 \"/ \"/' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-glob-split \
+  "perl -pi -e 's/IFS=\\\$. \\\\t. read -r -a words <<< \"\\\$tpl\"/words=(\\\$tpl)/' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-bare-binary \
+  "perl -pi -e 's/^  argv\\[0\\]=\"\\\$bin_abs\"\n//' $CMDS/panel-review.md" \
   "panel-review.md missing expected reviewer-backend containment line"
 
 expect_fail reviewer-backend-no-cleanup \
   "perl -pi -e 's/trap .rm -rf \"\\\$work\". EXIT//' $CMDS/panel-review.md" \
   "panel-review.md missing expected reviewer-backend containment line"
 
+expect_fail reviewer-backend-combined-trap \
+  "perl -pi -e 's/(trap .rm -rf \"\\\$work\". EXIT)/\$1 INT TERM HUP/' $CMDS/panel-review.md" \
+  "combines the reviewer backend's EXIT and INT traps"
+
 expect_fail reviewer-backend-empty-output \
-  "perl -pi -e 's/reviewer CLI exited 0 but left no findings/no findings/' $CMDS/panel-review.md" \
+  "perl -pi -e 's/\\[ -f \"\\\$src\" \\] && \\[ -s \"\\\$src\" \\] \\|\\| //' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-multi-doc \
+  "perl -pi -e 's/jq -e -s .length == 1. \"\\\$src\"/true/' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-row-shape \
+  "perl -pi -e 's/cli\\.findings_jq must yield one array/rows look fine/' $CMDS/panel-review.md" \
   "panel-review.md missing expected reviewer-backend containment line"
 
 # --- require_phrases' missing-file branch, shared by all its callers ---
