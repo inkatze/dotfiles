@@ -10,7 +10,8 @@
 # single-mutation safety sentences, JSON validity of commands/*.json,
 # code-review's review-submission gate, the /code-review
 # option-set literals mirrored in CLAUDE.md, the code-review/panel-review
-# backend-resolver sync lines, and the Slack notification contract. Runs as
+# backend-resolver sync lines, panel-review's reviewer-backend containment
+# lines, and the Slack notification contract. Runs as
 # a lefthook pre-commit job (glob in lefthook.yml: the command files,
 # CLAUDE.md, this script, and its fixture suite) and in CI alongside
 # skill-contracts-test.sh, which plants drifts to prove these checks fire.

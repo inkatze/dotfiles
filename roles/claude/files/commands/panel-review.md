@@ -92,9 +92,9 @@ Runs identically in both modes.
 
    An alias not in the table resolves to `gemini`, the non-work default.
 
-   Supported backends: `codex`, `gemini`, `copilot`. `copilot` is **opt-in only** via `--backends`; do not auto-include it (the GitHub quota is the original constraint and including it implicitly defeats the point). Any other name is an error: stop and list the supported set rather than guessing.
+   Supported backends: `codex`, `gemini`, `copilot`, and the parameterized `reviewer:<name>` (below). `copilot` is **opt-in only** via `--backends`; do not auto-include it (the GitHub quota is the original constraint and including it implicitly defeats the point). Any other name is an error: stop and list the supported set rather than guessing.
 
-   `reviewer:<name>` is a fourth, parameterized backend and is also **opt-in only**: it runs the local reviewer CLI configured under `reviewers.<name>.cli` in the machine-local `~/.config/dotfiles/bot-review.json` (shape, with placeholders, in `bot-review.config.example.json` next to this file). `<name>` must match `^[A-Za-z0-9_-]+$` and name an existing entry; otherwise stop and list the configured names. It is spelled `reviewer:` because that is the config's own word for an entry, so the flag reads as "the reviewer entry named X" and no vendor name ever reaches this file or a command line.
+   `reviewer:<name>` is also **opt-in only**: it runs the local reviewer CLI configured under `reviewers.<name>.cli` in the machine-local `~/.config/dotfiles/bot-review.json` (shape, with placeholders, in `bot-review.config.example.json` next to this file). `<name>` must match `^[A-Za-z0-9_-]+$` and name an existing entry; otherwise stop and list the configured names. It is spelled `reviewer:` because that is the config's own word for an entry, so the flag reads as "the reviewer entry named X" and no vendor name ever reaches this file or a command line.
 
 5. **Verify each backend.** Stop with a specific install / auth message if any fails; do not silently drop a backend (the user expects the variance the backend provides).
 
