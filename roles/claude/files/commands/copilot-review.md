@@ -9,6 +9,16 @@ Read the literal flag `--nested` from `$ARGUMENTS` at the start of the run.
 
 For interactive, one-pass review of Copilot's current threads, run `/copilot-review` without `--nested`.
 
+## When Copilot hasn't reviewed, and the CLI fallback
+
+Copilot reviews when it is **requested as a reviewer**, not because of a label, so "no review" has causes a label-driven bot doesn't: nobody requested it, auto-review-on-push didn't fire (observed; see step (f)), the org has Copilot code review disabled, or the App isn't installed there. Say which applies instead of reporting "nothing to address":
+
+1. **Has Copilot ever reviewed this PR?** Check `reviews(last: 20)` for a Copilot-authored review (the query in nested pre-flight step 3). If yes and it left zero unresolved threads, that is a clean review, not an absence.
+2. **If not, offer to request one** (`y/N`, never silently; it is a visible change to the PR), using step (f)'s transport order. A request that succeeds means Copilot is reachable: wait for it per step (g), or stop and let the user re-run later.
+3. **If every transport fails** (the **Re-review unavailable** condition), the hosted review can't run here. Say so, and **offer the CLI fallback**: `/panel-review --backends copilot`, which runs the Copilot CLI locally over this branch's diff.
+
+The fallback is a different kind of result, and say so when offering it: its findings are local, not PR threads, so there is nothing to reply to or resolve, and none of this file's thread mechanics apply. Nested mode never runs it on its own; it offers it in the handoff when **Re-review unavailable** fires.
+
 ## Steps
 
 Steps 1, 2, 3, 4, 6, and 8 supply the shared fetch/validate/implement/mutate methodology both modes apply; the "Nested loop" section below cites each by number where it reuses one. Steps 5 (interactive table presentation) and 7 (interactive commit + push) are standalone-only: nested mode replaces them with its own autonomous step (e).
@@ -81,6 +91,8 @@ jq --arg bot 'copilot-pull-request-reviewer' '
 ```
 
 Filter on `login` rather than `__typename == "Bot"` so other bot integrations (CodeQL, Dependabot review, etc.) don't get pulled in.
+
+**Zero unresolved Copilot threads** is only a clean result if Copilot actually reviewed. Otherwise follow "When Copilot hasn't reviewed, and the CLI fallback" above before ending the run.
 
 ### 4. Validate every thread: three passes minimum (different angle each)
 
@@ -652,7 +664,7 @@ If any condition fires, **stop**. Print the latest iteration table, name the con
 | **Cannot reproduce** | Issue is not reproducible and the proposed fix is non-trivial. |
 | **Migrations / data / destructive ops** | Schema migrations, data backfills, deletes, drops, or anything irreversible. Always human-driven. |
 | **No response** | 10-minute poll window in step (g) expires with no new Copilot review. |
-| **Re-review unavailable** | No transport can request a Copilot review, so step (g)'s poll would never see one. In both modes the native gh route (gh ≥ 2.88.0) must have failed or been unavailable first. `app` mode: additionally, the REST attempt genuinely 422'd ("not a collaborator") AND no `request_copilot_review` MCP tool is available on the active server. `collaborator` mode: additionally, both the bare and `[bot]`-suffixed logins 422'd. A missing MCP tool alone does not fire this: the gh route and REST are tried first. |
+| **Re-review unavailable** | No transport can request a Copilot review, so step (g)'s poll would never see one. In both modes the native gh route (gh ≥ 2.88.0) must have failed or been unavailable first. `app` mode: additionally, the REST attempt genuinely 422'd ("not a collaborator") AND no `request_copilot_review` MCP tool is available on the active server. `collaborator` mode: additionally, both the bare and `[bot]`-suffixed logins 422'd. A missing MCP tool alone does not fire this: the gh route and REST are tried first. In the handoff, offer the CLI fallback (see "When Copilot hasn't reviewed, and the CLI fallback" above); never run it unasked. |
 | **Pending reply unsubmittable** | A pending review owned by the viewer cannot be submitted via `submitPullRequestReview` in step (e.4), so replies posted in (e.3) would remain invisible to GitHub, Copilot, and humans. |
 | **Conflicting signals** | Copilot's later review contradicts an earlier one we already addressed. Pause to decide which to honor. |
 
