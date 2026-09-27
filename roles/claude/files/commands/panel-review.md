@@ -219,7 +219,8 @@ Diff:
   get() { jq -er --arg n "$name" --arg k "$1" '.reviewers[$n].cli[$k]' "$cfg"; }
   binary="$(get binary)" && tpl="$(get local_invocation)" && secs="$(get timeout_seconds)" \
     && fo="$(get findings_output)" && fjq="$(get findings_jq)" || exit 1
-  case "$secs" in ''|*[!0-9]*|0) echo "cli.timeout_seconds must be a positive integer" >&2; exit 1 ;; esac
+  case "$secs" in ''|*[!0-9]*) echo "cli.timeout_seconds must be a positive integer" >&2; exit 1 ;; esac
+  [ "$((10#$secs))" -gt 0 ] || { echo "cli.timeout_seconds must be a positive integer (0 would disable the timeout)" >&2; exit 1; }
   tbin="$(command -v timeout || command -v gtimeout)" || { echo "no timeout/gtimeout; refusing to run the reviewer CLI unbounded" >&2; exit 1; }
 
   work="$(mktemp -d)" || exit 1
@@ -227,6 +228,7 @@ Diff:
   trap 'exit 130' INT TERM HUP
   out="$work/out"; mkdir "$out" || exit 1
 
+  case "$tpl" in *$'\n'*|*$'\r'*) echo "cli.local_invocation must be one line" >&2; exit 1 ;; esac
   shopt -u patsub_replacement 2>/dev/null   # bash 5.2+ would expand & in a substituted ref
   read -ra words <<< "$tpl"
   argv=()
@@ -236,7 +238,8 @@ Diff:
   done
   [ "${argv[0]}" = "$binary" ] || { echo "cli.local_invocation must start with cli.binary" >&2; exit 1; }
 
-  "$tbin" "$secs" "${argv[@]}" < /dev/null > "$work/stdout" 2> "$work/stderr"
+  top="$(git rev-parse --show-toplevel)" || exit 1
+  ( cd "$top" && "$tbin" "$secs" "${argv[@]}" < /dev/null > "$work/stdout" 2> "$work/stderr" )
   backend_status=$?
   [ "$backend_status" -ne 124 ] || { echo "reviewer CLI timed out after ${secs}s; backend failure, not zero findings" >&2; exit 1; }
   [ "$backend_status" -eq 0 ] || { cat "$work/stderr" >&2; echo "reviewer CLI exited $backend_status; backend failure, not zero findings" >&2; exit "$backend_status"; }
@@ -261,9 +264,9 @@ Diff:
   ```
 
   Each piece is load-bearing:
-  - **No `eval`, no shell.** The template is split on whitespace into argv, placeholders are substituted per token, and the array is exec'd directly, so a ref or effort value can never become shell syntax. Templates therefore cannot rely on shell quoting. `{head}` is `HEAD`, the committed tip; a template that omits it lets a CLI that defaults to the working tree include uncommitted changes (nested mode's clean-tree check makes the two identical there).
+  - **No `eval`, no shell.** The template is split on whitespace into argv, placeholders are substituted per token, and the array is exec'd directly, so a ref or effort value can never become shell syntax. Templates therefore cannot rely on shell quoting, and must be one line: `read` would silently drop everything after a newline. The exec runs in a subshell `cd`'d to the repo root, since the CLI reads the repo relative to its cwd and this session's shell keeps whatever cwd an earlier step left. `{head}` is `HEAD`, the committed tip; a template that omits it lets a CLI that defaults to the working tree include uncommitted changes (nested mode's clean-tree check makes the two identical there).
   - **A fresh `mktemp -d` per run, always removed.** A fixed or reused output path can serve a previous run's results as this run's; the vendor's default (often a timestamped cache directory) would have to be rediscovered after every run. That is also why a `file:<path>` findings location must sit under `{output}`. The trap split matches the gemini snippet's, for the same reason.
-  - **Non-zero exit or timeout stops the run** before any parse, so partial or absent output never reads as zero findings.
+  - **Non-zero exit or timeout stops the run** before any parse, and the timeout is checked numerically because `timeout 0` (or `00`) disables it rather than expiring at once; so partial or absent output never reads as zero findings.
   - **A zero exit does not guarantee parseable output.** A missing or empty findings file, JSON `jq` cannot read, or a filter result that is not the row shape all stop the run rather than presenting an empty table as "no findings".
 
   **`cli.findings_jq`** is a `jq` program, run against the parsed findings output, that must produce an array of `{file, line, finding, severity, rule}` objects: `file` and `finding` strings, `line` a number or null, `severity` and `rule` strings or null. Vendors emit different shapes, so the mapping is per-reviewer config rather than code here. `rule` is the vendor's own check name, which is not a project tool rule: on its own it never satisfies Auto-applicable's tool-grounded condition. The CLI assigns no lens, so step 3 assigns each row the closest canonical lens when merging.
