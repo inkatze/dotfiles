@@ -62,7 +62,7 @@ if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
   # bar as the file path, so neither route can hand `op` a whitespace-only value.
   op_token="$OP_SERVICE_ACCOUNT_TOKEN"
   unset OP_SERVICE_ACCOUNT_TOKEN
-  if [ -z "$(printf '%s' "$op_token" | tr -d '[:space:]')" ]; then
+  if [ -z "$(printf '%s' "$op_token" | LC_ALL=C tr -d '[:space:]')" ]; then
     fail "OP_SERVICE_ACCOUNT_TOKEN is set but contains only whitespace; unset it or supply a real token"
   fi
 elif [ -e "$OP_TOKEN_FILE" ]; then
@@ -95,7 +95,7 @@ elif [ -e "$OP_TOKEN_FILE" ]; then
   # shape, when the actual fault is a placeholder file. Same guard as
   # claude-gemini-auth-sync.sh; porting `-s` without this one left half the
   # hole open.
-  if [ -z "$(printf '%s' "$op_token" | tr -d '[:space:]')" ]; then
+  if [ -z "$(printf '%s' "$op_token" | LC_ALL=C tr -d '[:space:]')" ]; then
     fail "$OP_TOKEN_FILE contains only whitespace; write the service-account token to it or remove it"
   fi
 fi

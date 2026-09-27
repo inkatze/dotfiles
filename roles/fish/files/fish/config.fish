@@ -19,7 +19,7 @@ function sshc --description 'kitten ssh to the machine-local SSH host, with ANTH
     set -l _ssh_host_file $HOME/.config/dotfiles/ssh-host
     set -l _ssh_host $DOTFILES_SSH_HOST
     if test -z "$_ssh_host"; and test -f $_ssh_host_file
-        set _ssh_host (tr -d '[:space:]' <$_ssh_host_file)
+        set _ssh_host (LC_ALL=C tr -d '[:space:]' <$_ssh_host_file)
     end
     if test -z "$_ssh_host"
         echo "sshc: no SSH host configured; set DOTFILES_SSH_HOST or write the hostname to $_ssh_host_file" >&2

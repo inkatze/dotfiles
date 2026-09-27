@@ -102,7 +102,7 @@ if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
   # was an asymmetry: a caller exporting a whitespace-only value would reach
   # `op` and come back with "failed to parseToken", the same misleading error
   # the file-side guard exists to prevent.
-  if [ -z "$(printf '%s' "$op_token" | tr -d '[:space:]')" ]; then
+  if [ -z "$(printf '%s' "$op_token" | LC_ALL=C tr -d '[:space:]')" ]; then
     fail "OP_SERVICE_ACCOUNT_TOKEN is set but contains only whitespace; unset it or supply a real token"
   fi
 elif [ -e "$OP_TOKEN_FILE" ]; then
@@ -137,7 +137,7 @@ elif [ -e "$OP_TOKEN_FILE" ]; then
   # back as "failed to parseToken, format is invalid" -- an error about the
   # token's shape, when the actual fault is a placeholder file. The real token
   # is passed through unmodified; only the emptiness test is normalised.
-  if [ -z "$(printf '%s' "$op_token" | tr -d '[:space:]')" ]; then
+  if [ -z "$(printf '%s' "$op_token" | LC_ALL=C tr -d '[:space:]')" ]; then
     fail "$OP_TOKEN_FILE contains only whitespace; write the service-account token to it or remove it"
   fi
 fi
