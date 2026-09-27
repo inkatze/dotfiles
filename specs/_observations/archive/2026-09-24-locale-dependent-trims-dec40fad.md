@@ -1,1 +1,2 @@
 - 2026-09-24 [dotfiles] Other machine-local file reads still trim with a locale-dependent tr: roles/fish/files/fish/config.fish (ssh-host) and roles/osx/files/health/health-check.sh (its target file). Neither refuses non-plain values, so the macOS NBSP behavior only changes what they read, not a safety check; worth pinning to the C locale when next touched.
+Consumed-by: #168 (2026-09-26)
