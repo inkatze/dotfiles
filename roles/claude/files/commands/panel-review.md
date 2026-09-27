@@ -9,6 +9,7 @@ You want a `/self-review` shape but with one or more external models contributin
 - ChatGPT Enterprise users on a work repo (Codex CLI as a fast frontier-OpenAI backend).
 - Personal repos (Gemini CLI, keyed from 1Password by the dotfiles sync).
 - Any time you want a non-Anthropic angle without paying GitHub Copilot's per-request quota.
+- A third-party review vendor ships its own local CLI (`--backends reviewer:<name>`), and you want its findings validated and triaged like any other backend's rather than read raw.
 
 For the standard Claude-only review, use `/self-review`. For autonomous looping (review, apply, re-review until convergence, draining only Auto-applicable items) instead of one interactive pass, pass `--nested`; see "Invocation modes" below. `--nested` is also what makes this skill a *nestable* review skill for planwright's `review_sequence` config knob (an ordered list of `--nested`-invocable review skills that `/execute-task`'s convergence phase runs; the default is `[polish]`), so you can add `panel-review` alongside or instead of `/polish --nested` there.
 
@@ -20,6 +21,8 @@ Read the literal flag `--nested` from `$ARGUMENTS` at the start of the run.
 - **Nested** (`--nested`): run "## Nested loop (--nested)" below. It repeats "## Steps" 1-6 (the discovery + validation pipeline) as its per-iteration body, auto-applies only Auto-applicable items, and hands off Needs sign-off / Needs human judgment items when it exits. **Local-only**, same contract as `/polish` and `/self-review --nested`: it never pushes and never creates or touches a PR. The invoking skill (or a standalone `/panel-review` / `/self-review` run afterward) owns publishing the branch.
 
 Record the resolved mode in every iteration summary when nested.
+
+Also read `--backends a,b,c` (Pre-flight item 4) and `--effort <value>`, which only `reviewer:<name>` backends consume (Pre-flight item 5).
 
 ## Pre-flight (once per run)
 
@@ -91,6 +94,8 @@ Runs identically in both modes.
 
    Supported backends: `codex`, `gemini`, `copilot`. `copilot` is **opt-in only** via `--backends`; do not auto-include it (the GitHub quota is the original constraint and including it implicitly defeats the point). Any other name is an error: stop and list the supported set rather than guessing.
 
+   `reviewer:<name>` is a fourth, parameterized backend and is also **opt-in only**: it runs the local reviewer CLI configured under `reviewers.<name>.cli` in the machine-local `~/.config/dotfiles/bot-review.json` (shape, with placeholders, in `bot-review.config.example.json` next to this file). `<name>` must match `^[A-Za-z0-9_-]+$` and name an existing entry; otherwise stop and list the configured names. It is spelled `reviewer:` because that is the config's own word for an entry, so the flag reads as "the reviewer entry named X" and no vendor name ever reaches this file or a command line.
+
 5. **Verify each backend.** Stop with a specific install / auth message if any fails; do not silently drop a backend (the user expects the variance the backend provides).
 
    **Mind the shell split when probing.** The probes below are written in bash and must run in bash: wrapping them in `fish -c` breaks on the first `${VAR:-}` expansion (fish rejects that syntax outright, measured exit 127). What needs the mise-activated fish shell is *tool resolution and the key*: `gemini` is a mise-installed tool, so locate it with `fish -c 'mise which gemini'` rather than bare `command -v` in bash, and `GEMINI_API_KEY` is exported by fish `conf.d/gemini.fish`, so in a plain bash shell read it from `~/.gemini/.api-key` (the invocation snippet below shows the guarded read). Probing the wrong way round produces a confident "backend unavailable" stop for a backend that was ready the whole time, which is the skill working as designed on a wrong premise.
@@ -98,6 +103,7 @@ Runs identically in both modes.
    - `codex`: `fish -c 'mise which codex 2>/dev/null; or command -v codex'` must resolve; `codex login status` on current CLIs (or the equivalent readiness probe) must report an authenticated session, judged by exit status only. If not authed, stop with `Codex CLI needs auth; run 'codex login'`. If not installed, stop with `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'` (note the Brewfile entry is a **cask**, so this route is macOS-only). On Linux nothing in the dotfiles installs codex; it is only ever reached there by an explicit `--backends codex`.
    - `gemini`: `fish -c 'mise which gemini'` must resolve (mise-installed, so a bare bash `command -v` can miss it). The `GEMINI_API_KEY` env var must be set, or `~/.gemini/.api-key` non-empty at mode 600/400 per the invocation snippet's guarded read (the dotfiles fish conf.d/gemini.fish exports it from `~/.gemini/.api-key`, which is written by `scripts/claude-gemini-auth-sync.sh` from the 1Password item declared in that script). The install route is platform-specific, so name the right one: on macOS `Gemini CLI not installed; mise run osx will install via Brewfile 'gemini-cli'`, on Linux `Gemini CLI not installed; mise run linux will install it (pinned in roles/linux/files/mise/linux.toml, installed from linux_mise_tools)`. If `GEMINI_API_KEY` is unset, stop with `Gemini CLI needs auth; run 'mise run osx' (macOS) or 'mise run linux' (Linux) to sync from 1Password, or set GEMINI_API_KEY manually`. On a headless host that sync reads the machine-local service-account token rather than the 1Password desktop app, and a service account cannot be granted Personal or Private, so the key item must live in a vault it can reach.
    - `copilot`: resolve the Copilot CLI binary, `command -v copilot` first, else `~/.local/share/gh/copilot/copilot` (where `gh copilot` downloads it). `gh copilot --help` is not a probe: it succeeds with no CLI installed. Probe by running it: the invocation below with the prompt `Reply with exactly the word OK and nothing else.` must exit 0 and print `OK`. Missing: stop with `Copilot CLI not installed; run 'gh copilot' once in a terminal and confirm its download prompt`. It authenticates through `gh`, so a non-zero exit or a quota error is `Copilot CLI unavailable: <its message>`.
+   - `reviewer:<name>`: read `~/.config/dotfiles/bot-review.json` (never write it from here). Missing or unreadable: stop, name the path, point at the example, and do not guess. The entry's `cli` block must carry `binary`, `local_invocation`, `timeout_seconds` (a positive integer), `findings_output`, and `findings_jq`; name the first missing key and stop. `command -v "$binary"` must resolve, else print `cli.install_command` and stop. `timeout` or `gtimeout` must resolve (macOS ships neither), else stop rather than run unbounded. If `local_invocation` contains `{effort}`, an effort value is required: `--effort <value>` from `$ARGUMENTS`, else `cli.default_effort`, matching `^[A-Za-z0-9_-]+$` either way; with neither, stop and say this reviewer's template needs `--effort`. There is no cheaper readiness probe: running the CLI is the probe and takes minutes, so an auth failure surfaces as its non-zero exit in step 2.
 
 **Nested-only additions** (run these after the five items above, only when `--nested` was passed):
 
@@ -202,6 +208,65 @@ Diff:
   - **Keep the prompt file outside `$scratch`** (its own `mktemp`), so the scratch dir holds only the payload. The prompt travels in argv, so it shows in `ps`; that's the lens prompt only, never the diff.
   - **A hard link inside `$scratch` is followed**, unlike a symlink (which is refused). Planting one takes write access to the scratch dir, which `mktemp -d` limits to your user, so the reviewed diff can't create one.
   - **User-level config in `~/.copilot/` (hooks included) still loads**, whatever the cwd, the same gap the gemini bullet notes for `~/.gemini/`.
+- **reviewer:\<name\>**: the local reviewer CLI does **not** take the lens prompt or step 1's tooling output. It runs its own checks over the repo and writes its own findings file, which `cli.findings_jq` maps into rows this step folds into the merge. It runs from the repo root rather than a scratch directory, because reading the tree is its job: the trust extended is to the CLI you installed, and the code leaves the machine on whatever terms that vendor's CLI sets, like every other backend here.
+
+  ```bash
+  cfg=~/.config/dotfiles/bot-review.json
+  name='<name>'   # validated in Pre-flight item 4
+  base='<base>'   # Pre-flight item 1's base ref
+  effort='<effort>'   # Pre-flight item 5; empty when the template has no {effort}
+  git rev-parse --verify --quiet "$base^{commit}" >/dev/null || { echo "base ref does not resolve: $base" >&2; exit 1; }
+  get() { jq -er --arg n "$name" --arg k "$1" '.reviewers[$n].cli[$k]' "$cfg"; }
+  binary="$(get binary)" && tpl="$(get local_invocation)" && secs="$(get timeout_seconds)" \
+    && fo="$(get findings_output)" && fjq="$(get findings_jq)" || exit 1
+  case "$secs" in ''|*[!0-9]*|0) echo "cli.timeout_seconds must be a positive integer" >&2; exit 1 ;; esac
+  tbin="$(command -v timeout || command -v gtimeout)" || { echo "no timeout/gtimeout; refusing to run the reviewer CLI unbounded" >&2; exit 1; }
+
+  work="$(mktemp -d)" || exit 1
+  trap 'rm -rf "$work"' EXIT
+  trap 'exit 130' INT TERM HUP
+  out="$work/out"; mkdir "$out" || exit 1
+
+  shopt -u patsub_replacement 2>/dev/null   # bash 5.2+ would expand & in a substituted ref
+  read -ra words <<< "$tpl"
+  argv=()
+  for w in "${words[@]}"; do
+    w="${w//"{base}"/$base}"; w="${w//"{head}"/HEAD}"; w="${w//"{effort}"/$effort}"; w="${w//"{output}"/$out}"
+    argv+=("$w")
+  done
+  [ "${argv[0]}" = "$binary" ] || { echo "cli.local_invocation must start with cli.binary" >&2; exit 1; }
+
+  "$tbin" "$secs" "${argv[@]}" < /dev/null > "$work/stdout" 2> "$work/stderr"
+  backend_status=$?
+  [ "$backend_status" -ne 124 ] || { echo "reviewer CLI timed out after ${secs}s; backend failure, not zero findings" >&2; exit 1; }
+  [ "$backend_status" -eq 0 ] || { cat "$work/stderr" >&2; echo "reviewer CLI exited $backend_status; backend failure, not zero findings" >&2; exit "$backend_status"; }
+
+  case "$fo" in
+    stdout-json) src="$work/stdout" ;;
+    file:*)
+      src="${fo#file:}"; src="${src//"{output}"/$out}"
+      case "$src" in */../*) echo "file:<path> must not contain .." >&2; exit 1 ;; "$out"/*) ;;
+        *) echo "file:<path> must sit under {output}" >&2; exit 1 ;; esac ;;
+    *) echo "unknown cli.findings_output: $fo" >&2; exit 1 ;;
+  esac
+  [ -s "$src" ] || { echo "reviewer CLI exited 0 but left no findings at $src" >&2; exit 1; }
+  rows="$(jq -c "$fjq" "$src")" || { echo "findings unparseable, or cli.findings_jq does not fit them" >&2; exit 1; }
+  jq -e 'type == "array" and all(.[]; type == "object"
+      and (.file | type) == "string" and (.finding | type) == "string"
+      and ((.line | type) == "number" or .line == null)
+      and ((.severity | type) == "string" or .severity == null)
+      and ((.rule | type) == "string" or .rule == null))' <<< "$rows" > /dev/null \
+    || { echo "cli.findings_jq must yield an array of {file, line, finding, severity, rule}" >&2; exit 1; }
+  printf '%s\n' "$rows"
+  ```
+
+  Each piece is load-bearing:
+  - **No `eval`, no shell.** The template is split on whitespace into argv, placeholders are substituted per token, and the array is exec'd directly, so a ref or effort value can never become shell syntax. Templates therefore cannot rely on shell quoting. `{head}` is `HEAD`, the committed tip; a template that omits it lets a CLI that defaults to the working tree include uncommitted changes (nested mode's clean-tree check makes the two identical there).
+  - **A fresh `mktemp -d` per run, always removed.** A fixed or reused output path can serve a previous run's results as this run's; the vendor's default (often a timestamped cache directory) would have to be rediscovered after every run. That is also why a `file:<path>` findings location must sit under `{output}`. The trap split matches the gemini snippet's, for the same reason.
+  - **Non-zero exit or timeout stops the run** before any parse, so partial or absent output never reads as zero findings.
+  - **A zero exit does not guarantee parseable output.** A missing or empty findings file, JSON `jq` cannot read, or a filter result that is not the row shape all stop the run rather than presenting an empty table as "no findings".
+
+  **`cli.findings_jq`** is a `jq` program, run against the parsed findings output, that must produce an array of `{file, line, finding, severity, rule}` objects: `file` and `finding` strings, `line` a number or null, `severity` and `rule` strings or null. Vendors emit different shapes, so the mapping is per-reviewer config rather than code here. `rule` is the vendor's own check name, which is not a project tool rule: on its own it never satisfies Auto-applicable's tool-grounded condition. The CLI assigns no lens, so step 3 assigns each row the closest canonical lens when merging.
 
 If a backend invocation **does not recover** (a final non-zero exit, empty or unparseable output, or auth lost with no successful retry), do **not** silently drop it: stop the run and surface the failure. Judge by the final outcome, not intermediate stderr: do **not** stop on transient quota / rate-limit / retry messages the backend CLI emits while it retries internally if it ultimately returns a valid result. The user invoked this skill specifically for the variance that backend provides; partial runs hide the fact that one source of variance went missing.
 
@@ -212,6 +277,7 @@ Build one normalized list:
 - Dedupe by `(file, line, root issue)`. A finding flagged by multiple backends becomes one row with all backend labels tagged in the row.
 - Tag every row with which backend(s) surfaced it. This is what lets you see, over time, which backends earn their keep on your code.
 - A finding hitting two lenses (one backend assigned `Correctness`, another assigned `Error handling`) gets one row with both lens labels.
+- A `reviewer:<name>` row arrives with no lens: assign the closest canonical one here, tag the backend as `reviewer:<name>`, and carry its `rule` in the Rule cited column marked as the vendor's check.
 
 Apply the **review-mode refactor instinct** filter (CLAUDE.md `Refactor Instinct`): drop refactor flags not anchored in tool output that do not represent this-PR-makes-it-worse.
 
@@ -343,7 +409,7 @@ If any condition fires, **stop**. Print the latest tables, name the condition, a
 
 These hold at every step:
 
-- **Never** push, create a PR, or mutate anything in this repo's git remote or its PR. "Local-only" here is scoped to git/PR actions specifically (the same convention `/polish` uses), not to network calls in general: step 2's backend discovery pass does send the diff and tooling output to external services (Codex, Gemini, or Copilot) on every iteration; that egress is real and pre-existing (unchanged from the retired `/panel-pairing`), just not a git/PR mutation. Nested mode converges the branch locally; publishing it is the invoking skill's job (or a follow-up standalone `/panel-review` / `/self-review` run).
+- **Never** push, create a PR, or mutate anything in this repo's git remote or its PR. "Local-only" here is scoped to git/PR actions specifically (the same convention `/polish` uses), not to network calls in general: step 2's backend discovery pass does send the diff and tooling output to external services (Codex, Gemini, Copilot, or a configured reviewer CLI's vendor) on every iteration; that egress is real and pre-existing (unchanged from the retired `/panel-pairing`), just not a git/PR mutation. Nested mode converges the branch locally; publishing it is the invoking skill's job (or a follow-up standalone `/panel-review` / `/self-review` run).
 - **Never** address a Needs sign-off or Needs human judgment item, even if it looks easy. Those are reserved for the post-loop human pass via standalone `/panel-review` or manual fixes.
 - **Never** route a finding to Auto-applicable without a specific rule citation. "I am sure this is a typo" does not qualify; "ruff F401: imported but unused" does. The rule citation must come from the project tooling run in step (a), not from a backend's free-form recommendation.
 - **Never** silently drop a backend that failed in step (a). The user picked the backend set; partial runs hide which variance source went missing.
@@ -377,6 +443,6 @@ The user's next move depends on the exit reason:
 
 ## Maintenance
 
-After completing the workflow, check if any part of these instructions seems outdated or misaligned with current tooling: backend CLI command syntax changes (Codex flags, Gemini trust/approval flags), new backend options worth adding, changes to model names, profile-table changes and new inventory aliases the table does not cover, divergence from `/code-review`'s backend resolution (that command mirrors this one, so its backend-resolution block and this file's Pre-flight item "Detect the machine profile" must stay in sync in both directions), drift from `/self-review`'s discovery shape (which this skill mirrors), changes to `Finding Categorization` thresholds, or stop-condition gaps revealed by a real nested run. If something looks off, flag it and offer a ready-to-use prompt to paste into a new dotfiles session to update this command.
+After completing the workflow, check if any part of these instructions seems outdated or misaligned with current tooling: backend CLI command syntax changes (Codex flags, Gemini trust/approval flags, a configured reviewer CLI's flags or findings shape drifting from its `local_invocation` and `findings_jq`), new backend options worth adding, changes to model names, profile-table changes and new inventory aliases the table does not cover, divergence from `/code-review`'s backend resolution (that command mirrors this one, so its backend-resolution block and this file's Pre-flight item "Detect the machine profile" must stay in sync in both directions), drift from `/self-review`'s discovery shape (which this skill mirrors), changes to `Finding Categorization` thresholds, or stop-condition gaps revealed by a real nested run. If something looks off, flag it and offer a ready-to-use prompt to paste into a new dotfiles session to update this command.
 
 $ARGUMENTS

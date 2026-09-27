@@ -280,7 +280,9 @@ CLI allowed only its file viewer, confined to a scratch directory holding the
 diff (see `panel-review.md` for why each flag matters). `gh copilot` downloads
 it on first use (into
 `~/.local/share/gh/copilot`, outside the dotfiles); `/copilot-review` offers it
-as a fallback when the hosted review can't run.
+as a fallback when the hosted review can't run. The other opt-in,
+`reviewer:<name>`, runs a third-party vendor's local reviewer CLI from the
+machine-local `bot-review.json`, so no vendor name is committed here.
 
 | Alias | Backend | CLI comes from | Key comes from |
 |---|---|---|---|
@@ -565,7 +567,7 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 | `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
 | `slack-users.json` | the `/code-review` and `/peer-review` commands | GitHub login → Slack user ID, so review notifications can find a person |
 | `code-review-egress.json` | the `/code-review` command | Repos approved for backend egress (`owner/repo` → backend), so the diff-upload consent is asked once per repo (mode 0600) |
-| `bot-review.json` | the `/bot-review` command | Map of named third-party PR-review reviewers, each with its own hosted-bot mechanics (login pattern, opt-in/opt-out labels, gating checks, marker formats) and/or local pre-push CLI invocation, plus a default; example with placeholders at `roles/claude/files/commands/bot-review.config.example.json` (mode 0600, read-only from the command) |
+| `bot-review.json` | the `/bot-review` command, and `/panel-review`'s `reviewer:<name>` backend (the `cli` block) | Map of named third-party PR-review reviewers, each with its own hosted-bot mechanics (login pattern, opt-in/opt-out labels, gating checks, marker formats) and/or local pre-push CLI invocation, plus a default; example with placeholders at `roles/claude/files/commands/bot-review.config.example.json` (mode 0600, read-only from both commands) |
 | `work-shell-init` | `roles/fish/files/work-init.fish` | Absolute path of a shell init to source from fish, for anything a second config manager wires only into bash/zsh |
 
 None are created by Ansible and none live in the repo (`~/.config/kitty` is

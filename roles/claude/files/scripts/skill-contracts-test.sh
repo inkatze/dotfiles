@@ -207,6 +207,19 @@ expect_fail bot-review-safety-no-speculative-label \
   "perl -pi -e 's/Do not add the opt-in label speculatively//' $CMDS/bot-review.md" \
   "bot-review.md missing expected safety sentence"
 
+# --- panel-review's reviewer:<name> backend containment ---
+expect_fail reviewer-backend-unbounded \
+  "perl -pi -e 's/\"\\\$tbin\" \"\\\$secs\" //' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-no-cleanup \
+  "perl -pi -e 's/trap .rm -rf \"\\\$work\". EXIT//' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-empty-output \
+  "perl -pi -e 's/reviewer CLI exited 0 but left no findings/no findings/' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
 # --- require_phrases' missing-file branch, shared by all its callers ---
 expect_fail require-phrases-missing-file \
   "rm $CMDS/code-review.md" \
