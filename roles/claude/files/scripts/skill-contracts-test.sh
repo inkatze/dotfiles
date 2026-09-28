@@ -207,6 +207,159 @@ expect_fail bot-review-safety-no-speculative-label \
   "perl -pi -e 's/Do not add the opt-in label speculatively//' $CMDS/bot-review.md" \
   "bot-review.md missing expected safety sentence"
 
+# --- panel-review's reviewer:<name> backend containment ---
+expect_fail reviewer-backend-no-kill-after \
+  "perl -pi -e 's/ -k 30 \"/ \"/' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-glob-split \
+  "perl -pi -e 's/IFS=\\\$. \\\\t. read -r -a words <<< \"\\\$tpl\"/words=(\\\$tpl)/' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-bare-binary \
+  "perl -pi -e 's/^  argv\\[0\\]=\"\\\$bin_abs\"\n//' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-no-cleanup \
+  "perl -pi -e 's/trap .rm -rf \"\\\$work\". EXIT//' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-combined-trap \
+  "perl -pi -e 's/(trap .rm -rf \"\\\$work\". EXIT)/\$1 INT TERM HUP/' $CMDS/panel-review.md" \
+  "combines the reviewer backend's EXIT and INT traps"
+
+expect_fail reviewer-backend-empty-output \
+  "perl -pi -e 's/\\[ -f \"\\\$src\" \\] && \\[ -s \"\\\$src\" \\] \\|\\| //' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-multi-doc \
+  "perl -pi -e 's/jq -e -s .length == 1. \"\\\$src\"/true/' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-row-shape \
+  "perl -pi -e 's/cli\\.findings_jq must yield one array/rows look fine/' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+# These anchors are dense with shell and regex metacharacters, so their
+# fixtures swap literal text instead of hand-escaping a perl pattern.
+swap_fixed() { OLD="$1" NEW="$2" perl -0pi -e 's/\Q$ENV{OLD}\E/$ENV{NEW}/' "$3"; }
+# OLD and NEW reach expect_fail's eval as temporary env vars, so the mutation
+# string must stay single-quoted.
+reviewer_drift() {
+  local name="$1" old="$2" new="$3"
+  OLD="$old" NEW="$new" expect_fail "$name" 'swap_fixed "$OLD" "$NEW" "$CMDS/panel-review.md"' \
+    "panel-review.md missing expected reviewer-backend containment line"
+}
+
+reviewer_drift reviewer-backend-inherited-env '/usr/bin/env -i "${env_kept[@]}" "$tbin"' '"$tbin"'
+reviewer_drift reviewer-backend-env-from-shell-vars 'val="$(printenv "$v")"' 'val="${!v}"'
+reviewer_drift reviewer-backend-env-allow-unvalidated \
+  ' and test("^[A-Za-z_][A-Za-z0-9_]*$")) then' ') then'
+reviewer_drift reviewer-backend-env-allow-no-stop \
+  '|| { echo "cli.env_allow must be a list of variable names" >&2; exit 1; }' '|| true'
+reviewer_drift reviewer-backend-in-repo-textual '[ "$x" -ef "$top" ] && return 0' '[ "$x" = "$top" ] && return 0'
+reviewer_drift reviewer-backend-in-repo-no-walk 'x="${x%/*}"; done' 'x=""; done'
+reviewer_drift reviewer-backend-in-repo-unresolved \
+  'x="$(cd "$1" 2>/dev/null && pwd -P)" || return 2' 'x="$1"'
+reviewer_drift reviewer-backend-path-keeps-repo-dirs \
+  'in_repo "$dir"; [ "$?" -eq 1 ] || continue' ':'
+reviewer_drift reviewer-backend-snippet-path-unfiltered '  PATH="$safe_path"' '  :'
+reviewer_drift reviewer-backend-cli-path-unfiltered 'env_kept=("PATH=$safe_path")' 'env_kept=("PATH=$PATH")'
+reviewer_drift reviewer-backend-no-realpath-probe 'command -v realpath > /dev/null ||' 'true ||'
+reviewer_drift reviewer-backend-binary-unresolved 'bin_real="$(realpath "$bin_abs")" ||' 'bin_real="$bin_abs" ||'
+reviewer_drift reviewer-backend-binary-in-repo 'in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] ||' 'true ||'
+reviewer_drift reviewer-backend-binary-not-approved '[ "$bin_abs" = "$approved" ] ||' 'true ||'
+reviewer_drift reviewer-backend-timeout-unresolved 'tbin_real="$(realpath "$tbin")" ||' 'tbin_real="$tbin" ||'
+reviewer_drift reviewer-backend-timeout-in-repo 'in_repo "${tbin_real%/*}/"; [ "$?" -eq 1 ] ||' 'true ||'
+reviewer_drift reviewer-backend-timeout-assignment 'case "$tbin" in *=*|[!/]*)' 'case "$tbin" in [!/]*)'
+reviewer_drift reviewer-backend-tree-untracked-collapsed '--porcelain --untracked-files=all' '--porcelain'
+reviewer_drift reviewer-backend-tree-no-diff-sum 'git_isolated diff HEAD --binary --no-ext-diff --no-textconv | cksum' 'true'
+reviewer_drift reviewer-backend-tree-no-index-flags '    git_isolated ls-files -v | cksum || exit 1' '    true'
+reviewer_drift reviewer-backend-tree-no-untracked-list 'git_isolated ls-files -oz --exclude-standard > "$list"' ': > "$list"'
+reviewer_drift reviewer-backend-tree-no-untracked-sum 'done < "$list" | xargs -0 cksum -- || exit 1' 'done < "$list" > /dev/null'
+reviewer_drift reviewer-backend-tree-no-pipefail $'tree_state() (\n    set -o pipefail' 'tree_state() ('
+reviewer_drift reviewer-backend-tree-follows-links 'if [ -L "./$p" ]; then printf' 'if false; then printf'
+reviewer_drift reviewer-backend-tree-ignores-head '    git_isolated rev-parse HEAD || exit 1' '    true'
+reviewer_drift reviewer-backend-tree-ignores-branch 'git_isolated symbolic-ref -q HEAD || echo detached' 'echo detached'
+reviewer_drift reviewer-backend-tree-git-unhardened '-c core.fsmonitor=false -c core.untrackedCache=false -c core.hooksPath=/dev/null' ''
+reviewer_drift reviewer-backend-tree-git-inherited-env '/usr/bin/env -i "${env_kept[@]}" GIT_CONFIG_NOSYSTEM=1' ''
+reviewer_drift reviewer-backend-git-setup-no-worktree-pointers '"$git_dir/commondir" "$git_dir/gitdir" ' ''
+reviewer_drift reviewer-backend-git-setup-no-excludes '"$git_common/info/exclude" "$git_common/info/attributes" ' ''
+reviewer_drift reviewer-backend-git-setup-no-modes '"$([ -x "$path" ] && echo exec)" ' ''
+reviewer_drift reviewer-backend-git-setup-links-by-name '"$(readlink "$path")"; fi' '"$(readlink "$path")"; continue; fi'
+reviewer_drift reviewer-backend-git-setup-hooks-fallback \
+  'git rev-parse --path-format=absolute --git-path hooks)"' 'echo "$git_common/hooks")"'
+reviewer_drift reviewer-backend-git-setup-hooks-dir-unseen '"$git_hooks" "$git_hooks"/*; do' '"$git_hooks"/*; do'
+reviewer_drift reviewer-backend-no-jq-probe 'command -v jq > /dev/null || { echo "jq is not on the filtered PATH"' 'true || { echo "jq is not on the filtered PATH"'
+reviewer_drift reviewer-backend-git-setup-unchecked \
+  'if ! setup_after="$(git_setup_sum)" || [ "$setup_after" != "$setup_before" ]; then' 'if false; then'
+reviewer_drift reviewer-backend-tree-not-compared 'elif [ "$tree_after" != "$tree_before" ]; then' 'elif false; then'
+reviewer_drift reviewer-backend-tree-change-not-fatal '[ -z "$tree_msg" ] || { echo "$tree_msg" >&2; exit 1; }' ':'
+reviewer_drift reviewer-backend-findings-escape-output \
+  'case "$(realpath "$src")" in "$(realpath "$out")"/*) ;;' 'case "$src" in *) ;;'
+
+reviewer_drift reviewer-backend-no-egress-consent \
+  '6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).**' '6. **Notes.**'
+reviewer_drift reviewer-backend-consent-diff-only \
+  'it reads the whole repo tree, not just the diff, and uploads it' 'it uploads the diff'
+reviewer_drift reviewer-backend-consent-not-a-gate 'Anything other than a yes stops the run.' ''
+reviewer_drift reviewer-backend-consent-bare-key 'key="reviewer:<name>:<owner>/<repo>"' 'key="<owner>/<repo>"'
+reviewer_drift reviewer-backend-consent-not-binary-bound \
+  "jq --arg k \"\$key\" --arg v \"\$val\" '.[\$k] = \$v' \"\$f\"" "jq --arg k \"\$key\" '.[\$k] = true' \"\$f\""
+reviewer_drift reviewer-backend-consent-binary-change-silent 'or one naming a different binary' ''
+reviewer_drift reviewer-backend-consent-unbounded-lock 'while [ "$n" -lt "$tries" ]; do' 'while :; do'
+reviewer_drift reviewer-backend-git-setup-unreadable-ignored \
+  'if [ -e "$path" ] && [ ! -r "$path" ]; then echo "cannot read $path" >&2; exit 1; fi' ':'
+reviewer_drift reviewer-backend-git-setup-before-unchecked \
+  'setup_before="$(git_setup_sum)" || { echo "cannot checksum' 'setup_before="$(git_setup_sum)" || true || { echo "cannot checksum'
+reviewer_drift reviewer-backend-consent-no-try-limit 'dir="${f%/*}"; tries=50; n=0;' 'dir="${f%/*}"; n=0;'
+reviewer_drift reviewer-backend-consent-follows-symlink '{ [ -L "$f" ] || [ ! -f "$f" ] ||' '{ [ ! -f "$f" ] ||'
+reviewer_drift reviewer-backend-consent-seeds-symlink 'if [ ! -L "$f" ] && { [ ! -e "$f" ]' 'if true && { [ ! -e "$f" ]'
+reviewer_drift reviewer-backend-consent-lock-file-waits '"$f.lock exists and is not a lock directory"; n=$tries' '"$f.lock exists and is not a lock directory"'
+reviewer_drift reviewer-backend-consent-dir-unchecked 'if [ -d "$dir" ] && [ -w "$dir" ]; then' 'if true; then'
+reviewer_drift reviewer-backend-locale-ranges 'LC_ALL=C; unset CDPATH' 'unset CDPATH'
+reviewer_drift reviewer-backend-cdpath-common-dir \
+  'git_common="$(git -C "$top" rev-parse --path-format=absolute --git-common-dir)"' 'git_common="$(cd "$top" && cd "$(git rev-parse --git-common-dir)" && pwd -P)"'
+reviewer_drift reviewer-backend-home-unset '[ -n "${HOME:-}" ] || { echo "HOME is unset' 'true || { echo "HOME is unset'
+reviewer_drift reviewer-backend-effort-leading-dash 'case "$effort" in -*|*[!A-Za-z0-9_-]*)' 'case "$effort" in *[!A-Za-z0-9_-]*)'
+reviewer_drift reviewer-backend-name-unchecked "case \"\$name\" in ''|*[!A-Za-z0-9_-]*)" "case \"\$name\" in ''|*[!A-Za-z0-9_./-]*)"
+reviewer_drift reviewer-backend-base-leading-dash "case \"\$base\" in ''|-*|*[!A-Za-z0-9._/-]*)" "case \"\$base\" in ''|*[!A-Za-z0-9._/-]*)"
+reviewer_drift reviewer-backend-config-shape-unchecked \
+  "jq -e 'type == \"object\" and (.reviewers | type == \"object\")' \"\$cfg\"" "true \"\$cfg\""
+reviewer_drift reviewer-backend-row-shape-ignored '<<< "$rows" > /dev/null \' '<<< "$rows" > /dev/null || true \'
+reviewer_drift reviewer-backend-failure-parsed 'if [ "$backend_status" -ne 0 ]; then' 'if false; then'
+reviewer_drift reviewer-backend-timeout-unbounded '. > 0 and . <= 86400)' '. >= 0)'
+reviewer_drift reviewer-backend-findings-dotdot 'case "$src" in */..|*/../*) echo' 'case "$src" in */nope) echo'
+reviewer_drift reviewer-backend-no-printenv-probe 'command -v printenv > /dev/null ||' 'true ||'
+reviewer_drift reviewer-backend-consent-lock-symlink-waits 'if [ -L "$f.lock" ] || {' 'if false || {'
+reviewer_drift reviewer-backend-git-hooks-unchecked \
+  'case "$git_common$git_hooks" in /*) ;; *) echo' 'case "$git_common$git_hooks" in *) ;; /*) echo'
+reviewer_drift reviewer-backend-consent-no-counter 'n=$((n + 1)); sleep 0.2' 'sleep 0.2'
+reviewer_drift reviewer-backend-consent-writes-unlocked 'if [ -z "$locked" ]; then' 'if [ -n "$locked" ]; then'
+reviewer_drift reviewer-backend-consent-dir-world-readable '(umask 077; mkdir -p "$dir")' 'mkdir -p "$dir"'
+reviewer_drift reviewer-backend-consent-reset-on-bad-json \
+  '{ [ ! -e "$f" ] || { [ -f "$f" ] && [ -r "$f" ] && ! LC_ALL=C grep -q' '{ [ ! -e "$f" ] || { [ -f "$f" ] && [ -r "$f" ] && ! jq -e . "$f" > /dev/null || grep -q'
+reviewer_drift reviewer-backend-consent-overwrites-non-object \
+  'if [ -z "$seed" ] && { [ -L "$f" ] ||' 'if false && { [ -L "$f" ] ||'
+reviewer_drift reviewer-backend-consent-reads-non-files '|| [ ! -f "$f" ] || ! jq -e' '|| ! jq -e'
+reviewer_drift reviewer-backend-consent-multi-doc "jq -e -s 'length == 1 and (.[0] | type == \"object\")'" "jq -e 'type == \"object\"'"
+reviewer_drift reviewer-backend-consent-stop-exits-zero '; rc=2' ''
+reviewer_drift reviewer-backend-consent-exit-ignores-rc '   exit "$rc"' '   exit 0'
+reviewer_drift reviewer-backend-consent-no-jq-continues 'this run cannot continue without it" >&2; exit 2; }' 'this run cannot continue without it" >&2; exit 0; }'
+reviewer_drift reviewer-backend-consent-seed-not-binary-bound "'{(\$k): \$v}'" "'{(\$k): true}'"
+reviewer_drift reviewer-backend-consent-seed-any-content "grep -q '[^[:space:]]' \"\$f\"; }; }; then seed=1" "grep -q '.' \"\$f\"; }; }; then seed=1"
+reviewer_drift reviewer-backend-consent-empty-write '&& [ -s "$tmp" ] && chmod 600' '&& chmod 600'
+reviewer_drift reviewer-backend-tree-drops-other-entries \
+  'elif [ ! -f "./$p" ] || [ ! -r "./$p" ]; then printf' 'elif false; then printf'
+reviewer_drift reviewer-backend-consent-seeds-non-files '[ -f "$f" ] && [ -r "$f" ] && ! LC_ALL=C grep' '[ -r "$f" ] && ! LC_ALL=C grep'
+reviewer_drift reviewer-backend-consent-lock-unchecked \
+  'mkdir "$f.lock" 2>/dev/null && { locked=1; break; }' 'mkdir "$f.lock" 2>/dev/null; locked=1; break'
+reviewer_drift reviewer-backend-consent-not-private '&& chmod 600 "$tmp" && mv' '&& mv'
+reviewer_drift reviewer-backend-consent-release-on-failure-only \
+  $'     fi\n     rmdir "$f.lock"\n   fi' $'       rmdir "$f.lock"\n     fi\n   fi'
+reviewer_drift reviewer-backend-nested-skips-preflight \
+  'Run every "## Pre-flight" item above before entering the loop' 'Run "## Pre-flight" items 1-7 above before entering the loop'
+
 # --- require_phrases' missing-file branch, shared by all its callers ---
 expect_fail require-phrases-missing-file \
   "rm $CMDS/code-review.md" \

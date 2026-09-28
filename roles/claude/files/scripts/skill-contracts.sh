@@ -10,7 +10,8 @@
 # single-mutation safety sentences, JSON validity of commands/*.json,
 # code-review's review-submission gate, the /code-review
 # option-set literals mirrored in CLAUDE.md, the code-review/panel-review
-# backend-resolver sync lines, and the Slack notification contract. Runs as
+# backend-resolver sync lines, panel-review's reviewer-backend containment
+# lines, and the Slack notification contract. Runs as
 # a lefthook pre-commit job (glob in lefthook.yml: the command files,
 # CLAUDE.md, this script, and its fixture suite) and in CI alongside
 # skill-contracts-test.sh, which plants drifts to prove these checks fire.
@@ -32,8 +33,12 @@ require_phrases() {
   local file="$1" name="$2" label="$3" phrase
   shift 3
   if [ -f "$CMDS/$file" ]; then
+    # One read and builtin matching: a grep per phrase dominated the fixture
+    # suite's runtime once the reviewer-backend anchors grew.
+    local body=""
+    IFS= read -r -d "" body < "$CMDS/$file" || true
     for phrase in "$@"; do
-      if ! grep -qF "$phrase" "$CMDS/$file"; then
+      if [[ "$body" != *"$phrase"* ]]; then
         err "$file missing expected $label: \"$phrase\""
       fi
     done
@@ -170,6 +175,118 @@ bot_review_safety_checks=(
   "Do not add the opt-in label speculatively"
 )
 require_phrases bot-review.md bot_review_safety_checks "safety sentence" "${bot_review_safety_checks[@]}"
+
+# Containment for panel-review's reviewer:<name> backend, which runs a vendor
+# CLI from the repo root rather than an empty scratch dir. Each anchor pins the
+# guard itself, not just its message: bounded with a kill-after, argv built by
+# a whitespace split (no eval, no globbing), the resolved binary exec'd, the
+# split EXIT/INT traps, the empty, multi-document and row-shape stops that
+# keep a silent or partial run from reading as zero findings, the env -i
+# allowlist read through printenv, the PATH filter and in-repo checks on the
+# binary and timeout, the jq and realpath probes, the git-setup checksum and
+# isolated git calls, the working-tree check, the findings file's realpath
+# containment, and the egress consent asked once per repo and reviewer
+# (binary-bound, under a bounded lock, private directory, exit 2 to stop,
+# never overwriting a file that is unreadable, not a regular file, or not a
+# single JSON object).
+reviewer_backend_checks=(
+  '"$tbin" -k 30 "$secs" "${argv[@]}" < /dev/null'
+  "IFS=\$' \\t' read -r -a words <<< \"\$tpl\""
+  'argv[0]="$bin_abs"'
+  "trap 'rm -rf \"\$work\"' EXIT"
+  '[ -f "$src" ] && [ -s "$src" ] || { echo "reviewer CLI exited 0 but left no findings'
+  "jq -e -s 'length == 1' \"\$src\""
+  'cli.findings_jq must yield one array of {file, line, finding, severity, rule}'
+  '/usr/bin/env -i "${env_kept[@]}" "$tbin"'
+  '[ "$v" != PATH ] && val="$(printenv "$v")" && env_kept+=("$v=$val")'
+  'and test("^[A-Za-z_][A-Za-z0-9_]*$")) then .[] else error("") end'
+  '|| { echo "cli.env_allow must be a list of variable names" >&2; exit 1; }'
+  'x="$(cd "$1" 2>/dev/null && pwd -P)" || return 2'
+  'while [ -n "$x" ]; do [ "$x" -ef "$top" ] && return 0; x="${x%/*}"; done'
+  'in_repo "$dir"; [ "$?" -eq 1 ] || continue'
+  'command -v realpath > /dev/null ||'
+  '  PATH="$safe_path"'
+  'env_kept=("PATH=$safe_path")'
+  'bin_real="$(realpath "$bin_abs")" ||'
+  'in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] ||'
+  '[ "$bin_abs" = "$approved" ] ||'
+  'tbin_real="$(realpath "$tbin")" ||'
+  'in_repo "${tbin_real%/*}/"; [ "$?" -eq 1 ] ||'
+  'case "$tbin" in *=*|[!/]*)'
+  'git_isolated status --porcelain --untracked-files=all || exit 1'
+  'git_isolated diff HEAD --binary --no-ext-diff --no-textconv | cksum || exit 1'
+  'git_isolated ls-files -v | cksum || exit 1'
+  'git_isolated ls-files -oz --exclude-standard > "$list" || exit 1'
+  'done < "$list" | xargs -0 cksum -- || exit 1'
+  '    set -o pipefail'
+  'if [ -L "./$p" ]; then printf'
+  'git_isolated rev-parse HEAD || exit 1'
+  'git_isolated symbolic-ref -q HEAD || echo detached'
+  '/usr/bin/env -i "${env_kept[@]}" GIT_CONFIG_NOSYSTEM=1'
+  'git -c core.fsmonitor=false -c core.untrackedCache=false -c core.hooksPath=/dev/null -C "$top" "$@"'
+  '"$git_dir/commondir" "$git_dir/gitdir" "$top/.git"'
+  'if [ -f "$path" ]; then printf '"'"'%s %s %s\n'"'"' "$path" "$([ -x "$path" ] && echo exec)"'
+  'git rev-parse --path-format=absolute --git-path hooks)"'
+  '"$git_hooks" "$git_hooks"/*; do'
+  '"$git_common/info/exclude" "$git_common/info/attributes"'
+  '"$(readlink "$path")"; fi'
+  'this run cannot continue without it" >&2; exit 2; }'
+  "jq -n --arg k \"\$key\" --arg v \"\$val\" '{(\$k): \$v}'"
+  "grep -q '[^[:space:]]' \"\$f\"; }; }; then seed=1; fi"
+  '&& [ -s "$tmp" ] && chmod 600 "$tmp" && mv "$tmp" "$f"; }; then'
+  'elif [ ! -f "./$p" ] || [ ! -r "./$p" ]; then printf'
+  'command -v jq > /dev/null || { echo "jq is not on the filtered PATH"'
+  'command -v printenv > /dev/null || { echo "printenv is not on the filtered PATH"'
+  'elif [ "$tree_after" != "$tree_before" ]; then'
+  '[ -z "$tree_msg" ] || { echo "$tree_msg" >&2; exit 1; }'
+  'case "$(realpath "$src")" in "$(realpath "$out")"/*) ;;'
+  '6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).**'
+  'it reads the whole repo tree, not just the diff, and uploads it to that vendor'
+  'Anything other than a yes stops the run.'
+  'key="reviewer:<name>:<owner>/<repo>"'
+  "jq --arg k \"\$key\" --arg v \"\$val\" '.[\$k] = \$v' \"\$f\""
+  'or one naming a different binary'
+  'while [ "$n" -lt "$tries" ]; do'
+  'dir="${f%/*}"; tries=50; n=0;'
+  'if [ -e "$path" ] && [ ! -r "$path" ]; then echo "cannot read $path" >&2; exit 1; fi'
+  'setup_before="$(git_setup_sum)" || { echo "cannot checksum'
+  'if [ -L "$f.lock" ] || { [ -e "$f.lock" ] && [ ! -d "$f.lock" ]; }; then'
+  'case "$git_common$git_hooks" in /*) ;; *) echo "cannot resolve git'"'"'s directories'
+  'git_common="$(git -C "$top" rev-parse --path-format=absolute --git-common-dir)"'
+  'LC_ALL=C; unset CDPATH'
+  '[ -n "${HOME:-}" ] || { echo "HOME is unset'
+  'case "$effort" in -*|*[!A-Za-z0-9_-]*)'
+  'case "$name" in '"''"'|*[!A-Za-z0-9_-]*)'
+  'case "$base" in '"''"'|-*|*[!A-Za-z0-9._/-]*)'
+  'jq -e '"'"'type == "object" and (.reviewers | type == "object")'"'"' "$cfg"'
+  '<<< "$rows" > /dev/null \'
+  'if [ "$backend_status" -ne 0 ]; then'
+  'select(type == "number" and . == floor and . > 0 and . <= 86400)'
+  'case "$src" in */..|*/../*) echo'
+  'why="$f.lock exists and is not a lock directory"; n=$tries'
+  'if [ -d "$dir" ] && [ -w "$dir" ]; then'
+  'if ! setup_after="$(git_setup_sum)" || [ "$setup_after" != "$setup_before" ]; then'
+  'n=$((n + 1)); sleep 0.2'
+  'mkdir "$f.lock" 2>/dev/null && { locked=1; break; }'
+  'if [ -z "$locked" ]; then'
+  '(umask 077; mkdir -p "$dir")'
+  'if [ ! -L "$f" ] && { [ ! -e "$f" ] || { [ -f "$f" ] && [ -r "$f" ] && ! LC_ALL=C grep -q'
+  'if [ -z "$seed" ] && { [ -L "$f" ] || [ ! -f "$f" ] || ! jq -e -s '"'"'length == 1 and (.[0] | type == "object")'"'"' "$f"'
+  'echo "$f is a symlink, unreadable, not a regular file, or not a single JSON object; nothing recorded or overwritten" >&2; rc=2'
+  '   exit "$rc"'
+  'Run every "## Pre-flight" item above before entering the loop'
+)
+require_phrases panel-review.md reviewer_backend_checks "reviewer-backend containment line" "${reviewer_backend_checks[@]}"
+# The consent lock is released after the write whether or not it succeeded,
+# so the rmdir must sit after the failure branch's fi, not inside it.
+if [ -f "$CMDS/panel-review.md" ] \
+  && ! perl -0ne 'exit(index($_, "     fi\n     rmdir \"\$f.lock\"\n   fi") < 0 ? 1 : 0)' "$CMDS/panel-review.md"; then
+  err "panel-review.md missing expected reviewer-backend containment line: the consent lock's release after the write"
+fi
+# The combined trap shape resumes after Ctrl-C with $work already deleted.
+if [ -f "$CMDS/panel-review.md" ] && grep -qF "trap 'rm -rf \"\$work\"' EXIT INT" "$CMDS/panel-review.md"; then
+  err "panel-review.md combines the reviewer backend's EXIT and INT traps; keep them split"
+fi
 
 # Severity-tier contract for code-review.md. It is checked against its OWN
 # anchors rather than being added to bucket_checks: per CLAUDE.md, commands that
