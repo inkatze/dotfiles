@@ -49,13 +49,15 @@ Before anything mutates branch state or messages anyone:
   machine's account. For a repo not yet approved, say that in one line and
   ask; remember a yes in `~/.config/dotfiles/code-review-egress.json` as
   `{"<owner>/<repo>": "<backend>"}` (mode 0600; serialize the
-  read-modify-write through a lock directory, with the bounded
-  `mkdir "$f.lock"` loop `/panel-review` Pre-flight item 6 shows (about ten
-  seconds, then approved for this run only, since a writer killed mid-write
-  leaves the lock behind); write via `tmp=$(mktemp "$f.XXXXXX")`
-  in the same directory so the `mv` stays atomic, then `rmdir "$f.lock"`,
-  since `/peer-review` and a second review can race the sibling
-  `slack-users.json` pattern). An approval names the backend it was given
+  read-modify-write through a lock directory, writing via
+  `tmp=$(mktemp "$f.XXXXXX")` in the same directory so the `mv` stays
+  atomic, then `rmdir "$f.lock"`, since `/peer-review` and a second review
+  can race the sibling `slack-users.json` pattern). Take the lock with the
+  bounded `mkdir "$f.lock"` loop in `/panel-review`'s egress-consent step:
+  after about ten seconds, give up and treat the yes as approved for this
+  run only, since a writer killed mid-write leaves the lock behind. A file
+  holding no JSON counts as absent; one holding anything other than a JSON
+  object stops the run and names the path. An approval names the backend it was given
   for: a different backend for an approved repo asks again once, and
   revoking is deleting the repo's entry from the file. A no stops the run.
   `/panel-review`'s `reviewer:<name>` backend keeps its own approvals in

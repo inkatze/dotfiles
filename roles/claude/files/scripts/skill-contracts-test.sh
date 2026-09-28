@@ -243,9 +243,11 @@ expect_fail reviewer-backend-row-shape \
 # These anchors are dense with shell and regex metacharacters, so their
 # fixtures swap literal text instead of hand-escaping a perl pattern.
 swap_fixed() { OLD="$1" NEW="$2" perl -0pi -e 's/\Q$ENV{OLD}\E/$ENV{NEW}/' "$3"; }
+# OLD and NEW reach expect_fail's eval as temporary env vars, so the mutation
+# string must stay single-quoted.
 reviewer_drift() {
-  local name="$1"
-  OLD="$2" NEW="$3" expect_fail "$name" 'swap_fixed "$OLD" "$NEW" "$CMDS/panel-review.md"' \
+  local name="$1" old="$2" new="$3"
+  OLD="$old" NEW="$new" expect_fail "$name" 'swap_fixed "$OLD" "$NEW" "$CMDS/panel-review.md"' \
     "panel-review.md missing expected reviewer-backend containment line"
 }
 
@@ -256,19 +258,26 @@ reviewer_drift reviewer-backend-env-allow-unvalidated \
 reviewer_drift reviewer-backend-env-allow-no-stop \
   '|| { echo "cli.env_allow must be a list of variable names" >&2; exit 1; }' '|| true'
 reviewer_drift reviewer-backend-in-repo-textual '[ "$x" -ef "$top" ] && return 0' '[ "$x" = "$top" ] && return 0'
+reviewer_drift reviewer-backend-in-repo-no-walk 'x="${x%/*}"; done' 'x=""; done'
 reviewer_drift reviewer-backend-in-repo-unresolved \
-  'x="$(cd "$1" 2>/dev/null && pwd -P)" || return 1' 'x="$1"'
+  'x="$(cd "$1" 2>/dev/null && pwd -P)" || return 2' 'x="$1"'
 reviewer_drift reviewer-backend-path-keeps-repo-dirs \
-  'if [ -d "$dir" ] && ! in_repo "$dir"; then' 'if [ -d "$dir" ]; then'
-reviewer_drift reviewer-backend-snippet-unfiltered-path '  PATH="$safe_path"' '  :'
-reviewer_drift reviewer-backend-unfiltered-path 'env_kept=("PATH=$safe_path")' 'env_kept=("PATH=$PATH")'
+  'in_repo "$dir"; [ "$?" -eq 1 ] || continue' ':'
+reviewer_drift reviewer-backend-snippet-path-unfiltered '  PATH="$safe_path"' '  :'
+reviewer_drift reviewer-backend-cli-path-unfiltered 'env_kept=("PATH=$safe_path")' 'env_kept=("PATH=$PATH")'
+reviewer_drift reviewer-backend-no-realpath-probe 'command -v realpath > /dev/null ||' 'true ||'
 reviewer_drift reviewer-backend-binary-unresolved 'bin_real="$(realpath "$bin_abs")" ||' 'bin_real="$bin_abs" ||'
-reviewer_drift reviewer-backend-binary-in-repo '! in_repo "${bin_real%/*}" ||' 'true ||'
+reviewer_drift reviewer-backend-binary-in-repo 'in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] ||' 'true ||'
+reviewer_drift reviewer-backend-binary-not-approved '[ "$bin_abs" = "$approved" ] ||' 'true ||'
 reviewer_drift reviewer-backend-timeout-unresolved 'tbin_real="$(realpath "$tbin")" ||' 'tbin_real="$tbin" ||'
-reviewer_drift reviewer-backend-timeout-in-repo '! in_repo "${tbin_real%/*}" ||' 'true ||'
+reviewer_drift reviewer-backend-timeout-in-repo 'in_repo "${tbin_real%/*}/"; [ "$?" -eq 1 ] ||' 'true ||'
 reviewer_drift reviewer-backend-timeout-assignment 'case "$tbin" in *=*|[!/]*)' 'case "$tbin" in [!/]*)'
-reviewer_drift reviewer-backend-tree-porcelain-only \
-  'git -C "$top" diff HEAD --binary | cksum; }' '}'
+reviewer_drift reviewer-backend-tree-untracked-collapsed '--porcelain --untracked-files=all' '--porcelain'
+reviewer_drift reviewer-backend-tree-no-diff-sum 'df="$(git -C "$top" diff HEAD --binary)"' 'df=""'
+reviewer_drift reviewer-backend-tree-no-untracked-sum 'git ls-files -oz --exclude-standard | xargs -0 cksum' 'true'
+reviewer_drift reviewer-backend-tree-ignores-head 'hd="$(git -C "$top" rev-parse HEAD)" || return 1' 'hd="" || return 1'
+reviewer_drift reviewer-backend-tree-not-compared \
+  'tree_after="$(tree_state)" && [ "$tree_after" = "$tree_before" ]' 'true'
 
 reviewer_drift reviewer-backend-no-egress-consent \
   '6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).**' '6. **Notes.**'
@@ -281,6 +290,7 @@ reviewer_drift reviewer-backend-consent-not-binary-bound \
 reviewer_drift reviewer-backend-consent-binary-change-silent 'or one naming a different binary' ''
 reviewer_drift reviewer-backend-consent-unbounded-lock 'while [ "$n" -lt 50 ]; do' 'while :; do'
 reviewer_drift reviewer-backend-consent-no-counter 'n=$((n + 1)); sleep 0.2' 'sleep 0.2'
+reviewer_drift reviewer-backend-consent-writes-unlocked 'if [ -z "$locked" ]; then' 'if [ -n "$locked" ]; then'
 reviewer_drift reviewer-backend-consent-lock-unchecked \
   'mkdir "$f.lock" 2>/dev/null && { locked=1; break; }' 'mkdir "$f.lock" 2>/dev/null; locked=1; break'
 reviewer_drift reviewer-backend-consent-not-private '&& chmod 600 "$tmp" && mv' '&& mv'

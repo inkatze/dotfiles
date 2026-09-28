@@ -606,8 +606,10 @@ write it read-modify-write under the same lock directory; the backend's
 approvals live under `reviewer:<name>:owner/repo` keys. Revoking an
 approval is deleting its key, so stopping all uploads of a repo means
 deleting the bare `owner/repo` key and every `reviewer:<name>:owner/repo`
-key for it. Absent file means every repo (and, for that backend, every repo
-and reviewer) asks once, which degrades visibly.
+key for it. Absent file means every repo, or for that backend every
+repo-and-reviewer pair, asks once, which degrades visibly; with
+`~/.config/dotfiles/` missing and uncreatable, nothing is recorded and every
+run asks.
 
 `slack-users.json` is untracked for a different reason than the others: it is
 not a secret, but it holds *other people's* email-derived identities. This repo
