@@ -187,7 +187,8 @@ require_phrases bot-review.md bot_review_safety_checks "safety sentence" "${bot_
 # isolated git calls, the working-tree check, the findings file's realpath
 # containment, and the egress consent asked once per repo and reviewer
 # (binary-bound, under a bounded lock, private directory, exit 2 to stop,
-# never overwriting a file that is not a single JSON object).
+# never overwriting a file that is unreadable, not a regular file, or not a
+# single JSON object).
 reviewer_backend_checks=(
   '"$tbin" -k 30 "$secs" "${argv[@]}" < /dev/null'
   "IFS=\$' \\t' read -r -a words <<< \"\$tpl\""
@@ -235,7 +236,6 @@ reviewer_backend_checks=(
   '&& [ -s "$tmp" ] && chmod 600 "$tmp" && mv "$tmp" "$f"; }; then'
   'elif [ ! -f "./$p" ] || [ ! -r "./$p" ]; then printf'
   'command -v jq > /dev/null || { echo "jq is not on the filtered PATH"'
-  'if [ "$(git_setup_sum)" != "$setup_before" ]; then'
   'elif [ "$tree_after" != "$tree_before" ]; then'
   '[ -z "$tree_msg" ] || { echo "$tree_msg" >&2; exit 1; }'
   'case "$(realpath "$src")" in "$(realpath "$out")"/*) ;;'
@@ -245,7 +245,10 @@ reviewer_backend_checks=(
   'key="reviewer:<name>:<owner>/<repo>"'
   "jq --arg k \"\$key\" --arg v \"\$val\" '.[\$k] = \$v' \"\$f\""
   'or one naming a different binary'
-  'while [ "$n" -lt 50 ]; do'
+  'while [ "$n" -lt "$tries" ]; do'
+  'if [ -L "$f.lock" ] || { [ -e "$f.lock" ] && [ ! -d "$f.lock" ]; }; then'
+  'case "$git_hooks" in /*) ;; *) echo "cannot resolve git'"'"'s hooks directory'
+  'if ! setup_after="$(git_setup_sum)" || [ "$setup_after" != "$setup_before" ]; then'
   'n=$((n + 1)); sleep 0.2'
   'mkdir "$f.lock" 2>/dev/null && { locked=1; break; }'
   'if [ -z "$locked" ]; then'

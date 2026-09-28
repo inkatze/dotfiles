@@ -111,18 +111,20 @@ Runs identically in both modes.
    reviewer:<name> runs the local reviewer CLI from the repo root; it reads the whole repo tree, not just the diff, and uploads it to that vendor under this machine's account. Approve for <owner>/<repo>? [y/N]
    ```
 
-   Anything other than a yes stops the run. Remember a yes with the locking below, which `/code-review` shares (mode 0600, read-modify-write under the lock directory, temp file in the same directory so the `mv` is atomic), as its own Bash call so no later `trap` or long step holds the lock. The wait is bounded because a writer killed mid-write leaves the lock directory behind, and failing to lock or write never undoes the yes: the run goes on, approved for this run only. Exit 2 means stop the run (a consent file that is unreadable or not a single JSON object, or no `jq`):
+   Anything other than a yes stops the run. Remember a yes with the locking below, which `/code-review` shares (mode 0600, read-modify-write under the lock directory, temp file in the same directory so the `mv` is atomic), as its own Bash call so no later `trap` or long step holds the lock. The wait is bounded because a writer killed mid-write leaves the lock directory behind, and failing to lock or write never undoes the yes: the run goes on, approved for this run only. Exit 2 means stop the run (a consent file that is unreadable, not a regular file, or not a single JSON object, or no `jq`):
 
    ```bash
    f=~/.config/dotfiles/code-review-egress.json
    key="reviewer:<name>:<owner>/<repo>"; val='<approved-binary-path>'
    command -v jq > /dev/null || { echo "jq not found; nothing recorded, and this run cannot continue without it" >&2; exit 2; }
-   dir="${f%/*}"; n=0; locked=""; rc=0; why="$dir is missing or not writable"
+   dir="${f%/*}"; tries=50; n=0; locked=""; rc=0; why="$dir is missing or not writable"
    [ -d "$dir" ] || (umask 077; mkdir -p "$dir") 2>/dev/null
    if [ -d "$dir" ] && [ -w "$dir" ]; then
      why="$f.lock is still held after 10s (another run, or a killed one: rmdir it if no review is running)"
-     [ ! -e "$f.lock" ] || [ -d "$f.lock" ] || { why="$f.lock exists and is not a lock directory"; n=50; }
-     while [ "$n" -lt 50 ]; do
+     if [ -L "$f.lock" ] || { [ -e "$f.lock" ] && [ ! -d "$f.lock" ]; }; then
+       why="$f.lock exists and is not a lock directory"; n=$tries
+     fi
+     while [ "$n" -lt "$tries" ]; do
        mkdir "$f.lock" 2>/dev/null && { locked=1; break; }
        n=$((n + 1)); sleep 0.2
      done
@@ -329,10 +331,12 @@ Diff:
   git_dir="$(git -C "$top" rev-parse --absolute-git-dir)" \
     && git_common="$(cd "$top" && cd "$(git rev-parse --git-common-dir)" && pwd -P)" \
     && git_hooks="$(cd "$top" && git rev-parse --path-format=absolute --git-path hooks)" || exit 1
+  case "$git_hooks" in /*) ;; *) echo "cannot resolve git's hooks directory (git 2.31 or later is needed)" >&2; exit 1 ;; esac
   git_setup_sum() (
     for path in "$git_common/config" "$git_dir/config.worktree" "$git_dir/commondir" "$git_dir/gitdir" "$top/.git" \
         "$git_common/info/exclude" "$git_common/info/attributes" "$git_hooks" "$git_hooks"/*; do
       if [ -L "$path" ]; then printf 'link %s -> %s\n' "$path" "$(readlink "$path")"; fi
+      if [ -f "$path" ] && [ ! -r "$path" ]; then echo "cannot read $path" >&2; exit 1; fi
       if [ -f "$path" ]; then printf '%s %s %s\n' "$path" "$([ -x "$path" ] && echo exec)" "$(cksum < "$path")"
       elif [ -e "$path" ]; then printf 'other %s\n' "$path"
       fi
@@ -362,13 +366,13 @@ Diff:
     git_isolated rev-parse HEAD || exit 1
     git_isolated symbolic-ref -q HEAD || echo detached
   )
-  setup_before="$(git_setup_sum)"
+  setup_before="$(git_setup_sum)" || { echo "cannot checksum git's setup files" >&2; exit 1; }
   tree_before="$(tree_state)" || { echo "cannot read the working tree state before the run" >&2; exit 1; }
   started=$SECONDS
   ( cd "$top" && /usr/bin/env -i "${env_kept[@]}" "$tbin" -k 30 "$secs" "${argv[@]}" < /dev/null > "$work/stdout" 2> "$work/stderr" )
   backend_status=$?
   tree_msg=""
-  if [ "$(git_setup_sum)" != "$setup_before" ]; then
+  if ! setup_after="$(git_setup_sum)" || [ "$setup_after" != "$setup_before" ]; then
     tree_msg="git's config, hooks, excludes, attributes or worktree pointers changed while the reviewer CLI ran; inspect those files by hand before running git here again"
   elif ! tree_after="$(tree_state)"; then
     tree_msg="cannot read the working tree state after the run"

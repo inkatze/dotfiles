@@ -48,7 +48,8 @@ Before anything mutates branch state or messages anyone:
   an external service (OpenAI for codex, Google for gemini) under this
   machine's account. For a repo not yet approved, say that in one line and
   ask. Before asking, a file holding no JSON counts as absent, and one that
-  is unreadable or not a single JSON object stops the run and names the
+  is unreadable, not a regular file, or not a single JSON object stops the
+  run and names the
   path. Remember a yes in `~/.config/dotfiles/code-review-egress.json` as
   `{"<owner>/<repo>": "<backend>"}` (mode 0600, under a lock directory,
   since `/peer-review` and a second review can race the sibling

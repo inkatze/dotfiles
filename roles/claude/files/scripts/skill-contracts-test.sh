@@ -292,7 +292,7 @@ reviewer_drift reviewer-backend-git-setup-hooks-fallback \
 reviewer_drift reviewer-backend-git-setup-hooks-dir-unseen '"$git_hooks" "$git_hooks"/*; do' '"$git_hooks"/*; do'
 reviewer_drift reviewer-backend-no-jq-probe 'command -v jq > /dev/null || { echo "jq is not on the filtered PATH"' 'true || { echo "jq is not on the filtered PATH"'
 reviewer_drift reviewer-backend-git-setup-unchecked \
-  'if [ "$(git_setup_sum)" != "$setup_before" ]; then' 'if false; then'
+  'if ! setup_after="$(git_setup_sum)" || [ "$setup_after" != "$setup_before" ]; then' 'if false; then'
 reviewer_drift reviewer-backend-tree-not-compared 'elif [ "$tree_after" != "$tree_before" ]; then' 'elif false; then'
 reviewer_drift reviewer-backend-tree-change-not-fatal '[ -z "$tree_msg" ] || { echo "$tree_msg" >&2; exit 1; }' ':'
 reviewer_drift reviewer-backend-findings-escape-output \
@@ -307,7 +307,10 @@ reviewer_drift reviewer-backend-consent-bare-key 'key="reviewer:<name>:<owner>/<
 reviewer_drift reviewer-backend-consent-not-binary-bound \
   "jq --arg k \"\$key\" --arg v \"\$val\" '.[\$k] = \$v' \"\$f\"" "jq --arg k \"\$key\" '.[\$k] = true' \"\$f\""
 reviewer_drift reviewer-backend-consent-binary-change-silent 'or one naming a different binary' ''
-reviewer_drift reviewer-backend-consent-unbounded-lock 'while [ "$n" -lt 50 ]; do' 'while :; do'
+reviewer_drift reviewer-backend-consent-unbounded-lock 'while [ "$n" -lt "$tries" ]; do' 'while :; do'
+reviewer_drift reviewer-backend-consent-lock-symlink-waits 'if [ -L "$f.lock" ] || {' 'if false || {'
+reviewer_drift reviewer-backend-git-hooks-unchecked \
+  'case "$git_hooks" in /*) ;; *) echo' 'case "$git_hooks" in *) ;; /*) echo'
 reviewer_drift reviewer-backend-consent-no-counter 'n=$((n + 1)); sleep 0.2' 'sleep 0.2'
 reviewer_drift reviewer-backend-consent-writes-unlocked 'if [ -z "$locked" ]; then' 'if [ -n "$locked" ]; then'
 reviewer_drift reviewer-backend-consent-dir-world-readable '(umask 077; mkdir -p "$dir")' 'mkdir -p "$dir"'
