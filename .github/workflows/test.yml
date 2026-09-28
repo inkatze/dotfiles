@@ -123,8 +123,8 @@ jobs:
       - name: Run the status line fixture suite
         run: scripts/claude-statusline-test.sh
 
-      # Stubs op, so bash, coreutils and ssh (for the sync's own `ssh -G`) are
-      # all it needs; lint runs it on macOS as well.
+      # Stubs op, so bash, coreutils, diffutils' cmp and ssh (for the sync's
+      # own `ssh -G`) are all it needs; lint runs it on macOS as well.
       - name: Run the service-account token suite
         run: scripts/op-token-test.sh
 

@@ -372,9 +372,9 @@ against, so `claude-gemini-auth-sync.sh` falls back to
 `scripts/op-token.sh` helper `ssh-lan-config-sync.sh` sources. A service
 account cannot be granted the Personal or Private vault, so the key item has
 to live in `Dotfiles Service Account`, and it must be addressed with an
-explicit `--vault`: without one, `op` refuses every field with "a vault query must be
-provided when this command is called by a service account", which reads like a
-missing item and is not. Moving the item between vaults also reassigns its
+explicit `--vault`: without one, `op` refuses every field with "a vault query
+must be provided when this command is called by a service account", which
+reads like a missing item and is not. Moving the item between vaults also reassigns its
 id, so `ITEM_UUID` in that script is the id *in that vault*, not the one it
 had in Private.
 
@@ -642,11 +642,12 @@ Three consequences worth knowing before moving items around:
   template), which survives a move untouched.
 - Both scripts resolve the token through one sourced helper,
   `scripts/op-token.sh`, tested by `scripts/op-token-test.sh`, so a fix to
-  the checks lands in both at once. It refuses a file that is a symlink, is
-  not regular, or is not mode 0600 or 0400, and a value that is blank or holds
-  anything outside the token character set (NUL bytes included). An
-  already-exported `OP_SERVICE_ACCOUNT_TOKEN` takes precedence, so CI can
-  supply one without the file existing.
+  the checks lands in both at once. The helper refuses a file that is a
+  symlink, is not regular, or is not mode 0600 or 0400, and a value that is
+  blank or holds anything outside the token character set (NUL bytes
+  included). An already-exported `OP_SERVICE_ACCOUNT_TOKEN` takes precedence,
+  so CI can supply one without the file existing; an exported empty one is
+  treated as absent.
 
 To rotate: `op service-account create <name> --vault 'Dotfiles Service
 Account':read_items`, write the returned token to the file with `umask 077`,

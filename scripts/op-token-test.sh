@@ -13,7 +13,9 @@ unset OP_SERVICE_ACCOUNT_TOKEN DOTFILES_OP_TOKEN_FILE DOTFILES_OP_VAULT \
 
 ORIG_PATH="$PATH"
 real_chmod="$(command -v chmod)"
-root="$(mktemp -d)"
+real_stat="$(command -v stat)"
+# Physical, because the scripts report their own directory that way.
+root="$(cd -P -- "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$root"' EXIT
 
 pass=0
@@ -24,20 +26,14 @@ ko() { echo "  FAIL: $1"; fail=$((fail + 1)); }
 good="ops_fAkEtOkEn-base64url_x"
 nbsp="$(printf '\302\240')"
 
-# The chmod shim records any call that inherited the token: both scripts run
-# chmod after `op`, so it catches an exported copy leaking past op_run.
-new_sandbox() {
-  sandbox="$(mktemp -d "$root/case.XXXXXX")"
-  mkdir -p "$sandbox/home" "$sandbox/bin"
-  export HOME="$sandbox/home"
-  export PATH="$sandbox/bin:$ORIG_PATH"
-  token_file="$sandbox/token"
-  cat >"$sandbox/bin/op" <<FAKE
+# Stubs are shared and write into $STUB_DIR, the current case's sandbox. The
+# chmod shim records any call that inherited a token: both scripts run chmod
+# after `op`, so it catches a copy leaking past op_run.
+mkdir "$root/bin"
+cat >"$root/bin/op" <<'FAKE'
 #!/usr/bin/env bash
 set -eu
-printf 'token=%s\n' "\${OP_SERVICE_ACCOUNT_TOKEN-<unset>}" >>"$sandbox/op.log"
-FAKE
-  cat >>"$sandbox/bin/op" <<'FAKE'
+printf 'token=%s\n' "${OP_SERVICE_ACCOUNT_TOKEN-<unset>}" >>"$STUB_DIR/op.log"
 case "${1:-}" in
   item) printf 'fake-gemini-key' ;;
   inject)
@@ -58,12 +54,25 @@ case "${1:-}" in
     ;;
 esac
 FAKE
-  cat >"$sandbox/bin/chmod" <<SHIM
+cat >"$root/bin/chmod" <<SHIM
 #!/usr/bin/env bash
-[ -z "\${OP_SERVICE_ACCOUNT_TOKEN+x}" ] || echo leaked >>"$sandbox/leak.log"
+[ -z "\${OP_SERVICE_ACCOUNT_TOKEN+x}\${op_token+x}" ] || echo leaked >>"\$STUB_DIR/leak.log"
 exec "$real_chmod" "\$@"
 SHIM
-  "$real_chmod" +x "$sandbox/bin/op" "$sandbox/bin/chmod"
+cat >"$root/bin/stat" <<SHIM
+#!/usr/bin/env bash
+[ ! -e "\$STUB_DIR/stat-fails" ] || exit 1
+exec "$real_stat" "\$@"
+SHIM
+"$real_chmod" +x "$root/bin/op" "$root/bin/chmod" "$root/bin/stat"
+
+new_sandbox() {
+  sandbox="$(mktemp -d "$root/case.XXXXXX")"
+  mkdir -p "$sandbox/home"
+  export STUB_DIR="$sandbox"
+  export HOME="$sandbox/home"
+  export PATH="$root/bin:$ORIG_PATH"
+  token_file="$sandbox/token"
 }
 
 # write_token <printf-format>: the format carries the bytes, so NULs and
@@ -87,16 +96,17 @@ no_echo() { # no_echo <label>
   return 0
 }
 
+# The whole output must be the one FAILED: line, so a stray shell warning
+# ahead of it fails the case.
 refused() { # refused <label> <expected message after "FAILED: ">
-  if [ "$rc" -eq 0 ]; then
-    ko "$1: expected refusal, got: $out"
+  if [ "$rc" -ne 1 ]; then
+    ko "$1: expected exit 1, got $rc: $out"
   elif [ -e "$sandbox/op.log" ]; then
     ko "$1: op was called despite refusal"
+  elif [ "$out" != "FAILED: $2" ]; then
+    ko "$1: unexpected output: $out"
   else
-    case "$out" in
-      *"FAILED: $2"*) ok "$1: refused" ;;
-      *) ko "$1: unexpected message: $out" ;;
-    esac
+    ok "$1: refused"
   fi
   no_echo "$1"
 }
@@ -196,6 +206,23 @@ for s in $subjects; do
   run "$s" DOTFILES_OP_TOKEN_FILE="$token_file"
   refused "dangling symlink" "$token_file is a symlink; replace it with a regular file holding the service-account token"
 
+  new_sandbox
+  write_token "$good\n"
+  : >"$sandbox/stat-fails"
+  run "$s" DOTFILES_OP_TOKEN_FILE="$token_file"
+  refused "stat fails" "could not stat token file $token_file"
+
+  # Mode 600 yet unreadable needs another owner or an ACL; only BSD chmod +a
+  # gives an unprivileged user the latter.
+  new_sandbox
+  write_token "$good\n"
+  if "$real_chmod" +a "$(id -un) deny read" "$token_file" 2>/dev/null; then
+    run "$s" DOTFILES_OP_TOKEN_FILE="$token_file"
+    refused "unreadable" "$token_file is not readable by this user (mode is 600, but check the owner)"
+  else
+    echo "  skip: unreadable (no chmod +a here)"
+  fi
+
   echo "3. default path and absence"
   new_sandbox
   mkdir -p "$HOME/.config/dotfiles"
@@ -231,6 +258,20 @@ second" "$env_non_token"
   run "$s" OP_SERVICE_ACCOUNT_TOKEN="$good" DOTFILES_OP_TOKEN_FILE="$token_file"
   accepted "exported token wins over a good file" "$good"
 
+  new_sandbox
+  run "$s" OP_SERVICE_ACCOUNT_TOKEN=
+  accepted "empty exported token is not passed on" "<unset>"
+
+  new_sandbox
+  write_token "$good\n"
+  run "$s" OP_SERVICE_ACCOUNT_TOKEN= DOTFILES_OP_TOKEN_FILE="$token_file"
+  accepted "empty exported token falls through to the file" "$good"
+
+  new_sandbox
+  write_token "$good\n"
+  run "$s" op_token=inherited DOTFILES_OP_TOKEN_FILE="$token_file"
+  accepted "inherited op_token is not re-exported" "$good"
+
   echo "5. invocation"
   new_sandbox
   write_token "$good\n"
@@ -239,6 +280,27 @@ second" "$env_non_token"
   ln -s real "$sandbox/links/hop"
   if out="$(cd / && DOTFILES_OP_TOKEN_FILE="$token_file" "$sandbox/links/hop" 2>&1)"; then rc=0; else rc=$?; fi
   accepted "via a relative symlink chain from /" "$good"
+
+  # A relative last hop through a symlinked directory: resolved logically, the
+  # `..` would land in the decoy tree instead of the real one.
+  new_sandbox
+  write_token "$good\n"
+  mkdir -p "$sandbox/tree/a" "$sandbox/tree/roles/ssh" "$sandbox/scripts"
+  cp "$script_dir/$s" "$script_dir/op-token.sh" "$sandbox/tree/"
+  mkdir "$sandbox/tree/scripts"
+  mv "$sandbox/tree/$s" "$sandbox/tree/op-token.sh" "$sandbox/tree/scripts/"
+  cp -R "$script_dir/../roles/ssh/files" "$sandbox/tree/roles/ssh/"
+  ln -s "../scripts/$s" "$sandbox/tree/a/sync"
+  ln -s "$sandbox/tree/a" "$sandbox/alias"
+  printf 'fail "sourced the decoy"\n' >"$sandbox/scripts/op-token.sh"
+  if out="$(DOTFILES_OP_TOKEN_FILE="$token_file" "$sandbox/alias/sync" 2>&1)"; then rc=0; else rc=$?; fi
+  accepted "relative hop through a symlinked directory" "$good"
+
+  new_sandbox
+  mkdir "$sandbox/lone"
+  cp "$script_dir/$s" "$sandbox/lone/"
+  if out="$("$sandbox/lone/$s" 2>&1)"; then rc=0; else rc=$?; fi
+  refused "helper missing" "helper not readable: $sandbox/lone/op-token.sh"
 done
 
 echo
