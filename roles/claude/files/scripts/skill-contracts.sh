@@ -33,8 +33,12 @@ require_phrases() {
   local file="$1" name="$2" label="$3" phrase
   shift 3
   if [ -f "$CMDS/$file" ]; then
+    # One read and builtin matching: a grep per phrase dominated the fixture
+    # suite's runtime once the reviewer-backend anchors grew.
+    local body=""
+    IFS= read -r -d "" body < "$CMDS/$file" || true
     for phrase in "$@"; do
-      if ! grep -qF "$phrase" "$CMDS/$file"; then
+      if [[ "$body" != *"$phrase"* ]]; then
         err "$file missing expected $label: \"$phrase\""
       fi
     done
@@ -179,8 +183,11 @@ require_phrases bot-review.md bot_review_safety_checks "safety sentence" "${bot_
 # split EXIT/INT traps, the empty, multi-document and row-shape stops that
 # keep a silent or partial run from reading as zero findings, the env -i
 # allowlist read through printenv, the PATH filter and in-repo checks on the
-# binary and timeout, the working-tree check, and the egress consent asked
-# once per repo and reviewer (binary-bound, under a bounded lock).
+# binary and timeout, the jq and realpath probes, the git-setup checksum and
+# isolated git calls, the working-tree check, the findings file's realpath
+# containment, and the egress consent asked once per repo and reviewer
+# (binary-bound, under a bounded lock, private directory, exit 2 to stop,
+# never overwriting a file that is not a single JSON object).
 reviewer_backend_checks=(
   '"$tbin" -k 30 "$secs" "${argv[@]}" < /dev/null'
   "IFS=\$' \\t' read -r -a words <<< \"\$tpl\""
@@ -217,8 +224,16 @@ reviewer_backend_checks=(
   '/usr/bin/env -i "${env_kept[@]}" GIT_CONFIG_NOSYSTEM=1'
   'git -c core.fsmonitor=false -c core.untrackedCache=false -c core.hooksPath=/dev/null -C "$top" "$@"'
   '"$git_dir/commondir" "$git_dir/gitdir" "$top/.git"'
-  '"$git_common/info/exclude" "$git_common/info/attributes" "$git_hooks"/*; do'
-  'elif [ -f "$x" ]; then printf '"'"'%s %s %s\n'"'"' "$x"'
+  'if [ -f "$path" ]; then printf '"'"'%s %s %s\n'"'"' "$path" "$([ -x "$path" ] && echo exec)"'
+  'git rev-parse --path-format=absolute --git-path hooks)"'
+  '"$git_hooks" "$git_hooks"/*; do'
+  '"$git_common/info/exclude" "$git_common/info/attributes"'
+  '"$(readlink "$path")"; fi'
+  'this run cannot continue without it" >&2; exit 2; }'
+  "jq -n --arg k \"\$key\" --arg v \"\$val\" '{(\$k): \$v}'"
+  "grep -q '[^[:space:]]' \"\$f\"; }; then seed=1; fi"
+  '&& [ -s "$tmp" ] && chmod 600 "$tmp" && mv "$tmp" "$f"; }; then'
+  'elif [ ! -f "./$p" ] || [ ! -r "./$p" ]; then printf'
   'command -v jq > /dev/null || { echo "jq is not on the filtered PATH"'
   'if [ "$(git_setup_sum)" != "$setup_before" ]; then'
   'elif [ "$tree_after" != "$tree_before" ]; then'
@@ -236,8 +251,8 @@ reviewer_backend_checks=(
   'if [ -z "$locked" ]; then'
   '(umask 077; mkdir -p "$dir")'
   'if [ ! -e "$f" ] || { [ -f "$f" ] && [ -r "$f" ] && ! LC_ALL=C grep -q'
-  'if [ -z "$seed" ] && ! jq -e -s '"'"'length == 1 and (.[0] | type == "object")'"'"' "$f"'
-  'echo "$f is unreadable or not a single JSON object; nothing recorded or overwritten" >&2; rc=2'
+  'if [ -z "$seed" ] && { [ ! -f "$f" ] || ! jq -e -s '"'"'length == 1 and (.[0] | type == "object")'"'"' "$f"'
+  'echo "$f is unreadable, not a regular file, or not a single JSON object; nothing recorded or overwritten" >&2; rc=2'
   '   exit "$rc"'
   '&& chmod 600 "$tmp" && mv "$tmp" "$f"; }; then'
   'Run every "## Pre-flight" item above before entering the loop'

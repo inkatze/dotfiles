@@ -610,8 +610,9 @@ repo means deleting the bare `owner/repo` key and every
 for that backend every repo-and-reviewer pair, asks once, which degrades
 visibly. Nothing is recorded, so every run asks, while the directory cannot
 be created or written, while a killed run's `code-review-egress.json.lock`
-is left behind (`rmdir` it), when `jq` is not on `PATH`, or when the repo
-has no resolvable GitHub remote.
+is left behind (`rmdir` it), or when the repo has no resolvable GitHub
+remote. Without `jq`, or with a consent file that is not a single JSON
+object, the run stops.
 
 `slack-users.json` is untracked for a different reason than the others: it is
 not a secret, but it holds *other people's* email-derived identities. This repo
