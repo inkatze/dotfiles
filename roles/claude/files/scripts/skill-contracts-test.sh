@@ -273,12 +273,20 @@ reviewer_drift reviewer-backend-timeout-unresolved 'tbin_real="$(realpath "$tbin
 reviewer_drift reviewer-backend-timeout-in-repo 'in_repo "${tbin_real%/*}/"; [ "$?" -eq 1 ] ||' 'true ||'
 reviewer_drift reviewer-backend-timeout-assignment 'case "$tbin" in *=*|[!/]*)' 'case "$tbin" in [!/]*)'
 reviewer_drift reviewer-backend-tree-untracked-collapsed '--porcelain --untracked-files=all' '--porcelain'
-reviewer_drift reviewer-backend-tree-no-diff-sum 'g diff HEAD --binary --no-ext-diff --no-textconv | cksum' 'true'
-reviewer_drift reviewer-backend-tree-no-untracked-list 'g ls-files -oz --exclude-standard > "$work/untracked"' ': > "$work/untracked"'
+reviewer_drift reviewer-backend-tree-no-diff-sum 'git_isolated diff HEAD --binary --no-ext-diff --no-textconv | cksum' 'true'
+reviewer_drift reviewer-backend-tree-no-index-flags '    git_isolated ls-files -v | cksum || exit 1' '    true'
+reviewer_drift reviewer-backend-tree-no-untracked-list 'git_isolated ls-files -oz --exclude-standard > "$list"' ': > "$list"'
+reviewer_drift reviewer-backend-tree-no-untracked-sum 'done < "$list" | xargs -0 cksum -- || exit 1' 'done < "$list" > /dev/null'
+reviewer_drift reviewer-backend-tree-no-pipefail $'tree_state() (\n    set -o pipefail' 'tree_state() ('
 reviewer_drift reviewer-backend-tree-follows-links 'if [ -L "./$p" ]; then printf' 'if false; then printf'
-reviewer_drift reviewer-backend-tree-ignores-head '    g rev-parse HEAD || exit 1' '    true'
-reviewer_drift reviewer-backend-tree-ignores-branch 'g symbolic-ref -q HEAD || echo detached' 'echo detached'
-reviewer_drift reviewer-backend-tree-git-unhardened '-c core.fsmonitor=false -c core.untrackedCache=false' ''
+reviewer_drift reviewer-backend-tree-ignores-head '    git_isolated rev-parse HEAD || exit 1' '    true'
+reviewer_drift reviewer-backend-tree-ignores-branch 'git_isolated symbolic-ref -q HEAD || echo detached' 'echo detached'
+reviewer_drift reviewer-backend-tree-git-unhardened '-c core.fsmonitor=false -c core.untrackedCache=false -c core.hooksPath=/dev/null' ''
+reviewer_drift reviewer-backend-tree-git-inherited-env '/usr/bin/env -i "${env_kept[@]}" GIT_CONFIG_NOSYSTEM=1' ''
+reviewer_drift reviewer-backend-git-setup-no-worktree-pointers '"$git_dir/commondir" "$git_dir/gitdir" ' ''
+reviewer_drift reviewer-backend-git-setup-no-excludes '"$git_common/info/exclude" "$git_common/info/attributes" ' ''
+reviewer_drift reviewer-backend-git-setup-no-modes "elif [ -f \"\$x\" ]; then printf '%s %s %s\\n' \"\$x\"" "elif [ -f \"\$x\" ]; then printf '%s %s\\n' \"\$x\""
+reviewer_drift reviewer-backend-no-jq-probe 'command -v jq > /dev/null || { echo "jq is not on the filtered PATH"' 'true || { echo "jq is not on the filtered PATH"'
 reviewer_drift reviewer-backend-git-setup-unchecked \
   'if [ "$(git_setup_sum)" != "$setup_before" ]; then' 'if false; then'
 reviewer_drift reviewer-backend-tree-not-compared 'elif [ "$tree_after" != "$tree_before" ]; then' 'elif false; then'
@@ -293,16 +301,19 @@ reviewer_drift reviewer-backend-consent-diff-only \
 reviewer_drift reviewer-backend-consent-not-a-gate 'Anything other than a yes stops the run.' ''
 reviewer_drift reviewer-backend-consent-bare-key 'key="reviewer:<name>:<owner>/<repo>"' 'key="<owner>/<repo>"'
 reviewer_drift reviewer-backend-consent-not-binary-bound \
-  "jq --arg k \"\$key\" --arg v \"\$bin_abs\" '.[\$k] = \$v'" "jq --arg k \"\$key\" '.[\$k] = true'"
+  "jq --arg k \"\$key\" --arg v \"\$val\" '.[\$k] = \$v' \"\$f\"" "jq --arg k \"\$key\" '.[\$k] = true' \"\$f\""
 reviewer_drift reviewer-backend-consent-binary-change-silent 'or one naming a different binary' ''
 reviewer_drift reviewer-backend-consent-unbounded-lock 'while [ "$n" -lt 50 ]; do' 'while :; do'
 reviewer_drift reviewer-backend-consent-no-counter 'n=$((n + 1)); sleep 0.2' 'sleep 0.2'
 reviewer_drift reviewer-backend-consent-writes-unlocked 'if [ -z "$locked" ]; then' 'if [ -n "$locked" ]; then'
 reviewer_drift reviewer-backend-consent-dir-world-readable '(umask 077; mkdir -p "$dir")' 'mkdir -p "$dir"'
 reviewer_drift reviewer-backend-consent-reset-on-bad-json \
-  'if [ ! -e "$f" ] || { [ -r "$f" ] && ! grep -q' 'if [ ! -e "$f" ] || { [ -r "$f" ] && ! jq -e . "$f" > /dev/null || grep -q'
+  'if [ ! -e "$f" ] || { [ -f "$f" ] && [ -r "$f" ] && ! LC_ALL=C grep -q' 'if [ ! -e "$f" ] || { [ -f "$f" ] && [ -r "$f" ] && ! jq -e . "$f" > /dev/null || grep -q'
 reviewer_drift reviewer-backend-consent-overwrites-non-object \
   'if [ -z "$seed" ] && ! jq -e' 'if false && ! jq -e'
+reviewer_drift reviewer-backend-consent-multi-doc "jq -e -s 'length == 1 and (.[0] | type == \"object\")'" "jq -e 'type == \"object\"'"
+reviewer_drift reviewer-backend-consent-stop-exits-zero '; rc=2' ''
+reviewer_drift reviewer-backend-consent-seeds-non-files '[ -f "$f" ] && [ -r "$f" ] && ! LC_ALL=C grep' '[ -r "$f" ] && ! LC_ALL=C grep'
 reviewer_drift reviewer-backend-consent-lock-unchecked \
   'mkdir "$f.lock" 2>/dev/null && { locked=1; break; }' 'mkdir "$f.lock" 2>/dev/null; locked=1; break'
 reviewer_drift reviewer-backend-consent-not-private '&& chmod 600 "$tmp" && mv' '&& mv'

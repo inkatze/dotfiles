@@ -598,19 +598,20 @@ isolation.
 
 `code-review-egress.json` is untracked for the same class of reason as
 `slack-users.json` below: it enumerates repos (employer and third-party
-names) this machine has approved for upload to an external model provider
-or review vendor, which is a per-machine consent record, not repo content.
+names) this machine has approved for upload to an external model provider or
+review vendor, which is a per-machine consent record, not repo content.
 `/code-review` and `/panel-review`'s `reviewer:<name>` backend (which
 uploads the whole repo tree rather than a diff) both create it at 0600 and
 write it read-modify-write under the same lock directory; the backend's
-approvals live under `reviewer:<name>:owner/repo` keys. Revoking an
-approval is deleting its key while no review is running, so stopping all
-uploads of a repo means deleting the bare `owner/repo` key and every
-`reviewer:<name>:owner/repo` key for it. Absent file means every repo, or for that backend every
-repo-and-reviewer pair, asks once, which degrades visibly. Nothing is
-recorded, so every run asks, while the directory cannot be created or
-written, while a killed run's `code-review-egress.json.lock` is left behind
-(`rmdir` it), or when the repo has no resolvable GitHub remote.
+approvals live under `reviewer:<name>:owner/repo` keys. Revoking an approval
+is deleting its key while no review is running, so stopping all uploads of a
+repo means deleting the bare `owner/repo` key and every
+`reviewer:<name>:owner/repo` key for it. Absent file means every repo, or
+for that backend every repo-and-reviewer pair, asks once, which degrades
+visibly. Nothing is recorded, so every run asks, while the directory cannot
+be created or written, while a killed run's `code-review-egress.json.lock`
+is left behind (`rmdir` it), when `jq` is not on `PATH`, or when the repo
+has no resolvable GitHub remote.
 
 `slack-users.json` is untracked for a different reason than the others: it is
 not a secret, but it holds *other people's* email-derived identities. This repo

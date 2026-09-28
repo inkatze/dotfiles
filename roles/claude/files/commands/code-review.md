@@ -47,20 +47,18 @@ Before anything mutates branch state or messages anyone:
   code excerpts, and whatever surrounding file content validation reads, to
   an external service (OpenAI for codex, Google for gemini) under this
   machine's account. For a repo not yet approved, say that in one line and
-  ask; remember a yes in `~/.config/dotfiles/code-review-egress.json` as
-  `{"<owner>/<repo>": "<backend>"}` (mode 0600; serialize the
-  read-modify-write through a lock directory, writing via
-  `tmp=$(mktemp "$f.XXXXXX")` in the same directory so the `mv` stays
-  atomic, then `rmdir "$f.lock"`, since `/peer-review` and a second review
-  can race the sibling `slack-users.json` pattern). Write it with
-  `/panel-review`'s egress-consent snippet, using `<owner>/<repo>` as the
-  key and the backend as the value: it bounds the lock wait (a writer
-  killed mid-write leaves the lock behind), treats a file holding no JSON
-  as absent, and never overwrites one that is unreadable or not a JSON
-  object, which stops the run and names the path. Failing to lock or write
+  ask. Before asking, a file holding no JSON counts as absent, and one that
+  is unreadable or not a single JSON object stops the run and names the
+  path. Remember a yes in `~/.config/dotfiles/code-review-egress.json` as
+  `{"<owner>/<repo>": "<backend>"}` (mode 0600, under a lock directory,
+  since `/peer-review` and a second review can race the sibling
+  `slack-users.json` pattern), by running `/panel-review`'s
+  egress-consent snippet with `<owner>/<repo>` as the key and the backend
+  as the value. Its exit 2 means stop the run; failing to lock or write
   leaves the yes approved for this run only. An approval names the backend it was given
   for: a different backend for an approved repo asks again once, and
-  revoking is deleting the repo's entry from the file. A no stops the run.
+  revoking is deleting the repo's entry from the file while no review is
+  running. A no stops the run.
   `/panel-review`'s `reviewer:<name>` backend keeps its own approvals in
   the same file under `reviewer:<name>:<owner>/<repo>` keys, which a bare
   `<owner>/<repo>` lookup never matches; leave those entries alone, and
