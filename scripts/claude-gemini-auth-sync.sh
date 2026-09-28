@@ -28,9 +28,10 @@ fail() {
   exit 1
 }
 
-# Whole-string match over an explicit list, as in playbook.sh's plain_name:
-# ranges follow the locale and grep tests each line. Covers base64, base64url
-# and JWT separators so no real token is refused; `-` last so it stays literal.
+# A case over an explicit list, as in playbook.sh's plain_name: a range
+# would follow the locale, and grep would pass an embedded newline. Covers
+# base64, base64url and JWT separators so no real token is refused; `-`
+# last so it stays literal.
 token_chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/=._-'
 is_token() {
   case "$1" in
