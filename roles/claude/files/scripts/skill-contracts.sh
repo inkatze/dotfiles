@@ -183,7 +183,8 @@ require_phrases bot-review.md bot_review_safety_checks "safety sentence" "${bot_
 # split EXIT/INT traps, the empty, multi-document and row-shape stops that
 # keep a silent or partial run from reading as zero findings, the env -i
 # allowlist read through printenv, the PATH filter and in-repo checks on the
-# binary and timeout, the jq and realpath probes, the git-setup checksum and
+# binary and timeout, a mise shim resolved from HOME rather than the repo,
+# the jq and realpath probes, the git-setup checksum and
 # isolated git calls, the working-tree check, the findings file's realpath
 # containment, and the egress consent asked once per repo and reviewer
 # (binary-bound, under a bounded lock, private directory, exit 2 to stop,
@@ -192,7 +193,7 @@ require_phrases bot-review.md bot_review_safety_checks "safety sentence" "${bot_
 reviewer_backend_checks=(
   '"$tbin" -k 30 "$secs" "${argv[@]}" < /dev/null'
   "IFS=\$' \\t' read -r -a words <<< \"\$tpl\""
-  'argv[0]="$bin_abs"'
+  'argv[0]="$bin_exec"'
   "trap 'rm -rf \"\$work\"' EXIT"
   '[ -f "$src" ] && [ -s "$src" ] || { echo "reviewer CLI exited 0 but left no findings'
   "jq -e -s 'length == 1' \"\$src\""
@@ -203,13 +204,20 @@ reviewer_backend_checks=(
   '|| { echo "cli.env_allow must be a list of variable names" >&2; exit 1; }'
   'x="$(cd "$1" 2>/dev/null && pwd -P)" || return 2'
   'while [ -n "$x" ]; do [ "$x" -ef "$top" ] && return 0; x="${x%/*}"; done'
-  'in_repo "$dir"; [ "$?" -eq 1 ] || continue'
+  'in_repo "$dir"; [ "$?" -eq 1 ] || continue'$'\n''    safe_path="${safe_path:+$safe_path:}$dir"'
+  'in_repo "$dir"; [ "$?" -eq 1 ] || continue'$'\n''      cli_path="${cli_path:+$cli_path:}$dir"'
   'command -v realpath > /dev/null ||'
   '  PATH="$safe_path"'
   'env_kept=("PATH=$safe_path")'
   'bin_real="$(realpath "$bin_abs")" ||'
   'in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] ||'
-  '[ "$bin_abs" = "$approved" ] ||'
+  '[ "$bin_real" = "$approved" ] ||'
+  'if [ "${bin_real##*/}" = mise ]; then'
+  'bin_exec="$(cd "$HOME" && /usr/bin/env -i "${env_kept[@]}" "$bin_real" which "$shim")"'
+  'tool_dirs="$(cd "$HOME" && /usr/bin/env -i "${env_kept[@]}" "$bin_real" bin-paths)"'
+  '[ "$dir" -ef "$shims_dir" ] || cli_path='
+  'bin_real="$(realpath "$bin_exec")" ||'
+  'env_kept[0]="PATH=$cli_path"'
   'tbin_real="$(realpath "$tbin")" ||'
   'in_repo "${tbin_real%/*}/"; [ "$?" -eq 1 ] ||'
   'case "$tbin" in *=*|[!/]*)'
@@ -274,6 +282,8 @@ reviewer_backend_checks=(
   'if [ -z "$seed" ] && { [ -L "$f" ] || [ ! -f "$f" ] || ! jq -e -s '"'"'length == 1 and (.[0] | type == "object")'"'"' "$f"'
   'echo "$f is a symlink, unreadable, not a regular file, or not a single JSON object; nothing recorded or overwritten" >&2; rc=2'
   '   exit "$rc"'
+  '**This containment is an accident guard, not a sandbox.**'
+  'the CLI itself still runs with your full filesystem and network access'
   'Run every "## Pre-flight" item above before entering the loop'
 )
 require_phrases panel-review.md reviewer_backend_checks "reviewer-backend containment line" "${reviewer_backend_checks[@]}"

@@ -217,7 +217,7 @@ expect_fail reviewer-backend-glob-split \
   "panel-review.md missing expected reviewer-backend containment line"
 
 expect_fail reviewer-backend-bare-binary \
-  "perl -pi -e 's/^  argv\\[0\\]=\"\\\$bin_abs\"\n//' $CMDS/panel-review.md" \
+  "perl -pi -e 's/^  argv\\[0\\]=\"\\\$bin_exec\"\n//' $CMDS/panel-review.md" \
   "panel-review.md missing expected reviewer-backend containment line"
 
 expect_fail reviewer-backend-no-cleanup \
@@ -263,12 +263,22 @@ reviewer_drift reviewer-backend-in-repo-unresolved \
   'x="$(cd "$1" 2>/dev/null && pwd -P)" || return 2' 'x="$1"'
 reviewer_drift reviewer-backend-path-keeps-repo-dirs \
   'in_repo "$dir"; [ "$?" -eq 1 ] || continue' ':'
+reviewer_drift reviewer-backend-tool-dirs-keep-repo-dirs \
+  $'in_repo "$dir"; [ "$?" -eq 1 ] || continue\n      cli_path=' $':\n      cli_path='
 reviewer_drift reviewer-backend-snippet-path-unfiltered '  PATH="$safe_path"' '  :'
 reviewer_drift reviewer-backend-cli-path-unfiltered 'env_kept=("PATH=$safe_path")' 'env_kept=("PATH=$PATH")'
 reviewer_drift reviewer-backend-no-realpath-probe 'command -v realpath > /dev/null ||' 'true ||'
 reviewer_drift reviewer-backend-binary-unresolved 'bin_real="$(realpath "$bin_abs")" ||' 'bin_real="$bin_abs" ||'
 reviewer_drift reviewer-backend-binary-in-repo 'in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] ||' 'true ||'
-reviewer_drift reviewer-backend-binary-not-approved '[ "$bin_abs" = "$approved" ] ||' 'true ||'
+reviewer_drift reviewer-backend-binary-not-approved '[ "$bin_real" = "$approved" ] ||' 'true ||'
+reviewer_drift reviewer-backend-shim-not-detected 'if [ "${bin_real##*/}" = mise ]; then' 'if false; then'
+reviewer_drift reviewer-backend-shim-resolved-in-repo 'bin_exec="$(cd "$HOME" && ' 'bin_exec="$(cd "$top" && '
+reviewer_drift reviewer-backend-shim-bin-paths-in-repo 'tool_dirs="$(cd "$HOME" && ' 'tool_dirs="$(cd "$top" && '
+reviewer_drift reviewer-backend-shims-kept-on-path '[ "$dir" -ef "$shims_dir" ] || cli_path=' 'cli_path='
+reviewer_drift reviewer-backend-shim-target-unchecked 'bin_real="$(realpath "$bin_exec")" ||' 'true ||'
+reviewer_drift reviewer-backend-sandbox-claim 'an accident guard, not a sandbox' 'a sandbox'
+reviewer_drift reviewer-backend-trust-unstated 'the CLI itself still runs with your full filesystem and network access' 'the CLI is contained'
+reviewer_drift reviewer-backend-cli-path-unused '  env_kept[0]="PATH=$cli_path"' '  :'
 reviewer_drift reviewer-backend-timeout-unresolved 'tbin_real="$(realpath "$tbin")" ||' 'tbin_real="$tbin" ||'
 reviewer_drift reviewer-backend-timeout-in-repo 'in_repo "${tbin_real%/*}/"; [ "$?" -eq 1 ] ||' 'true ||'
 reviewer_drift reviewer-backend-timeout-assignment 'case "$tbin" in *=*|[!/]*)' 'case "$tbin" in [!/]*)'
