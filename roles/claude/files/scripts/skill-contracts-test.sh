@@ -240,53 +240,54 @@ expect_fail reviewer-backend-row-shape \
   "perl -pi -e 's/cli\\.findings_jq must yield one array/rows look fine/' $CMDS/panel-review.md" \
   "panel-review.md missing expected reviewer-backend containment line"
 
-expect_fail reviewer-backend-inherited-env \
-  "perl -pi -e 's/\\/usr\\/bin\\/env -i \"\\\$\\{env_kept\\[@\\]\\}\" //' $CMDS/panel-review.md" \
-  "panel-review.md missing expected reviewer-backend containment line"
+# These anchors are dense with shell and regex metacharacters, so their
+# fixtures swap literal text instead of hand-escaping a perl pattern.
+swap_fixed() { OLD="$1" NEW="$2" perl -0pi -e 's/\Q$ENV{OLD}\E/$ENV{NEW}/' "$3"; }
+reviewer_drift() {
+  local name="$1"
+  OLD="$2" NEW="$3" expect_fail "$name" 'swap_fixed "$OLD" "$NEW" "$CMDS/panel-review.md"' \
+    "panel-review.md missing expected reviewer-backend containment line"
+}
 
-expect_fail reviewer-backend-env-allowlist \
-  "perl -pi -e 's/val=\"\\\$\\(printenv \"\\\$v\"\\)\"/val=\"\\\$\\{!v\\}\"/' $CMDS/panel-review.md" \
-  "panel-review.md missing expected reviewer-backend containment line"
+reviewer_drift reviewer-backend-inherited-env '/usr/bin/env -i "${env_kept[@]}" ' ''
+reviewer_drift reviewer-backend-env-from-shell-vars 'val="$(printenv "$v")"' 'val="${!v}"'
+reviewer_drift reviewer-backend-env-allow-unvalidated \
+  ' and test("^[A-Za-z_][A-Za-z0-9_]*$")) then' ') then'
+reviewer_drift reviewer-backend-env-allow-no-stop \
+  '|| { echo "cli.env_allow must be a list of variable names" >&2; exit 1; }' '|| true'
+reviewer_drift reviewer-backend-in-repo-textual '[ "$x" -ef "$top" ] && return 0' '[ "$x" = "$top" ] && return 0'
+reviewer_drift reviewer-backend-in-repo-unresolved \
+  'x="$(cd "$1" 2>/dev/null && pwd -P)" || return 1' 'x="$1"'
+reviewer_drift reviewer-backend-path-keeps-repo-dirs \
+  'if [ -d "$dir" ] && ! in_repo "$dir"; then' 'if [ -d "$dir" ]; then'
+reviewer_drift reviewer-backend-snippet-unfiltered-path '  PATH="$safe_path"' '  :'
+reviewer_drift reviewer-backend-unfiltered-path 'env_kept=("PATH=$safe_path")' 'env_kept=("PATH=$PATH")'
+reviewer_drift reviewer-backend-binary-unresolved 'bin_real="$(realpath "$bin_abs")" ||' 'bin_real="$bin_abs" ||'
+reviewer_drift reviewer-backend-binary-in-repo '! in_repo "${bin_real%/*}" ||' 'true ||'
+reviewer_drift reviewer-backend-timeout-unresolved 'tbin_real="$(realpath "$tbin")" ||' 'tbin_real="$tbin" ||'
+reviewer_drift reviewer-backend-timeout-in-repo '! in_repo "${tbin_real%/*}" ||' 'true ||'
+reviewer_drift reviewer-backend-timeout-assignment 'case "$tbin" in *=*|[!/]*)' 'case "$tbin" in [!/]*)'
+reviewer_drift reviewer-backend-tree-porcelain-only \
+  'git -C "$top" diff HEAD --binary | cksum; }' '}'
 
-expect_fail reviewer-backend-env-allow-unvalidated \
-  "perl -pi -e 's/then \\.\\[\\] else error\\(\"\"\\) end/then .[] else .[] end/' $CMDS/panel-review.md" \
-  "panel-review.md missing expected reviewer-backend containment line"
-
-expect_fail reviewer-backend-timeout-in-repo \
-  "perl -pi -e 's/case \"\\\$tbin \\\$tbin_real\" in \"\\\$top\"\\/\\*\\|\\*\" \\\$top\"\\/\\*\\|/case \"\\\$tbin\" in /' $CMDS/panel-review.md" \
-  "panel-review.md missing expected reviewer-backend containment line"
-
-expect_fail reviewer-backend-binary-symlink-prefix \
-  "perl -pi -e 's/case \"\\\$bin_abs \\\$bin_real\" in/case \"\\\$bin_abs\" in/' $CMDS/panel-review.md" \
-  "panel-review.md missing expected reviewer-backend containment line"
-
-expect_fail reviewer-backend-unfiltered-path \
-  "perl -pi -e 's/env_kept=\\(\"PATH=\\\$safe_path\"\\)/env_kept=(\"PATH=\\\$PATH\")/' $CMDS/panel-review.md" \
-  "panel-review.md missing expected reviewer-backend containment line"
-
-expect_fail reviewer-backend-no-egress-consent \
-  "perl -pi -e 's/\\*\\*Egress consent, once per repo and reviewer\\*\\*//' $CMDS/panel-review.md" \
-  "panel-review.md missing expected reviewer-backend containment line"
-
-expect_fail reviewer-backend-consent-diff-only \
-  "perl -pi -e 's/it reads the whole repo tree, not just the diff, and uploads it/it uploads the diff/' $CMDS/panel-review.md" \
-  "panel-review.md missing expected reviewer-backend containment line"
-
-expect_fail reviewer-backend-consent-not-a-gate \
-  "perl -pi -e 's/Anything other than a yes stops the run\.//' $CMDS/panel-review.md" \
-  "panel-review.md missing expected reviewer-backend containment line"
-
-expect_fail reviewer-backend-consent-bare-key \
-  "perl -pi -e 's/key=\"reviewer:<name>:<owner>\/<repo>\"/key=\"<owner>\/<repo>\"/' $CMDS/panel-review.md" \
-  "panel-review.md missing expected reviewer-backend containment line"
-
-expect_fail reviewer-backend-consent-unbounded-lock \
-  "perl -pi -e 's/\\[ -d \"\\\$f\\.lock\" \\] && \\[ \"\\\$n\" -lt 50 \\]/true/' $CMDS/panel-review.md" \
-  "panel-review.md missing expected reviewer-backend containment line"
-
-expect_fail reviewer-backend-consent-trap-only-release \
-  "perl -pi -e 's/^   rmdir \"\\\$f\\.lock\"\n//' $CMDS/panel-review.md" \
-  "panel-review.md missing expected reviewer-backend containment line"
+reviewer_drift reviewer-backend-no-egress-consent \
+  '6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).**' '6. **Notes.**'
+reviewer_drift reviewer-backend-consent-diff-only \
+  'it reads the whole repo tree, not just the diff, and uploads it' 'it uploads the diff'
+reviewer_drift reviewer-backend-consent-not-a-gate 'Anything other than a yes stops the run.' ''
+reviewer_drift reviewer-backend-consent-bare-key 'key="reviewer:<name>:<owner>/<repo>"' 'key="<owner>/<repo>"'
+reviewer_drift reviewer-backend-consent-not-binary-bound \
+  "jq --arg k \"\$key\" --arg v \"\$bin_abs\" '.[\$k] = \$v'" "jq --arg k \"\$key\" '.[\$k] = true'"
+reviewer_drift reviewer-backend-consent-binary-change-silent 'or one naming a different binary' ''
+reviewer_drift reviewer-backend-consent-unbounded-lock 'while [ "$n" -lt 50 ]; do' 'while :; do'
+reviewer_drift reviewer-backend-consent-no-counter 'n=$((n + 1)); sleep 0.2' 'sleep 0.2'
+reviewer_drift reviewer-backend-consent-lock-unchecked \
+  'mkdir "$f.lock" 2>/dev/null && { locked=1; break; }' 'mkdir "$f.lock" 2>/dev/null; locked=1; break'
+reviewer_drift reviewer-backend-consent-not-private '&& chmod 600 "$tmp" && mv' '&& mv'
+reviewer_drift reviewer-backend-consent-release-on-failure-only \
+  $'     fi\n     rmdir "$f.lock"\n   fi' $'       rmdir "$f.lock"\n     fi\n   fi'
+reviewer_drift reviewer-backend-nested-skips-preflight \
+  'Run every "## Pre-flight" item above before entering the loop' 'Run "## Pre-flight" items 1-7 above before entering the loop'
 
 # --- require_phrases' missing-file branch, shared by all its callers ---
 expect_fail require-phrases-missing-file \

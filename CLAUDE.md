@@ -600,13 +600,14 @@ isolation.
 `slack-users.json` below: it enumerates repos (employer and third-party
 names) this machine has approved for upload to an external model provider
 or review vendor, which is a per-machine consent record, not repo content.
-`/code-review` creates it at 0600 and writes it read-modify-write under a
-lock directory. `/panel-review`'s `reviewer:<name>` backend, which uploads
-the whole repo tree rather than a diff, records its approvals in the same
-file under `reviewer:<name>:owner/repo` keys. Revoking an approval is
-deleting its key, so stopping all uploads of a repo means deleting the bare
-`owner/repo` key and every `reviewer:<name>:owner/repo` key for it. Absent
-file means every repo asks once, which degrades visibly.
+`/code-review` and `/panel-review`'s `reviewer:<name>` backend (which
+uploads the whole repo tree rather than a diff) both create it at 0600 and
+write it read-modify-write under the same lock directory; the backend's
+approvals live under `reviewer:<name>:owner/repo` keys. Revoking an
+approval is deleting its key, so stopping all uploads of a repo means
+deleting the bare `owner/repo` key and every `reviewer:<name>:owner/repo`
+key for it. Absent file means every repo (and, for that backend, every repo
+and reviewer) asks once, which degrades visibly.
 
 `slack-users.json` is untracked for a different reason than the others: it is
 not a secret, but it holds *other people's* email-derived identities. This repo

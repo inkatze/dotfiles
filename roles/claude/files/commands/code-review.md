@@ -49,10 +49,10 @@ Before anything mutates branch state or messages anyone:
   machine's account. For a repo not yet approved, say that in one line and
   ask; remember a yes in `~/.config/dotfiles/code-review-egress.json` as
   `{"<owner>/<repo>": "<backend>"}` (mode 0600; serialize the
-  read-modify-write through a lock directory: `until mkdir "$f.lock"
-  2>/dev/null; do sleep 0.2; done`, giving up after about ten seconds and
-  naming the lock path, since a writer killed mid-write leaves it behind;
-  write via `tmp=$(mktemp "$f.XXXXXX")`
+  read-modify-write through a lock directory, with the bounded
+  `mkdir "$f.lock"` loop `/panel-review` Pre-flight item 6 shows (about ten
+  seconds, then approved for this run only, since a writer killed mid-write
+  leaves the lock behind); write via `tmp=$(mktemp "$f.XXXXXX")`
   in the same directory so the `mv` stays atomic, then `rmdir "$f.lock"`,
   since `/peer-review` and a second review can race the sibling
   `slack-users.json` pattern). An approval names the backend it was given

@@ -178,7 +178,9 @@ require_phrases bot-review.md bot_review_safety_checks "safety sentence" "${bot_
 # a whitespace split (no eval, no globbing), the resolved binary exec'd, the
 # split EXIT/INT traps, the empty, multi-document and row-shape stops that
 # keep a silent or partial run from reading as zero findings, the env -i
-# allowlist, and the per-repo egress consent asked before the tree uploads.
+# allowlist read through printenv, the PATH filter and in-repo checks on the
+# binary and timeout, the working-tree check, and the egress consent asked
+# once per repo and reviewer (binary-bound, under a bounded lock).
 reviewer_backend_checks=(
   '"$tbin" -k 30 "$secs" "${argv[@]}" < /dev/null'
   "IFS=\$' \\t' read -r -a words <<< \"\$tpl\""
@@ -189,21 +191,38 @@ reviewer_backend_checks=(
   'cli.findings_jq must yield one array of {file, line, finding, severity, rule}'
   '/usr/bin/env -i "${env_kept[@]}" "$tbin" -k 30'
   '[ "$v" != PATH ] && val="$(printenv "$v")" && env_kept+=("$v=$val")'
-  'then .[] else error("") end'
+  'and test("^[A-Za-z_][A-Za-z0-9_]*$")) then .[] else error("") end'
   '|| { echo "cli.env_allow must be a list of variable names" >&2; exit 1; }'
-  'case "$tbin $tbin_real" in "$top"/*|*" $top"/*|*=*|[!/]*)'
-  'case "$bin_abs $bin_real" in "$top"/*|*" $top"/*)'
-  'case "$r/" in "$top"/*) continue ;; esac'
+  'x="$(cd "$1" 2>/dev/null && pwd -P)" || return 1'
+  '[ "$x" -ef "$top" ] && return 0'
+  'if [ -d "$dir" ] && ! in_repo "$dir"; then'
+  '  PATH="$safe_path"'
   'env_kept=("PATH=$safe_path")'
-  '6. **Egress consent, once per repo and reviewer** (`reviewer:<name>` only)'
+  'bin_real="$(realpath "$bin_abs")" ||'
+  '! in_repo "${bin_real%/*}" ||'
+  'tbin_real="$(realpath "$tbin")" ||'
+  '! in_repo "${tbin_real%/*}" ||'
+  'case "$tbin" in *=*|[!/]*)'
+  'git -C "$top" diff HEAD --binary | cksum; }'
+  '6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).**'
   'it reads the whole repo tree, not just the diff, and uploads it to that vendor'
   'Anything other than a yes stops the run.'
   'key="reviewer:<name>:<owner>/<repo>"'
-  '[ -d "$f.lock" ] && [ "$n" -lt 50 ]'
+  "jq --arg k \"\$key\" --arg v \"\$bin_abs\" '.[\$k] = \$v'"
+  'or one naming a different binary'
+  'while [ "$n" -lt 50 ]; do'
+  'n=$((n + 1)); sleep 0.2'
+  'mkdir "$f.lock" 2>/dev/null && { locked=1; break; }'
   '&& chmod 600 "$tmp" && mv "$tmp" "$f"; }; then'
-  '   rmdir "$f.lock"'
+  'Run every "## Pre-flight" item above before entering the loop'
 )
 require_phrases panel-review.md reviewer_backend_checks "reviewer-backend containment line" "${reviewer_backend_checks[@]}"
+# The consent lock is released after the write whether or not it succeeded,
+# so the rmdir must sit after the failure branch's fi, not inside it.
+if [ -f "$CMDS/panel-review.md" ] \
+  && ! perl -0ne 'exit(index($_, "     fi\n     rmdir \"\$f.lock\"\n   fi") < 0 ? 1 : 0)' "$CMDS/panel-review.md"; then
+  err "panel-review.md missing expected reviewer-backend containment line: the consent lock's release after the write"
+fi
 # The combined trap shape resumes after Ctrl-C with $work already deleted.
 if [ -f "$CMDS/panel-review.md" ] && grep -qF "trap 'rm -rf \"\$work\"' EXIT INT" "$CMDS/panel-review.md"; then
   err "panel-review.md combines the reviewer backend's EXIT and INT traps; keep them split"
