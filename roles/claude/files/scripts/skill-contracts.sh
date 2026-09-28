@@ -246,6 +246,9 @@ reviewer_backend_checks=(
   "jq --arg k \"\$key\" --arg v \"\$val\" '.[\$k] = \$v' \"\$f\""
   'or one naming a different binary'
   'while [ "$n" -lt "$tries" ]; do'
+  'dir="${f%/*}"; tries=50; n=0;'
+  'if [ -e "$path" ] && [ ! -r "$path" ]; then echo "cannot read $path" >&2; exit 1; fi'
+  'setup_before="$(git_setup_sum)" || { echo "cannot checksum'
   'if [ -L "$f.lock" ] || { [ -e "$f.lock" ] && [ ! -d "$f.lock" ]; }; then'
   'case "$git_hooks" in /*) ;; *) echo "cannot resolve git'"'"'s hooks directory'
   'if ! setup_after="$(git_setup_sum)" || [ "$setup_after" != "$setup_before" ]; then'

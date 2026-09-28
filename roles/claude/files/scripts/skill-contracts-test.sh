@@ -308,6 +308,11 @@ reviewer_drift reviewer-backend-consent-not-binary-bound \
   "jq --arg k \"\$key\" --arg v \"\$val\" '.[\$k] = \$v' \"\$f\"" "jq --arg k \"\$key\" '.[\$k] = true' \"\$f\""
 reviewer_drift reviewer-backend-consent-binary-change-silent 'or one naming a different binary' ''
 reviewer_drift reviewer-backend-consent-unbounded-lock 'while [ "$n" -lt "$tries" ]; do' 'while :; do'
+reviewer_drift reviewer-backend-git-setup-unreadable-ignored \
+  'if [ -e "$path" ] && [ ! -r "$path" ]; then echo "cannot read $path" >&2; exit 1; fi' ':'
+reviewer_drift reviewer-backend-git-setup-before-unchecked \
+  'setup_before="$(git_setup_sum)" || { echo "cannot checksum' 'setup_before="$(git_setup_sum)" || true || { echo "cannot checksum'
+reviewer_drift reviewer-backend-consent-no-try-limit 'dir="${f%/*}"; tries=50; n=0;' 'dir="${f%/*}"; n=0;'
 reviewer_drift reviewer-backend-consent-lock-symlink-waits 'if [ -L "$f.lock" ] || {' 'if false || {'
 reviewer_drift reviewer-backend-git-hooks-unchecked \
   'case "$git_hooks" in /*) ;; *) echo' 'case "$git_hooks" in *) ;; /*) echo'
