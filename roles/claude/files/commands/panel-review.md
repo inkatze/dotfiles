@@ -105,37 +105,37 @@ Runs identically in both modes.
    - `copilot`: resolve the Copilot CLI binary, `command -v copilot` first, else `~/.local/share/gh/copilot/copilot` (where `gh copilot` downloads it). `gh copilot --help` is not a probe: it succeeds with no CLI installed. Probe by running it: the invocation below with the prompt `Reply with exactly the word OK and nothing else.` must exit 0 and print `OK`. Missing: stop with `Copilot CLI not installed; run 'gh copilot' once in a terminal and confirm its download prompt`. It authenticates through `gh`, so a non-zero exit or a quota error is `Copilot CLI unavailable: <its message>`.
    - `reviewer:<name>`: read `~/.config/dotfiles/bot-review.json` (never write it from here). Missing or unreadable: stop, name the path, point at the example, and do not guess. The entry's `cli` block must carry `binary`, `local_invocation`, `timeout_seconds` (a positive integer), `findings_output`, and `findings_jq`; name the first missing key and stop. `command -v "$binary"` must resolve, else stop, printing `cli.install_command` when the entry sets one (it is optional) and otherwise saying only that the binary is not on `PATH`. `timeout` or `gtimeout` must resolve (macOS ships neither), else stop rather than run unbounded. If `local_invocation` contains `{effort}`, an effort value is required: `--effort <value>` from `$ARGUMENTS`, else `cli.default_effort`, matching `^[A-Za-z0-9_-]+$` either way; with neither, stop and say this reviewer's template needs `--effort`. There is no cheaper readiness probe: running the CLI is the probe and takes minutes, so an auth failure surfaces as its non-zero exit in step 2.
 
-     **Egress consent, once per repo and reviewer.** This backend uploads the repo tree, not just the diff, to the vendor under this machine's account, so it reuses `/code-review`'s consent record, `~/.config/dotfiles/code-review-egress.json`. Resolve the repo with `gh repo view --json nameWithOwner -q .nameWithOwner`; the entry is `"reviewer:<name>:<owner>/<repo>": "<binary>"`, where `<binary>` is `realpath` of the resolved `cli.binary`. That key is one `/code-review`'s bare `<owner>/<repo>` lookups never match, so the two commands' approvals cannot overwrite each other, and the value ties the approval to the CLI it was given for. With no entry, or one naming a different binary (the entry now points at another vendor's CLI), ask before anything runs; a file that is unreadable or not a JSON object stops the run and names the path:
+6. **Egress consent, once per repo and reviewer** (`reviewer:<name>` only). That backend uploads the repo tree, not just the diff, to the vendor under this machine's account, so it reuses `/code-review`'s consent record, `~/.config/dotfiles/code-review-egress.json`. Resolve the repo with `gh repo view --json nameWithOwner -q .nameWithOwner`; the entry is `"reviewer:<name>:<owner>/<repo>": "<binary>"`, where `<binary>` is `realpath` of the resolved `cli.binary`. That key is one `/code-review`'s bare `<owner>/<repo>` lookups never match, so the two commands' approvals cannot overwrite each other, and the value ties the approval to the CLI it was given for. With no entry, or one naming a different binary (the entry now points at another vendor's CLI), ask before anything runs; a file that is unreadable or not a JSON object stops the run and names the path:
 
-     ```
-     reviewer:<name> runs the local reviewer CLI from the repo root; it reads the whole repo tree, not just the diff, and uploads it to that vendor under this machine's account. Approve for <owner>/<repo>? [y/N]
-     ```
+   ```
+   reviewer:<name> runs the local reviewer CLI from the repo root; it reads the whole repo tree, not just the diff, and uploads it to that vendor under this machine's account. Approve for <owner>/<repo>? [y/N]
+   ```
 
-     Anything other than a yes stops the run. Remember a yes with `/code-review`'s locking (mode 0600, read-modify-write under the lock directory, temp file in the same directory so the `mv` is atomic), as its own Bash call so no later `trap` or long step holds the lock. The wait is bounded because a writer killed mid-write leaves the lock directory behind:
+   Anything other than a yes stops the run. Remember a yes with `/code-review`'s locking (mode 0600, read-modify-write under the lock directory, temp file in the same directory so the `mv` is atomic), as its own Bash call so no later `trap` or long step holds the lock. The wait is bounded because a writer killed mid-write leaves the lock directory behind:
 
-     ```bash
-     f=~/.config/dotfiles/code-review-egress.json
-     key="reviewer:<name>:<owner>/<repo>"; bin_real='<realpath of cli.binary>'
-     n=0
-     until mkdir "$f.lock" 2>/dev/null; do
-       [ -d "$f.lock" ] && [ "$n" -lt 50 ] \
-         || { echo "cannot take $f.lock (another run holds it, or its directory is missing); if no review is running, remove it" >&2; exit 1; }
-       n=$((n + 1)); sleep 0.2
-     done
-     [ -s "$f" ] || { umask 077; echo '{}' > "$f"; }
-     tmp=""
-     if ! { tmp=$(mktemp "$f.XXXXXX") && jq --arg k "$key" --arg v "$bin_real" '.[$k] = $v' "$f" > "$tmp" && chmod 600 "$tmp" && mv "$tmp" "$f"; }; then
-       rm -f "$tmp"; echo "could not record consent in $f; approved for this run only" >&2
-     fi
-     rmdir "$f.lock"
-     ```
+   ```bash
+   f=~/.config/dotfiles/code-review-egress.json
+   key="reviewer:<name>:<owner>/<repo>"; bin_real='<realpath of cli.binary>'
+   n=0
+   until mkdir "$f.lock" 2>/dev/null; do
+     [ -d "$f.lock" ] && [ "$n" -lt 50 ] \
+       || { echo "cannot take $f.lock (another run holds it, or its directory is missing); if no review is running, remove it" >&2; exit 1; }
+     n=$((n + 1)); sleep 0.2
+   done
+   [ -s "$f" ] || { umask 077; echo '{}' > "$f"; }
+   tmp=""
+   if ! { tmp=$(mktemp "$f.XXXXXX") && jq --arg k "$key" --arg v "$bin_real" '.[$k] = $v' "$f" > "$tmp" && chmod 600 "$tmp" && mv "$tmp" "$f"; }; then
+     rm -f "$tmp"; echo "could not record consent in $f; approved for this run only" >&2
+   fi
+   rmdir "$f.lock"
+   ```
 
-     If the repo does not resolve (no GitHub remote, `gh` offline), ask for this run and record nothing. Revoking is deleting the key, and takes effect on the next run: in `--nested` mode this is asked once, here, before the loop.
+   If the repo does not resolve (no GitHub remote, `gh` offline), ask for this run and record nothing. Revoking is deleting the key, and takes effect on the next run: in `--nested` mode this is asked once, here, before the loop.
 
-**Nested-only additions** (run these after the five items above, only when `--nested` was passed):
+**Nested-only additions** (run these after the items above, only when `--nested` was passed):
 
-6. **Initialize iteration counter** = 0.
-7. **Confirm the working tree is clean.** `git status --porcelain` must be empty before the loop starts. Uncommitted changes interfere with per-iteration commit boundaries and make rollback ambiguous. If the tree is dirty, stop and ask the user to commit or stash first.
+7. **Initialize iteration counter** = 0.
+8. **Confirm the working tree is clean.** `git status --porcelain` must be empty before the loop starts. Uncommitted changes interfere with per-iteration commit boundaries and make rollback ambiguous. If the tree is dirty, stop and ask the user to commit or stash first.
 
 ## Steps
 
@@ -235,7 +235,7 @@ Diff:
   - **Keep the prompt file outside `$scratch`** (its own `mktemp`), so the scratch dir holds only the payload. The prompt travels in argv, so it shows in `ps`; that's the lens prompt only, never the diff.
   - **A hard link inside `$scratch` is followed**, unlike a symlink (which is refused). Planting one takes write access to the scratch dir, which `mktemp -d` limits to your user, so the reviewed diff can't create one.
   - **User-level config in `~/.copilot/` (hooks included) still loads**, whatever the cwd, the same gap the gemini bullet notes for `~/.gemini/`.
-- **reviewer:\<name\>**: the local reviewer CLI does **not** take the lens prompt or step 1's tooling output. It runs its own checks over the repo and writes its own findings file, which `cli.findings_jq` maps into rows this step folds into the merge. It runs from the repo root rather than a scratch directory, because reading the tree is its job: the trust extended is to the CLI you installed, and the code leaves the machine on whatever terms that vendor's CLI sets, which is why Pre-flight asks for a per-repo egress consent first.
+- **reviewer:\<name\>**: the local reviewer CLI does **not** take the lens prompt or step 1's tooling output. It runs its own checks over the repo and writes its own findings file, which `cli.findings_jq` maps into rows this step folds into the merge. It runs from the repo root rather than a scratch directory, because reading the tree is its job: the trust extended is to the CLI you installed, and the code leaves the machine on whatever terms that vendor's CLI sets, which is why Pre-flight item 6 asks for an egress consent first.
 
   ```bash
   cfg=~/.config/dotfiles/bot-review.json
@@ -490,7 +490,7 @@ If any condition fires, **stop**. Print the latest tables, name the condition, a
 
 These hold at every step:
 
-- **Never** push, create a PR, or mutate anything in this repo's git remote or its PR. "Local-only" here is scoped to git/PR actions specifically (the same convention `/polish` uses), not to network calls in general: step 2's backend discovery pass does send the diff and tooling output to external services (Codex, Gemini, or Copilot) on every iteration; that egress is real and pre-existing (unchanged from the retired `/panel-pairing`), just not a git/PR mutation. A `reviewer:<name>` backend sends more: its CLI reads the repo tree from the root and ships whatever its vendor's terms say, on every iteration it is selected for, which is why it is opt-in only and gated on the per-repo egress consent Pre-flight asks for. Nested mode converges the branch locally; publishing it is the invoking skill's job (or a follow-up standalone `/panel-review` / `/self-review` run).
+- **Never** push, create a PR, or mutate anything in this repo's git remote or its PR. "Local-only" here is scoped to git/PR actions specifically (the same convention `/polish` uses), not to network calls in general: step 2's backend discovery pass does send the diff and tooling output to external services (Codex, Gemini, or Copilot) on every iteration; that egress is real and pre-existing (unchanged from the retired `/panel-pairing`), just not a git/PR mutation. A `reviewer:<name>` backend sends more: its CLI reads the repo tree from the root and ships whatever its vendor's terms say, on every iteration it is selected for, which is why it is opt-in only and gated on the egress consent Pre-flight item 6 asks for. Nested mode converges the branch locally; publishing it is the invoking skill's job (or a follow-up standalone `/panel-review` / `/self-review` run).
 - **Never** address a Needs sign-off or Needs human judgment item, even if it looks easy. Those are reserved for the post-loop human pass via standalone `/panel-review` or manual fixes.
 - **Never** route a finding to Auto-applicable without a specific rule citation. "I am sure this is a typo" does not qualify; "ruff F401: imported but unused" does. The rule citation must come from the project tooling run in step (a), not from a backend's free-form recommendation.
 - **Never** silently drop a backend that failed in step (a). The user picked the backend set; partial runs hide which variance source went missing.

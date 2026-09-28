@@ -265,7 +265,7 @@ expect_fail reviewer-backend-unfiltered-path \
   "panel-review.md missing expected reviewer-backend containment line"
 
 expect_fail reviewer-backend-no-egress-consent \
-  "perl -pi -e 's/\\*\\*Egress consent, once per repo and reviewer\\.\\*\\*//' $CMDS/panel-review.md" \
+  "perl -pi -e 's/\\*\\*Egress consent, once per repo and reviewer\\*\\*//' $CMDS/panel-review.md" \
   "panel-review.md missing expected reviewer-backend containment line"
 
 expect_fail reviewer-backend-consent-diff-only \
@@ -285,7 +285,7 @@ expect_fail reviewer-backend-consent-unbounded-lock \
   "panel-review.md missing expected reviewer-backend containment line"
 
 expect_fail reviewer-backend-consent-trap-only-release \
-  "perl -pi -e 's/^     rmdir \"\\\$f\\.lock\"\n//' $CMDS/panel-review.md" \
+  "perl -pi -e 's/^   rmdir \"\\\$f\\.lock\"\n//' $CMDS/panel-review.md" \
   "panel-review.md missing expected reviewer-backend containment line"
 
 # --- require_phrases' missing-file branch, shared by all its callers ---

@@ -21,7 +21,7 @@
         "findings_jq": "[(.items // [])[] | {file: .location, line: .row, finding: .text, severity: .level, rule: .id}]",
         "default_effort": "medium",
         "env_allow": ["EXAMPLE_VAR"],
-        "invocation_notes": "placeholder flags and findings_jq; run the real CLI's --help and inspect one real findings file before first use, then correct both"
+        "invocation_notes": "placeholder flags, findings_jq and env_allow; run the real CLI's --help and inspect one real findings file before first use, then correct the first two, and measure env_allow by running the CLI under env -i PATH=... HOME=..."
       }
     },
     "example-cli-only-reviewer": {
@@ -32,7 +32,7 @@
         "timeout_seconds": 900,
         "findings_output": "file:{output}/findings.json",
         "findings_jq": "[(.results // [])[] | {file: .location.file, line: .location.line, finding: .title, severity: .level, rule: null}]",
-        "invocation_notes": "example of a reviewer whose hosted bot is not installed on this org: cli-only is valid, no hosted keys required"
+        "invocation_notes": "example of a reviewer whose hosted bot is not installed on the repo's org: cli-only is valid, no hosted keys required"
       }
     }
   }

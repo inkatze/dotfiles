@@ -50,7 +50,9 @@ Before anything mutates branch state or messages anyone:
   ask; remember a yes in `~/.config/dotfiles/code-review-egress.json` as
   `{"<owner>/<repo>": "<backend>"}` (mode 0600; serialize the
   read-modify-write through a lock directory: `until mkdir "$f.lock"
-  2>/dev/null; do sleep 0.2; done`, write via `tmp=$(mktemp "$f.XXXXXX")`
+  2>/dev/null; do sleep 0.2; done`, giving up after about ten seconds and
+  naming the lock path, since a writer killed mid-write leaves it behind;
+  write via `tmp=$(mktemp "$f.XXXXXX")`
   in the same directory so the `mv` stays atomic, then `rmdir "$f.lock"`,
   since `/peer-review` and a second review can race the sibling
   `slack-users.json` pattern). An approval names the backend it was given
@@ -58,7 +60,8 @@ Before anything mutates branch state or messages anyone:
   revoking is deleting the repo's entry from the file. A no stops the run.
   `/panel-review`'s `reviewer:<name>` backend keeps its own approvals in
   the same file under `reviewer:<name>:<owner>/<repo>` keys, which a bare
-  `<owner>/<repo>` lookup never matches; leave those entries alone.
+  `<owner>/<repo>` lookup never matches; leave those entries alone, and
+  note that revoking here covers only the bare key.
   On the work host, a `--backends` override that moves the run off the
   profile default also gets an explicit confirmation, since it reroutes
   employer code to a personally-keyed service.
