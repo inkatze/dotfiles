@@ -241,11 +241,27 @@ expect_fail reviewer-backend-row-shape \
   "panel-review.md missing expected reviewer-backend containment line"
 
 expect_fail reviewer-backend-inherited-env \
-  "perl -pi -e 's/\\/usr\\/bin\\/env -i \"\\\$\\{envv\\[@\\]\\}\" //' $CMDS/panel-review.md" \
+  "perl -pi -e 's/\\/usr\\/bin\\/env -i \"\\\$\\{env_kept\\[@\\]\\}\" //' $CMDS/panel-review.md" \
   "panel-review.md missing expected reviewer-backend containment line"
 
 expect_fail reviewer-backend-env-allowlist \
-  "perl -pi -e 's/^  for v in PATH HOME \\\$allow;.*\n//' $CMDS/panel-review.md" \
+  "perl -pi -e 's/val=\"\\\$\\(printenv \"\\\$v\"\\)\"/val=\"\\\$\\{!v\\}\"/' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-env-allow-unvalidated \
+  "perl -pi -e 's/then \\.\\[\\] else error\\(\"\"\\) end/then .[] else .[] end/' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-timeout-in-repo \
+  "perl -pi -e 's/case \"\\\$tbin \\\$tbin_real\" in \"\\\$top\"\\/\\*\\|\\*\" \\\$top\"\\/\\*\\|/case \"\\\$tbin\" in /' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-binary-symlink-prefix \
+  "perl -pi -e 's/case \"\\\$bin_abs \\\$bin_real\" in/case \"\\\$bin_abs\" in/' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-unfiltered-path \
+  "perl -pi -e 's/env_kept=\\(\"PATH=\\\$safe_path\"\\)/env_kept=(\"PATH=\\\$PATH\")/' $CMDS/panel-review.md" \
   "panel-review.md missing expected reviewer-backend containment line"
 
 expect_fail reviewer-backend-no-egress-consent \
