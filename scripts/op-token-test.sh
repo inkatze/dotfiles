@@ -5,7 +5,7 @@
 
 set -eu
 
-script_dir="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
+script_dir="$(CDPATH='' cd -P -- "$(dirname -- "$0")" && pwd -P)"
 subjects="claude-gemini-auth-sync.sh ssh-lan-config-sync.sh"
 
 unset OP_SERVICE_ACCOUNT_TOKEN DOTFILES_OP_TOKEN_FILE DOTFILES_OP_VAULT \
@@ -285,10 +285,8 @@ second" "$env_non_token"
   # `..` would land in the decoy tree instead of the real one.
   new_sandbox
   write_token "$good\n"
-  mkdir -p "$sandbox/tree/a" "$sandbox/tree/roles/ssh" "$sandbox/scripts"
-  cp "$script_dir/$s" "$script_dir/op-token.sh" "$sandbox/tree/"
-  mkdir "$sandbox/tree/scripts"
-  mv "$sandbox/tree/$s" "$sandbox/tree/op-token.sh" "$sandbox/tree/scripts/"
+  mkdir -p "$sandbox/tree/a" "$sandbox/tree/scripts" "$sandbox/tree/roles/ssh" "$sandbox/scripts"
+  cp "$script_dir/$s" "$script_dir/op-token.sh" "$sandbox/tree/scripts/"
   cp -R "$script_dir/../roles/ssh/files" "$sandbox/tree/roles/ssh/"
   ln -s "../scripts/$s" "$sandbox/tree/a/sync"
   ln -s "$sandbox/tree/a" "$sandbox/alias"

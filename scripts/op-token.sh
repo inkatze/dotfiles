@@ -1,7 +1,8 @@
 # shellcheck shell=bash
 # Sourced by the scripts that read 1Password with the machine-local
 # service-account token. The caller defines fail(); resolve_op_token sets
-# OP_TOKEN_FILE and op_token, and op_run hands the token to `op` alone.
+# OP_TOKEN_FILE and op_token and unsets OP_SERVICE_ACCOUNT_TOKEN, so `op` must
+# be called through op_run, which hands the token to it alone.
 
 # An explicit list, not a range or grep: a range follows the locale and grep
 # passes an embedded newline. `-` last so it stays literal.

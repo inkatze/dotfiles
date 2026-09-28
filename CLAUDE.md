@@ -374,9 +374,9 @@ account cannot be granted the Personal or Private vault, so the key item has
 to live in `Dotfiles Service Account`, and it must be addressed with an
 explicit `--vault`: without one, `op` refuses every field with "a vault query
 must be provided when this command is called by a service account", which
-reads like a missing item and is not. Moving the item between vaults also reassigns its
-id, so `ITEM_UUID` in that script is the id *in that vault*, not the one it
-had in Private.
+reads like a missing item and is not. Moving the item between vaults also
+reassigns its id, so `ITEM_UUID` in that script is the id *in that vault*, not
+the one it had in Private.
 
 **Gemini CLI needs `--skip-trust` for any headless run** (measured on
 gemini-cli 0.54.4). Without it the CLI downgrades `--approval-mode plan` to
