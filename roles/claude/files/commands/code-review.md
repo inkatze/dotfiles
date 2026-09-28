@@ -50,11 +50,11 @@ Before anything mutates branch state or messages anyone:
   ask. Before asking, a file holding no JSON counts as absent, and one that
   is unreadable, not a regular file, or not a single JSON object stops the
   run and names the path. Remember a yes in
-  `~/.config/dotfiles/code-review-egress.json` as `{"<owner>/<repo>":
-  "<backend>"}` (mode 0600, under a lock directory, since `/peer-review` and
-  a second review can race the sibling `slack-users.json` pattern), by
-  running `/panel-review`'s egress-consent snippet with `<owner>/<repo>` as
-  the key and the backend as the value. Its exit 2 means stop the run;
+  `~/.config/dotfiles/code-review-egress.json` as
+  `{"<owner>/<repo>": "<backend>"}` (mode 0600, under a lock directory,
+  since `/peer-review` and a second review can race the sibling
+  `slack-users.json` pattern), by running `/panel-review`'s egress-consent
+  snippet with `<owner>/<repo>` as the key and the backend as the value. Its exit 2 means stop the run;
   failing to lock or write leaves the yes approved for this run only. An
   approval names the backend it was given for: a different backend for an
   approved repo asks again once, and revoking is deleting the repo's entry
