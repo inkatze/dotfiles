@@ -236,6 +236,7 @@ reviewer_backend_checks=(
   '&& [ -s "$tmp" ] && chmod 600 "$tmp" && mv "$tmp" "$f"; }; then'
   'elif [ ! -f "./$p" ] || [ ! -r "./$p" ]; then printf'
   'command -v jq > /dev/null || { echo "jq is not on the filtered PATH"'
+  'command -v printenv > /dev/null || { echo "printenv is not on the filtered PATH"'
   'elif [ "$tree_after" != "$tree_before" ]; then'
   '[ -z "$tree_msg" ] || { echo "$tree_msg" >&2; exit 1; }'
   'case "$(realpath "$src")" in "$(realpath "$out")"/*) ;;'

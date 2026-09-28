@@ -330,6 +330,7 @@ reviewer_drift reviewer-backend-row-shape-ignored '<<< "$rows" > /dev/null \' '<
 reviewer_drift reviewer-backend-failure-parsed 'if [ "$backend_status" -ne 0 ]; then' 'if false; then'
 reviewer_drift reviewer-backend-timeout-unbounded '. > 0 and . <= 86400)' '. >= 0)'
 reviewer_drift reviewer-backend-findings-dotdot 'case "$src" in */..|*/../*) echo' 'case "$src" in */nope) echo'
+reviewer_drift reviewer-backend-no-printenv-probe 'command -v printenv > /dev/null ||' 'true ||'
 reviewer_drift reviewer-backend-consent-lock-symlink-waits 'if [ -L "$f.lock" ] || {' 'if false || {'
 reviewer_drift reviewer-backend-git-hooks-unchecked \
   'case "$git_common$git_hooks" in /*) ;; *) echo' 'case "$git_common$git_hooks" in *) ;; /*) echo'
