@@ -266,7 +266,7 @@ The local reviewer CLI is a `/panel-review` backend: run `/panel-review --backen
 - It forwards `--effort <value>` and `--nested` when given. Standalone, the handoff lands in `/panel-review`'s interactive pass, which asks before applying anything and ends by offering to commit, push, and open or update a PR; `--nested` lands in its local-only loop instead.
 - `--dry-run` has no `/panel-review` counterpart, so `--local --dry-run` stops and says so rather than running a pass that may offer to push. For the same reason, Pre-flight step 2's offer under `--dry-run` prints the `/panel-review` command it would run and stops.
 - `--base` is not accepted in any mode (`/panel-review` takes the base from the branch the way `/self-review` does), so a `--base` stops the run and says so.
-- `/panel-review` requires the reviewer key to match `^[A-Za-z0-9_-]+$` and the `cli` block to carry `findings_jq`; an entry written for the old local mode needs that key added before its first handoff, plus `cli.env_allow` naming anything beyond `PATH` and `HOME` its CLI read from the inherited environment (a login looked up by `USER`, for instance).
+- `/panel-review` requires the reviewer key to match `^[A-Za-z0-9_-]+$` and the `cli` block to carry `findings_jq`; an entry written for the old local mode needs that key added before its first handoff, plus `cli.env_allow` naming anything beyond `PATH` and `HOME` its CLI used to read from the inherited environment (a login looked up by `USER`, for instance).
 
 ## Naming
 
