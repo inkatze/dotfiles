@@ -31,6 +31,17 @@ fail() {
   exit 1
 }
 
+# A case over an explicit list, as in playbook.sh's plain_name: a range
+# would follow the locale, and grep would pass an embedded newline. Covers
+# base64, base64url and JWT separators so no real token is refused; `-`
+# last so it stays literal.
+token_chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/=._-'
+is_token() {
+  case "$1" in
+    '' | *[!$token_chars]*) return 1 ;;
+  esac
+}
+
 # Not Private. 1Password refuses to grant a service account access to the
 # Personal/Private vault at all ("You can't grant a service account access to
 # your Personal or Private vault"), so the item lives in a vault that can be
@@ -62,9 +73,11 @@ if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
   # bar as the file path, so neither route can hand `op` a whitespace-only value.
   op_token="$OP_SERVICE_ACCOUNT_TOKEN"
   unset OP_SERVICE_ACCOUNT_TOKEN
-  if [ -z "$(printf '%s' "$op_token" | tr -d '[:space:]')" ]; then
+  if [ -z "$(printf '%s' "$op_token" | LC_ALL=C tr -d '[:space:]')" ]; then
     fail "OP_SERVICE_ACCOUNT_TOKEN is set but contains only whitespace; unset it or supply a real token"
   fi
+  is_token "$op_token" \
+    || fail "OP_SERVICE_ACCOUNT_TOKEN holds a non-token value; unset it or supply a real token"
 elif [ -e "$OP_TOKEN_FILE" ]; then
   # `-e` is what lets the empty check fire; the regular-file test keeps a
   # directory at this path (a `mkdir -p` typo on the parent) from reaching the
@@ -95,9 +108,11 @@ elif [ -e "$OP_TOKEN_FILE" ]; then
   # shape, when the actual fault is a placeholder file. Same guard as
   # claude-gemini-auth-sync.sh; porting `-s` without this one left half the
   # hole open.
-  if [ -z "$(printf '%s' "$op_token" | tr -d '[:space:]')" ]; then
+  if [ -z "$(printf '%s' "$op_token" | LC_ALL=C tr -d '[:space:]')" ]; then
     fail "$OP_TOKEN_FILE contains only whitespace; write the service-account token to it or remove it"
   fi
+  is_token "$op_token" \
+    || fail "$OP_TOKEN_FILE holds a non-token value; write the service-account token to it or remove it"
 fi
 
 # Scope the bearer token to the single `op` call that needs it rather than

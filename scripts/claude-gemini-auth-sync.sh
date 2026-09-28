@@ -28,6 +28,17 @@ fail() {
   exit 1
 }
 
+# A case over an explicit list, as in playbook.sh's plain_name: a range
+# would follow the locale, and grep would pass an embedded newline. Covers
+# base64, base64url and JWT separators so no real token is refused; `-`
+# last so it stays literal.
+token_chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/=._-'
+is_token() {
+  case "$1" in
+    '' | *[!$token_chars]*) return 1 ;;
+  esac
+}
+
 # Defaults to the Gemini API-key 1Password item; override with
 # GEMINI_OP_ITEM_UUID if the item lives under a different id on a given host.
 # If the item cannot be read, the script fails loudly (see below) so an
@@ -102,9 +113,11 @@ if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
   # was an asymmetry: a caller exporting a whitespace-only value would reach
   # `op` and come back with "failed to parseToken", the same misleading error
   # the file-side guard exists to prevent.
-  if [ -z "$(printf '%s' "$op_token" | tr -d '[:space:]')" ]; then
+  if [ -z "$(printf '%s' "$op_token" | LC_ALL=C tr -d '[:space:]')" ]; then
     fail "OP_SERVICE_ACCOUNT_TOKEN is set but contains only whitespace; unset it or supply a real token"
   fi
+  is_token "$op_token" \
+    || fail "OP_SERVICE_ACCOUNT_TOKEN holds a non-token value; unset it or supply a real token"
 elif [ -e "$OP_TOKEN_FILE" ]; then
   # `-e` above, then an explicit regular-file test: `-e` is what lets the empty
   # check below fire at all, but on its own it also captures a directory (a
@@ -137,9 +150,11 @@ elif [ -e "$OP_TOKEN_FILE" ]; then
   # back as "failed to parseToken, format is invalid" -- an error about the
   # token's shape, when the actual fault is a placeholder file. The real token
   # is passed through unmodified; only the emptiness test is normalised.
-  if [ -z "$(printf '%s' "$op_token" | tr -d '[:space:]')" ]; then
+  if [ -z "$(printf '%s' "$op_token" | LC_ALL=C tr -d '[:space:]')" ]; then
     fail "$OP_TOKEN_FILE contains only whitespace; write the service-account token to it or remove it"
   fi
+  is_token "$op_token" \
+    || fail "$OP_TOKEN_FILE holds a non-token value; write the service-account token to it or remove it"
 fi
 
 # Run `op` with the service-account token scoped to the single call that needs

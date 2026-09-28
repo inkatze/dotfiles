@@ -68,7 +68,7 @@ transition() {
 }
 
 [[ -r $TARGET_FILE ]] || { log "no $TARGET_FILE; nothing to poll"; exit 0; }
-TARGET=$(tr -d '[:space:]' < "$TARGET_FILE")
+TARGET=$(LC_ALL=C tr -d '[:space:]' < "$TARGET_FILE")
 [[ -n $TARGET ]] || { log "$TARGET_FILE is empty"; exit 0; }
 
 # BatchMode so a missing or rejected key fails immediately instead of hanging on
