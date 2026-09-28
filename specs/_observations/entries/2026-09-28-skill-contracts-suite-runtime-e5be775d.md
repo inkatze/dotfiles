@@ -1,0 +1,1 @@
+- 2026-09-28 [dotfiles] skill-contracts-test.sh runs one full checker per fixture case; with the reviewer-backend anchors it has about 110 cases and the pre-commit hook takes 1-4 minutes on a host with slow process start. Worth a cheaper harness (e.g. mutate and check in-process) before the case count grows further.
