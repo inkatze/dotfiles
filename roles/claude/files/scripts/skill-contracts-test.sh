@@ -313,23 +313,40 @@ reviewer_drift reviewer-backend-git-setup-unreadable-ignored \
 reviewer_drift reviewer-backend-git-setup-before-unchecked \
   'setup_before="$(git_setup_sum)" || { echo "cannot checksum' 'setup_before="$(git_setup_sum)" || true || { echo "cannot checksum'
 reviewer_drift reviewer-backend-consent-no-try-limit 'dir="${f%/*}"; tries=50; n=0;' 'dir="${f%/*}"; n=0;'
+reviewer_drift reviewer-backend-consent-follows-symlink '{ [ -L "$f" ] || [ ! -f "$f" ] ||' '{ [ ! -f "$f" ] ||'
+reviewer_drift reviewer-backend-consent-seeds-symlink 'if [ ! -L "$f" ] && { [ ! -e "$f" ]' 'if true && { [ ! -e "$f" ]'
+reviewer_drift reviewer-backend-consent-lock-file-waits '"$f.lock exists and is not a lock directory"; n=$tries' '"$f.lock exists and is not a lock directory"'
+reviewer_drift reviewer-backend-consent-dir-unchecked 'if [ -d "$dir" ] && [ -w "$dir" ]; then' 'if true; then'
+reviewer_drift reviewer-backend-locale-ranges 'LC_ALL=C; unset CDPATH' 'unset CDPATH'
+reviewer_drift reviewer-backend-cdpath-common-dir \
+  'git_common="$(git -C "$top" rev-parse --path-format=absolute --git-common-dir)"' 'git_common="$(cd "$top" && cd "$(git rev-parse --git-common-dir)" && pwd -P)"'
+reviewer_drift reviewer-backend-home-unset '[ -n "${HOME:-}" ] || { echo "HOME is unset' 'true || { echo "HOME is unset'
+reviewer_drift reviewer-backend-effort-leading-dash 'case "$effort" in -*|*[!A-Za-z0-9_-]*)' 'case "$effort" in *[!A-Za-z0-9_-]*)'
+reviewer_drift reviewer-backend-name-unchecked "case \"\$name\" in ''|*[!A-Za-z0-9_-]*)" "case \"\$name\" in ''|*[!A-Za-z0-9_./-]*)"
+reviewer_drift reviewer-backend-base-leading-dash "case \"\$base\" in ''|-*|*[!A-Za-z0-9._/-]*)" "case \"\$base\" in ''|*[!A-Za-z0-9._/-]*)"
+reviewer_drift reviewer-backend-config-shape-unchecked \
+  "jq -e 'type == \"object\" and (.reviewers | type == \"object\")' \"\$cfg\"" "true \"\$cfg\""
+reviewer_drift reviewer-backend-row-shape-ignored '<<< "$rows" > /dev/null \' '<<< "$rows" > /dev/null || true \'
+reviewer_drift reviewer-backend-failure-parsed 'if [ "$backend_status" -ne 0 ]; then' 'if false; then'
+reviewer_drift reviewer-backend-timeout-unbounded '. > 0 and . <= 86400)' '. >= 0)'
+reviewer_drift reviewer-backend-findings-dotdot 'case "$src" in */..|*/../*) echo' 'case "$src" in */nope) echo'
 reviewer_drift reviewer-backend-consent-lock-symlink-waits 'if [ -L "$f.lock" ] || {' 'if false || {'
 reviewer_drift reviewer-backend-git-hooks-unchecked \
-  'case "$git_hooks" in /*) ;; *) echo' 'case "$git_hooks" in *) ;; /*) echo'
+  'case "$git_common$git_hooks" in /*) ;; *) echo' 'case "$git_common$git_hooks" in *) ;; /*) echo'
 reviewer_drift reviewer-backend-consent-no-counter 'n=$((n + 1)); sleep 0.2' 'sleep 0.2'
 reviewer_drift reviewer-backend-consent-writes-unlocked 'if [ -z "$locked" ]; then' 'if [ -n "$locked" ]; then'
 reviewer_drift reviewer-backend-consent-dir-world-readable '(umask 077; mkdir -p "$dir")' 'mkdir -p "$dir"'
 reviewer_drift reviewer-backend-consent-reset-on-bad-json \
-  'if [ ! -e "$f" ] || { [ -f "$f" ] && [ -r "$f" ] && ! LC_ALL=C grep -q' 'if [ ! -e "$f" ] || { [ -f "$f" ] && [ -r "$f" ] && ! jq -e . "$f" > /dev/null || grep -q'
+  '{ [ ! -e "$f" ] || { [ -f "$f" ] && [ -r "$f" ] && ! LC_ALL=C grep -q' '{ [ ! -e "$f" ] || { [ -f "$f" ] && [ -r "$f" ] && ! jq -e . "$f" > /dev/null || grep -q'
 reviewer_drift reviewer-backend-consent-overwrites-non-object \
-  'if [ -z "$seed" ] && { [ ! -f "$f" ] || ! jq -e' 'if false && { [ ! -f "$f" ] || ! jq -e'
-reviewer_drift reviewer-backend-consent-reads-non-files '{ [ ! -f "$f" ] || ! jq -e' '{ ! jq -e'
+  'if [ -z "$seed" ] && { [ -L "$f" ] ||' 'if false && { [ -L "$f" ] ||'
+reviewer_drift reviewer-backend-consent-reads-non-files '|| [ ! -f "$f" ] || ! jq -e' '|| ! jq -e'
 reviewer_drift reviewer-backend-consent-multi-doc "jq -e -s 'length == 1 and (.[0] | type == \"object\")'" "jq -e 'type == \"object\"'"
 reviewer_drift reviewer-backend-consent-stop-exits-zero '; rc=2' ''
 reviewer_drift reviewer-backend-consent-exit-ignores-rc '   exit "$rc"' '   exit 0'
 reviewer_drift reviewer-backend-consent-no-jq-continues 'this run cannot continue without it" >&2; exit 2; }' 'this run cannot continue without it" >&2; exit 0; }'
 reviewer_drift reviewer-backend-consent-seed-not-binary-bound "'{(\$k): \$v}'" "'{(\$k): true}'"
-reviewer_drift reviewer-backend-consent-seed-any-content "grep -q '[^[:space:]]' \"\$f\"; }; then seed=1" "grep -q '.' \"\$f\"; }; then seed=1"
+reviewer_drift reviewer-backend-consent-seed-any-content "grep -q '[^[:space:]]' \"\$f\"; }; }; then seed=1" "grep -q '.' \"\$f\"; }; }; then seed=1"
 reviewer_drift reviewer-backend-consent-empty-write '&& [ -s "$tmp" ] && chmod 600' '&& chmod 600'
 reviewer_drift reviewer-backend-tree-drops-other-entries \
   'elif [ ! -f "./$p" ] || [ ! -r "./$p" ]; then printf' 'elif false; then printf'

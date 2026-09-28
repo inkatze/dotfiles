@@ -608,12 +608,9 @@ is deleting its key while no review is running, so stopping all uploads of a
 repo means deleting the bare `owner/repo` key and every
 `reviewer:<name>:owner/repo` key for it. Absent file means every repo, or
 for that backend every repo-and-reviewer pair, asks once, which degrades
-visibly. Nothing is recorded, so every run asks, while the directory cannot
-be created or written, while a killed run's `code-review-egress.json.lock`
-is left behind (`rmdir` it), while that lock path is a file or symlink
-(remove it), or when the repo has no resolvable GitHub remote. Without `jq`,
-or with a consent file that is unreadable, not a regular file, or not a
-single JSON object, the run stops.
+visibly. When nothing can be recorded, and when a bad consent file or a
+missing `jq` stops the run instead, is spelled out in `/panel-review`'s
+Pre-flight item 6.
 
 `slack-users.json` is untracked for a different reason than the others: it is
 not a secret, but it holds *other people's* email-derived identities. This repo

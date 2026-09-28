@@ -9,8 +9,8 @@ Before anything mutates branch state or messages anyone:
 - **Parse `$ARGUMENTS`.** It may carry a `--backends <name>` override
   (exactly one of `codex` or `gemini`; a comma-separated list is a
   `/panel-review` spelling and an error here, the opt-in `copilot`
-  and `reviewer:<name>` backends stay `/panel-review`-only, and any other name is an error:
-  stop and name the two supported backends rather than guessing). Strip
+  and `reviewer:<name>` backends stay `/panel-review`-only, and any other
+  name is an error: stop and name the two supported backends rather than guessing). Strip
   that flag and its value; the first remaining token is the PR number or
   URL. A URL carries its own
   `owner/repo`: parse all three out, assert the number is digits only
@@ -48,22 +48,21 @@ Before anything mutates branch state or messages anyone:
   an external service (OpenAI for codex, Google for gemini) under this
   machine's account. For a repo not yet approved, say that in one line and
   ask. Before asking, a file holding no JSON counts as absent, and one that
-  is unreadable, not a regular file, or not a single JSON object stops the
-  run and names the path. Remember a yes in
+  is a symlink, unreadable, not a regular file, or not a single JSON object
+  stops the run and names the path. Remember a yes in
   `~/.config/dotfiles/code-review-egress.json` as
-  `{"<owner>/<repo>": "<backend>"}` (mode 0600, under a lock directory,
-  since `/peer-review` and a second review can race the sibling
+  `{"<owner>/<repo>": "<backend>"}` (mode 0600, under a lock directory, since `/peer-review` and a second review can race the sibling
   `slack-users.json` pattern), by running `/panel-review`'s egress-consent
-  snippet with `<owner>/<repo>` as the key and the backend as the value.
-  Its exit 2 means stop the run; failing to lock or write leaves the yes
-  approved for this run only. An
-  approval names the backend it was given for: a different backend for an
-  approved repo asks again once, and revoking is deleting the repo's entry
-  from the file while no review is running. A no stops the run.
-  `/panel-review`'s `reviewer:<name>` backend keeps its own approvals in the
-  same file under `reviewer:<name>:<owner>/<repo>` keys, which a bare
-  `<owner>/<repo>` lookup never matches; leave those entries alone, and note
-  that revoking here covers only the bare key.
+  snippet with `<owner>/<repo>` as the key and the backend as the value. Its
+  exit 2 means stop the run; failing to lock or write leaves the yes
+  approved for this run only. An approval names the backend it was given
+  for: a different backend for an approved repo asks again once, and
+  revoking is deleting the repo's entry from the file while no review is
+  running. A no stops the run. `/panel-review`'s `reviewer:<name>` backend
+  keeps its own approvals in the same file under
+  `reviewer:<name>:<owner>/<repo>` keys, which a bare `<owner>/<repo>`
+  lookup never matches; leave those entries alone, and note that revoking
+  here covers only the bare key.
   On the work host, a `--backends` override that moves the run off the
   profile default also gets an explicit confirmation, since it reroutes
   employer code to a personally-keyed service.
