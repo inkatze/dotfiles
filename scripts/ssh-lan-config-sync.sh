@@ -42,7 +42,7 @@ while [ -L "$self" ]; do
     *) self="$(dirname -- "$self")/$link" ;;
   esac
 done
-script_dir="$(CDPATH='' cd -- "$(dirname -- "$self")" && pwd)" \
+script_dir="$(CDPATH='' cd -P -- "$(dirname -- "$self")" && pwd -P)" \
   || fail "could not resolve the directory of $self"
 [ -r "$script_dir/op-token.sh" ] || fail "helper not readable: $script_dir/op-token.sh"
 # shellcheck source-path=SCRIPTDIR source=op-token.sh
