@@ -30,7 +30,7 @@ Shape: a map of named reviewers plus a default, because one bot may not be insta
 }
 ```
 
-The `cli` block is read by `/panel-review`'s `reviewer:<name>` backend, not by this file; its keys (including `findings_jq`, the mapping from the vendor's findings file to rows, and `env_allow`, the variables beyond `PATH` and `HOME` the CLI keeps under that backend's `env -i`) are documented there. That backend also asks an egress consent once per repo and reviewer before its first upload, since the CLI ships the repo tree rather than the diff. `cli.invocation_notes` is optional and purely for you: free-text reminders about the real CLI's flags. Nothing reads it.
+The `cli` block is read by `/panel-review`'s `reviewer:<name>` backend, not by this file; its keys (including `findings_jq`, the mapping from the vendor's findings file to rows, and `env_allow`, the variables beyond `PATH` and `HOME` the CLI keeps under that backend's `env -i`) are documented there. That backend also asks an egress consent once per repo and reviewer (again if the resolved binary changes) before its first upload, since the CLI ships the repo tree rather than the diff. `cli.invocation_notes` is optional and purely for you: free-text reminders about the real CLI's flags. Nothing reads it.
 
 `reply_suffix` is optional: a vendor-specified tag appended as the last line of every reply to an inline finding (step 10), for bots that ask agent replies to carry one so they can tell agent replies apart. Omit it for a bot that asks for nothing.
 
@@ -266,7 +266,7 @@ The local reviewer CLI is a `/panel-review` backend: run `/panel-review --backen
 - It forwards `--effort <value>` and `--nested` when given. Standalone, the handoff lands in `/panel-review`'s interactive pass, which asks before applying anything and ends by offering to commit, push, and open or update a PR; `--nested` lands in its local-only loop instead.
 - `--dry-run` has no `/panel-review` counterpart, so `--local --dry-run` stops and says so rather than running a pass that may offer to push. For the same reason, Pre-flight step 2's offer under `--dry-run` prints the `/panel-review` command it would run and stops.
 - `--base` is not accepted in any mode (`/panel-review` takes the base from the branch the way `/self-review` does), so a `--base` stops the run and says so.
-- `/panel-review` requires the reviewer key to match `^[A-Za-z0-9_-]+$` and the `cli` block to carry `findings_jq`; an entry written for the old local mode needs that key added before its first handoff, plus `cli.env_allow` naming anything beyond `PATH` and `HOME` its CLI used to read from the inherited environment (a login looked up by `USER`, for instance), and a `file:` `cli.findings_output` moved under `{output}`.
+- `/panel-review` requires the reviewer key to match `^[A-Za-z0-9_-]+$`, and its "Config the snippet reads" paragraph is the full contract for the `cli` block. An entry written for the old local mode will usually need `findings_jq` added, `cli.env_allow` naming whatever its CLI used to read from the inherited environment beyond `PATH` and `HOME`, and a `file:` findings location moved under `{output}`; check it against that paragraph before its first handoff.
 
 ## Naming
 

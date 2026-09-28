@@ -566,7 +566,7 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
 | `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
 | `slack-users.json` | the `/code-review` and `/peer-review` commands | GitHub login → Slack user ID, so review notifications can find a person |
-| `code-review-egress.json` | the `/code-review` command, and `/panel-review`'s `reviewer:<name>` backend | Repos approved for backend egress (`owner/repo` → backend; the reviewer backend's entries are keyed `reviewer:<name>:owner/repo` → its binary), so the upload consent is asked once per repo, and once per repo and reviewer for that backend (mode 0600) |
+| `code-review-egress.json` | the `/code-review` command, and `/panel-review`'s `reviewer:<name>` backend | Repos approved for backend egress (`owner/repo` → backend; the reviewer backend's entries are keyed `reviewer:<name>:owner/repo` → the absolute path of its binary), so the upload consent is asked once per repo, and once per repo and reviewer for that backend, again if that binary changes (mode 0600) |
 | `bot-review.json` | the `/bot-review` command, and `/panel-review`'s `reviewer:<name>` backend (the `cli` block) | Map of named third-party PR-review reviewers, each with its own hosted-bot mechanics (login pattern, opt-in/opt-out labels, gating checks, marker formats) and/or local pre-push CLI invocation, plus a default; example with placeholders at `roles/claude/files/commands/bot-review.config.example.json` (mode 0600, read-only from both commands) |
 | `work-shell-init` | `roles/fish/files/work-init.fish` | Absolute path of a shell init to source from fish, for anything a second config manager wires only into bash/zsh |
 
@@ -604,12 +604,13 @@ or review vendor, which is a per-machine consent record, not repo content.
 uploads the whole repo tree rather than a diff) both create it at 0600 and
 write it read-modify-write under the same lock directory; the backend's
 approvals live under `reviewer:<name>:owner/repo` keys. Revoking an
-approval is deleting its key, so stopping all uploads of a repo means
-deleting the bare `owner/repo` key and every `reviewer:<name>:owner/repo`
-key for it. Absent file means every repo, or for that backend every
-repo-and-reviewer pair, asks once, which degrades visibly; with
-`~/.config/dotfiles/` missing and uncreatable, nothing is recorded and every
-run asks.
+approval is deleting its key while no review is running, so stopping all
+uploads of a repo means deleting the bare `owner/repo` key and every
+`reviewer:<name>:owner/repo` key for it. Absent file means every repo, or for that backend every
+repo-and-reviewer pair, asks once, which degrades visibly. Nothing is
+recorded, so every run asks, while the directory cannot be created or
+written, while a killed run's `code-review-egress.json.lock` is left behind
+(`rmdir` it), or when the repo has no resolvable GitHub remote.
 
 `slack-users.json` is untracked for a different reason than the others: it is
 not a secret, but it holds *other people's* email-derived identities. This repo

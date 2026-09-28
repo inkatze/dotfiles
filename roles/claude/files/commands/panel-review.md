@@ -103,9 +103,9 @@ Runs identically in both modes.
    - `codex`: `fish -c 'mise which codex 2>/dev/null; or command -v codex'` must resolve; `codex login status` on current CLIs (or the equivalent readiness probe) must report an authenticated session, judged by exit status only. If not authed, stop with `Codex CLI needs auth; run 'codex login'`. If not installed, stop with `Codex CLI not installed; mise run osx will install via Brewfile cask 'codex'` (note the Brewfile entry is a **cask**, so this route is macOS-only). On Linux nothing in the dotfiles installs codex; it is only ever reached there by an explicit `--backends codex`.
    - `gemini`: `fish -c 'mise which gemini'` must resolve (mise-installed, so a bare bash `command -v` can miss it). The `GEMINI_API_KEY` env var must be set, or `~/.gemini/.api-key` non-empty at mode 600/400 per the invocation snippet's guarded read (the dotfiles fish conf.d/gemini.fish exports it from `~/.gemini/.api-key`, which is written by `scripts/claude-gemini-auth-sync.sh` from the 1Password item declared in that script). The install route is platform-specific, so name the right one: on macOS `Gemini CLI not installed; mise run osx will install via Brewfile 'gemini-cli'`, on Linux `Gemini CLI not installed; mise run linux will install it (pinned in roles/linux/files/mise/linux.toml, installed from linux_mise_tools)`. If `GEMINI_API_KEY` is unset, stop with `Gemini CLI needs auth; run 'mise run osx' (macOS) or 'mise run linux' (Linux) to sync from 1Password, or set GEMINI_API_KEY manually`. On a headless host that sync reads the machine-local service-account token rather than the 1Password desktop app, and a service account cannot be granted Personal or Private, so the key item must live in a vault it can reach.
    - `copilot`: resolve the Copilot CLI binary, `command -v copilot` first, else `~/.local/share/gh/copilot/copilot` (where `gh copilot` downloads it). `gh copilot --help` is not a probe: it succeeds with no CLI installed. Probe by running it: the invocation below with the prompt `Reply with exactly the word OK and nothing else.` must exit 0 and print `OK`. Missing: stop with `Copilot CLI not installed; run 'gh copilot' once in a terminal and confirm its download prompt`. It authenticates through `gh`, so a non-zero exit or a quota error is `Copilot CLI unavailable: <its message>`.
-   - `reviewer:<name>`: read `~/.config/dotfiles/bot-review.json` (never write it from here). Missing or unreadable: stop, name the path, point at the example, and do not guess. The entry's `cli` block must carry `binary`, `local_invocation`, `timeout_seconds` (a positive integer), `findings_output`, and `findings_jq`; name the first missing key and stop. `command -v "$binary"` must resolve to an absolute path under the session `PATH` minus its relative, missing and in-repo entries (the filter step 2 applies), else stop, printing `cli.install_command` when the entry sets one (it is optional) and otherwise saying only that the binary is not on `PATH`. `timeout` or `gtimeout` must resolve (macOS ships neither), else stop rather than run unbounded. If `local_invocation` contains `{effort}`, an effort value is required: `--effort <value>` from `$ARGUMENTS`, else `cli.default_effort`, matching `^[A-Za-z0-9_-]+$` either way; with neither, stop and say this reviewer's template needs `--effort`. There is no cheaper readiness probe: running the CLI is the probe and takes minutes, so an auth failure surfaces as its non-zero exit in step 2.
+   - `reviewer:<name>`: read `~/.config/dotfiles/bot-review.json` (never write it from here). Missing or unreadable: stop, name the path, point at the example, and do not guess. The entry's `cli` block must carry `binary`, `local_invocation`, `timeout_seconds` (a positive integer), `findings_output`, and `findings_jq`; name the first missing key and stop. `command -v "$binary"` must resolve to an absolute path under the filtered `PATH` (run step 2's snippet lines from `top=` through `PATH="$safe_path"` first, so both steps resolve alike), else stop, printing `cli.install_command` when the entry sets one (it is optional) and otherwise saying only that the binary is not on `PATH`. `timeout` or `gtimeout` must resolve under that `PATH` too (macOS ships neither), else stop rather than run unbounded, and so must `realpath`. If `local_invocation` contains `{effort}`, an effort value is required: `--effort <value>` from `$ARGUMENTS`, else `cli.default_effort`, matching `^[A-Za-z0-9_-]+$` either way; with neither, stop and say this reviewer's template needs `--effort`. There is no cheaper readiness probe: running the CLI is the probe and takes minutes, so an auth failure surfaces as its non-zero exit in step 2.
 
-6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).** That backend uploads the repo tree, not just the diff, to the vendor under this machine's account, so it reuses `/code-review`'s consent record, `~/.config/dotfiles/code-review-egress.json`. Resolve the repo with `gh repo view --json nameWithOwner -q .nameWithOwner`; the entry is `"reviewer:<name>:<owner>/<repo>": "<binary>"`, where `<binary>` is the path item 5 resolved for `cli.binary`, under the same filter step 2 applies; step 2 is handed that path and refuses to run any other. `/code-review`'s bare `<owner>/<repo>` lookups never match that key, so the two commands' approvals cannot overwrite each other, and the value ties the approval to the CLI it was given for. With no entry, or one naming a different binary, ask before anything runs, saying which path the approval was for and which one would run now; a file holding no JSON at all (empty or only whitespace) counts as absent, and one that is unreadable or holds something other than a JSON object stops the run and names the path:
+6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).** That backend uploads the repo tree, not just the diff, to the vendor under this machine's account, so it reuses `/code-review`'s consent record, `~/.config/dotfiles/code-review-egress.json`. Resolve the repo with `gh repo view --json nameWithOwner -q .nameWithOwner`; the entry is `"reviewer:<name>:<owner>/<repo>": "<approved-binary-path>"`, where `<approved-binary-path>` is the absolute path item 5 resolved for `cli.binary`; step 2 is handed that path and refuses to run any other. It is pasted into single quotes, so refuse one containing `'`, a newline or a control character. `/code-review`'s bare `<owner>/<repo>` lookups never match that key, so the two commands' approvals cannot overwrite each other, and the value ties the approval to the CLI it was given for. With no entry, or one naming a different binary, ask before anything runs, saying which path the approval was for and which one would run now; a file holding no JSON at all (empty or only whitespace) counts as absent, and one that is unreadable or holds something other than a JSON object stops the run and names the path:
 
    ```
    reviewer:<name> runs the local reviewer CLI from the repo root; it reads the whole repo tree, not just the diff, and uploads it to that vendor under this machine's account. Approve for <owner>/<repo>? [y/N]
@@ -115,28 +115,34 @@ Runs identically in both modes.
 
    ```bash
    f=~/.config/dotfiles/code-review-egress.json
-   key="reviewer:<name>:<owner>/<repo>"; bin_abs='<binary>'
-   dir="${f%/*}"; n=0; locked=""
-   [ -d "$dir" ] || mkdir -m 700 "$dir" 2>/dev/null
+   key="reviewer:<name>:<owner>/<repo>"; bin_abs='<approved-binary-path>'
+   command -v jq > /dev/null || { echo "jq not found; nothing recorded, approved for this run only" >&2; exit 0; }
+   dir="${f%/*}"; n=0; locked=""; why="$dir is missing or not writable"
+   [ -d "$dir" ] || (umask 077; mkdir -p "$dir") 2>/dev/null
    if [ -d "$dir" ] && [ -w "$dir" ]; then
+     why="$f.lock is still held after 10s (another run, or a killed one: rmdir it if no review is running)"
      while [ "$n" -lt 50 ]; do
        mkdir "$f.lock" 2>/dev/null && { locked=1; break; }
        n=$((n + 1)); sleep 0.2
      done
    fi
    if [ -z "$locked" ]; then
-     echo "could not lock $f: $f.lock is held by another run or left by a killed one (rmdir it if no review is running), or $dir is missing or read-only; approved for this run only" >&2
+     echo "could not lock $f: $why; approved for this run only" >&2
    else
-     jq -e 'type == "object"' "$f" > /dev/null 2>&1 || { umask 077; echo '{}' > "$f"; }
+     seed=""
+     if [ ! -e "$f" ] || { [ -r "$f" ] && ! grep -q '[^[:space:]]' "$f"; }; then seed='{}'; fi
      tmp=""
-     if ! { tmp=$(mktemp "$f.XXXXXX") && jq --arg k "$key" --arg v "$bin_abs" '.[$k] = $v' "$f" > "$tmp" && chmod 600 "$tmp" && mv "$tmp" "$f"; }; then
+     if [ -z "$seed" ] && ! jq -e 'type == "object"' "$f" > /dev/null 2>&1; then
+       echo "$f is unreadable or not a JSON object; nothing recorded or overwritten, so stop the run and name it" >&2
+     elif ! { tmp=$(mktemp "$f.XXXXXX") && { if [ -n "$seed" ]; then echo "$seed"; else cat "$f"; fi; } \
+         | jq --arg k "$key" --arg v "$bin_abs" '.[$k] = $v' > "$tmp" && chmod 600 "$tmp" && mv "$tmp" "$f"; }; then
        rm -f "$tmp"; echo "could not record consent in $f; approved for this run only" >&2
      fi
      rmdir "$f.lock"
    fi
    ```
 
-   If the repo does not resolve (no GitHub remote, `gh` offline), ask for this run and record nothing. Revoking is deleting the key, and takes effect on the next run, because `--nested` asks only once, here, before the loop.
+   If the repo does not resolve (no GitHub remote, `gh` offline), ask for this run and record nothing. Revoking is deleting the key while no review is running (a writer holding the lock would put it back), and takes effect on the next run, because `--nested` asks only once, here, before the loop.
 
 **Nested-only additions** (run these after the items above, only when `--nested` was passed):
 
@@ -248,13 +254,14 @@ Diff:
   name='<name>'       # Pre-flight item 4
   base='<base>'       # Pre-flight item 1's base ref
   effort='<effort>'   # Pre-flight item 5; empty when the template has no {effort}
-  approved='<binary>' # the path Pre-flight item 6 asked about
+  approved='<approved-binary-path>'  # Pre-flight item 6's value, asked about or already recorded
   # The agent pastes these as literals, so they are re-checked before any use.
   case "$name" in ''|*[!A-Za-z0-9_-]*) echo "reviewer name must match ^[A-Za-z0-9_-]+\$" >&2; exit 1 ;; esac
   case "$effort" in *[!A-Za-z0-9_-]*) echo "effort must match ^[A-Za-z0-9_-]+\$" >&2; exit 1 ;; esac
   case "$base" in ''|-*|*[!A-Za-z0-9._/-]*) echo "base ref must match ^[A-Za-z0-9._/-]+\$ and not start with -" >&2; exit 1 ;; esac
   case "$approved" in /*) ;; *) echo "the approved binary must be an absolute path" >&2; exit 1 ;; esac
   top="$(git rev-parse --show-toplevel)" && top="$(cd "$top" && pwd -P)" || exit 1
+  # 0 inside the repo, 1 outside, 2 unresolvable; callers keep only 1.
   in_repo() {
     local x
     x="$(cd "$1" 2>/dev/null && pwd -P)" || return 2
@@ -273,7 +280,9 @@ Diff:
   PATH="$safe_path"
   command -v realpath > /dev/null || { echo "realpath is not on the filtered PATH (macOS before 13 lacks it; install coreutils)" >&2; exit 1; }
   git -C "$top" rev-parse --verify --quiet "$base^{commit}" >/dev/null || { echo "base ref does not resolve: $base" >&2; exit 1; }
-  base_sha="$(git -C "$top" merge-base "$base" HEAD)" && head_sha="$(git -C "$top" rev-parse HEAD)" || exit 1
+  base_sha="$(git -C "$top" merge-base "$base" HEAD)" \
+    || { echo "no merge-base between $base and HEAD (shallow clone or unrelated history?)" >&2; exit 1; }
+  head_sha="$(git -C "$top" rev-parse HEAD)" || exit 1
   get() { jq -er --arg n "$name" --arg k "$1" '.reviewers[$n].cli[$k] | strings' "$cfg" || { echo "cli.$1 missing or not a string for reviewer $name" >&2; return 1; }; }
   binary="$(get binary)" && tpl="$(get local_invocation)" && fo="$(get findings_output)" && fjq="$(get findings_jq)" || exit 1
   secs="$(jq -er --arg n "$name" '.reviewers[$n].cli.timeout_seconds | select(type == "number" and . == floor and . > 0 and . <= 86400) | floor' "$cfg")" \
@@ -313,20 +322,38 @@ Diff:
   [ "${argv[0]}" = "$binary" ] || { echo "cli.local_invocation must start with cli.binary" >&2; exit 1; }
   argv[0]="$bin_abs"
 
-  tree_state() {
-    local st df un hd br
-    st="$(git -C "$top" status --porcelain --untracked-files=all)" && df="$(git -C "$top" diff HEAD --binary)" \
-      && un="$(cd "$top" && git ls-files -oz --exclude-standard | xargs -0 cksum)" && hd="$(git -C "$top" rev-parse HEAD)" || return 1
-    br="$(git -C "$top" symbolic-ref -q HEAD)" || br=detached
-    printf '%s\n' "$st" "$(printf '%s' "$df" | cksum)" "$un" "$hd" "$br"
-  }
+  git_dir="$(git -C "$top" rev-parse --absolute-git-dir)" \
+    && git_common="$(cd "$top" && cd "$(git rev-parse --git-common-dir)" && pwd -P)" || exit 1
+  git_setup_sum() { cat -- "$git_common/config" "$git_dir/config.worktree" "$top/.git" "$git_common"/hooks/* 2>/dev/null | cksum; }
+  g() { /usr/bin/env -i "${env_kept[@]}" git -c core.fsmonitor=false -c core.untrackedCache=false -C "$top" "$@"; }
+  tree_state() (
+    set -o pipefail
+    cd "$top" || exit 1
+    g status --porcelain --untracked-files=all || exit 1
+    g diff HEAD --binary --no-ext-diff --no-textconv | cksum || exit 1
+    g ls-files -oz --exclude-standard > "$work/untracked" || exit 1
+    while IFS= read -r -d '' p; do
+      if [ -L "./$p" ]; then printf 'link %s -> %s\n' "$p" "$(readlink "./$p")"
+      elif [ -f "./$p" ] && [ -r "./$p" ]; then printf 'file %s %s\n' "$p" "$(cksum < "./$p")"
+      else printf 'other %s\n' "$p"
+      fi
+    done < "$work/untracked"
+    g rev-parse HEAD || exit 1
+    g symbolic-ref -q HEAD || echo detached
+  )
+  setup_before="$(git_setup_sum)"
   tree_before="$(tree_state)" || { echo "cannot read the working tree state before the run" >&2; exit 1; }
   started=$SECONDS
   ( cd "$top" && /usr/bin/env -i "${env_kept[@]}" "$tbin" -k 30 "$secs" "${argv[@]}" < /dev/null > "$work/stdout" 2> "$work/stderr" )
   backend_status=$?
   tree_msg=""
-  tree_after="$(tree_state)" && [ "$tree_after" = "$tree_before" ] \
-    || tree_msg="reviewer CLI changed the working tree or HEAD (or broke git); clean it up before re-running"
+  if [ "$(git_setup_sum)" != "$setup_before" ]; then
+    tree_msg="git's config, hooks or .git pointer changed while the reviewer CLI ran; inspect them before running git here again"
+  elif ! tree_after="$(tree_state)"; then
+    tree_msg="cannot read the working tree state after the run"
+  elif [ "$tree_after" != "$tree_before" ]; then
+    tree_msg="the working tree or HEAD changed while the reviewer CLI ran (the CLI, or something else editing this worktree); inspect git status before re-running"
+  fi
   if [ "$backend_status" -ne 0 ]; then
     tail -n 50 "$work/stderr" | LC_ALL=C tr -d '\000-\010\013-\037\177' >&2
     if { [ "$backend_status" -eq 124 ] || [ "$backend_status" -eq 137 ]; } && [ $((SECONDS - started)) -ge "$secs" ]; then
@@ -345,7 +372,9 @@ Diff:
       src="${fo#file:}"; src="${src//"{output}"/$out}"
       case "$src" in */..|*/../*) echo "file:<path> must not contain .." >&2; exit 1 ;; "$out"/*) ;;
         *) echo "file:<path> must sit under {output}" >&2; exit 1 ;; esac
-      [ ! -L "$src" ] || { echo "findings file is a symlink; refusing" >&2; exit 1; } ;;
+      [ ! -L "$src" ] || { echo "findings file is a symlink; refusing" >&2; exit 1; }
+      [ ! -e "$src" ] || case "$(realpath "$src")" in "$(realpath "$out")"/*) ;;
+        *) echo "findings file resolves outside {output}; refusing" >&2; exit 1 ;; esac ;;
     *) echo "unknown cli.findings_output: $fo (expected stdout-json or file:<path>)" >&2; exit 1 ;;
   esac
   [ -f "$src" ] && [ -s "$src" ] || { echo "reviewer CLI exited 0 but left no findings at $src" >&2; exit 1; }
@@ -364,13 +393,14 @@ Diff:
   **Run it with `run_in_background`, not as a foreground tool call.** A foreground Bash call is cut off at its tool timeout (two minutes by default, ten at most), well inside a typical `timeout_seconds`; the kill skips the `EXIT` trap, leaking `$work`, and leaves the CLI running unparented. For the same reason an interrupt only lands once the CLI exits or its bound expires: `timeout` runs the CLI in its own process group, which a terminal Ctrl-C does not reach. The rows count on stderr is what to check the merged table against when the rows themselves arrive truncated.
 
   Each piece is load-bearing:
-  - **No `eval`, no shell.** `{base}` is the merge-base with Pre-flight item 1's base and `{head}` the current commit, both as SHAs resolved once up front, so the CLI reviews what the other backends' three-dot diff covers even if a ref moves mid-run. The template is split on spaces and tabs into argv, placeholders are substituted per token, and the array is exec'd directly. The agent pastes `name`, `base` and `effort` in as literals, so it checks them against the patterns above *before* substituting (a value outside them stops the run), and the snippet re-checks them before any use; a leading `-` is refused so a ref can never become an option to the vendor CLI. Templates cannot rely on shell quoting and must be one line: `read` would silently drop everything after a newline.
+  - **No `eval`, no shell.** `{base}` is the merge-base with Pre-flight item 1's base and `{head}` the current commit, both as SHAs resolved once up front, so the CLI reviews what the other backends' three-dot diff covers even if a ref moves mid-run. The template is split on spaces and tabs into argv, placeholders are substituted per token, and the array is exec'd directly. The agent pastes `name`, `base`, `effort` and `approved` in as literals, so it checks them against the patterns above *before* substituting (a value outside them stops the run), and the snippet re-checks them before any use; a leading `-` is refused so a ref can never become an option to the vendor CLI. Templates cannot rely on shell quoting and must be one line: `read` would silently drop everything after a newline.
   - **`PATH` is filtered as soon as the repo root is known**, keeping only absolute, existing directories outside the repo, and the rest of the snippet runs under it, so neither the CLI nor this snippet's own `realpath`, `jq` or `mktemp` can resolve to a file in the tree under review. A directory counts as inside when any ancestor of its physical path is the same directory as the repo root (`-ef`), which holds through a symlinked prefix (`/tmp` on macOS), a link into the tree, and a differently-cased path on a case-insensitive disk. A directory that cannot be resolved is dropped rather than kept. Only the first `git`, which finds the root, uses the session's `PATH`.
   - **The binary is resolved once, to an absolute path outside the repo**, and that path is what runs, provided it is the one the egress consent named. Its `realpath` is checked too, so a link planted in the tree does not slip past, and `timeout` gets the same check since it runs first. The unresolved path is what executes, because a shim that dispatches on its own name breaks when run by its target. The exec runs in a subshell `cd`'d to the repo root, because the CLI reads the repo relative to its cwd and this session's shell keeps whatever cwd an earlier step left; run the snippet from inside the worktree under review, as every other step does.
   - **The CLI runs under `env -i`, with only `PATH`, `HOME` and the names in `cli.env_allow`.** This session's environment carries every other backend's credentials and session plumbing, and a vendor CLI has no claim on them. Values come from `printenv`, so only exported variables pass, never this snippet's own locals; a listed name that is unset is skipped, not passed empty. `PATH` is the filtered one, and listing `PATH` in `cli.env_allow` does not bring the session's back. `timeout` must also be free of `=`, or `env` would read it as one more assignment. The allowed values sit in `env`'s argv until it execs, so `ps` can glimpse them for that instant: prefer a vendor login stored on disk over a token in a listed variable.
   - **A fresh `mktemp -d` per run, always removed.** A fixed or reused output path can serve a previous run's results as this run's; the vendor's default (often a timestamped cache directory) would have to be rediscovered after every run. That is also why a `file:<path>` findings location must sit under `{output}`, with no `..` and not a symlink. The trap split matches the gemini snippet's, for the same reason.
   - **A hard, checked bound.** `timeout_seconds` must be a whole number from 1 to 86400, checked on the JSON value, because `timeout 0` (or `00`) disables the bound rather than expiring at once. `-k 30` follows the TERM with a KILL, so a CLI that ignores TERM still ends.
-  - **The CLI must leave the working tree as it found it.** It runs from the repo root, so a vendor cache or report written into the tree would otherwise be picked up by a later commit or re-reviewed as stale output. The check compares `git status` with every untracked file listed, checksums of the diff against `HEAD` and of each untracked file, and `HEAD` with its branch, so an edit to an already-modified or untracked file, a new file in an untracked directory, and a commit or checkout all show; a `git` failure counts as a change. It runs on a failed run too, which is when a half-written cache is likeliest. Files under ignored paths are not seen.
+  - **Git itself is not trusted after the run.** The CLI could write `.git/config` or a hook, and the snippet's next `git` would run it with this session's environment, so a checksum of git's config, the worktree `.git` pointer and the hooks is taken before the run and compared first; on a change no further `git` runs. The tree check's own `git` calls run under the same `env -i` set, with `core.fsmonitor` off and external diff and textconv drivers disabled.
+  - **The CLI must leave the working tree as it found it.** It runs from the repo root, so a vendor cache or report written into the tree would otherwise be picked up by a later commit or re-reviewed as stale output. Before and after the run the check records `git status` with every untracked file listed, a checksum of the diff against `HEAD`, each untracked file's checksum (a symlink by its target, never followed), `HEAD` and the branch; any difference, or any of those `git` calls failing, stops the run. It runs on a failed run too, which is when a half-written cache is likeliest. Files under ignored paths are not seen, and anything else editing the worktree during the run trips it too.
   - **Non-zero exit or timeout stops the run** before any parse, so partial or absent output never reads as zero findings. A 124 or 137 is called a timeout only once the bound has actually elapsed; earlier, it is the CLI's own exit or a kill from elsewhere. Only the last lines of the CLI's stderr are shown, with control characters stripped, because the vendor's output is untrusted text.
   - **A zero exit does not guarantee parseable output.** A missing or empty findings file, anything other than exactly one JSON document (a CLI that prints progress JSON to stdout would otherwise let `jq -e` judge only the last document), or a filter result that is not the row shape all stop the run rather than presenting an empty table as "no findings".
 

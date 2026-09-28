@@ -251,7 +251,7 @@ reviewer_drift() {
     "panel-review.md missing expected reviewer-backend containment line"
 }
 
-reviewer_drift reviewer-backend-inherited-env '/usr/bin/env -i "${env_kept[@]}" ' ''
+reviewer_drift reviewer-backend-inherited-env '/usr/bin/env -i "${env_kept[@]}" "$tbin"' '"$tbin"'
 reviewer_drift reviewer-backend-env-from-shell-vars 'val="$(printenv "$v")"' 'val="${!v}"'
 reviewer_drift reviewer-backend-env-allow-unvalidated \
   ' and test("^[A-Za-z_][A-Za-z0-9_]*$")) then' ') then'
@@ -273,11 +273,18 @@ reviewer_drift reviewer-backend-timeout-unresolved 'tbin_real="$(realpath "$tbin
 reviewer_drift reviewer-backend-timeout-in-repo 'in_repo "${tbin_real%/*}/"; [ "$?" -eq 1 ] ||' 'true ||'
 reviewer_drift reviewer-backend-timeout-assignment 'case "$tbin" in *=*|[!/]*)' 'case "$tbin" in [!/]*)'
 reviewer_drift reviewer-backend-tree-untracked-collapsed '--porcelain --untracked-files=all' '--porcelain'
-reviewer_drift reviewer-backend-tree-no-diff-sum 'df="$(git -C "$top" diff HEAD --binary)"' 'df=""'
-reviewer_drift reviewer-backend-tree-no-untracked-sum 'git ls-files -oz --exclude-standard | xargs -0 cksum' 'true'
-reviewer_drift reviewer-backend-tree-ignores-head 'hd="$(git -C "$top" rev-parse HEAD)" || return 1' 'hd="" || return 1'
-reviewer_drift reviewer-backend-tree-not-compared \
-  'tree_after="$(tree_state)" && [ "$tree_after" = "$tree_before" ]' 'true'
+reviewer_drift reviewer-backend-tree-no-diff-sum 'g diff HEAD --binary --no-ext-diff --no-textconv | cksum' 'true'
+reviewer_drift reviewer-backend-tree-no-untracked-list 'g ls-files -oz --exclude-standard > "$work/untracked"' ': > "$work/untracked"'
+reviewer_drift reviewer-backend-tree-follows-links 'if [ -L "./$p" ]; then printf' 'if false; then printf'
+reviewer_drift reviewer-backend-tree-ignores-head '    g rev-parse HEAD || exit 1' '    true'
+reviewer_drift reviewer-backend-tree-ignores-branch 'g symbolic-ref -q HEAD || echo detached' 'echo detached'
+reviewer_drift reviewer-backend-tree-git-unhardened '-c core.fsmonitor=false -c core.untrackedCache=false' ''
+reviewer_drift reviewer-backend-git-setup-unchecked \
+  'if [ "$(git_setup_sum)" != "$setup_before" ]; then' 'if false; then'
+reviewer_drift reviewer-backend-tree-not-compared 'elif [ "$tree_after" != "$tree_before" ]; then' 'elif false; then'
+reviewer_drift reviewer-backend-tree-change-not-fatal '[ -z "$tree_msg" ] || { echo "$tree_msg" >&2; exit 1; }' ':'
+reviewer_drift reviewer-backend-findings-escape-output \
+  'case "$(realpath "$src")" in "$(realpath "$out")"/*) ;;' 'case "$src" in *) ;;'
 
 reviewer_drift reviewer-backend-no-egress-consent \
   '6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).**' '6. **Notes.**'
@@ -291,6 +298,11 @@ reviewer_drift reviewer-backend-consent-binary-change-silent 'or one naming a di
 reviewer_drift reviewer-backend-consent-unbounded-lock 'while [ "$n" -lt 50 ]; do' 'while :; do'
 reviewer_drift reviewer-backend-consent-no-counter 'n=$((n + 1)); sleep 0.2' 'sleep 0.2'
 reviewer_drift reviewer-backend-consent-writes-unlocked 'if [ -z "$locked" ]; then' 'if [ -n "$locked" ]; then'
+reviewer_drift reviewer-backend-consent-dir-world-readable '(umask 077; mkdir -p "$dir")' 'mkdir -p "$dir"'
+reviewer_drift reviewer-backend-consent-reset-on-bad-json \
+  'if [ ! -e "$f" ] || { [ -r "$f" ] && ! grep -q' 'if [ ! -e "$f" ] || { [ -r "$f" ] && ! jq -e . "$f" > /dev/null || grep -q'
+reviewer_drift reviewer-backend-consent-overwrites-non-object \
+  'if [ -z "$seed" ] && ! jq -e' 'if false && ! jq -e'
 reviewer_drift reviewer-backend-consent-lock-unchecked \
   'mkdir "$f.lock" 2>/dev/null && { locked=1; break; }' 'mkdir "$f.lock" 2>/dev/null; locked=1; break'
 reviewer_drift reviewer-backend-consent-not-private '&& chmod 600 "$tmp" && mv' '&& mv'

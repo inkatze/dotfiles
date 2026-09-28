@@ -52,12 +52,13 @@ Before anything mutates branch state or messages anyone:
   read-modify-write through a lock directory, writing via
   `tmp=$(mktemp "$f.XXXXXX")` in the same directory so the `mv` stays
   atomic, then `rmdir "$f.lock"`, since `/peer-review` and a second review
-  can race the sibling `slack-users.json` pattern). Take the lock with the
-  bounded `mkdir "$f.lock"` loop in `/panel-review`'s egress-consent step:
-  after about ten seconds, give up and treat the yes as approved for this
-  run only, since a writer killed mid-write leaves the lock behind. A file
-  holding no JSON counts as absent; one holding anything other than a JSON
-  object stops the run and names the path. An approval names the backend it was given
+  can race the sibling `slack-users.json` pattern). Write it with
+  `/panel-review`'s egress-consent snippet, using `<owner>/<repo>` as the
+  key and the backend as the value: it bounds the lock wait (a writer
+  killed mid-write leaves the lock behind), treats a file holding no JSON
+  as absent, and never overwrites one that is unreadable or not a JSON
+  object, which stops the run and names the path. Failing to lock or write
+  leaves the yes approved for this run only. An approval names the backend it was given
   for: a different backend for an approved repo asks again once, and
   revoking is deleting the repo's entry from the file. A no stops the run.
   `/panel-review`'s `reviewer:<name>` backend keeps its own approvals in
