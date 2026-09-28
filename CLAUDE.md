@@ -368,11 +368,11 @@ error. Without the probe, a not-yet-provisioned host aborts the last role in
 **On a headless host the key comes from the service account, and that
 constrains the vault.** There is no 1Password desktop app to authorize
 against, so `claude-gemini-auth-sync.sh` falls back to
-`~/.config/dotfiles/op-service-account-token` the same way
-`ssh-lan-config-sync.sh` does. A service account cannot be granted the
-Personal or Private vault, so the key item has to live in
-`Dotfiles Service Account`, and it must be addressed with an explicit
-`--vault`: without one, `op` refuses every field with "a vault query must be
+`~/.config/dotfiles/op-service-account-token` through the same
+`scripts/op-token.sh` helper `ssh-lan-config-sync.sh` sources. A service
+account cannot be granted the Personal or Private vault, so the key item has
+to live in `Dotfiles Service Account`, and it must be addressed with an
+explicit `--vault`: without one, `op` refuses every field with "a vault query must be
 provided when this command is called by a service account", which reads like a
 missing item and is not. Moving the item between vaults also reassigns its
 id, so `ITEM_UUID` in that script is the id *in that vault*, not the one it
@@ -564,7 +564,7 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 | `host` | `scripts/playbook.sh`, the `/panel-review` and `/code-review` commands | This machine's inventory alias (`work`/`personal`/`alt`/`server`). An empty or whitespace-only file counts as absent |
 | `ssh-host` | the `sshc` function in `roles/fish/files/fish/config.fish` | `kitten ssh` target hostname |
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
-| `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
+| `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh`, both through `scripts/op-token.sh` | 1Password service-account token (bearer credential, mode 0600) |
 | `slack-users.json` | the `/code-review` and `/peer-review` commands | GitHub login → Slack user ID, so review notifications can find a person |
 | `code-review-egress.json` | the `/code-review` command, and `/panel-review`'s `reviewer:<name>` backend | Repos approved for backend egress (`owner/repo` → backend; the reviewer backend's entries are keyed `reviewer:<name>:owner/repo` → the absolute path of its binary), so the upload consent is asked once per repo, and once per repo and reviewer for that backend, again if that binary changes (mode 0600) |
 | `bot-review.json` | the `/bot-review` command, and `/panel-review`'s `reviewer:<name>` backend (the `cli` block) | Map of named third-party PR-review reviewers, each with its own hosted-bot mechanics (login pattern, opt-in/opt-out labels, gating checks, marker formats) and/or local pre-push CLI invocation, plus a default; example with placeholders at `roles/claude/files/commands/bot-review.config.example.json` (mode 0600, read-only from both commands) |
@@ -640,7 +640,11 @@ Three consequences worth knowing before moving items around:
   there is also an edit to the script. `ssh-lan-config-sync.sh` addresses its
   item by name (`dotfiles-lan-ssh`, via the `op://` references in its
   template), which survives a move untouched.
-- Both scripts refuse to read the file unless it is mode 0600 or 0400, and an
+- Both scripts resolve the token through one sourced helper,
+  `scripts/op-token.sh`, tested by `scripts/op-token-test.sh`, so a fix to
+  the checks lands in both at once. It refuses a file that is a symlink, is
+  not regular, or is not mode 0600 or 0400, and a value that is blank or holds
+  anything outside the token character set (NUL bytes included). An
   already-exported `OP_SERVICE_ACCOUNT_TOKEN` takes precedence, so CI can
   supply one without the file existing.
 

@@ -63,6 +63,12 @@ pre-commit:
       # script alone still runs, just against every inventory host.
       glob: "{scripts/playbook.sh,scripts/playbook-alias-test.sh}"
       run: scripts/playbook-alias-test.sh
+    op-token:
+      # The suite is what notices a token guard being dropped from the shared
+      # helper; both sync scripts still run and hand op whatever they read.
+      glob: "{scripts/op-token.sh,scripts/op-token-test.sh,\
+        scripts/claude-gemini-auth-sync.sh,scripts/ssh-lan-config-sync.sh}"
+      run: scripts/op-token-test.sh
     fish-functions-ignore:
       # No glob, deliberately: the drift it catches is a plugin file sitting in
       # the working tree, which can be there with nothing in that directory

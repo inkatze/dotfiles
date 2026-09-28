@@ -28,16 +28,21 @@ fail() {
   exit 1
 }
 
-# A case over an explicit list, as in playbook.sh's plain_name: a range
-# would follow the locale, and grep would pass an embedded newline. Covers
-# base64, base64url and JWT separators so no real token is refused; `-`
-# last so it stays literal.
-token_chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/=._-'
-is_token() {
-  case "$1" in
-    '' | *[!$token_chars]*) return 1 ;;
+# Resolved through any symlinks, so the helper is found from any cwd and when
+# this script is linked elsewhere.
+self="$0"
+while [ -L "$self" ]; do
+  link="$(readlink -- "$self")" || fail "could not resolve symlink $self"
+  case "$link" in
+    /*) self="$link" ;;
+    *) self="$(dirname -- "$self")/$link" ;;
   esac
-}
+done
+script_dir="$(CDPATH='' cd -- "$(dirname -- "$self")" && pwd)" \
+  || fail "could not resolve the directory of $self"
+[ -r "$script_dir/op-token.sh" ] || fail "helper not readable: $script_dir/op-token.sh"
+# shellcheck source-path=SCRIPTDIR source=op-token.sh
+. "$script_dir/op-token.sh"
 
 # Defaults to the Gemini API-key 1Password item; override with
 # GEMINI_OP_ITEM_UUID if the item lives under a different id on a given host.
@@ -74,106 +79,12 @@ if ! command -v op >/dev/null 2>&1; then
   fail "1Password CLI (op) not installed"
 fi
 
-# Headless hosts have no 1Password desktop app to authorize against, so `op`
-# fails with "connecting to desktop app: cannot connect to 1Password app"
-# before it ever reads an item. Fall back to the machine-local service-account
-# token, exactly as scripts/ssh-lan-config-sync.sh does and for the same
-# reason: the desktop-app integration authorizes per calling process, which is
-# useless under Ansible (a fresh process per task) and impossible during a
-# headless boot.
-#
-# Note the vault consequence, because it constrains where the item may live: a
-# service account cannot be granted access to the Personal or Private vault, so
-# the Gemini API key has to sit in `Dotfiles Service Account` for this path to
-# reach it. On a Mac with the desktop app running, the block below is skipped
-# (no token file) and the item is read through the app session as before.
-#
-# An already-exported token wins, so CI or a caller can override without the
-# file existing.
-#
-# `-s` rather than `-f`, because an EMPTY token file is worse than none: it
-# passes a `-f` test and a mode check, and the resulting empty
-# OP_SERVICE_ACCOUNT_TOKEN switches OFF the desktop-app path that would
-# otherwise have worked, so a Mac fails with an error naming the item and the
-# vault while the actual fault is a placeholder file. A `touch`ed file on the
-# way to pasting a token is the ordinary way to reach that state.
-OP_TOKEN_FILE="${DOTFILES_OP_TOKEN_FILE:-$HOME/.config/dotfiles/op-service-account-token}"
-op_token=""
-if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
-  # A caller (CI, a wrapper shell, an Ansible environment) already supplied a
-  # token. Take ownership of it and unset the exported copy, so `op_get` below
-  # is the ONLY route by which it reaches a child process. Leaving it exported
-  # would mean every later child -- including the `sh -c` that holds the
-  # plaintext API key -- inherits the vault credential, which is exactly what
-  # the scoping exists to prevent; the exported path would otherwise be the one
-  # case where the guarantee quietly does not hold.
-  op_token="$OP_SERVICE_ACCOUNT_TOKEN"
-  unset OP_SERVICE_ACCOUNT_TOKEN
-  # Same emptiness bar as the file path below. Validating one and not the other
-  # was an asymmetry: a caller exporting a whitespace-only value would reach
-  # `op` and come back with "failed to parseToken", the same misleading error
-  # the file-side guard exists to prevent.
-  if [ -z "$(printf '%s' "$op_token" | LC_ALL=C tr -d '[:space:]')" ]; then
-    fail "OP_SERVICE_ACCOUNT_TOKEN is set but contains only whitespace; unset it or supply a real token"
-  fi
-  is_token "$op_token" \
-    || fail "OP_SERVICE_ACCOUNT_TOKEN holds a non-token value; unset it or supply a real token"
-elif [ -e "$OP_TOKEN_FILE" ]; then
-  # `-e` above, then an explicit regular-file test: `-e` is what lets the empty
-  # check below fire at all, but on its own it also captures a directory (a
-  # `mkdir -p` typo on the parent path), which would otherwise reach the mode
-  # check and fail with a confusing "is mode 755" instead of naming the real
-  # problem.
-  if [ ! -f "$OP_TOKEN_FILE" ]; then
-    fail "$OP_TOKEN_FILE is not a regular file; remove it or replace it with the service-account token"
-  fi
-  if [ ! -s "$OP_TOKEN_FILE" ]; then
-    fail "$OP_TOKEN_FILE exists but is empty; write the service-account token to it or remove it (an empty file disables the desktop-app fallback)"
-  fi
-  # Refuse a token file others can read: it is a bearer credential.
-  perms="$(stat -c '%a' "$OP_TOKEN_FILE" 2>/dev/null || stat -f '%Lp' "$OP_TOKEN_FILE" 2>/dev/null || echo '')"
-  case "$perms" in
-    600 | 400) ;;
-    '') fail "could not stat token file $OP_TOKEN_FILE" ;;
-    *) fail "$OP_TOKEN_FILE is mode $perms; must be 600 or 400 (chmod 600 it)" ;;
-  esac
-  # Read through `fail()` rather than a bare assignment. Under `set -eu` an
-  # unreadable file (mode 600 but owned by root, the state `sudo` leaves behind)
-  # aborts on cat's own status, so the run ends with a raw "Permission denied"
-  # and no `FAILED:` line -- breaking the contract this file's header states and
-  # defeating any caller that greps for the prefix.
-  op_token="$(cat "$OP_TOKEN_FILE" 2>/dev/null)" \
-    || fail "$OP_TOKEN_FILE is not readable by this user (mode is $perms, but check the owner)"
-  # Test a whitespace-stripped COPY, not the value itself. `$(...)` strips
-  # trailing newlines and nothing else, so a file holding "   " or a tab yields
-  # a non-empty op_token that sails past a bare `-z`, reaches `op`, and comes
-  # back as "failed to parseToken, format is invalid" -- an error about the
-  # token's shape, when the actual fault is a placeholder file. The real token
-  # is passed through unmodified; only the emptiness test is normalised.
-  if [ -z "$(printf '%s' "$op_token" | LC_ALL=C tr -d '[:space:]')" ]; then
-    fail "$OP_TOKEN_FILE contains only whitespace; write the service-account token to it or remove it"
-  fi
-  is_token "$op_token" \
-    || fail "$OP_TOKEN_FILE holds a non-token value; write the service-account token to it or remove it"
-fi
-
-# Run `op` with the service-account token scoped to the single call that needs
-# it, instead of exporting it for the rest of the script. The header above
-# promises the key is never on argv and that the env-var window stays narrow;
-# a process-wide export contradicts the second half, since it would then be
-# inherited by every later child -- mktemp, cat, chmod, mv, and the `sh -c`
-# that holds the plaintext API key, which would carry BOTH secrets at once.
-# Because the branch above unsets any inherited copy, this holds on the
-# caller-supplied path too, not only when the token came from the file.
-# Same-user inspection via /proc/<pid>/environ stays possible for the duration
-# of an `op` call; that is the irreducible part.
-op_get() {
-  if [ -n "$op_token" ]; then
-    OP_SERVICE_ACCOUNT_TOKEN="$op_token" op "$@"
-  else
-    op "$@"
-  fi
-}
+# Headless hosts have no 1Password desktop app to authorize against, so the
+# read falls back to the machine-local service-account token (see
+# scripts/op-token.sh), which is why the item has to live in a vault a service
+# account can be granted: not Personal or Private. With no token file on a Mac,
+# the item is read through the desktop-app session as before.
+resolve_op_token
 
 # Refuse to overwrite anything that is not a plain regular file. Symlinks
 # and special files signal another tool is managing this path; rewriting
@@ -201,7 +112,7 @@ op_err=$(mktemp 2>&1) \
 trap 'rm -f "$op_err"' EXIT INT TERM HUP
 for field in credential password api_key apikey; do
   : > "$op_err"
-  if value=$(op_get item get "$ITEM_UUID" --vault "$VAULT" --fields "$field" --reveal 2>"$op_err"); then
+  if value=$(op_run item get "$ITEM_UUID" --vault "$VAULT" --fields "$field" --reveal 2>"$op_err"); then
     if [ -n "$value" ]; then
       new_key="$value"
       break
