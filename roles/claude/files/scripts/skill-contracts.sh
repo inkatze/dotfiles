@@ -183,10 +183,12 @@ require_phrases bot-review.md bot_review_safety_checks "safety sentence" "${bot_
 # split EXIT/INT traps, the empty, multi-document and row-shape stops that
 # keep a silent or partial run from reading as zero findings, the env -i
 # allowlist read through printenv, the PATH filter and in-repo checks on the
-# binary and timeout, a mise shim resolved from HOME rather than the repo,
-# the jq and realpath probes, the git-setup checksum and
-# isolated git calls, the working-tree check, the findings file's realpath
-# containment, and the egress consent asked once per repo and reviewer
+# binary and timeout, the mise guard that turns off project-local mise config
+# for the snippet and the CLI, a mise shim (and the CLI's tool PATH) resolved
+# from HOME rather than the repo, the jq and realpath probes, the git-setup
+# checksum and isolated git calls, the working-tree check, the findings
+# file's realpath containment, the not-a-sandbox disclaimer, and the egress
+# consent asked once per repo and reviewer
 # (binary-bound, under a bounded lock, private directory, exit 2 to stop,
 # never overwriting a file that is unreadable, not a regular file, or not a
 # single JSON object).
@@ -212,12 +214,25 @@ reviewer_backend_checks=(
   'bin_real="$(realpath "$bin_abs")" ||'
   'in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] ||'
   '[ "$bin_real" = "$approved" ] ||'
-  'if [ "${bin_real##*/}" = mise ]; then'
-  'bin_exec="$(cd "$HOME" && /usr/bin/env -i "${env_kept[@]}" "$bin_real" which "$shim")"'
-  'tool_dirs="$(cd "$HOME" && /usr/bin/env -i "${env_kept[@]}" "$bin_real" bin-paths)"'
+  'if is_mise "$bin_real"; then'
+  'bin_exec="$(cd "$HOME" && /usr/bin/env -i "${env_kept[@]}" "$mise_exe" which "$shim")"'
+  'tool_dirs="$(cd "$HOME" && /usr/bin/env -i "${env_kept[@]}" "$mise_exe" bin-paths)"'
   '[ "$dir" -ef "$shims_dir" ] || cli_path='
   'bin_real="$(realpath "$bin_exec")" ||'
   'env_kept[0]="PATH=$cli_path"'
+  'mise_guard=(MISE_OVERRIDE_CONFIG_FILENAMES=none MISE_OVERRIDE_TOOL_VERSIONS_FILENAMES=none MISE_IDIOMATIC_VERSION_FILE_ENABLE_TOOLS=)'
+  '  export "${mise_guard[@]}"'
+  '  done'$'\n''  env_kept+=("${mise_guard[@]}")'
+  '[ -n "$mise_bin" ] && [ "$1" -ef "$mise_bin" ]'
+  '[ "${next##*/}" != mise ] || break'
+  'shims_dir="$(cd "${hop%/*}" && pwd -P)"'
+  'mise_exe="$bin_real"; [ "${bin_real##*/}" = mise ] || mise_exe="$mise_bin"'
+  '[ "$shim" != mise ] || { echo'
+  'in_repo "$HOME"; [ "$?" -eq 1 ] || { echo'
+  '|| { echo "mise could not resolve $shim from HOME'
+  'case "$bin_exec" in /*) ;; *) echo "mise which'
+  'case "$dir" in *:*|[!/]*) continue ;; esac'
+  '! is_mise "$bin_real" || { echo'
   'tbin_real="$(realpath "$tbin")" ||'
   'in_repo "${tbin_real%/*}/"; [ "$?" -eq 1 ] ||'
   'case "$tbin" in *=*|[!/]*)'
