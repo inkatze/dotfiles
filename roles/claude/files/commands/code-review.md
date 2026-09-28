@@ -54,8 +54,9 @@ Before anything mutates branch state or messages anyone:
   `{"<owner>/<repo>": "<backend>"}` (mode 0600, under a lock directory,
   since `/peer-review` and a second review can race the sibling
   `slack-users.json` pattern), by running `/panel-review`'s egress-consent
-  snippet with `<owner>/<repo>` as the key and the backend as the value. Its exit 2 means stop the run;
-  failing to lock or write leaves the yes approved for this run only. An
+  snippet with `<owner>/<repo>` as the key and the backend as the value.
+  Its exit 2 means stop the run; failing to lock or write leaves the yes
+  approved for this run only. An
   approval names the backend it was given for: a different backend for an
   approved repo asks again once, and revoking is deleting the repo's entry
   from the file while no review is running. A no stops the run.
