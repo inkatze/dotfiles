@@ -19,12 +19,13 @@ is_blank() {
 
 resolve_op_token() {
   OP_TOKEN_FILE="${DOTFILES_OP_TOKEN_FILE:-$HOME/.config/dotfiles/op-service-account-token}"
-  op_token=""
+  # Unset both: an inherited op_token stays exported, and an exported token,
+  # even an empty one, must reach op through op_run alone.
+  unset op_token
+  op_token="${OP_SERVICE_ACCOUNT_TOKEN:-}"
+  unset OP_SERVICE_ACCOUNT_TOKEN
   local perms
-  if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
-    # Unset so op_run is the only route by which it reaches a child.
-    op_token="$OP_SERVICE_ACCOUNT_TOKEN"
-    unset OP_SERVICE_ACCOUNT_TOKEN
+  if [ -n "$op_token" ]; then
     if is_blank "$op_token"; then
       fail "OP_SERVICE_ACCOUNT_TOKEN is set but contains only whitespace; unset it or supply a real token"
     fi
