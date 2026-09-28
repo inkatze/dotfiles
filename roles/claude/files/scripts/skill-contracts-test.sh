@@ -240,6 +240,22 @@ expect_fail reviewer-backend-row-shape \
   "perl -pi -e 's/cli\\.findings_jq must yield one array/rows look fine/' $CMDS/panel-review.md" \
   "panel-review.md missing expected reviewer-backend containment line"
 
+expect_fail reviewer-backend-inherited-env \
+  "perl -pi -e 's/\\/usr\\/bin\\/env -i \"\\\$\\{envv\\[@\\]\\}\" //' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-env-allowlist \
+  "perl -pi -e 's/^  for v in PATH HOME \\\$allow;.*\n//' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-no-egress-consent \
+  "perl -pi -e 's/\\*\\*Egress consent, once per repo and reviewer\\.\\*\\*//' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-consent-diff-only \
+  "perl -pi -e 's/it reads the whole repo tree, not just the diff, and uploads it/it uploads the diff/' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
 # --- require_phrases' missing-file branch, shared by all its callers ---
 expect_fail require-phrases-missing-file \
   "rm $CMDS/code-review.md" \

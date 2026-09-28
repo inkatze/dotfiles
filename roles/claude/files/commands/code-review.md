@@ -56,6 +56,9 @@ Before anything mutates branch state or messages anyone:
   `slack-users.json` pattern). An approval names the backend it was given
   for: a different backend for an approved repo asks again once, and
   revoking is deleting the repo's entry from the file. A no stops the run.
+  `/panel-review`'s `reviewer:<name>` backend keeps its own approvals in
+  the same file under `reviewer:<name>:<owner>/<repo>` keys, which a bare
+  `<owner>/<repo>` lookup never matches; leave those entries alone.
   On the work host, a `--backends` override that moves the run off the
   profile default also gets an explicit confirmation, since it reroutes
   employer code to a personally-keyed service.

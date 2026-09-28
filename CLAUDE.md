@@ -566,7 +566,7 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
 | `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh` | 1Password service-account token (bearer credential, mode 0600) |
 | `slack-users.json` | the `/code-review` and `/peer-review` commands | GitHub login → Slack user ID, so review notifications can find a person |
-| `code-review-egress.json` | the `/code-review` command | Repos approved for backend egress (`owner/repo` → backend), so the diff-upload consent is asked once per repo (mode 0600) |
+| `code-review-egress.json` | the `/code-review` command, and `/panel-review`'s `reviewer:<name>` backend | Repos approved for backend egress (`owner/repo` → backend; the reviewer backend's entries are keyed `reviewer:<name>:owner/repo`), so the upload consent is asked once per repo (mode 0600) |
 | `bot-review.json` | the `/bot-review` command, and `/panel-review`'s `reviewer:<name>` backend (the `cli` block) | Map of named third-party PR-review reviewers, each with its own hosted-bot mechanics (login pattern, opt-in/opt-out labels, gating checks, marker formats) and/or local pre-push CLI invocation, plus a default; example with placeholders at `roles/claude/files/commands/bot-review.config.example.json` (mode 0600, read-only from both commands) |
 | `work-shell-init` | `roles/fish/files/work-init.fish` | Absolute path of a shell init to source from fish, for anything a second config manager wires only into bash/zsh |
 
@@ -600,7 +600,8 @@ isolation.
 `slack-users.json` below: it enumerates repos (employer and third-party
 names) this machine has approved for upload to an external model provider,
 which is a per-machine consent record, not repo content. `/code-review`
-creates it at 0600, writes it read-modify-write under a lock directory, and
+(and `/panel-review`'s `reviewer:<name>` backend, which uploads the whole
+repo tree rather than a diff) creates it at 0600, writes it read-modify-write under a lock directory, and
 revoking an approval is deleting that repo's entry. Absent file means every
 repo asks once, which degrades visibly.
 

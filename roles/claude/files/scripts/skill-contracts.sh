@@ -176,8 +176,9 @@ require_phrases bot-review.md bot_review_safety_checks "safety sentence" "${bot_
 # CLI from the repo root rather than an empty scratch dir. Each anchor pins the
 # guard itself, not just its message: bounded with a kill-after, argv built by
 # a whitespace split (no eval, no globbing), the resolved binary exec'd, the
-# split EXIT/INT traps, and the empty, multi-document and row-shape stops that
-# keep a silent or partial run from reading as zero findings.
+# split EXIT/INT traps, the empty, multi-document and row-shape stops that
+# keep a silent or partial run from reading as zero findings, the env -i
+# allowlist, and the per-repo egress consent asked before the tree uploads.
 reviewer_backend_checks=(
   '"$tbin" -k 30 "$secs" "${argv[@]}" < /dev/null'
   "IFS=\$' \\t' read -r -a words <<< \"\$tpl\""
@@ -186,6 +187,10 @@ reviewer_backend_checks=(
   '[ -f "$src" ] && [ -s "$src" ] || { echo "reviewer CLI exited 0 but left no findings'
   "jq -e -s 'length == 1' \"\$src\""
   'cli.findings_jq must yield one array of {file, line, finding, severity, rule}'
+  '/usr/bin/env -i "${envv[@]}" "$tbin" -k 30'
+  'for v in PATH HOME $allow; do [ -z "${!v+x}" ] || envv+=("$v=${!v}"); done'
+  '**Egress consent, once per repo and reviewer.**'
+  'it reads the whole repo tree, not just the diff, and uploads it to that vendor'
 )
 require_phrases panel-review.md reviewer_backend_checks "reviewer-backend containment line" "${reviewer_backend_checks[@]}"
 # The combined trap shape resumes after Ctrl-C with $work already deleted.
