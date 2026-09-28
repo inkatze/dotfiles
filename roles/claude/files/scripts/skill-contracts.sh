@@ -191,6 +191,11 @@ reviewer_backend_checks=(
   'for v in PATH HOME $allow; do [ -z "${!v+x}" ] || envv+=("$v=${!v}"); done'
   '**Egress consent, once per repo and reviewer.**'
   'it reads the whole repo tree, not just the diff, and uploads it to that vendor'
+  'Anything other than a yes stops the run.'
+  'key="reviewer:<name>:<owner>/<repo>"'
+  '[ -d "$f.lock" ] && [ "$n" -lt 50 ]'
+  '&& chmod 600 "$tmp" && mv "$tmp" "$f"; }; then'
+  '     rmdir "$f.lock"'
 )
 require_phrases panel-review.md reviewer_backend_checks "reviewer-backend containment line" "${reviewer_backend_checks[@]}"
 # The combined trap shape resumes after Ctrl-C with $work already deleted.

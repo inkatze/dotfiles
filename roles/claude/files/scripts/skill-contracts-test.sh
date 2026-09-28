@@ -256,6 +256,22 @@ expect_fail reviewer-backend-consent-diff-only \
   "perl -pi -e 's/it reads the whole repo tree, not just the diff, and uploads it/it uploads the diff/' $CMDS/panel-review.md" \
   "panel-review.md missing expected reviewer-backend containment line"
 
+expect_fail reviewer-backend-consent-not-a-gate \
+  "perl -pi -e 's/Anything other than a yes stops the run\.//' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-consent-bare-key \
+  "perl -pi -e 's/key=\"reviewer:<name>:<owner>\/<repo>\"/key=\"<owner>\/<repo>\"/' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-consent-unbounded-lock \
+  "perl -pi -e 's/\\[ -d \"\\\$f\\.lock\" \\] && \\[ \"\\\$n\" -lt 50 \\]/true/' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
+expect_fail reviewer-backend-consent-trap-only-release \
+  "perl -pi -e 's/^     rmdir \"\\\$f\\.lock\"\n//' $CMDS/panel-review.md" \
+  "panel-review.md missing expected reviewer-backend containment line"
+
 # --- require_phrases' missing-file branch, shared by all its callers ---
 expect_fail require-phrases-missing-file \
   "rm $CMDS/code-review.md" \

@@ -105,24 +105,32 @@ Runs identically in both modes.
    - `copilot`: resolve the Copilot CLI binary, `command -v copilot` first, else `~/.local/share/gh/copilot/copilot` (where `gh copilot` downloads it). `gh copilot --help` is not a probe: it succeeds with no CLI installed. Probe by running it: the invocation below with the prompt `Reply with exactly the word OK and nothing else.` must exit 0 and print `OK`. Missing: stop with `Copilot CLI not installed; run 'gh copilot' once in a terminal and confirm its download prompt`. It authenticates through `gh`, so a non-zero exit or a quota error is `Copilot CLI unavailable: <its message>`.
    - `reviewer:<name>`: read `~/.config/dotfiles/bot-review.json` (never write it from here). Missing or unreadable: stop, name the path, point at the example, and do not guess. The entry's `cli` block must carry `binary`, `local_invocation`, `timeout_seconds` (a positive integer), `findings_output`, and `findings_jq`; name the first missing key and stop. `command -v "$binary"` must resolve, else stop, printing `cli.install_command` when the entry sets one (it is optional) and otherwise saying only that the binary is not on `PATH`. `timeout` or `gtimeout` must resolve (macOS ships neither), else stop rather than run unbounded. If `local_invocation` contains `{effort}`, an effort value is required: `--effort <value>` from `$ARGUMENTS`, else `cli.default_effort`, matching `^[A-Za-z0-9_-]+$` either way; with neither, stop and say this reviewer's template needs `--effort`. There is no cheaper readiness probe: running the CLI is the probe and takes minutes, so an auth failure surfaces as its non-zero exit in step 2.
 
-     **Egress consent, once per repo and reviewer.** This backend uploads the repo tree, not just the diff, to the vendor under this machine's account, so it reuses `/code-review`'s consent record, `~/.config/dotfiles/code-review-egress.json`. Resolve the repo with `gh repo view --json nameWithOwner -q .nameWithOwner`; the entry is `"reviewer:<name>:<owner>/<repo>": "reviewer:<name>"`, a key `/code-review`'s bare `<owner>/<repo>` lookups never match, so the two commands' approvals cannot overwrite each other. With no entry, ask before anything runs:
+     **Egress consent, once per repo and reviewer.** This backend uploads the repo tree, not just the diff, to the vendor under this machine's account, so it reuses `/code-review`'s consent record, `~/.config/dotfiles/code-review-egress.json`. Resolve the repo with `gh repo view --json nameWithOwner -q .nameWithOwner`; the entry is `"reviewer:<name>:<owner>/<repo>": "<binary>"`, where `<binary>` is `realpath` of the resolved `cli.binary`. That key is one `/code-review`'s bare `<owner>/<repo>` lookups never match, so the two commands' approvals cannot overwrite each other, and the value ties the approval to the CLI it was given for. With no entry, or one naming a different binary (the entry now points at another vendor's CLI), ask before anything runs; a file that is unreadable or not a JSON object stops the run and names the path:
 
      ```
      reviewer:<name> runs the local reviewer CLI from the repo root; it reads the whole repo tree, not just the diff, and uploads it to that vendor under this machine's account. Approve for <owner>/<repo>? [y/N]
      ```
 
-     Anything other than a yes stops the run. Remember a yes with `/code-review`'s locking (mode 0600, read-modify-write under the lock directory, temp file in the same directory so the `mv` is atomic):
+     Anything other than a yes stops the run. Remember a yes with `/code-review`'s locking (mode 0600, read-modify-write under the lock directory, temp file in the same directory so the `mv` is atomic), as its own Bash call so no later `trap` or long step holds the lock. The wait is bounded because a writer killed mid-write leaves the lock directory behind:
 
      ```bash
      f=~/.config/dotfiles/code-review-egress.json
-     backend="reviewer:<name>"; key="$backend:<owner>/<repo>"
-     until mkdir "$f.lock" 2>/dev/null; do sleep 0.2; done
-     trap 'rmdir "$f.lock" 2>/dev/null' EXIT
+     key="reviewer:<name>:<owner>/<repo>"; bin_real='<realpath of cli.binary>'
+     n=0
+     until mkdir "$f.lock" 2>/dev/null; do
+       [ -d "$f.lock" ] && [ "$n" -lt 50 ] \
+         || { echo "cannot take $f.lock (another run holds it, or its directory is missing); if no review is running, remove it" >&2; exit 1; }
+       n=$((n + 1)); sleep 0.2
+     done
      [ -s "$f" ] || { umask 077; echo '{}' > "$f"; }
-     tmp=$(mktemp "$f.XXXXXX") && jq --arg k "$key" --arg v "$backend" '.[$k] = $v' "$f" > "$tmp" && chmod 600 "$tmp" && mv "$tmp" "$f"
+     tmp=""
+     if ! { tmp=$(mktemp "$f.XXXXXX") && jq --arg k "$key" --arg v "$bin_real" '.[$k] = $v' "$f" > "$tmp" && chmod 600 "$tmp" && mv "$tmp" "$f"; }; then
+       rm -f "$tmp"; echo "could not record consent in $f; approved for this run only" >&2
+     fi
+     rmdir "$f.lock"
      ```
 
-     If the repo does not resolve (no GitHub remote, `gh` offline), ask for this run and record nothing. Revoking is deleting the key. In `--nested` mode this is asked once, here, before the loop.
+     If the repo does not resolve (no GitHub remote, `gh` offline), ask for this run and record nothing. Revoking is deleting the key, and takes effect on the next run: in `--nested` mode this is asked once, here, before the loop.
 
 **Nested-only additions** (run these after the five items above, only when `--nested` was passed):
 
