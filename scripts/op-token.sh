@@ -24,7 +24,7 @@ resolve_op_token() {
   unset op_token
   op_token="${OP_SERVICE_ACCOUNT_TOKEN:-}"
   unset OP_SERVICE_ACCOUNT_TOKEN
-  local perms
+  local perms unreadable
   if [ -n "$op_token" ]; then
     if is_blank "$op_token"; then
       fail "OP_SERVICE_ACCOUNT_TOKEN is set but contains only whitespace; unset it or supply a real token"
@@ -51,12 +51,13 @@ resolve_op_token() {
     esac
     # Through fail(): under `set -e` a root-owned file would abort on cat's
     # status with no FAILED: line.
-    op_token="$(cat "$OP_TOKEN_FILE" 2>/dev/null)" \
-      || fail "$OP_TOKEN_FILE is not readable by this user (mode is $perms, but check the owner)"
-    # $(...) drops NUL bytes, so they are looked for in the file itself.
+    unreadable="$OP_TOKEN_FILE is not readable by this user (mode is $perms, but check the owner)"
+    [ -r "$OP_TOKEN_FILE" ] || fail "$unreadable"
+    # Before the read: $(...) drops NUL bytes, and bash 4.4+ warns as it does.
     if ! LC_ALL=C tr -d '\000' <"$OP_TOKEN_FILE" | cmp -s - "$OP_TOKEN_FILE"; then
       fail "$OP_TOKEN_FILE holds a non-token value; write the service-account token to it or remove it"
     fi
+    op_token="$(cat "$OP_TOKEN_FILE" 2>/dev/null)" || fail "$unreadable"
     if is_blank "$op_token"; then
       fail "$OP_TOKEN_FILE contains only whitespace; write the service-account token to it or remove it"
     fi
