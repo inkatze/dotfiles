@@ -29,7 +29,9 @@ pre-commit:
       glob: "roles/claude/files/{commands/*.{md,json},CLAUDE.md,scripts/skill-contracts{.sh,-test.sh}}"
       run: roles/claude/files/scripts/skill-contracts.sh && roles/claude/files/scripts/skill-contracts-test.sh
     instruction-budget:
-      glob: "{CLAUDE.md,roles/claude/files/{commands/*.md,CLAUDE.md,scripts/instruction-budget{.sh,-test.sh}}}"
+      # lefthook.yml and the workflow too: the suite asserts both wire the checker.
+      glob: "{CLAUDE.md,lefthook.yml,.github/workflows/test.yml,\
+        roles/claude/files/{commands/*.md,CLAUDE.md,scripts/instruction-budget{.sh,-test.sh}}}"
       run: roles/claude/files/scripts/instruction-budget.sh && roles/claude/files/scripts/instruction-budget-test.sh
     claude-settings-merge:
       # The suite is what notices a merge case being dropped; the script alone
