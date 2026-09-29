@@ -89,6 +89,11 @@ jobs:
       - name: Run the playbook alias suite (macOS)
         run: scripts/playbook-alias-test.sh
 
+      # Also runs on Ubuntu below, for the same reason: BSD stat, chmod -h on a
+      # symlink and bash 3.2 are what this leg adds.
+      - name: Run the service-account token suite (macOS)
+        run: scripts/op-token-test.sh
+
   # The review-command contract checker's fixture suite. lefthook runs both
   # scripts pre-commit, but a bypassed hook (--no-verify, web edits) would
   # land unchecked without this; the suite is what proves each check class
@@ -117,6 +122,11 @@ jobs:
       # Here rather than in lint: bash, jq and git are all it needs.
       - name: Run the status line fixture suite
         run: scripts/claude-statusline-test.sh
+
+      # Stubs op, so bash, coreutils, diffutils' cmp and ssh (for the sync's
+      # own `ssh -G`) are all it needs; lint runs it on macOS as well.
+      - name: Run the service-account token suite
+        run: scripts/op-token-test.sh
 
   test:
     needs: lint

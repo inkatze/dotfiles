@@ -75,7 +75,8 @@ precondition failure.
 - **It never writes through a symlink** or over a non-regular file.
 
 Tests: `scripts/ssh-lan-config-sync-test.sh` (stubs `op`, so it needs no vault,
-session, or network).
+session, or network), and `scripts/op-token-test.sh` for the service-account
+token checks it shares with the Gemini key sync.
 
 ## Rotating a LAN host's key
 

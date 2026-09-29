@@ -1,1 +1,2 @@
 - 2026-09-28 [dotfiles] The service-account token charset check in scripts/ssh-lan-config-sync.sh and scripts/claude-gemini-auth-sync.sh runs on the value after $(cat) has dropped NUL bytes, so a token file with an embedded NUL passes the check and reaches op (bash only warns "ignored null byte"). Very low reachability; catching it needs a byte-level read of the credential file, which belongs with the shared token-resolution helper rather than in both copies.
+Consumed-by: #172 (2026-09-28)

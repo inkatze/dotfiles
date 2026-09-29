@@ -1,0 +1,2 @@
+- 2026-09-28 [dotfiles] scripts/ssh-lan-config-sync-test.sh case 1 ("op not installed") only puts an empty shim directory ahead of the caller's PATH, so on a machine with the 1Password CLI installed it runs the real `op inject` against the real vault and passes only because that call fails. It asserts the wrong failure there, and on a host whose desktop app is unlocked it may prompt for, or complete, a real read into the sandbox HOME. The case wants a PATH that provably has no `op`, as scripts/op-token-test.sh keeps every case on a stub.
+Consumed-by: #172 (2026-09-28)
