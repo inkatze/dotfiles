@@ -114,7 +114,8 @@ for pattern in "${COVERED[@]}"; do
   # shellcheck disable=SC2206
   matches=($pattern)
   for path in "${matches[@]}"; do
-    [ -e "$path" ] || continue
+    # A dangling symlink fails -e but is still a covered surface.
+    [ -e "$path" ] || [ -L "$path" ] || continue
     case "$declared" in
       *" $path "*) ;;
       *) err "$path" "covered surface has no declared thresholds (add a SURFACES row; n from --count)" ;;

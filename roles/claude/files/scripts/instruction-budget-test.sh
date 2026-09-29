@@ -39,11 +39,12 @@ set_row() {
   perl -pi -e "s{^\Q$1\E\s.*\$}{$1 $2 $3 $4}" "$tmp/$SCRIPT"
 }
 
-# check <name> <expected exit> <stdout+stderr fragment or ""> <forbidden fragment or "">
+# check <name> <expected exit> <stdout+stderr fragment or ""> <forbidden fragment or ""> [checker args]
 check() {
   local name="$1" want="$2" fragment="$3" forbidden="$4" out rc=0
+  shift 4
   # CI sets GITHUB_ACTIONS, which switches the checker to annotation output.
-  out="$(cd "$tmp" && env -u GITHUB_ACTIONS bash "$SCRIPT" 2>&1)" || rc=$?
+  out="$(cd "$tmp" && env -u GITHUB_ACTIONS bash "$SCRIPT" "$@" 2>&1)" || rc=$?
   if [ "$rc" != "$want" ]; then
     fail "$name" "exit $rc, want $want: $out"
   elif [ -n "$fragment" ] && [[ "$out" != *"$fragment"* ]]; then
@@ -129,6 +130,10 @@ check malformed-count 1 "malformed row" ""
 setup
 set_row "$peer" "$n" "$w" ""
 check malformed-missing-field 1 "malformed row" ""
+
+setup
+ln -s missing.md "$tmp/roles/claude/files/commands/dangling.md"
+check dangling-symlink 1 "commands/dangling.md: covered surface has no declared thresholds" ""
 
 setup
 printf 'x\n' >"$tmp/roles/claude/files/commands/a,b%c.md"
