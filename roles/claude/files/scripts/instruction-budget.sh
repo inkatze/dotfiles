@@ -94,12 +94,10 @@ declared=" "
 while read -r path n w e; do
   [ -n "$path" ] || continue
   declared="$declared$path "
-  case "$n:$w:$e" in
-    *[!0-9:]* | :* | *::* | *:)
-      err "$path" "malformed row '$n $w $e' (want: path n warn error, all whole numbers)"
-      continue
-      ;;
-  esac
+  if ! [[ "$n" =~ ^[0-9]+$ && "$w" =~ ^[0-9]+$ && "$e" =~ ^[0-9]+$ ]]; then
+    err "$path" "malformed row '$n $w $e' (want: path n warn error, all whole numbers)"
+    continue
+  fi
   expected_w=$(((10#$n + 249) / 250 * 250 + 250))
   expected_e=$((expected_w + 500))
   if [ "$w" != "$expected_w" ] || [ "$e" != "$expected_e" ]; then
