@@ -42,7 +42,8 @@ set_row() {
 # check <name> <expected exit> <stdout+stderr fragment or ""> <forbidden fragment or "">
 check() {
   local name="$1" want="$2" fragment="$3" forbidden="$4" out rc=0
-  out="$(cd "$tmp" && bash "$SCRIPT" 2>&1)" || rc=$?
+  # CI sets GITHUB_ACTIONS, which switches the checker to annotation output.
+  out="$(cd "$tmp" && env -u GITHUB_ACTIONS bash "$SCRIPT" 2>&1)" || rc=$?
   if [ "$rc" != "$want" ]; then
     fail "$name" "exit $rc, want $want: $out"
   elif [ -n "$fragment" ] && [[ "$out" != *"$fragment"* ]]; then
@@ -113,8 +114,12 @@ lefthook_run="$(awk '/^    instruction-budget:/{f=1;next} f&&/^    [a-z]/{f=0} f
 [[ "$lefthook_run" == *"run: $SCRIPT"* ]] || fail lefthook-entry "no instruction-budget command running $SCRIPT"
 [[ "$lefthook_run" == *"glob:"*"commands/"*"CLAUDE.md"* ]] || fail lefthook-glob "entry has no glob over the surfaces"
 
-ci_job="$(awk '/^  skill-contracts:/{f=1;next} f&&/^  [a-z]/{f=0} f' "$ROOT/.github/workflows/test.yml")"
+workflow="$ROOT/.github/workflows/test.yml"
+ci_job="$(awk '/^  skill-contracts:/{f=1;next} f&&/^  [a-z]/{f=0} f' "$workflow")"
 [[ "$ci_job" == *"run: $SCRIPT"* ]] || fail ci-step "skill-contracts job has no step running $SCRIPT"
+ci_on="$(awk '/^on:/{f=1;next} f&&/^[a-z]/{f=0} f' "$workflow" | tr -d ' \n')"
+[[ "$ci_on" == *"pull_request:branches:[main]"*"push:branches:[main]"* ]] ||
+  fail ci-triggers "workflow does not run on every pull request and every push to main"
 
 if [ "$failures" -gt 0 ]; then
   echo "instruction-budget-test: $failures failure(s)"
