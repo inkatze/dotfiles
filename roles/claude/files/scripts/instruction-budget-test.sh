@@ -94,6 +94,16 @@ set_row "$peer" 2500 2750 3250
 check formula-exact-multiple 0 "all surfaces within budget" ""
 
 setup
+set_row "$peer" 0 250 750
+check formula-zero 1 "exceeds the error threshold 750" "do not match the rule"
+
+setup
+: >"$tmp/empty.md"
+got="$(cd "$tmp" && bash "$SCRIPT" --count empty.md)" || fail empty-count "exit non-zero on an empty file"
+[ "$got" = 0 ] || fail empty-count "counted '$got', want 0"
+teardown
+
+setup
 set_row "$peer" 2500 3000 3500
 check formula-exact-multiple-off-by-one 1 "do not match the rule" ""
 
