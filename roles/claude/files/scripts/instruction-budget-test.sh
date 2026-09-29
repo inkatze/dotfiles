@@ -122,6 +122,14 @@ if [ "$(id -u)" != 0 ]; then
   teardown
 fi
 
+setup
+set_row "$peer" x 2750 3250
+check malformed-count 1 "malformed row" ""
+
+setup
+set_row "$peer" "$n" "$w" ""
+check malformed-missing-field 1 "malformed row" ""
+
 
 lefthook_run="$(awk '/^    instruction-budget:/{f=1;next} f&&/^    [a-z]/{f=0} f' "$ROOT/lefthook.yml")"
 [[ "$lefthook_run" == *"run: $SCRIPT"* ]] || fail lefthook-entry "no instruction-budget command running $SCRIPT"

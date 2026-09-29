@@ -74,7 +74,13 @@ declared=" "
 while read -r path n w e; do
   [ -n "$path" ] || continue
   declared="$declared$path "
-  expected_w=$(((n + 249) / 250 * 250 + 250))
+  case "$n:$w:$e" in
+    *[!0-9:]* | :* | *::* | *:)
+      err "$path" "malformed row '$n $w $e' (want: path n warn error, all whole numbers)"
+      continue
+      ;;
+  esac
+  expected_w=$(((10#$n + 249) / 250 * 250 + 250))
   expected_e=$((expected_w + 500))
   if [ "$w" != "$expected_w" ] || [ "$e" != "$expected_e" ]; then
     err "$path" "thresholds $w/$e do not match the rule for declared count $n (expected $expected_w/$expected_e)"
