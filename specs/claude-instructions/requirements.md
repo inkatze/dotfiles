@@ -406,6 +406,9 @@ the machine-local inventory (Sources).)*
 
 ## Changelog
 
+- 2026-09-29 — Expression-only: Task 1's Done-when named lefthook's
+  `--commands` flag, which lefthook 2 does not have; corrected to
+  `--command`.
 - 2026-09-25 — Kickoff walkthrough and sign-off lens review: REQ-A1.5,
   REQ-C1.10, REQ-C1.11, REQ-D1.4, REQ-D1.5 and REQ-F1.6 minted; the amended
   REQs carry an "Amended at kickoff" marker. The kickoff brief records every
