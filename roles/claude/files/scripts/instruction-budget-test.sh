@@ -136,6 +136,12 @@ ln -s missing.md "$tmp/roles/claude/files/commands/dangling.md"
 check dangling-symlink 1 "commands/dangling.md: covered surface has no declared thresholds" ""
 
 setup
+check bad-argument 2 "usage:" "" --bogus
+setup
+out="$(cd "$tmp" && bash "$SCRIPT" --count CLAUDE.md extra 2>&1)" && fail count-extra-argument "accepted: $out"
+teardown
+
+setup
 printf 'x\n' >"$tmp/roles/claude/files/commands/a,b%c.md"
 out="$(cd "$tmp" && GITHUB_ACTIONS=true bash "$SCRIPT" 2>/dev/null)" || true
 [[ "$out" == *"::error file=roles/claude/files/commands/a%2Cb%25c.md::"* ]] ||

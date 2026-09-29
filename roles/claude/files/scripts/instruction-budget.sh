@@ -44,10 +44,17 @@ count_words() {
   printf '%s\n' "$words" | LC_ALL=C grep -c . || true
 }
 
-if [ "${1:-}" = "--count" ]; then
-  count_words "${2:-}" || { echo "ERROR: cannot read ${2:-<none>}" >&2; exit 1; }
-  exit 0
-fi
+case "$#:${1:-}" in
+  0:) ;;
+  2:--count)
+    count_words "$2" || { echo "ERROR: cannot read $2" >&2; exit 1; }
+    exit 0
+    ;;
+  *)
+    echo "usage: instruction-budget.sh [--count <file>]" >&2
+    exit 2
+    ;;
+esac
 
 errors=0
 warnings=0
