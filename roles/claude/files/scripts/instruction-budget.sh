@@ -46,7 +46,8 @@ count_words() {
 case "$#:${1:-}" in
   0:) ;;
   2:--count)
-    count_words "$2" || { echo "ERROR: cannot read $2" >&2; exit 1; }
+    count="$(count_words "$2")" || { echo "ERROR: cannot read $2" >&2; exit 1; }
+    echo "$count"
     exit 0
     ;;
   *)

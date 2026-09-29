@@ -128,6 +128,8 @@ if [ "$(id -u)" != 0 ]; then
   chmod 000 "$tmp/locked.txt"
   if got="$(cd "$tmp" && bash "$SCRIPT" --count locked.txt 2>/dev/null)"; then
     fail count-unreadable "exit 0 with count '$got' on an unreadable file"
+  elif [ -n "$got" ]; then
+    fail count-unreadable "printed '$got' on stdout for an unreadable file"
   fi
   chmod 600 "$tmp/locked.txt"
   teardown
