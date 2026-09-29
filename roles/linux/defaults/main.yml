@@ -267,6 +267,9 @@ linux_mise_tools:
   # bootstraps one for the backend itself, verified against a throwaway
   # MISE_DATA_DIR with node absent from PATH and uninstalled.
   - gemini
+  # The opt-in /panel-review `copilot` backend: a native release binary, so no
+  # node and no ordering constraint either.
+  - copilot
 
 # Absolute path to the user-level mise binary. The tasks below shell out to it
 # directly rather than relying on PATH, because on a fresh host mise has just

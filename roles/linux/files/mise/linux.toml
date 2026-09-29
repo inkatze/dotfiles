@@ -59,6 +59,14 @@ uv = "0.11.32"
 # across two roles to work around the ordering problem it turns out not to have.
 gemini = "0.54.4"
 
+# The GitHub Copilot CLI, /panel-review's opt-in `copilot` backend. GitHub
+# documents Homebrew, npm, an install script and the release binaries for
+# Linux; the registry's default backend (aqua:github/copilot-cli) is the last
+# of those, the same tarball the Macs' `cask "copilot-cli"` unpacks. npm would
+# need node 22, and the curl-to-bash script is unpinned. Declaring it removes
+# the dependency on `gh copilot`'s interactive first-run download.
+copilot = "1.0.89"
+
 # Ubuntu resolute ships gh 2.46.0, tagged upstream in March 2024. gh is a
 # credential-holding network client and a hard dependency of the planwright
 # pipeline; two years of missed releases is the less secure option here, not

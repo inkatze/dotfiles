@@ -277,10 +277,15 @@ backend and `/panel-review` a comma-separated list, plus
 itself). `/panel-review` also accepts an opt-in `copilot` via `--backends`;
 only the two below are ever chosen automatically. That backend is the Copilot
 CLI allowed only its file viewer, confined to a scratch directory holding the
-diff (see `panel-review.md` for why each flag matters). `gh copilot` downloads
-it on first use (into
-`~/.local/share/gh/copilot`, outside the dotfiles); `/copilot-review` offers it
-as a fallback when the hosted review can't run. The other opt-in,
+diff (see `panel-review.md` for why each flag matters). It is declared like
+the other two: `cask "copilot-cli"` in the `Brewfile`, and `copilot` in
+`linux.toml` through mise's registry default, `aqua:github/copilot-cli`, which
+unpacks the same GitHub release tarball the cask does. npm, the only other
+channel GitHub documents for Linux besides an unpinned install script, would
+need node 22. The commands prefer the declared binary and fall back to the copy
+`gh copilot` downloads on first use (into `~/.local/share/gh/copilot`, outside
+the dotfiles). `/copilot-review` offers the backend as a fallback when the
+hosted review can't run. The other opt-in,
 `reviewer:<name>`, runs a third-party vendor's local reviewer CLI from the
 machine-local `bot-review.json`, so no vendor name is committed here.
 
