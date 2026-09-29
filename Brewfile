@@ -72,6 +72,9 @@ brew "postgresql@18"
 # AI tools (panel review / pairing backends)
 brew "gemini-cli"
 cask "codex"
+# The opt-in `copilot` backend. Declared so it does not depend on the
+# interactive `gh copilot` first-run download.
+cask "copilot-cli"
 
 # MAS CLI
 brew "mas"
