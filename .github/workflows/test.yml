@@ -132,10 +132,11 @@ jobs:
       - name: Run the service-account token suite
         run: scripts/op-token-test.sh
 
-      # Warnings surface as annotations; lint runs the suite on macOS as well.
+      # Warnings surface as annotations.
       - name: Run the instruction word-budget checker
         run: roles/claude/files/scripts/instruction-budget.sh
 
+      # lint runs it on macOS as well.
       - name: Run the instruction word-budget fixture suite
         run: roles/claude/files/scripts/instruction-budget-test.sh
 
