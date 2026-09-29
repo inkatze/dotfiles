@@ -64,14 +64,22 @@ FAKE
 }
 
 ORIG_PATH="$PATH"
+unset OP_SERVICE_ACCOUNT_TOKEN DOTFILES_OP_TOKEN_FILE DOTFILES_OP_VAULT DOTFILES_OP_ITEM
 
 echo "1. op not installed -> FAILED, nothing written"
 new_sandbox
-if out="$("$subject" 2>&1)"; then
+# PATH is only links to what the script runs before its op probe, so a real
+# op elsewhere on the caller's PATH can never be reached.
+for tool in bash dirname; do
+  ln -s "$(command -v "$tool")" "$sandbox/bin/$tool"
+done
+if PATH="$sandbox/bin" command -v op >/dev/null 2>&1; then
+  ko "op is reachable on the scrubbed PATH"
+elif out="$(PATH="$sandbox/bin" "$subject" 2>&1)"; then
   ko "expected non-zero exit"
 else
   case "$out" in
-    *"FAILED:"*"op"*) ok "failed closed: $out" ;;
+    "FAILED: 1Password CLI (op) not installed") ok "failed closed: $out" ;;
     *) ko "unexpected message: $out" ;;
   esac
 fi
@@ -185,47 +193,7 @@ else
 fi
 [ -e "$HOME/.ssh/config.local" ] && ko "installed an unparseable config" || ok "nothing installed"
 
-# The fixtures are placeholders shaped like a service-account token, not real ones.
-nbsp="$(printf '\302\240')"
-token_file_case() { # token_file_case <label> <contents> <expect: accept|refuse>
-  new_sandbox; install_fake_op
-  token_file="$sandbox/token"
-  (umask 077; printf '%s\n' "$2" >"$token_file")
-  if out="$(DOTFILES_OP_TOKEN_FILE="$token_file" "$subject" 2>&1)"; then
-    [ "$3" = accept ] && ok "$1: accepted" || ko "$1: expected refusal, got: $out"
-  else
-    case "$3:$out" in
-      refuse:*"$token_file holds a non-token value"*) ok "$1: refused" ;;
-      *) ko "$1: unexpected result: $out" ;;
-    esac
-  fi
-  case "$out" in
-    *"$2"*) ko "$1: output echoes the token" ;;
-  esac
-  [ "$3" = refuse ] && [ -e "$HOME/.ssh/config.local" ] && ko "$1: wrote a file despite refusing"
-  return 0
-}
-
-echo "7. token file charset"
-token_file_case "NBSP only" "$nbsp" refuse
-token_file_case "NBSP-padded token" "${nbsp}ops_eyJfake-token_x" refuse
-token_file_case "embedded space" "ops_eyJfake token" refuse
-token_file_case "embedded newline" "ops_eyJfake
-second" refuse
-token_file_case "quoted token" "\"ops_eyJfake\"" refuse
-token_file_case "base64url token" "ops_eyJfake-token_x" accept
-token_file_case "base64 token with padding" "ops_eyJfake+tok/en.x==" accept
-
-echo "8. exported token charset"
-new_sandbox; install_fake_op
-if out="$(OP_SERVICE_ACCOUNT_TOKEN="$nbsp" "$subject" 2>&1)"; then
-  ko "expected refusal of an NBSP-only exported token"
-else
-  case "$out" in
-    *"OP_SERVICE_ACCOUNT_TOKEN holds a non-token value"*) ok "refused NBSP-only exported token" ;;
-    *) ko "unexpected message: $out" ;;
-  esac
-fi
+# Token-file and exported-token checks are covered by scripts/op-token-test.sh.
 
 echo
 echo "passed: $pass   failed: $fail"
