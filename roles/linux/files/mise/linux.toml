@@ -63,7 +63,8 @@ gemini = "0.54.4"
 # documents Homebrew, npm, an install script and the release binaries for
 # Linux; the registry's default backend (aqua:github/copilot-cli) is the last
 # of those, the same tarball the Macs' `cask "copilot-cli"` unpacks. npm would
-# need node 22, and the curl-to-bash script is unpinned. Declaring it removes
+# need node 22, and the install script, though it takes a VERSION, leaves the
+# binary outside anything that records the pin. Declaring it removes
 # the dependency on `gh copilot`'s interactive first-run download.
 copilot = "1.0.89"
 
