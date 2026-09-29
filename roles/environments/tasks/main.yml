@@ -20,18 +20,92 @@
          else '/usr' }}
   tags: [always]
 
-- name: Symlink mise configuration file
-  ansible.builtin.file:
-    src: "{{ ansible_facts.env.PWD }}/roles/environments/files/mise.toml"
-    dest: "{{ ansible_facts.env.HOME }}/.config/mise.toml"
-    state: link
+# Global config, not ~/.config/mise.toml: mise finds that only by walking up
+# from the cwd, so it is ignored outside $HOME and whenever project files are
+# turned off. Global config needs no `mise trust`.
+- name: Inspect the mise global config
+  ansible.builtin.stat:
+    path: "{{ environments_mise_global_config }}"
+    follow: false
+  register: environments_mise_global_config_stat
+  check_mode: false
   tags: [environments]
 
-- name: Trust mise's config file
-  ansible.builtin.shell:
-    cmd: mise trust
-    executable: "{{ environments_fish_prefix }}/bin/fish"
-  changed_when: false
+# Suffix match, not equality: the link may name a different clone. config.toml
+# is what this path was linked to before the asdf interlude.
+- name: Classify the mise global config
+  ansible.builtin.set_fact:
+    environments_mise_global_config_owner: >-
+      {{ 'none' if not environments_mise_global_config_stat.stat.exists else
+         ('repo' if (environments_mise_global_config_stat.stat.islnk
+                     and (environments_mise_global_config_stat.stat.lnk_target
+                          is search('/roles/environments/files/(mise|config)[.]toml$')))
+          else 'foreign') }}
+  tags: [environments]
+
+- name: Ensure the mise config directory exists
+  ansible.builtin.file:
+    path: "{{ environments_mise_global_config | dirname }}"
+    state: directory
+    mode: "0755"
+  when: environments_mise_global_config_owner != 'foreign'
+  tags: [environments]
+
+- name: Symlink the mise global config
+  ansible.builtin.file:
+    src: "{{ ansible_facts.env.PWD }}/roles/environments/files/mise.toml"
+    dest: "{{ environments_mise_global_config }}"
+    state: link
+    force: true
+  when: environments_mise_global_config_owner != 'foreign'
+  tags: [environments]
+
+- name: Report a mise global config left untouched
+  ansible.builtin.debug:
+    msg: >-
+      {{ environments_mise_global_config }} is not this repo's link
+      ({{ environments_mise_global_config_stat.stat.lnk_target | default('a real file') }}),
+      so it was left alone and the global mise pins were not installed. Move its content into
+      {{ environments_mise_global_config | dirname }}/conf.d/ and re-run.
+  when: environments_mise_global_config_owner == 'foreign'
+  tags: [environments]
+
+- name: Inspect the retired mise config link
+  ansible.builtin.stat:
+    path: "{{ environments_mise_legacy_config }}"
+    follow: false
+  register: environments_mise_legacy_config_stat
+  check_mode: false
+  tags: [environments]
+
+- name: Classify the retired mise config link
+  ansible.builtin.set_fact:
+    environments_mise_legacy_config_owner: >-
+      {{ 'none' if not environments_mise_legacy_config_stat.stat.exists else
+         ('repo' if (environments_mise_legacy_config_stat.stat.islnk
+                     and (environments_mise_legacy_config_stat.stat.lnk_target
+                          is search('/roles/environments/files/mise[.]toml$')))
+          else 'foreign') }}
+  tags: [environments]
+
+# Only once the global config is ours, so a host whose global config is
+# foreign keeps the pins it had.
+- name: Remove the retired mise config link
+  ansible.builtin.file:
+    path: "{{ environments_mise_legacy_config }}"
+    state: absent
+  when:
+    - environments_mise_legacy_config_owner == 'repo'
+    - environments_mise_global_config_owner != 'foreign'
+  tags: [environments]
+
+- name: Report a foreign file at the retired mise config path
+  ansible.builtin.debug:
+    msg: >-
+      {{ environments_mise_legacy_config }} is not this repo's link
+      ({{ environments_mise_legacy_config_stat.stat.lnk_target | default('a real file') }}),
+      so it was left alone. mise reads it as a project file of $HOME, ahead of the global config.
+  when: environments_mise_legacy_config_owner == 'foreign'
   tags: [environments]
 
 - name: Symlink default initial packages file
