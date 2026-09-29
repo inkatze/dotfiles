@@ -37,14 +37,15 @@ roles/claude/files/commands/peer-review.md    2268   2750   3250
 
 # Whitespace-separated words, byte-wise in the C locale. Not `wc -w`: GNU and
 # BSD disagree on whether a run of non-printable bytes (a UTF-8 dash, in the C
-# locale) is a word.
+# locale) is a word. The read is its own step so a failed one is never zero.
 count_words() {
-  LC_ALL=C tr -s ' \t\n\r\v\f' '[\n*]' <"$1" | LC_ALL=C grep -c . || true
+  local words
+  words="$(LC_ALL=C tr -s ' \t\n\r\v\f' '[\n*]' <"$1")" || return 1
+  printf '%s\n' "$words" | LC_ALL=C grep -c . || true
 }
 
 if [ "${1:-}" = "--count" ]; then
-  [ -r "${2:-}" ] && [ -f "$2" ] || { echo "ERROR: cannot read ${2:-<none>}" >&2; exit 1; }
-  count_words "$2"
+  count_words "${2:-}" || { echo "ERROR: cannot read ${2:-<none>}" >&2; exit 1; }
   exit 0
 fi
 
@@ -78,11 +79,10 @@ while read -r path n w e; do
   if [ "$w" != "$expected_w" ] || [ "$e" != "$expected_e" ]; then
     err "$path" "thresholds $w/$e do not match the rule for declared count $n (expected $expected_w/$expected_e)"
   fi
-  if [ ! -f "$path" ] || [ ! -r "$path" ]; then
+  if ! count="$(count_words "$path" 2>/dev/null)"; then
     err "$path" "surface is declared but cannot be read"
     continue
   fi
-  count="$(count_words "$path")"
   if [ "$count" -gt "$e" ]; then
     err "$path" "$count words exceeds the error threshold $e"
   elif [ "$count" -gt "$w" ]; then

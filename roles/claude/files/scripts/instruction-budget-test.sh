@@ -110,6 +110,19 @@ got="$(cd "$tmp" && bash "$SCRIPT" --count mb.txt)"
 [ "$got" = 4 ] || fail multibyte-count "counted $got, want 4"
 teardown
 
+# A read that fails must never count as zero words. Root reads a 000 file.
+if [ "$(id -u)" != 0 ]; then
+  setup
+  printf 'some words\n' >"$tmp/locked.txt"
+  chmod 000 "$tmp/locked.txt"
+  if got="$(cd "$tmp" && bash "$SCRIPT" --count locked.txt 2>/dev/null)"; then
+    fail count-unreadable "exit 0 with count '$got' on an unreadable file"
+  fi
+  chmod 600 "$tmp/locked.txt"
+  teardown
+fi
+
+
 lefthook_run="$(awk '/^    instruction-budget:/{f=1;next} f&&/^    [a-z]/{f=0} f' "$ROOT/lefthook.yml")"
 [[ "$lefthook_run" == *"run: $SCRIPT"* ]] || fail lefthook-entry "no instruction-budget command running $SCRIPT"
 [[ "$lefthook_run" == *"glob:"*"commands/"*"CLAUDE.md"* ]] || fail lefthook-glob "entry has no glob over the surfaces"
