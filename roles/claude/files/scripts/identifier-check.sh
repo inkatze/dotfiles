@@ -25,9 +25,21 @@ if [ ! -f "$idfile" ] || [ ! -r "$idfile" ]; then
   exit 0
 fi
 
-patterns="$(mktemp)"
+patterns="$(mktemp)" || exit 1
 trap 'rm -f "$patterns"' EXIT
-grep -vE '^[[:space:]]*(#|$)' "$idfile" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' > "$patterns" || true
+# The same shape scripts/gitleaks-identifier-rules.sh accepts: a line outside
+# it would match nothing or nearly everything, so the file is refused.
+n=0
+while IFS= read -r line || [ -n "$line" ]; do
+  n=$((n + 1))
+  line="${line#"${line%%[![:space:]]*}"}"; line="${line%"${line##*[![:space:]]}"}"
+  case "$line" in ''|'#'*) continue ;; esac
+  if [[ ! "$line" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$ ]]; then
+    echo "ERROR: $idfile line $n is not a plain identifier; refusing the file" >&2
+    exit 1
+  fi
+  printf '%s\n' "$line" >> "$patterns"
+done < "$idfile"
 if [ ! -s "$patterns" ]; then
   echo "WARN: $idfile holds no identifiers; the identifier check could not run here" >&2
   exit 0
@@ -39,7 +51,13 @@ for p in "${scope[@]}"; do
 done
 [ "${#paths[@]}" -gt 0 ] || { echo "ERROR: none of the checked paths exist; run from the repo root" >&2; exit 1; }
 
-hits="$(grep -rniI -F -f "$patterns" -- "${paths[@]}" | cut -d: -f1,2 || true)"
+# grep exits 1 on no match and 2 on a read error; only 2 is a failure.
+set +e
+raw="$(grep -rniI -F -f "$patterns" -- "${paths[@]}")"
+status=$?
+set -e
+[ "$status" -le 1 ] || { echo "ERROR: grep could not read the checked files (exit $status)" >&2; exit 1; }
+hits="$(printf '%s\n' "$raw" | cut -d: -f1,2 | grep . || true)"
 if [ -n "$hits" ]; then
   printf '%s\n' "$hits"
   echo "identifier-check: $(printf '%s\n' "$hits" | grep -c .) line(s) name an identifier from $idfile" >&2

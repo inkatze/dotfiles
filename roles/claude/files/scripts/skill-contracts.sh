@@ -57,32 +57,48 @@ skill_md() { printf '%s/%s/SKILL.md' "$SKILLS" "$1"; }
 # dominated its runtime.
 tree_files=()
 tree_norm=()
+[ -d "$SKILLS" ] || { echo "ERROR: $SKILLS does not exist; run from the dotfiles checkout"; exit 1; }
 while IFS= read -r f; do
-  tree_files+=("$f")
-  tree_norm+=("$(tr -s '[:space:]' ' ' < "$f")")
+  if norm="$(tr -s '[:space:]' ' ' < "$f")"; then
+    tree_files+=("$f")
+    tree_norm+=("$norm")
+  else
+    err "$f could not be read"
+  fi
 done < <(find "$SKILLS" -type f \( -name '*.md' -o -name '*.json' \) | LC_ALL=C sort)
 [ "${#tree_files[@]}" -gt 0 ] || err "no files under $SKILLS"
 
-# files_matching <grep flags> <pattern>: tree files with a match, one per line.
+# files_matching <grep flags> <pattern> [<file>...]: files with a match, one
+# per line; the tree files when none are named. A read error is an error,
+# never an empty result.
 files_matching() {
-  [ "${#tree_files[@]}" -gt 0 ] || return 0
-  grep -l "$1" -- "$2" "${tree_files[@]}" || true
+  local flags="$1" pattern="$2" out status
+  shift 2
+  [ "$#" -gt 0 ] || set -- "${tree_files[@]}"
+  [ "$#" -gt 0 ] || return 0
+  set +e
+  out="$(grep -l "$flags" -- "$pattern" "$@")"
+  status=$?
+  set -e
+  [ "$status" -le 1 ] || { err "grep failed (exit $status) looking for '$pattern'"; return 0; }
+  printf '%s' "$out"
 }
 
-command -v jq >/dev/null 2>&1 || err "jq is required to validate $SKILLS/*/*.json but is not on PATH"
 if command -v jq >/dev/null 2>&1; then
   for f in "$SKILLS"/*/*.json; do
     [ -e "$f" ] || continue
     jq empty "$f" >/dev/null 2>&1 || err "$f is not valid JSON"
   done
+else
+  err "jq is required to validate $SKILLS/*/*.json but is not on PATH"
 fi
 
 for name in "${SKILL_NAMES[@]}"; do
   [ -f "$(skill_md "$name")" ] || err "$(skill_md "$name") does not exist"
 done
 
-# --- Slash-invoked only, name and flags kept ---
-# Each skill's argument-hint, as the command had its flags. peer-review takes none.
+# --- Slash-invoked only, with fixed names and flags ---
+# Each skill's argument-hint. peer-review takes no arguments, so it has none.
 expected_hint() {
   case "$1" in
     bot-review) echo '[--reviewer <name>] [--local] [--nested] [--dry-run] [--effort <value>]' ;;
@@ -95,13 +111,21 @@ expected_hint() {
 for name in "${SKILL_NAMES[@]}"; do
   f="$(skill_md "$name")"
   [ -f "$f" ] || continue
-  front="$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1{print}' "$f")"
+  # Front matter is the lines between a first-line --- and the next ---; with no
+  # closing delimiter there is none, so a body line cannot stand in for it.
+  front="$(awk 'NR==1 { if ($0 != "---") exit; next } $0 == "---" { closed = 1; exit } { buf = buf $0 "\n" } END { if (closed) printf "%s", buf }' "$f")"
   [ -n "$front" ] || { err "$f has no front matter"; continue; }
   grep -qx "name: $name" <<< "$front" || err "$f front matter does not name the skill '$name'"
   grep -qx 'disable-model-invocation: true' <<< "$front" || err "$f front matter lacks disable-model-invocation: true"
-  hint="$(sed -n 's/^argument-hint: "\(.*\)"$/\1/p' <<< "$front")"
-  [ "$hint" = "$(expected_hint "$name")" ] \
-    || err "$f argument-hint is \"$hint\", expected \"$(expected_hint "$name")\" (the command's flags, unchanged)"
+  want="$(expected_hint "$name")"
+  hint_lines="$(grep -c '^argument-hint:' <<< "$front" || true)"
+  if [ -z "$want" ]; then
+    [ "$hint_lines" -eq 0 ] || err "$f has an argument-hint, but $name takes no arguments"
+  else
+    hint="$(sed -n 's/^argument-hint: "\(.*\)"$/\1/p' <<< "$front")"
+    [ "$hint_lines" -eq 1 ] && [ "$hint" = "$want" ] \
+      || err "$f argument-hint is \"$hint\", expected \"$want\" (quoted, one line)"
+  fi
 done
 
 # --- One source of review doctrine ---
@@ -116,11 +140,13 @@ require_normalized "$SHARED/doctrine.md" "root-resolution sentence" \
 for name in "${SKILL_NAMES[@]}"; do
   require_phrases "$(skill_md "$name")" "doctrine pointer" "](../review-shared/doctrine.md)"
 done
+cache_files=("${tree_files[@]}" "$GLOBAL_MD")
+[ -f CLAUDE.md ] && cache_files+=(CLAUDE.md)
 while IFS= read -r f; do
   [ -n "$f" ] || continue
   case "$f" in "$SHARED"/*) continue ;; esac
   err "$f names the plugin cache path; locate planwright through $SHARED/doctrine.md only"
-done <<< "$(files_matching -F 'plugins/cache')"
+done <<< "$(files_matching -F 'plugins/cache' "${cache_files[@]}")"
 
 # The skills that apply findings to their own branch use the four tables and
 # state each drain-scope override with its reason.
@@ -138,8 +164,8 @@ for name in panel-review copilot-review bot-review; do
   done <<< "$paras"
 done
 
-# No skill claims membership of planwright's review_sequence (the user-global
-# file's claim is removed with its diet).
+# No skill claims membership of planwright's review_sequence, whose resolver
+# accepts no skill from outside planwright.
 while IFS= read -r f; do
   [ -n "$f" ] && err "$f claims a review_sequence role; the resolver accepts no skill outside planwright"
 done <<< "$(files_matching -F 'review_sequence')"
@@ -196,18 +222,20 @@ while IFS= read -r f; do
 done <<< "$(files_matching -E '^#+ Maintenance')"
 
 # --- Nested loops run discovery on the first and converging iterations ---
-for name in panel-review copilot-review bot-review; do
-  require_phrases "$(skill_md "$name")" "discovery-cadence sentence" "Discovery cadence:"
+for name in panel-review copilot-review; do
+  require_normalized "$(skill_md "$name")" "discovery-cadence sentence" \
+    "runs on the first iteration and on the iteration that detects convergence only; middle iterations"
 done
+require_normalized "$(skill_md bot-review)" "discovery-cadence sentence" \
+  "Discovery cadence: this loop triages the bot's own findings and runs no discovery pass of its own"
 
 # --- Shared thresholds declared once ---
 require_phrases "$SHARED/limits.md" "shared threshold" \
   "| Iteration cap | 10 iterations |" "| Lock staleness | 30 minutes |" "| Review-poll window | 10 minutes |"
-# In a skill, a threshold named beside a number is an override, and an
-# override line is followed by its Reason: line.
-for name in "${SKILL_NAMES[@]}"; do
-  f="$(skill_md "$name")"
-  [ -f "$f" ] || continue
+# Outside the shared directory, a threshold named beside a number is an
+# override, and an override line is followed by its Reason: line.
+for f in "${tree_files[@]}"; do
+  case "$f" in "$SHARED"/*|*.json) continue ;; esac
   found="$(awk -v f="$f" '
     pending { if ($0 !~ /^Reason:/) { print f ": \"" prev "\" has no Reason: line after it" } pending = 0 }
     tolower($0) ~ /(iteration cap|lock staleness|staleness window|poll window)/ && $0 ~ /[0-9]/ {
@@ -222,24 +250,24 @@ done
 # --- Stale references ---
 while IFS= read -r f; do
   [ -n "$f" ] && err "$f cites a numbered /self-review step; /self-review is a planwright skill without numbered steps"
-done <<< "$(files_matching -E '/self-review` step [0-9]')"
+done <<< "$(files_matching -E '/self-review`? step [0-9]')"
 while IFS= read -r f; do
   [ -n "$f" ] && err "$f names 'gh copilot --help'; its help output proves nothing about the CLI"
 done <<< "$(files_matching -F 'gh copilot --help')"
 require_phrases "$SHARED/backends.md" "contained codex invocation" \
   '( cd "$scratch" && "$codex_bin" exec --sandbox read-only --skip-git-repo-check < "$prompt_file" )'
 
-# --- One rule where skills used to disagree ---
+# --- One rule per mechanic the skills share ---
 require_normalized "$SHARED/backends.md" "contained-codex rule" \
   "The flag that skips its git check is used only together with that form"
 require_normalized "$SHARED/github.md" "posted-body rule" \
   "reaches the posting command on stdin; it is never interpolated into argv."
-bare_codex=""
-[ "${#tree_files[@]}" -gt 0 ] \
-  && bare_codex="$(grep -HE 'codex(_bin"?)? exec' -- "${tree_files[@]}" | grep -vF -- '--sandbox read-only' | cut -d: -f1 | LC_ALL=C sort -u || true)"
-while IFS= read -r f; do
-  [ -n "$f" ] && err "$f runs codex outside the contained form (read-only sandbox, prompt on stdin, empty scratch directory)"
-done <<< "$bare_codex"
+for f in $(files_matching -E 'codex(_bin"?)? exec'); do
+  while IFS= read -r line; do
+    [[ "$line" == *"--sandbox read-only"* ]] \
+      || err "$f runs codex outside the contained form (read-only sandbox, prompt on stdin, empty scratch directory): $line"
+  done < <(grep -E 'codex(_bin"?)? exec' "$f")
+done
 while IFS= read -r f; do
   [ -n "$f" ] && [ "$f" != "$SHARED/backends.md" ] \
     && err "$f uses codex's git-check skip outside the contained form in $SHARED/backends.md"
@@ -269,7 +297,7 @@ for name in "${SKILL_NAMES[@]}"; do
   done < <(grep -oE '\]\([^)]+\)' "$f" | sed -E 's/^\]\(//; s/\)$//')
 done
 
-# --- Safety pins carried through the conversion ---
+# --- Safety pins ---
 
 # Retired files: panel-pairing and copilot-pairing were folded into the
 # --nested flag; either reappearing means the fold regressed or is duplicated.
@@ -400,8 +428,11 @@ panel_consent_checks=(
   'Anything other than a yes stops the run.'
   'or one naming a different binary'
   'Run every "## Pre-flight" item above before entering the loop'
+  'with key `reviewer:<name>:<owner>/<repo>`'
+  'It is pasted into single quotes, so refuse one containing `'"'"'`, a newline or a control character.'
 )
 egress_checks=(
+  $'\nexit "$rc"\n'
   'this run cannot continue without it" >&2; exit 2; }'
   "jq -n --arg k \"\$key\" --arg v \"\$val\" '{(\$k): \$v}'"
   "grep -q '[^[:space:]]' \"\$f\"; }; }; then seed=1; fi"
@@ -420,8 +451,6 @@ egress_checks=(
   'if [ -z "$seed" ] && { [ -L "$f" ] || [ ! -f "$f" ] || ! jq -e -s '"'"'length == 1 and (.[0] | type == "object")'"'"' "$f"'
   'echo "$f is a symlink, unreadable, not a regular file, or not a single JSON object; nothing recorded or overwritten" >&2; rc=2'
 )
-panel_consent_checks+=('with key `reviewer:<name>:<owner>/<repo>`')
-egress_checks+=($'\nexit "$rc"\n')
 require_phrases "$SKILLS/panel-review/reviewer-backend.md" "reviewer-backend containment line" "${reviewer_backend_checks[@]}"
 require_phrases "$(skill_md panel-review)" "reviewer-backend consent line" "${panel_consent_checks[@]}"
 require_phrases "$SHARED/egress.md" "egress-consent line" "${egress_checks[@]}"
@@ -474,6 +503,7 @@ require_phrases "$SHARED/slack.md" "sign-off" "$SIGNOFF"
 for name in "${SKILL_NAMES[@]}"; do
   f="$(skill_md "$name")"
   [ -f "$f" ] || continue
+  [ -r "$f" ] || { err "$f could not be read while checking sign-offs"; continue; }
   grep -qF '](../review-shared/slack.md)' "$f" || continue
   exact=$(grep -cE '^[[:space:]]*– clanky[[:space:]]*$' "$f" || true)
   wrongdash=$(grep -cE '^[[:space:]]*(-|—)[[:space:]]*clanky[[:space:]]*$' "$f" || true)

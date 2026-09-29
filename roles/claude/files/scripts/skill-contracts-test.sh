@@ -363,7 +363,7 @@ expect_fail maintenance-section \
 
 # --- Discovery cadence in each nested skill (REQ-C1.4) ---
 expect_fail discovery-cadence-missing \
-  "perl -pi -e 's/^Discovery cadence:/Discovery:/' $(md panel-review)" "discovery-cadence sentence"
+  "perl -pi -e 's/and on the iteration that detects convergence only; middle iterations/and whenever it likes; other iterations/' $(md panel-review)" "discovery-cadence sentence"
 
 # --- Shared thresholds declared once (REQ-C1.6) ---
 expect_fail threshold-bare-override \
@@ -447,20 +447,85 @@ expect_fail missing-skill \
 expect_fail missing-shared-file \
   "rm $SHARED/limits.md" "does not exist"
 
+# --- Checks the fixtures above do not reach ---
+expect_fail front-matter-missing \
+  "perl -0pi -e 's/\\A---\\n.*?\\n---\\n//s' $(md copilot-review)" "has no front matter"
+expect_fail front-matter-unclosed \
+  "perl -0pi -e 's/\\A(---\\n.*?\\n)---\\n/\$1/s' $(md copilot-review)" "has no front matter"
+expect_fail argument-hint-on-peer \
+  "perl -0pi -e 's/\\A---\\n/---\\nargument-hint: \"[--x]\"\\n/' $(md peer-review)" "takes no arguments"
+expect_fail argument-hint-unquoted \
+  "perl -pi -e 's/^argument-hint: \"\\[--nested\\]\"\$/argument-hint: [--nested]/' $(md copilot-review)" "argument-hint is"
+expect_fail drain-override-removed \
+  "perl -0pi -e 's/Drain-scope override: each iteration applies the fixes.*?\\n\\n//s' $(md copilot-review)" "states no drain-scope override"
+expect_fail discovery-cadence-reworded \
+  "perl -0pi -e 's/on the iteration that detects convergence only; middle iterations/on every iteration; later iterations/' $(md copilot-review)" "discovery-cadence sentence"
+expect_fail shared-safety-gitleaks-removed \
+  "perl -0pi -e 's/gitleaks flagged the outbound prompt; stopping before egress/prompt flagged/' $SHARED/backends.md" "shared block anchor missing"
+expect_fail shared-lens-pointer-removed \
+  "perl -0pi -e 's/pointed at and never copied\\./kept here./' $SHARED/doctrine.md" "shared block anchor missing"
+expect_fail skip-git-outside-backends \
+  "echo 'Pass --skip-git-repo-check when codex complains.' >> $(md panel-review)" "git-check skip outside the contained form"
+expect_fail link-outside-tree \
+  "echo 'See [the global file](../../CLAUDE.md).' >> $(md bot-review)" "outside $SKILLS"
+expect_fail retired-file-copilot-pairing \
+  "mkdir $SKILLS/copilot-pairing && touch $SKILLS/copilot-pairing/SKILL.md" "was retired into --nested"
+expect_fail mark-ready-second-sentence \
+  "perl -pi -e 's{Never automatically, never on a diminishing-returns/stop-condition/iteration-cap exit, and never for create or merge}{Whenever it likes}' $(md copilot-review)" "mark-ready safety sentence"
+expect_fail resolver-line-alias-file \
+  "perl -pi -e 's{\\\$\\{DOTFILES_HOST_FILE:-\\\$HOME/\\.config/dotfiles/host\\}}{\\\$HOME/.host}' $SHARED/backends.md" "missing expected resolver line"
+expect_fail resolver-line-contents-test \
+  "perl -pi -e 's{elif \\[ -n \"\\\$from_file\" \\];}{elif [ -f \"\\\$alias_file\" ];}' $SHARED/backends.md" "missing expected resolver line"
+expect_fail stale-self-review-step-unquoted \
+  "echo 'Same as /self-review step 9.' >> $(md panel-review)" "cites a numbered /self-review step"
+expect_fail threshold-in-supporting-file \
+  "printf '\\nThe iteration cap here is 15 iterations.\\n' >> $SKILLS/panel-review/reviewer-backend.md" "states a shared threshold value"
+expect_fail cache-path-in-global \
+  "echo 'planwright lives under ~/.claude/plugins/cache/planwright.' >> roles/claude/files/CLAUDE.md" "names the plugin cache path"
+
 # --- The identifier check (REQ-C1.8, REQ-J1.2) ---
 # Pointed at a temporary identifier file holding a synthetic name: a planted
 # hit fails, naming file and line but never the name.
 IDCHECK="$ROOT/roles/claude/files/scripts/identifier-check.sh"
-setup
-idfile="$tmp/identifiers"
-printf '# synthetic\nzqx-synthetic-project\n' > "$idfile"
-printf 'Seen in the zqx-synthetic-project repo.\n' >> "$tmp/$(md peer-review)"
-if out="$(cd "$tmp" && IDENTIFIER_FILE="$idfile" bash "$IDCHECK" 2>&1)"; then
-  echo "FAIL identifier-hit: the check passed with a planted name"; failures=$((failures + 1))
-elif ! printf '%s' "$out" | grep -qF "$(md peer-review):"; then
-  echo "FAIL identifier-hit: no file:line in the report: $out"; failures=$((failures + 1))
-elif printf '%s' "$out" | grep -qF 'zqx-synthetic-project'; then
-  echo "FAIL identifier-hit: the report printed the matched name"; failures=$((failures + 1))
+# id_setup: the usual tree plus the rest of the check's scope and one frozen
+# bundle that must stay out of it.
+id_setup() {
+  setup
+  cp "$ROOT/CLAUDE.md" "$tmp/"
+  mkdir -p "$tmp/specs/claude-instructions" "$tmp/specs/pair-flow"
+  cp "$ROOT/specs/claude-instructions/requirements.md" "$tmp/specs/claude-instructions/"
+  cp "$ROOT/specs/pair-flow/requirements.md" "$tmp/specs/pair-flow/"
+  printf '# synthetic\nzqx-synthetic-project\n' > "$tmp/identifiers"
+}
+for planted in "$(md peer-review)" "$SHARED/github.md" roles/claude/files/CLAUDE.md CLAUDE.md \
+    specs/claude-instructions/requirements.md; do
+  id_setup
+  printf 'Seen in the zqx-synthetic-project repo.\n' >> "$tmp/$planted"
+  if out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" 2>&1)"; then
+    echo "FAIL identifier-hit ($planted): the check passed with a planted name"; failures=$((failures + 1))
+  elif ! printf '%s' "$out" | grep -qF "$planted:"; then
+    echo "FAIL identifier-hit ($planted): no file:line in the report: $out"; failures=$((failures + 1))
+  elif printf '%s' "$out" | grep -qF 'zqx-synthetic-project'; then
+    echo "FAIL identifier-hit ($planted): the report printed the matched name"; failures=$((failures + 1))
+  fi
+  teardown
+done
+id_setup
+printf 'Seen in the zqx-synthetic-project repo.\n' >> "$tmp/specs/pair-flow/requirements.md"
+if ! out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" 2>&1)"; then
+  echo "FAIL identifier-frozen-bundle: a frozen bundle was checked: $out"; failures=$((failures + 1))
+fi
+teardown
+id_setup
+printf '# only comments\n\n' > "$tmp/identifiers"
+if ! out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" 2>&1)" || ! printf '%s' "$out" | grep -qF 'WARN'; then
+  echo "FAIL identifier-empty-file: an identifier file with no names did not warn: $out"; failures=$((failures + 1))
+fi
+teardown
+id_setup
+printf 'name  # trailing note\n' > "$tmp/identifiers"
+if out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" 2>&1)"; then
+  echo "FAIL identifier-malformed-line: a malformed identifier line was accepted"; failures=$((failures + 1))
 fi
 teardown
 setup
