@@ -52,10 +52,23 @@ fi
 errors=0
 warnings=0
 
+# GitHub workflow-command escaping: data needs % CR LF; a property also : and ,.
+esc_data() {
+  local s="${1//%/%25}"
+  s="${s//$'\r'/%0D}"
+  printf '%s' "${s//$'\n'/%0A}"
+}
+esc_prop() {
+  local s
+  s="$(esc_data "$1")"
+  s="${s//:/%3A}"
+  printf '%s' "${s//,/%2C}"
+}
+
 err() {
   errors=$((errors + 1))
   if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
-    echo "::error file=$1::$2"
+    echo "::error file=$(esc_prop "$1")::$(esc_data "$2")"
   else
     echo "ERROR: $1: $2"
   fi
@@ -64,7 +77,7 @@ err() {
 warn() {
   warnings=$((warnings + 1))
   if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
-    echo "::warning file=$1::$2"
+    echo "::warning file=$(esc_prop "$1")::$(esc_data "$2")"
   else
     echo "WARN: $1: $2" >&2
   fi

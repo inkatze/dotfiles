@@ -130,6 +130,13 @@ setup
 set_row "$peer" "$n" "$w" ""
 check malformed-missing-field 1 "malformed row" ""
 
+setup
+printf 'x\n' >"$tmp/roles/claude/files/commands/a,b%c.md"
+out="$(cd "$tmp" && GITHUB_ACTIONS=true bash "$SCRIPT" 2>/dev/null)" || true
+[[ "$out" == *"::error file=roles/claude/files/commands/a%2Cb%25c.md::"* ]] ||
+  fail ci-annotation-escaped "annotation path not escaped: $out"
+teardown
+
 
 lefthook_run="$(awk '/^    instruction-budget:/{f=1;next} f&&/^    [a-z]/{f=0} f' "$ROOT/lefthook.yml")"
 [[ "$lefthook_run" == *"run: $SCRIPT"* ]] || fail lefthook-entry "no instruction-budget command running $SCRIPT"
