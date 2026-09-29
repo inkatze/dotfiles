@@ -83,7 +83,7 @@ Read `--reviewer <name>`, `--local`, `--nested`, `--dry-run`, and `--effort <val
 
 4. **Gating checks are not a drain signal, ever.** Report each `gating_checks` entry by name and state from `statusCheckRollup`, and **state plainly, every run, that a passing check does not mean every finding was replied to and resolved**: checks can report success while findings sit unresolved underneath.
 
-5. **Same-PR lock**, per [github.md](../review-shared/github.md), keyed `bot-review`. `--nested` also starts an iteration counter at 0.
+5. **Same-PR lock**, per [github.md](../review-shared/github.md), keyed `bot-review`: refreshed before each long step and each nested iteration, released when the run ends. `--nested` also starts an iteration counter at 0.
 
 ## Steps (standalone and the `--nested` loop body)
 
@@ -144,7 +144,7 @@ An unreplied finding is not handled, whatever bucket it started in: a replied-an
 
 Every body follows the posted-body rule in [github.md](../review-shared/github.md). Every mutation is error-guarded, so a reply that posted but whose resolve failed never reads as success.
 
-**Inline findings** reply through the REST replies endpoint, which takes the comment id:
+**Inline findings** reply through the REST replies endpoint, which takes the comment id (the REST exception in [github.md](../review-shared/github.md): the reply posts at once, outside any review, so there is no pending review to rescue):
 
 ```bash
 gh api repos/<o>/<r>/pulls/<n>/comments/<comment_id>/replies -F body=@- <<'BODY_<hex>' || { echo "reply failed for comment <comment_id>"; exit 1; }
@@ -180,9 +180,9 @@ Discovery cadence: this loop triages the bot's own findings and runs no discover
 
 When in doubt about a disposition, route to Needs human judgment: a false negative costs an iteration, a false positive mishandles someone's finding.
 
-Per iteration: run Steps 1-7. **If no unresolved finding survives step 2 and the latest review is fresh for the current HEAD, the loop has converged: stop before any push or poll.** If Needs human judgment is non-empty, stop and hand back. Otherwise run step 9 before step 10:
+Per iteration: run Steps 1-7. **If no unresolved finding survives step 2 and the latest review is fresh for the current HEAD, the loop has converged: stop before any push or poll.** If Needs human judgment is non-empty, stop and hand back, presenting the residue per [workflow.md](../review-shared/workflow.md)'s handoff rule. Otherwise run step 9 before step 10:
 
-**Path A, an Auto-applicable or Agent-resolvable fix landed:** capture `push_head` (`git rev-parse HEAD` after committing), then commit and push (`git push origin <branch>`, never forced). This makes `--nested` here not local-only: a hosted bot needs a new head to re-review. On a push failure, stop (**Push failure**) before step 10: the fix is committed locally, and nothing has been said. Then run step 10, citing `push_head`'s short SHA in fix replies.
+**Path A, an Auto-applicable or Agent-resolvable fix landed:** commit, capture `push_head` (`git rev-parse HEAD`), then push (`git push origin <branch>`, never forced). This makes `--nested` here not local-only: a hosted bot needs a new head to re-review. On a push failure, stop (**Push failure**) before step 10: the fix is committed locally, and nothing has been said. Then run step 10, citing `push_head`'s short SHA in fix replies.
 
 **Path B, nothing to push:** run step 10 for the Needs-sign-off deferrals. Whether the bot re-reviews an unchanged HEAD after reply activity alone is vendor-specific.
 
@@ -202,7 +202,7 @@ Per iteration: run Steps 1-7. **If no unresolved finding survives step 2 and the
 | No response | The poll window passed with no new build id, or the regex never matched (format drift) |
 | Iteration cap | The shared cap reached without convergence |
 | Ambiguity | A finding borderline between buckets across two consecutive iterations |
-| Security-sensitive / migrations | A hard-disqualifier-zone finding that landed in an applied bucket by mistake |
+| Hard-disqualifier zone | A finding touches security-sensitive code, a migration or destructive op, CI config, a lockfile or a secrets file; finding-categorization pauses these before anything is applied or deferred |
 | Dirty working tree | Uncommitted changes before iteration one |
 
 **Convergence is zero unresolved findings against the current HEAD, never a check-state read**: gating checks can be green with findings open underneath.
@@ -217,7 +217,7 @@ The reviewer's local CLI is a `/panel-review` backend: `--local` is an alias for
 
 - It forwards `--effort <value>` and `--nested`. Standalone, the handoff lands in `/panel-review`'s interactive pass, which can end in its own commit-and-offer-to-push step; `--nested` lands in its local-only loop.
 - `--dry-run` has no `/panel-review` counterpart, so `--local --dry-run` stops and says so, and Pre-flight step 2's offer under `--dry-run` prints the command it would run and stops.
-- `/panel-review` requires the reviewer key to match `^[A-Za-z0-9_-]+$`, and its reviewer-backend file is the full contract for the `cli` block.
+- `/panel-review` requires the reviewer key to match `^[A-Za-z0-9_-]+$`, and its [reviewer-backend.md](../panel-review/reviewer-backend.md) is the full contract for the `cli` block.
 
 ## Naming
 

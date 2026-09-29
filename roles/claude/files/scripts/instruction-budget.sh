@@ -26,18 +26,18 @@ COVERED=(
 #
 # path                                                     n      warn   error
 SURFACES="
-roles/claude/files/CLAUDE.md                               7556   8000   8500
-CLAUDE.md                                                  6828   7250   7750
-roles/claude/files/skills/bot-review/SKILL.md              3163   3500   4000
-roles/claude/files/skills/code-review/SKILL.md             3651   4000   4500
-roles/claude/files/skills/copilot-review/SKILL.md          4749   5000   5500
-roles/claude/files/skills/panel-review/reviewer-backend.md 4381   4750   5250
-roles/claude/files/skills/panel-review/SKILL.md            2339   2750   3250
-roles/claude/files/skills/peer-review/SKILL.md             744    1000   1500
-roles/claude/files/skills/review-shared/backends.md        1583   2000   2500
-roles/claude/files/skills/review-shared/doctrine.md        372    750    1250
+roles/claude/files/CLAUDE.md                               7559   8000   8500
+CLAUDE.md                                                  6777   7250   7750
+roles/claude/files/skills/bot-review/SKILL.md              3216   3500   4000
+roles/claude/files/skills/code-review/SKILL.md             3720   4000   4500
+roles/claude/files/skills/copilot-review/SKILL.md          4860   5250   5750
+roles/claude/files/skills/panel-review/reviewer-backend.md 4405   4750   5250
+roles/claude/files/skills/panel-review/SKILL.md            2471   2750   3250
+roles/claude/files/skills/peer-review/SKILL.md             764    1250   1750
+roles/claude/files/skills/review-shared/backends.md        1756   2250   2750
+roles/claude/files/skills/review-shared/doctrine.md        402    750    1250
 roles/claude/files/skills/review-shared/egress.md          615    1000   1500
-roles/claude/files/skills/review-shared/github.md          903    1250   1750
+roles/claude/files/skills/review-shared/github.md          1323   1750   2250
 roles/claude/files/skills/review-shared/limits.md          115    500    1000
 roles/claude/files/skills/review-shared/slack.md           364    750    1250
 roles/claude/files/skills/review-shared/workflow.md        356    750    1250

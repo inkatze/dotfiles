@@ -19,27 +19,55 @@ lock before the first fetch, keyed by skill, repo and PR:
 
 ```bash
 lock="/tmp/<skill>-lock.<owner>-<repo>.<number>"
-now=$(date +%s)
-if ! mkdir "$lock" 2>/dev/null; then
-  age=$(( now - $(cat "$lock/epoch" 2>/dev/null || echo 0) ))
+token="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+[ "${#token}" -eq 16 ] || { echo "could not generate a lock token; stopping" >&2; exit 1; }
+if ! (umask 077; mkdir "$lock") 2>/dev/null; then
+  epoch="$(sed -n 1p "$lock/epoch" 2>/dev/null)"
+  case "$epoch" in ''|*[!0-9]*) epoch=$(date +%s) ;; esac
+  age=$(( $(date +%s) - epoch ))
   if [ "$age" -lt 1800 ]; then
     echo "another run appears active on this PR (lock is ${age}s old); stopping" >&2; exit 1
   fi
-  rm -rf "$lock" && mkdir "$lock" || { echo "lost the race for a stale lock; stopping" >&2; exit 1; }
+  mv "$lock" "$lock.stale.$token" 2>/dev/null && rm -rf "$lock.stale.$token" \
+    && (umask 077; mkdir "$lock") 2>/dev/null \
+    || { echo "another run took the stale lock first; stopping" >&2; exit 1; }
 fi
-echo "$now" > "$lock/epoch"
+printf '%s\n' "$(date +%s)" > "$lock/epoch" && printf '%s\n' "$token" > "$lock/owner" \
+  || { echo "could not write $lock; stopping" >&2; exit 1; }
+echo "lock=$lock token=$token"
 ```
 
 `1800` is the lock-staleness value from [limits.md](limits.md), in seconds.
-`mkdir` is the atomic test-and-set; a check-then-write lets two runs both see
-no lock. Refresh the epoch (recompute `now`, then rewrite the file) at the top
-of every loop iteration and before each long step. There is no unlock step:
-the lock ages out, so a missed exit path cannot block the next run for good.
+`mkdir` is the atomic test-and-set, and a stale lock is taken over by
+renaming it, which only one run can win. A lock with no epoch yet (a run that
+has just made the directory) counts as fresh. Each `Bash` call is a fresh
+shell, so carry the printed `lock` and `token` as literals into the refresh
+and the release.
+
+**Refresh** at the top of every loop iteration and before each step that can
+run long (an interactive walk, a backend call, a poll):
+
+```bash
+[ "$(cat '<lock>/owner' 2>/dev/null)" = '<token>' ] \
+  || { echo "the same-PR lock is no longer this run's; stopping" >&2; exit 1; }
+date +%s > '<lock>/epoch' || { echo "could not refresh the lock; stopping" >&2; exit 1; }
+```
+
+**Release** at the end of every run that ends normally (a crash leaves the
+lock to age out, so a missed exit path cannot block the next run for good):
+
+```bash
+[ "$(cat '<lock>/owner' 2>/dev/null)" = '<token>' ] && rm -rf '<lock>'
+```
+
+A skill that needs files across `Bash` calls for one PR keeps them inside the
+lock directory, which is already keyed by skill, repo and PR and private to
+this user.
 
 ## Fetch the threads
 
 ```bash
-gh api graphql --paginate -f query='
+gh api graphql --paginate --slurp -f query='
   query($owner: String!, $repo: String!, $number: Int!, $endCursor: String) {
     repository(owner: $owner, name: $repo) {
       pullRequest(number: $number) {
@@ -64,7 +92,10 @@ gh api graphql --paginate -f query='
 ```
 
 `--paginate` walks the cursor; an unpaginated read silently drops threads past
-the first page. The thread `id` (what reply and resolve take) and a comment's
+the first page. `--slurp` wraps the pages in one array, so a filter reads
+every page with `[.[].data.repository.pullRequest.reviewThreads.nodes[] | …]`;
+without it, gh prints one document per page and a filter counts each page
+separately. gh refuses `--slurp` together with `--jq`, so pipe to `jq`. The thread `id` (what reply and resolve take) and a comment's
 `databaseId` (what the REST endpoints take) are different values on different
 objects; keep them in separately named variables.
 
@@ -74,14 +105,16 @@ A posted body is built from an inline heredoc whose delimiter is quoted and
 random per post, and reaches the posting command on stdin; it is never
 interpolated into argv. The quoted delimiter keeps backticks and `$` literal,
 and a fresh random one means text in the body (or code it quotes) cannot end
-the heredoc early. Generate it before the post, and check the body does not
-contain it:
+the heredoc early. Generate it fresh before each post:
 
 ```bash
-od -An -N4 -tx1 /dev/urandom | tr -d ' \n'
+od -An -N8 -tx1 /dev/urandom | tr -d ' \n'
 ```
 
-Then build and post in one `Bash` call, `BODY_<hex>` being that output.
+Then build and post in one `Bash` call, `BODY_<hex>` being that output. The
+body is written after the delimiter exists, so nothing it quotes can know the
+delimiter in advance; still read the body over once and confirm the delimiter
+line does not appear inside it.
 
 ## Reply, rescue, resolve
 
@@ -98,10 +131,15 @@ gh api graphql -f threadId='THREAD_ID' -F body=@- -f query='
     }) {
       comment { id }
     }
-  }' <<'BODY_<hex>'
+  }' <<'BODY_<hex>' || { echo "reply failed for THREAD_ID" >&2; exit 1; }
 REPLY TEXT
 BODY_<hex>
 ```
+
+One exception: a skill that replies through the REST review-comment replies
+endpoint (`pulls/<n>/comments/<id>/replies`, which takes a comment id and
+posts at once, outside any review) states that in its own text; it still
+follows the posted-body rule and resolves through the mutation below.
 
 **Then rescue any pending review, once per batch, before resolving.** The
 reply mutation can create a pending review owned by the viewer, and a reply
@@ -118,10 +156,12 @@ gh api graphql -f query='
         reviews(states: PENDING, first: 10) { nodes { id author { login } } }
       }
     }
-  }' -f owner='OWNER' -f repo='REPO' -F number=NUMBER
+  }' -f owner='OWNER' -f repo='REPO' -F number=NUMBER \
+  --jq '.data as $d | if $d.repository.pullRequest == null then error("no pull request in the response") else [$d.repository.pullRequest.reviews.nodes[] | select(.author.login == $d.viewer.login) | .id] end' \
+  || { echo "pending-review query failed; not resolving on top of possibly invisible replies" >&2; exit 1; }
 ```
 
-For each node the viewer authored:
+For each id it prints:
 
 ```bash
 gh api graphql -f id='REVIEW_ID' -f query='
@@ -129,8 +169,11 @@ gh api graphql -f id='REVIEW_ID' -f query='
     submitPullRequestReview(input: { pullRequestReviewId: $id, event: COMMENT }) {
       pullRequestReview { id state }
     }
-  }'
+  }' || { echo "could not submit pending review REVIEW_ID" >&2; exit 1; }
 ```
+
+A query that fails is never read as "none pending": that is the reading that
+resolves threads on top of invisible replies.
 
 Re-run the query and confirm none remain; if one cannot be submitted, stop
 rather than resolve threads on top of invisible replies.

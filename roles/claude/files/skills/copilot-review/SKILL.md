@@ -41,10 +41,10 @@ A ticket key from the branch name or PR title, fetched when Jira tools are avail
 
 ### 3. Fetch unresolved review threads
 
-Fetch the threads per [github.md](../review-shared/github.md), and keep those where `isResolved` is false and the first comment's author is the Copilot bot. The standard login is `copilot-pull-request-reviewer` (`__typename: Bot`), but verify per run from `reviews(last: 5)` (`last`, not `first`, which returns the oldest):
+Take the same-PR lock, keyed `copilot-review`, per [github.md](../review-shared/github.md) (nested mode already holds it from its pre-flight), and release it when the run ends. Fetch the threads per [github.md](../review-shared/github.md), and keep those where `isResolved` is false and the first comment's author is the Copilot bot. The standard login is `copilot-pull-request-reviewer` (`__typename: Bot`), but verify per run from `reviews(last: 5)` (`last`, not `first`, which returns the oldest):
 
 ```bash
-jq --arg bot 'copilot-pull-request-reviewer' '[.data.repository.pullRequest.reviewThreads.nodes[]
+jq --arg bot 'copilot-pull-request-reviewer' '[.[].data.repository.pullRequest.reviewThreads.nodes[]
      | select(.isResolved == false and .comments.nodes[0].author.login == $bot)]'
 ```
 
@@ -87,14 +87,14 @@ Per [github.md](../review-shared/github.md): reply to each thread through the po
 
 Iterate autonomously until Copilot has no unresolved threads (convergence) or iterations stop paying off (diminishing returns). Copilot reviews land as `state: COMMENTED`, so the convergence signal is "the latest Copilot review of our head leaves zero unresolved Copilot threads", not a state change.
 
-Discovery cadence: the adjacent-findings discovery pass runs on the first iteration and on the iteration that detects convergence only; middle iterations report counts. Each pass records its lens-coverage table in the loop's artifact, the PR body's collapsed audit record.
+Discovery cadence: the adjacent-findings discovery pass runs on the first iteration and on the iteration that detects convergence only; middle iterations report counts. "The converging iteration" is the one whose thread work would end the loop: run the discovery pass there before declaring convergence, and converge only if it surfaces nothing new to act on. Each pass records its lens-coverage table in the loop's artifact, `.claude/copilot-audit.md` in the worktree (gitignored, overwritten at the start of each run), which the handoff and the invoking skill read.
 
 Drain-scope override: each iteration applies the fixes for `valid` threads (Auto-applicable, Agent-resolvable, and each Needs-sign-off fix as its own `[pending-sign-off]` commit) and posts dismissals for `false positive` threads, but never applies an adjacent finding. Reason: an adjacent finding has no thread tying it to Copilot's review, so landing it unattended would push changes nobody asked for into every re-review cycle; it is surfaced for the human instead.
 
 ### Nested pre-flight (once per run)
 
 1. **PR and repo info** (Steps step 1).
-2. **Take the same-PR lock** per [github.md](../review-shared/github.md), keyed `copilot-review`, and initialize the iteration counter at 0.
+2. **Take the same-PR lock** per [github.md](../review-shared/github.md), keyed `copilot-review`, and initialize the iteration counter at 0. Carry the printed lock path and token: this loop's cross-call files (`<lock>/…` below) live in that directory, so they are keyed by repo and PR and go away with the lock at the end of the run.
 3. **Confirm the Copilot bot login and detect the repo mode**, from a window wide enough to find a Copilot review behind other reviewers:
 
    ```bash
@@ -169,20 +169,20 @@ Land the code before talking about it, per [github.md](../review-shared/github.m
          }
        }
      }
-   ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER > /tmp/copilot-review-nested-baseline-raw.NUMBER \
+   ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER > <lock>/baseline-raw \
      || { echo "baseline GraphQL query failed; stop and diagnose"; exit 1; }
    jq -r --arg bot 'copilot-pull-request-reviewer' '
        .data.repository.pullRequest.reviews.nodes
        | map(select(.author.login == $bot))
        | last // empty
-       | .id // ""' /tmp/copilot-review-nested-baseline-raw.NUMBER \
-     > /tmp/copilot-review-nested-baseline-review-id.NUMBER \
+       | .id // ""' <lock>/baseline-raw \
+     > <lock>/baseline-review-id \
      || { echo "jq failed to parse the baseline response; stop and diagnose"; exit 1; }
-   echo $(( $(date +%s) - 2 )) > /tmp/copilot-review-nested-push-epoch.NUMBER
+   echo $(( $(date +%s) - 2 )) > <lock>/push-epoch
    ```
 
    The guards matter because an empty baseline file is also the legitimate no-prior-review case; a failed capture must stop rather than look like it. Plain `jq -r`, not `-re`, which exits 4 on that legitimate empty result. Capturing **before** the push closes a race: a fast auto-triggered review landing between the push and a later capture would be mistaken for pre-existing. The two seconds absorb second-precision timestamps. Each Bash call is a fresh shell, so the values travel in these files, namespaced by PR number.
-2. `git add` only the files this iteration changed, commit `chore(copilot): iter N, address <short summary>` (a Needs-sign-off fix in its own `[pending-sign-off]` commit), write `git rev-parse HEAD > /tmp/copilot-review-nested-push-head.NUMBER`, and push with `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or a rebase. A hook failure is **Push hook failure**.
+2. `git add` only the files this iteration changed, commit `chore(copilot): iter N, address <short summary>` (a Needs-sign-off fix in its own `[pending-sign-off]` commit), write `git rev-parse HEAD > <lock>/push-head`, and push with `git push origin <branch>`. **Never** `--force`, `--force-with-lease`, or a rebase. A hook failure is **Push hook failure**.
 3. **Reply** per Steps step 8: `valid` threads with the change and the new SHA; `already-handled` with `addressed in <sha>` from the base-scoped `git log` above (never a hardcoded `main`); `false positive` with the drafted dismissal, unless the thread already carries a viewer dismissal from a prior pass whose resolve failed, in which case go straight to the resolve.
 4. **Rescue any pending review** (mandatory), per [github.md](../review-shared/github.md); if one cannot be submitted, **Pending reply unsubmittable**.
 5. **Resolve** the threads, then step (f).
@@ -257,9 +257,9 @@ Reached on Path B after (g) times out. Re-fetch threads:
 Wait up to the review-poll window in [limits.md](../review-shared/limits.md) from one backgrounded script (`run_in_background`), which the harness does not introspect; never one Bash call per attempt with a sleep between them.
 
 ```bash
-push_epoch=$(cat /tmp/copilot-review-nested-push-epoch.NUMBER 2>/dev/null)
-baseline_id=$(cat /tmp/copilot-review-nested-baseline-review-id.NUMBER 2>/dev/null)
-push_head=$(cat /tmp/copilot-review-nested-push-head.NUMBER 2>/dev/null)
+push_epoch=$(cat <lock>/push-epoch 2>/dev/null)
+baseline_id=$(cat <lock>/baseline-review-id 2>/dev/null)
+push_head=$(cat <lock>/push-head 2>/dev/null)
 case "$push_epoch" in
   ''|*[!0-9]*) echo "push_epoch missing or not a plain integer (\"$push_epoch\"); step (e)'s capture is corrupt"; exit 2 ;;
 esac
@@ -287,7 +287,7 @@ while [ $(date +%s) -lt $deadline ]; do
           ))
         | last // empty')
   if [ -n "$latest" ]; then
-    printf '%s' "$latest" > /tmp/copilot-review-nested-latest-review.NUMBER
+    printf '%s' "$latest" > <lock>/latest-review
     echo "NEW_REVIEW $latest"; exit 0
   fi
   sleep 30
@@ -299,7 +299,7 @@ The deadline is the shared review-poll window, written in seconds. The match com
 
 **Errored reviews are not a response.** Copilot posts a `COMMENTED` review with no threads when it fails ("encountered an error and was unable to review"), indistinguishable by state and thread count from a clean pass; the body filter keeps the loop from converging on a review that never happened. Verify the body, never just the state.
 
-**Read suppressed comments out of the body.** A review can report no new comments while its body carries a collapsed `Suppressed comments (N)` block with a real finding; those never become threads, so every thread step walks past them. On every `NEW_REVIEW`, parse that block from the saved review, validate each **new** entry with (b)'s three passes, and route survivors as adjacent findings. Keep a per-run ledger at `/tmp/copilot-review-nested-suppressed-seen.NUMBER` (`file:line` plus the entry's first words) so a re-emitted entry is not re-validated. Validation is not optional: a suppressed entry's facts can be right while its conclusion is inverted.
+**Read suppressed comments out of the body.** A review can report no new comments while its body carries a collapsed `Suppressed comments (N)` block with a real finding; those never become threads, so every thread step walks past them. On every `NEW_REVIEW`, parse that block from the saved review, validate each **new** entry with (b)'s three passes, and route survivors as adjacent findings. Keep a per-run ledger at `<lock>/suppressed-seen` (`file:line` plus the entry's first words) so a re-emitted entry is not re-validated. Validation is not optional: a suppressed entry's facts can be right while its conclusion is inverted.
 
 Branch on the script's exit:
 
@@ -363,7 +363,7 @@ With **no** in-scope threads, the full **Scope creep** stop applies instead.
 
 - **Convergence.** Present remaining adjacent findings per [workflow.md](../review-shared/workflow.md)'s handoff rule. If applying one changed code, that change gets its own capture, commit, push, (f) and (g), counted as an iteration; new threads loop back to (a).
 
-  With no adjacent-finding fix outstanding, check `gh pr view --json isDraft,state`. On a query failure, surface it and hand off; if the PR is not `OPEN`, or not a draft, stop here. Otherwise re-fetch threads to reconfirm zero (time has passed since convergence); nonzero loops back to (a).
+  With no adjacent-finding fix outstanding, check `gh pr view --json isDraft,state`. On a query failure, surface it and hand off; if the PR is not `OPEN`, or not a draft, stop here. Otherwise re-fetch threads to reconfirm zero (time has passed since convergence); nonzero increments the iteration counter and loops back to (a).
 
   **Only once the recheck confirms zero**, in an attended session, ask once, with a stop condition's weight: "Mark PR #<n> ready for review? Stop and wait for me." On yes, run `gh pr ready <number>` and re-query `isDraft` to confirm it flipped; if it did not, surface that. On no, leave it a draft. **Dispatched or unattended**: do not ask and do not self-answer; leave it a draft and hand off, naming the outcome. This confirmation-gated ready-flip is the only PR-lifecycle action this loop takes, and only on this exit path.
 - **Diminishing returns, any other stop condition, or the iteration cap.** Present remaining adjacent findings, then hand off. Never ask about marking ready: residual threads or an unresolved safety condition mean the run is not done.

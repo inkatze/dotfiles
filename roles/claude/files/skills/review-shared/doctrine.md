@@ -9,11 +9,15 @@ planwright's install root is the enabled version's `installPath`, as Claude
 Code records it in `~/.claude/plugins/installed_plugins.json`.
 
 ```bash
+[ -r ~/.claude/settings.json ] || { echo "cannot read ~/.claude/settings.json" >&2; exit 1; }
 jq -e '.enabledPlugins["planwright@planwright"] == true' ~/.claude/settings.json > /dev/null \
   || { echo "planwright is not enabled in ~/.claude/settings.json" >&2; exit 1; }
-jq -er '.plugins["planwright@planwright"] // [] | map(select(.scope == "user")) | last | .installPath // empty' \
-  ~/.claude/plugins/installed_plugins.json \
-  || { echo "no enabled planwright install recorded in ~/.claude/plugins/installed_plugins.json" >&2; exit 1; }
+root="$(jq -er '.plugins["planwright@planwright"] // [] | map(select(.scope == "user")) | last | .installPath // empty' \
+  ~/.claude/plugins/installed_plugins.json)" \
+  || { echo "no user-scope planwright install recorded in ~/.claude/plugins/installed_plugins.json" >&2; exit 1; }
+[ -x "$root/scripts/resolve-rule-doc.sh" ] \
+  || { echo "the recorded planwright install at $root has no resolve-rule-doc.sh" >&2; exit 1; }
+echo "$root"
 ```
 
 If the record is missing, names no enabled install, or a document does not
@@ -32,9 +36,9 @@ document (a worktree session refuses a call through a shell variable):
 <root>/scripts/resolve-rule-doc.sh refactor-instinct
 ```
 
-Each prints a path; read the document there. A skill that never applies
-findings (`/code-review`) or never categorizes them (`/peer-review`) still
-resolves all four, and uses the last two only where its own text says so.
+Each prints a path; read the document there. `/code-review`, which never
+applies findings, still resolves all four, and uses the last two only where
+its own text says so.
 
 ## What each one governs
 

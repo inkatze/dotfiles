@@ -31,12 +31,13 @@ might be required by the AC). Otherwise skip this step.
 
 ### 3. Fetch unresolved review threads
 
-Take the same-PR lock and fetch the threads per
-[github.md](../review-shared/github.md). Keep threads where `isResolved` is
-false and the first comment's author is not a `Bot`:
+Take the same-PR lock, keyed `peer-review`, and fetch the threads per
+[github.md](../review-shared/github.md). Refresh the lock before the walk in
+step 6 and release it at the end of the run. Keep threads where `isResolved`
+is false and the first comment's author is not a `Bot`:
 
 ```bash
-jq '[.data.repository.pullRequest.reviewThreads.nodes[]
+jq '[.[].data.repository.pullRequest.reviewThreads.nodes[]
      | select(.isResolved == false and .comments.nodes[0].author.__typename != "Bot")]'
 ```
 
