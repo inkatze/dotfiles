@@ -52,7 +52,7 @@ run_role() {
 changed() { grep -oE 'changed=[0-9]+' "$work/out" | head -1 | cut -d= -f2; }
 
 fresh_home() {
-    h="$work/h$RANDOM"
+    h="$(mktemp -d "$work/h.XXXXXX")" || exit 1
     mkdir -p "$h/.config"
     printf '%s\n' "$h"
 }
