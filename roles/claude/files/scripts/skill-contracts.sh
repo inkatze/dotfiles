@@ -220,7 +220,7 @@ reviewer_backend_checks=(
   '[ "$dir" -ef "$shims_dir" ] || cli_path='
   'bin_real="$(realpath "$bin_exec")" ||'
   'env_kept[0]="PATH=$cli_path"'
-  'mise_guard=(MISE_OVERRIDE_CONFIG_FILENAMES=none MISE_OVERRIDE_TOOL_VERSIONS_FILENAMES=none MISE_IDIOMATIC_VERSION_FILE_ENABLE_TOOLS= MISE_ENV=)'
+  'mise_guard=(MISE_OVERRIDE_CONFIG_FILENAMES=none MISE_OVERRIDE_TOOL_VERSIONS_FILENAMES=none MISE_IDIOMATIC_VERSION_FILE_ENABLE_TOOLS= MISE_ENV= MISE_AUTO_ENV=false)'
   '  export "${mise_guard[@]}"'
   '  done'$'\n''  home_env=("${env_kept[@]}")'
   '[ -n "$mise_bin" ] && [ "$1" -ef "$mise_bin" ]'
