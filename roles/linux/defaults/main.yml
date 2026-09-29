@@ -277,8 +277,9 @@ linux_mise_tools:
 linux_mise_bin: "{{ ansible_facts.env.HOME }}/.local/bin/mise"
 
 # Where the Linux-only mise config is materialized. mise reads every *.toml
-# under ~/.config/mise/conf.d as global config, alongside ~/.config/mise.toml
-# (which the environments role owns), so the two do not collide.
+# under ~/.config/mise/conf.d as global config, alongside
+# ~/.config/mise/config.toml (which the environments role owns), so the two do
+# not collide.
 linux_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
 
 # Deliberately NOT in this list, so the omissions read as decisions rather than

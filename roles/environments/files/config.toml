@@ -1,7 +1,0 @@
-[settings]
-idiomatic_version_file_enable_tools = ["node"]
-
-[tools]
-act = "latest"
-actionlint = "1.7.9"
-java = "microsoft-21.0.7"

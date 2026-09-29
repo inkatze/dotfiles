@@ -1,5 +1,8 @@
 ---
 
+environments_mise_global_config: "{{ ansible_facts.env.HOME }}/.config/mise/config.toml"
+environments_mise_legacy_config: "{{ ansible_facts.env.HOME }}/.config/mise.toml"
+
 environments_mise_tools:
   - {name: nodejs, defaults: default-npm-packages}
   - {name: ruby, defaults: default-gems}
@@ -21,3 +24,5 @@ environments_mise_tools:
   # every run while the install loop never reaches it, so the role could never
   # converge to changed=0.
   - {name: usage}
+  - {name: act}
+  - {name: actionlint}

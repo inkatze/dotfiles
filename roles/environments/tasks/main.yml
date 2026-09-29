@@ -20,18 +20,8 @@
          else '/usr' }}
   tags: [always]
 
-- name: Symlink mise configuration file
-  ansible.builtin.file:
-    src: "{{ ansible_facts.env.PWD }}/roles/environments/files/mise.toml"
-    dest: "{{ ansible_facts.env.HOME }}/.config/mise.toml"
-    state: link
-  tags: [environments]
-
-- name: Trust mise's config file
-  ansible.builtin.shell:
-    cmd: mise trust
-    executable: "{{ environments_fish_prefix }}/bin/fish"
-  changed_when: false
+- name: Link the mise global config
+  ansible.builtin.import_tasks: mise_config.yml
   tags: [environments]
 
 - name: Symlink default initial packages file

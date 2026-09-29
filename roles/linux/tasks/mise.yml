@@ -19,9 +19,9 @@
 
 # The handful of tools that are installed user-level instead of via apt. mise
 # reads every *.toml under ~/.config/mise/conf.d as global config, so this sits
-# beside the ~/.config/mise.toml the environments role owns without either
-# clobbering the other, and without putting Linux-only pins in the config the
-# macOS hosts share.
+# beside the ~/.config/mise/config.toml the environments role owns without
+# either clobbering the other, and without putting Linux-only pins in the
+# config the macOS hosts share.
 - name: Ensure the mise conf.d directory exists
   ansible.builtin.file:
     path: "{{ linux_mise_conf_d }}"
@@ -37,8 +37,7 @@
   tags: [linux]
 
 # No `mise trust` step: anything under ~/.config/mise is global config and is
-# trusted implicitly (unlike the repo-local mise.toml the environments role
-# has to trust). Calling `mise trust` on it anyway is worse than redundant —
+# trusted implicitly. Calling `mise trust` on it anyway is worse than redundant —
 # with the path already trusted, mise falls through to trusting the process'
 # working directory instead, which under ansible means the repo checkout.
 #
