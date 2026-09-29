@@ -13,7 +13,7 @@ runtime:
 | Runtime path | Tracked source | Mechanism |
 |---|---|---|
 | `~/.claude/CLAUDE.md` | `roles/claude/files/CLAUDE.md` | Symlink |
-| `~/.claude/commands/*` | `roles/claude/files/commands/` | Symlink |
+| `~/.claude/skills/<name>` | `roles/claude/files/skills/<name>/` | One symlink per tracked skill directory (`skills.yml`); other entries there are left alone |
 | `~/.claude/scripts/*` | `roles/claude/files/scripts/` | Symlink (scripts `settings.json` invokes: hooks, the status line) |
 | `~/.claude/output-styles/*` | `roles/claude/files/output-styles/` | Symlink (resolved by name from `outputStyle`) |
 | `~/.claude/settings.json` | `roles/claude/files/settings.json` | jq merge (not symlink) |
@@ -87,14 +87,18 @@ rather than setting it in the app. To audit: diff `~/.claude/settings.json`
 on a Mac against `roles/claude/files/settings.json` and look for keys the
 repo does not mention.
 
-## Adding a new Claude command
+## Adding a new Claude skill
 
-1. Drop the file under `roles/claude/files/commands/`.
-2. Include command front-matter (required for discovery).
-3. Commit and run Ansible (or wait for the next symlink task run).
-4. Verify in a fresh Claude session.
+1. Create `roles/claude/files/skills/<name>/SKILL.md` with front matter
+   (`name`, `description`, and `disable-model-invocation: true` for a
+   slash-invoked review skill). Mechanics more than one skill uses go in
+   `skills/review-shared/`, linked by relative path.
+2. Commit and run Ansible: the link task adds `~/.claude/skills/<name>`,
+   refusing an existing entry that is not already this repo's link.
+3. Verify from the main checkout in a fresh session; a worktree's skills are
+   never the ones loaded.
 
-Edits to the review command files, to `roles/claude/files/CLAUDE.md`, and to
+Edits to the review skills, to `roles/claude/files/CLAUDE.md`, and to
 the checker itself are gated by `roles/claude/files/scripts/skill-contracts.sh`
 (pre-commit via lefthook, and in CI with its fixture suite
 `skill-contracts-test.sh`). It literal-matches load-bearing sentences, so a
@@ -107,8 +111,8 @@ not exact counts, so a change that grows or adds a surface re-derives its row
 there by hand, in the same commit.
 
 Hook logic lives in `roles/claude/files/scripts/` and is wired from
-`settings.json`. Skills are not managed by Ansible yet. Adding a new tracked
-directory requires a matching symlink task in `roles/claude/tasks/main.yml`.
+`settings.json`. Adding a new tracked directory requires a matching symlink
+task in `roles/claude/tasks/main.yml`.
 
 ## Adding a new hook
 
@@ -235,17 +239,17 @@ guard.
 
 ### Slack: a deliberate manual prerequisite
 
-The `/code-review` and `/peer-review` commands DM the person on the other
+The `/code-review` and `/peer-review` skills DM the person on the other
 end of a PR through a Slack MCP server. **Nothing in this repo provisions
 it.** There is no sync script, no Ansible task, and no `mcpServers.slack`
-entry; a fresh machine has the commands but not the transport.
+entry; a fresh machine has the skills but not the transport.
 
 That is a choice, not an oversight. The notification is a courtesy the
-commands are explicitly built to do without: the shared `Slack
-Notifications (review workflows)` rule in the user-global `CLAUDE.md`
+skills are explicitly built to do without:
+`roles/claude/files/skills/review-shared/slack.md`
 says a missing server means "say so once in the terminal and carry on",
 so the review, which is the actual deliverable, is unaffected. Automating
-a registration for a server used by two commands on one machine buys
+a registration for a server used by two skills on one machine buys
 little and adds another 1Password item and CI-guarded task pair to keep
 working.
 
@@ -266,10 +270,10 @@ otherwise dangle).
 The `qwen-coder` and `gpt-oss` backends `/panel-review` used to route to that
 daemon were removed with it, since without a daemon they could only fail with
 connection-refused. Restoring any of it means digging up the git history of
-this section and of `panel-review.md`, plus re-reading the LAN-exposure caveat
+this section and of the old `roles/claude/files/commands/panel-review.md`, plus re-reading the LAN-exposure caveat
 that was here: Ollama has no auth, so binding `0.0.0.0` exposes it to the
 whole network. The contract checker also refuses those two names (and
-`OLLAMA_BASE_URL`) in the command files and the tracked global `CLAUDE.md`, so
+`OLLAMA_BASE_URL`) in the skills tree and the tracked global `CLAUDE.md`, so
 restoring them means updating its retired-backend sweep in the same change.
 
 ## Review backends: codex vs gemini
@@ -282,12 +286,12 @@ backend and `/panel-review` a comma-separated list, plus
 itself). `/panel-review` also accepts an opt-in `copilot` via `--backends`;
 only the two below are ever chosen automatically. That backend is the Copilot
 CLI allowed only its file viewer, confined to a scratch directory holding the
-diff (see `panel-review.md` for why each flag matters). It is declared like
+diff (see `review-shared/backends.md` for why each flag matters). It is declared like
 the other two: `cask "copilot-cli"` in the `Brewfile`, and `copilot` in
 `linux.toml` through mise's registry default, `aqua:github/copilot-cli`, which
 unpacks the same GitHub release tarball the cask does. Of the other Linux
 channels GitHub documents, Homebrew is not on that host, npm would need node
-22, and the install script leaves its pin recorded nowhere. The commands prefer
+22, and the install script leaves its pin recorded nowhere. The skills prefer
 the declared binary and fall back to the copy `gh copilot` downloads on first
 use (into `~/.local/share/gh/copilot`, outside the dotfiles). `/copilot-review`
 offers the backend as a fallback when the hosted review can't run. The other opt-in,
@@ -305,19 +309,19 @@ order: `DOTFILES_HOST`, else `~/.config/dotfiles/host` (honouring
 `DOTFILES_HOST_FILE`), else the residual `alt` hostname match, else `work`.
 `PANEL_REVIEW_PROFILE` is honoured ahead of all of it as a per-run override.
 
-Both the commands and `playbook.sh` take the alias file only when it has
+Both the review skills and `playbook.sh` take the alias file only when it has
 non-whitespace content; an empty or whitespace-only file falls through to the
 `alt` hostname match and then `work`, as if it were absent (`playbook.sh` also
 says on stderr that the file names no alias). For `playbook.sh` that is a
 safety property, not a nicety: an empty alias would become
 `ansible-playbook -l ""`, which Ansible reads as *no limit* and runs every
 inventory host against this machine. `playbook.sh` alone goes one step
-further than the commands: a resolved value, from the file or from
+further than the review skills: a resolved value, from the file or from
 `DOTFILES_HOST`, that is not a single plain ASCII name (letters, digits, `_`,
 `-`) or is not a host entry in `hosts` is refused outright with exit 1. That
 is what catches `,`, a non-breaking space, a leading `-` or `!`, and the
 group names `all`, `ungrouped` and `secrets`, each of which Ansible would
-widen to several hosts. The commands pass such a value through as a profile,
+widen to several hosts. The review skills pass such a value through as a profile,
 which merely selects gemini. `scripts/playbook-alias-test.sh` pins the
 `playbook.sh` side of all of it.
 
@@ -329,7 +333,7 @@ non-whitespace test, a `touch`ed alias file yields an empty profile, which is
 not `work` and therefore selects gemini on the work host — the very bug this
 change exists to fix, re-entered through a different door. And without
 `DOTFILES_HOST_FILE`, a host that relocates its alias file has `playbook.sh`
-and the review commands disagreeing about which machine it is.
+and the review skills disagreeing about which machine it is.
 
 It used to be *only* that env var, defaulting to `personal`, and the default
 was a live bug rather than a latent one: nothing in this repo ever sets
@@ -405,7 +409,7 @@ the current directory. A direct test on 0.54.4 (a `.gemini/settings.json`
 declaring an MCP server whose command writes a marker file, run under
 `--skip-trust --approval-mode plan`) did **not** execute it, so this is not the
 drive-by code execution it might look like. It is still a gate being switched
-off over untrusted content, so both commands now **require** the CLI to be run
+off over untrusted content, so both skills now **require** the CLI to be run
 from a freshly `mktemp -d`'d empty directory, in a subshell, with the diff and
 tooling output going in on stdin. Not `/tmp` itself, which is world-writable
 and therefore pre-seedable with a `GEMINI.md`; and a subshell because this
@@ -571,14 +575,16 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 
 | File | Read by | Holds |
 |---|---|---|
-| `host` | `scripts/playbook.sh`, the `/panel-review` and `/code-review` commands | This machine's inventory alias (`work`/`personal`/`alt`/`server`). An empty or whitespace-only file counts as absent |
+| `host` | `scripts/playbook.sh`, the shared backend resolver in `roles/claude/files/skills/review-shared/backends.md` | This machine's inventory alias (`work`/`personal`/`alt`/`server`). An empty or whitespace-only file counts as absent |
 | `ssh-host` | the `sshc` function in `roles/fish/files/fish/config.fish` | `kitten ssh` target hostname |
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
 | `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh`, both through `scripts/op-token.sh` | 1Password service-account token (bearer credential, mode 0600) |
-| `slack-users.json` | the `/code-review` and `/peer-review` commands | GitHub login → Slack user ID, so review notifications can find a person |
-| `code-review-egress.json` | the `/code-review` command, and `/panel-review`'s `reviewer:<name>` backend | Repos approved for backend egress (`owner/repo` → backend; the reviewer backend's entries are keyed `reviewer:<name>:owner/repo` → the real path of the file that binary runs, through symlinks and mise shims), so the upload consent is asked once per repo, and once per repo and reviewer for that backend, again if that binary changes (mode 0600) |
-| `bot-review.json` | the `/bot-review` command, and `/panel-review`'s `reviewer:<name>` backend (the `cli` block) | Map of named third-party PR-review reviewers, each with its own hosted-bot mechanics (login pattern, opt-in/opt-out labels, gating checks, marker formats) and/or local pre-push CLI invocation, plus a default; example with placeholders at `roles/claude/files/commands/bot-review.config.example.json` (mode 0600, read-only from both commands) |
+| `slack-users.json` | the `/code-review` and `/peer-review` skills, through `review-shared/slack.md` | GitHub login → Slack user ID, so review notifications can find a person |
+| `code-review-egress.json` | `review-shared/egress.md`, for the `/code-review` skill and `/panel-review`'s `reviewer:<name>` backend | Repos approved for backend egress (`owner/repo` → backend; the reviewer backend's entries are keyed `reviewer:<name>:owner/repo` → the real path of the file that binary runs, through symlinks and mise shims), so the upload consent is asked once per repo, and once per repo and reviewer for that backend, again if that binary changes (mode 0600) |
+| `bot-review.json` | the `/bot-review` skill, and `/panel-review`'s `reviewer:<name>` backend (the `cli` block) | Map of named third-party PR-review reviewers, each with its own hosted-bot mechanics (login pattern, opt-in/opt-out labels, gating checks, marker formats) and/or local pre-push CLI invocation, plus a default; example with placeholders at `roles/claude/files/skills/bot-review/bot-review.config.example.json` (mode 0600, read-only from both skills) |
 | `work-shell-init` | `roles/fish/files/work-init.fish` | Absolute path of a shell init to source from fish, for anything a second config manager wires only into bash/zsh |
+| `private-identifiers` | `scripts/gitleaks-identifier-rules.sh`, `roles/claude/files/scripts/identifier-check.sh` | Names of other repositories and organizations the live instruction files must not carry, one per line |
+| `claude-instructions-inventory/` | nothing; kept by hand (directory 0700, files 0600) | The dated per-rule inventory of the instruction surfaces; a new shared review file is added to it before it ships |
 
 None are created by Ansible and none live in the repo (`~/.config/kitty` is
 a symlink into it, which is why the kitty companion sits here instead).
