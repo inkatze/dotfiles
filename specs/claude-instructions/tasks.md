@@ -232,7 +232,10 @@ swept by the drain pass's manual inventory.
 
 ## Awaiting input
 
-(none yet)
+- **Task 2** — The machine-local inventory directory and the identifier
+  file this task reads (REQ-C1.7's flagged strings, REQ-K1.1, REQ-K1.2, the
+  Done-when's identifier check) are absent on the dispatching host; the
+  operator chooses where the task runs or how those arms are sourced.
 
 ## Deferred
 
