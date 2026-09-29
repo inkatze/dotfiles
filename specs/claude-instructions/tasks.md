@@ -32,7 +32,7 @@ swept by the drain pass's manual inventory.
   file, the repo-root file and each command file; initial thresholds are
   derived per REQ-G1.3 from each surface's current word count. The repo-root
   `CLAUDE.md` names the guard in one line (the pointer REQ-K1.1 relies on).
-- **Done when:** On the branch: `lefthook run pre-commit --all-files --commands
+- **Done when:** On the branch: `lefthook run pre-commit --all-files --command
   instruction-budget` runs the checker; the fixture suite passes and
   includes cases in which the checker exits non-zero on a planted overage,
   an unreadable surface, a covered path with no thresholds and a threshold

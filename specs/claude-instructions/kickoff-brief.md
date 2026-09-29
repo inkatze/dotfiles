@@ -410,4 +410,12 @@ Anchor: `ab627a7fbb611ba2577a5bfb6cc046957e8706dd` — computed as
 
 ## Amendment log
 
-(none yet)
+### 2026-09-29 — lefthook flag in Task 1's Done-when
+
+Written by `/execute-task` during Task 1. Cites the `requirements.md`
+changelog line of 2026-09-29: `--commands` corrected to `--command`, the
+flag lefthook 2 provides.
+
+Class: expression-only
+Anchor: `a315f6995bde7691c2465b220aa2e34b1b701f4b` — computed as
+`spec-anchor.sh specs/claude-instructions`
