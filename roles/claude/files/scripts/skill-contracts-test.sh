@@ -217,7 +217,7 @@ expect_fail reviewer-backend-glob-split \
   "panel-review.md missing expected reviewer-backend containment line"
 
 expect_fail reviewer-backend-bare-binary \
-  "perl -pi -e 's/^  argv\\[0\\]=\"\\\$bin_abs\"\n//' $CMDS/panel-review.md" \
+  "perl -pi -e 's/^  argv\\[0\\]=\"\\\$bin_exec\"\n//' $CMDS/panel-review.md" \
   "panel-review.md missing expected reviewer-backend containment line"
 
 expect_fail reviewer-backend-no-cleanup \
@@ -263,12 +263,51 @@ reviewer_drift reviewer-backend-in-repo-unresolved \
   'x="$(cd "$1" 2>/dev/null && pwd -P)" || return 2' 'x="$1"'
 reviewer_drift reviewer-backend-path-keeps-repo-dirs \
   'in_repo "$dir"; [ "$?" -eq 1 ] || continue' ':'
+reviewer_drift reviewer-backend-tool-dirs-keep-repo-dirs \
+  $'in_repo "$dir"; [ "$?" -eq 1 ] || continue\n      cli_path=' $':\n      cli_path='
 reviewer_drift reviewer-backend-snippet-path-unfiltered '  PATH="$safe_path"' '  :'
 reviewer_drift reviewer-backend-cli-path-unfiltered 'env_kept=("PATH=$safe_path")' 'env_kept=("PATH=$PATH")'
 reviewer_drift reviewer-backend-no-realpath-probe 'command -v realpath > /dev/null ||' 'true ||'
 reviewer_drift reviewer-backend-binary-unresolved 'bin_real="$(realpath "$bin_abs")" ||' 'bin_real="$bin_abs" ||'
-reviewer_drift reviewer-backend-binary-in-repo 'in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] ||' 'true ||'
-reviewer_drift reviewer-backend-binary-not-approved '[ "$bin_abs" = "$approved" ] ||' 'true ||'
+reviewer_drift reviewer-backend-binary-in-repo 'in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] || { echo "cli.binary resolves inside' 'true || { echo "cli.binary resolves inside'
+reviewer_drift reviewer-backend-binary-not-approved '[ "$bin_real" = "$approved" ] ||' 'true ||'
+reviewer_drift reviewer-backend-shim-not-detected 'if is_mise "$bin_real"; then' 'if false; then'
+reviewer_drift reviewer-backend-shim-resolved-in-repo 'bin_exec="$(cd "$HOME" && ' 'bin_exec="$(cd "$top" && '
+reviewer_drift reviewer-backend-shim-bin-paths-in-repo 'tool_dirs="$(cd "$HOME" && ' 'tool_dirs="$(cd "$top" && '
+reviewer_drift reviewer-backend-shims-kept-on-path '[ "$dir" -ef "$shims_dir" ] || cli_path=' 'cli_path='
+reviewer_drift reviewer-backend-shim-target-unchecked 'bin_real="$(realpath "$bin_exec")" ||' 'true ||'
+reviewer_drift reviewer-backend-sandbox-claim 'an accident guard, not a sandbox' 'a sandbox'
+reviewer_drift reviewer-backend-trust-unstated 'the CLI itself still runs with your full filesystem and network access' 'the CLI is contained'
+reviewer_drift reviewer-backend-mise-guard-weakened 'MISE_OVERRIDE_TOOL_VERSIONS_FILENAMES=none ' ''
+reviewer_drift reviewer-backend-mise-guard-not-exported '  export "${mise_guard[@]}"' '  :'
+reviewer_drift reviewer-backend-mise-guard-not-in-cli-env '  env_kept+=("${mise_guard[@]}")' '  :'
+reviewer_drift reviewer-backend-mise-guard-before-env-allow \
+  $'  done\n  home_env=("${env_kept[@]}")\n  env_kept+=("${mise_guard[@]}")' $'  home_env=("${env_kept[@]}")\n  env_kept+=("${mise_guard[@]}")\n  done'
+reviewer_drift reviewer-backend-shim-hardlink-missed '[ -n "$mise_bin" ] && [ "$1" -ef "$mise_bin" ]' 'false'
+reviewer_drift reviewer-backend-shim-link-chain '{ [ "${next##*/}" = mise ] ||' '{ true ||'
+reviewer_drift reviewer-backend-mise-guard-keeps-env ' MISE_ENV= ' ' '
+reviewer_drift reviewer-backend-mise-guard-keeps-auto-env ' MISE_AUTO_ENV=false)' ')'
+reviewer_drift reviewer-backend-shim-by-name-missed 'is_mise() { [ "${1##*/}" = mise ] ||' 'is_mise() { false ||'
+reviewer_drift reviewer-backend-mise-bin-relative 'mise_bin="$(type -P mise)"' 'mise_bin="$(command -v mise)"'
+reviewer_drift reviewer-backend-shim-execs-link '[ "${bin_real##*/}" != "$shim" ] || bin_exec="$bin_real"' ':'
+reviewer_drift reviewer-backend-home-resolve-guarded '  home_env=("${env_kept[@]}")'$'\n''  env_kept+=("${mise_guard[@]}")' '  env_kept+=("${mise_guard[@]}")'$'\n''  home_env=("${env_kept[@]}")'
+reviewer_drift reviewer-backend-env-allow-overrides-guard 'case " ${mise_guard[*]} " in *" $v="*) continue ;; esac' ':'
+reviewer_drift reviewer-backend-mise-guard-undocumented '**mise shims ignore the repo'"'"'s config.**' '**mise.**'
+reviewer_drift reviewer-backend-shims-dir-from-configured 'shims_dir="$(cd "${hop%/*}" && pwd -P)"' 'shims_dir="$(cd "${bin_abs%/*}" && pwd -P)"'
+reviewer_drift reviewer-backend-mise-exe-by-link-name '[ "${bin_real##*/}" = mise ] || mise_exe="$mise_bin"' ':'
+reviewer_drift reviewer-backend-shim-is-mise '[ "$shim" != mise ] || { echo' 'true || { echo'
+reviewer_drift reviewer-backend-home-in-repo 'in_repo "$HOME"; [ "$?" -eq 1 ] || { echo' 'true || { echo'
+reviewer_drift reviewer-backend-mise-resolve-no-stop '|| { echo "mise could not resolve $shim from HOME' '|| true; { echo "mise could not resolve $shim from HOME'
+reviewer_drift reviewer-backend-shim-exec-relative 'case "$bin_exec" in /*) ;; *) echo "mise which' 'case "$bin_exec" in *) ;; /*) echo "mise which'
+reviewer_drift reviewer-backend-tool-dirs-colon 'case "$dir" in *:*|[!/]*) continue ;; esac' 'case "$dir" in [!/]*) continue ;; esac'
+reviewer_drift reviewer-backend-shim-to-shim '! is_mise "$bin_real" || { echo' 'true || { echo'
+reviewer_drift reviewer-backend-binary-in-repo-after-mise \
+  '  in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] || { echo "cli.binary is a link into the repo under review' '  true || { echo "cli.binary is a link into the repo under review'
+reviewer_drift reviewer-backend-link-chain-through-repo \
+  'in_repo "${next%/*}/"; [ "$?" -eq 1 ] || { echo' 'true || { echo'
+reviewer_drift reviewer-backend-consent-not-real-path 'is item 5'"'"'s `bin_real`' 'is item 5'"'"'s `bin_abs`'
+reviewer_drift reviewer-backend-preflight-range 'up to, not including, its `[ "$bin_real" = "$approved" ]` check' 'through its approved check'
+reviewer_drift reviewer-backend-cli-path-unused '  env_kept[0]="PATH=$cli_path"' '  :'
 reviewer_drift reviewer-backend-timeout-unresolved 'tbin_real="$(realpath "$tbin")" ||' 'tbin_real="$tbin" ||'
 reviewer_drift reviewer-backend-timeout-in-repo 'in_repo "${tbin_real%/*}/"; [ "$?" -eq 1 ] ||' 'true ||'
 reviewer_drift reviewer-backend-timeout-assignment 'case "$tbin" in *=*|[!/]*)' 'case "$tbin" in [!/]*)'

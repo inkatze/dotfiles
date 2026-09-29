@@ -21,7 +21,7 @@
         "findings_jq": "[(.items // [])[] | {file: .location, line: .row, finding: .text, severity: .level, rule: .id}]",
         "default_effort": "medium",
         "env_allow": ["EXAMPLE_VAR"],
-        "invocation_notes": "placeholder flags, findings_jq and env_allow; run the real CLI's --help and inspect one real findings file before first use, then correct the first two, and measure env_allow by running the CLI under env -i with HOME and the filtered PATH (see /panel-review)"
+        "invocation_notes": "placeholder flags, findings_jq and env_allow; run the real CLI's --help and inspect one real findings file before first use, then correct the first two, and measure env_allow by running the CLI the way /panel-review's snippet does (see its Config the snippet reads)"
       }
     },
     "example-cli-only-reviewer": {
