@@ -64,8 +64,8 @@ gemini = "0.54.4"
 # Linux; the registry's default backend (aqua:github/copilot-cli) is the last
 # of those, the same tarball the Macs' `cask "copilot-cli"` unpacks. npm would
 # need node 22, and the install script, though it takes a VERSION, leaves the
-# binary outside anything that records the pin. Declaring it removes
-# the dependency on `gh copilot`'s interactive first-run download.
+# binary outside anything that records the pin. Declaring it removes the
+# dependency on `gh copilot`'s interactive first-run download.
 copilot = "1.0.89"
 
 # Ubuntu resolute ships gh 2.46.0, tagged upstream in March 2024. gh is a
