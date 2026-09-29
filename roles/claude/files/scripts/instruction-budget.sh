@@ -37,11 +37,10 @@ roles/claude/files/commands/peer-review.md    2268   2750   3250
 
 # Whitespace-separated words, byte-wise in the C locale. Not `wc -w`: GNU and
 # BSD disagree on whether a run of non-printable bytes (a UTF-8 dash, in the C
-# locale) is a word. The read is its own step so a failed one is never zero.
+# locale) is a word. Exits with tr's status, so a failed read is never zero.
 count_words() {
-  local words
-  words="$(LC_ALL=C tr -s ' \t\n\r\v\f' '[\n*]' <"$1")" || return 1
-  printf '%s\n' "$words" | LC_ALL=C grep -c . || true
+  LC_ALL=C tr -s ' \t\n\r\v\f' '[\n*]' <"$1" | LC_ALL=C grep -c .
+  return "${PIPESTATUS[0]}"
 }
 
 case "$#:${1:-}" in
