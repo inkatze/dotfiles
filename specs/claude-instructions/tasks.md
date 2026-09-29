@@ -108,6 +108,15 @@ swept by the drain pass's manual inventory.
   REQ-C1.5, REQ-C1.6, REQ-C1.7, REQ-C1.8, REQ-C1.9, REQ-C1.10, REQ-C1.11,
   REQ-G1.1, REQ-G1.3, REQ-G1.4, REQ-J1.2, REQ-K1.1, REQ-K1.2
 - **Estimated effort:** 2 days
+- **Operator departure (2026-09-29):** approved by the operator. The
+  dispatching host holds neither the machine-local inventory nor the
+  identifier file, so on the branch the stale-reference pins cover only the
+  two strings `test-spec.md` names for REQ-C1.7. Two steps move to manual
+  pre-merge steps, run on the host that holds those files and recorded on
+  the task PR before it merges: inventorying each new shared file with the
+  inventory directory at 0700 and its files at 0600 (REQ-K1.1, REQ-K1.2),
+  and the identifier check over the skills tree, the shared directory, both
+  `CLAUDE.md` files and this bundle showing zero hits (REQ-C1.8, REQ-J1.2).
 
 ### Task 3 — Diet the user-global CLAUDE.md
 
@@ -232,10 +241,7 @@ swept by the drain pass's manual inventory.
 
 ## Awaiting input
 
-- **Task 2** — The machine-local inventory directory and the identifier
-  file this task reads (REQ-C1.7's flagged strings, REQ-K1.1, REQ-K1.2, the
-  Done-when's identifier check) are absent on the dispatching host; the
-  operator chooses where the task runs or how those arms are sourced.
+(none yet)
 
 ## Deferred
 
