@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# Word-budget guard for the always-loaded and on-demand instruction surfaces.
+# Instruction-following degrades with load, so each surface carries a warn and
+# an error threshold and growth past them has to be a visible, deliberate edit.
+#
+# Usage: instruction-budget.sh           check the tree rooted at the cwd
+#        instruction-budget.sh --count F print F's word count
+#
+# Runs from the repo root (lefthook pre-commit, and CI in the skill-contracts
+# job); instruction-budget-test.sh plants drifts to prove each check fires.
+set -euo pipefail
+
+# Paths the guard covers. Every file these match must have a row in SURFACES.
+COVERED=(
+  roles/claude/files/CLAUDE.md
+  CLAUDE.md
+  "roles/claude/files/commands/*.md"
+)
+
+# Thresholds are set by rule, never by taste. For a surface's declared word
+# count n (its count at the commit that set the row):
+#   warn  = 250 * ceil(n / 250) + 250
+#   error = warn + 500
+# A change that grows or adds a surface re-derives its row in the same commit;
+# `--count <file>` gives n.
+#
+# path                                        n      warn   error
+SURFACES="
+roles/claude/files/CLAUDE.md                  7559   8000   8500
+CLAUDE.md                                     6651   7000   7500
+roles/claude/files/commands/bot-review.md     5833   6250   6750
+roles/claude/files/commands/code-review.md    8961   9250   9750
+roles/claude/files/commands/copilot-review.md 13868  14250  14750
+roles/claude/files/commands/panel-review.md   12161  12500  13000
+roles/claude/files/commands/peer-review.md    2268   2750   3250
+"
+
+# Whitespace-separated words, byte-wise in the C locale. Not `wc -w`: GNU and
+# BSD disagree on whether a run of non-printable bytes (a UTF-8 dash, in the C
+# locale) is a word.
+count_words() {
+  LC_ALL=C tr -s ' \t\n\r\v\f' '[\n*]' <"$1" | LC_ALL=C grep -c . || true
+}
+
+if [ "${1:-}" = "--count" ]; then
+  [ -r "${2:-}" ] && [ -f "$2" ] || { echo "ERROR: cannot read ${2:-<none>}" >&2; exit 1; }
+  count_words "$2"
+  exit 0
+fi
+
+errors=0
+warnings=0
+
+err() {
+  errors=$((errors + 1))
+  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    echo "::error file=$1::$2"
+  else
+    echo "ERROR: $1: $2"
+  fi
+}
+
+warn() {
+  warnings=$((warnings + 1))
+  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    echo "::warning file=$1::$2"
+  else
+    echo "WARN: $1: $2" >&2
+  fi
+}
+
+declared=" "
+while read -r path n w e; do
+  [ -n "$path" ] || continue
+  declared="$declared$path "
+  expected_w=$(((n + 249) / 250 * 250 + 250))
+  expected_e=$((expected_w + 500))
+  if [ "$w" != "$expected_w" ] || [ "$e" != "$expected_e" ]; then
+    err "$path" "thresholds $w/$e do not match the rule for declared count $n (expected $expected_w/$expected_e)"
+  fi
+  if [ ! -f "$path" ] || [ ! -r "$path" ]; then
+    err "$path" "surface is declared but cannot be read"
+    continue
+  fi
+  count="$(count_words "$path")"
+  if [ "$count" -gt "$e" ]; then
+    err "$path" "$count words exceeds the error threshold $e"
+  elif [ "$count" -gt "$w" ]; then
+    warn "$path" "$count words exceeds the warn threshold $w (error at $e)"
+  fi
+done <<<"$SURFACES"
+
+for pattern in "${COVERED[@]}"; do
+  # Unquoted on purpose: the glob is the pattern.
+  # shellcheck disable=SC2206
+  matches=($pattern)
+  for path in "${matches[@]}"; do
+    [ -e "$path" ] || continue
+    case "$declared" in
+      *" $path "*) ;;
+      *) err "$path" "covered surface has no declared thresholds (add a SURFACES row; n from --count)" ;;
+    esac
+  done
+done
+
+if [ "$errors" -gt 0 ]; then
+  echo "instruction-budget: $errors error(s), $warnings warning(s)"
+  exit 1
+fi
+echo "instruction-budget: all surfaces within budget ($warnings warning(s))"

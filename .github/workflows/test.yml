@@ -94,6 +94,10 @@ jobs:
       - name: Run the service-account token suite (macOS)
         run: scripts/op-token-test.sh
 
+      # Also runs on Ubuntu below: the word count must match under BSD tr/grep.
+      - name: Run the instruction word-budget fixture suite (macOS)
+        run: roles/claude/files/scripts/instruction-budget-test.sh
+
   # The review-command contract checker's fixture suite. lefthook runs both
   # scripts pre-commit, but a bypassed hook (--no-verify, web edits) would
   # land unchecked without this; the suite is what proves each check class
@@ -127,6 +131,13 @@ jobs:
       # own `ssh -G`) are all it needs; lint runs it on macOS as well.
       - name: Run the service-account token suite
         run: scripts/op-token-test.sh
+
+      # Warnings surface as annotations; lint runs the suite on macOS as well.
+      - name: Run the instruction word-budget checker
+        run: roles/claude/files/scripts/instruction-budget.sh
+
+      - name: Run the instruction word-budget fixture suite
+        run: roles/claude/files/scripts/instruction-budget-test.sh
 
   test:
     needs: lint

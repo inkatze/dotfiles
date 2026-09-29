@@ -101,6 +101,10 @@ the checker itself are gated by `roles/claude/files/scripts/skill-contracts.sh`
 reword that trips it means the contract text moved: update the checker (and
 the fixture that plants a drift in that sentence) in the same commit.
 
+Instruction surfaces carry word budgets in
+`roles/claude/files/scripts/instruction-budget.sh`; growing or adding one
+means re-deriving its row there in the same commit.
+
 Hook logic lives in `roles/claude/files/scripts/` and is wired from
 `settings.json`. Skills are not managed by Ansible yet. Adding a new tracked
 directory requires a matching symlink task in `roles/claude/tasks/main.yml`.

@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# Fixture tests for instruction-budget.sh. Each case copies the tracked
+# surfaces into a temp tree, plants one change, and asserts the checker's exit
+# status and message. The wiring cases read lefthook.yml and the workflow,
+# since a guard nothing runs fails silently.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
+[ -f "$ROOT/lefthook.yml" ] || {
+  echo "instruction-budget-test: must run from the dotfiles checkout (ROOT resolved to $ROOT)"
+  exit 1
+}
+SCRIPT=roles/claude/files/scripts/instruction-budget.sh
+failures=0
+tmp=""
+
+setup() {
+  tmp="$(mktemp -d -t instruction-budget-test.XXXXXX)"
+  mkdir -p "$tmp/roles/claude/files/scripts"
+  cp -r "$ROOT/roles/claude/files/commands" "$tmp/roles/claude/files/"
+  cp "$ROOT/roles/claude/files/CLAUDE.md" "$tmp/roles/claude/files/"
+  cp "$ROOT/CLAUDE.md" "$tmp/"
+  cp "$ROOT/$SCRIPT" "$tmp/$SCRIPT"
+}
+
+teardown() { rm -rf "$tmp" || true; tmp=""; }
+trap '[ -n "$tmp" ] && rm -rf "$tmp"' EXIT
+
+fail() { echo "FAIL $1: $2"; failures=$((failures + 1)); }
+
+# append_words <file> <n>
+append_words() {
+  local i
+  for ((i = 0; i < $2; i++)); do printf 'word '; done >>"$tmp/$1"
+}
+
+# set_row <path> <n> <warn> <error>: replace a SURFACES row in the temp script.
+set_row() {
+  perl -pi -e "s{^\Q$1\E\s.*\$}{$1 $2 $3 $4}" "$tmp/$SCRIPT"
+}
+
+# check <name> <expected exit> <stdout+stderr fragment or ""> <forbidden fragment or "">
+check() {
+  local name="$1" want="$2" fragment="$3" forbidden="$4" out rc=0
+  out="$(cd "$tmp" && bash "$SCRIPT" 2>&1)" || rc=$?
+  if [ "$rc" != "$want" ]; then
+    fail "$name" "exit $rc, want $want: $out"
+  elif [ -n "$fragment" ] && [[ "$out" != *"$fragment"* ]]; then
+    fail "$name" "output lacks '$fragment': $out"
+  elif [ -n "$forbidden" ] && [[ "$out" == *"$forbidden"* ]]; then
+    fail "$name" "output has '$forbidden': $out"
+  fi
+  teardown
+}
+
+peer=roles/claude/files/commands/peer-review.md
+
+setup
+check baseline 0 "all surfaces within budget" "WARN"
+
+setup
+read -r _ n w e < <(grep "^$peer " "$tmp/$SCRIPT")
+append_words "$peer" $((e + 1 - n))
+check overage 1 "exceeds the error threshold" ""
+
+setup
+append_words "$peer" $((w + 1 - n))
+check warn-range 0 "exceeds the warn threshold" "ERROR"
+
+setup
+append_words "$peer" 1
+check under-warn 0 "all surfaces within budget" "WARN"
+
+setup
+rm "$tmp/$peer"
+check unreadable 1 "cannot be read" ""
+
+setup
+rm "$tmp/roles/claude/files/CLAUDE.md"
+check unreadable-global 1 "cannot be read" ""
+
+setup
+printf 'new command\n' >"$tmp/roles/claude/files/commands/new-review.md"
+check no-thresholds 1 "commands/new-review.md: covered surface has no declared thresholds" ""
+
+setup
+set_row "$peer" "$n" "$((w + 250))" "$((e + 250))"
+check formula-mismatch 1 "do not match the rule" ""
+
+setup
+set_row "$peer" 2500 2750 3250
+check formula-exact-multiple 0 "all surfaces within budget" ""
+
+setup
+set_row "$peer" 2500 3000 3500
+check formula-exact-multiple-off-by-one 1 "do not match the rule" ""
+
+setup
+append_words "$peer" $((w + 1 - n))
+out="$(cd "$tmp" && GITHUB_ACTIONS=true bash "$SCRIPT" 2>/dev/null)" || true
+[[ "$out" == *"::warning file=$peer::"* ]] || fail ci-annotation "no warning annotation on stdout: $out"
+teardown
+
+# Multibyte punctuation and a non-breaking space are not whitespace in the C
+# locale: 'a', the dash, 'b<NBSP>c' and the quoted word are four words.
+setup
+printf 'a \xe2\x80\x94 b\xc2\xa0c\t\xe2\x80\x9cd\xe2\x80\x9d\r\n\n' >"$tmp/mb.txt"
+got="$(cd "$tmp" && bash "$SCRIPT" --count mb.txt)"
+[ "$got" = 4 ] || fail multibyte-count "counted $got, want 4"
+teardown
+
+lefthook_run="$(awk '/^    instruction-budget:/{f=1;next} f&&/^    [a-z]/{f=0} f' "$ROOT/lefthook.yml")"
+[[ "$lefthook_run" == *"run: $SCRIPT"* ]] || fail lefthook-entry "no instruction-budget command running $SCRIPT"
+[[ "$lefthook_run" == *"glob:"*"commands/"*"CLAUDE.md"* ]] || fail lefthook-glob "entry has no glob over the surfaces"
+
+ci_job="$(awk '/^  skill-contracts:/{f=1;next} f&&/^  [a-z]/{f=0} f' "$ROOT/.github/workflows/test.yml")"
+[[ "$ci_job" == *"run: $SCRIPT"* ]] || fail ci-step "skill-contracts job has no step running $SCRIPT"
+
+if [ "$failures" -gt 0 ]; then
+  echo "instruction-budget-test: $failures failure(s)"
+  exit 1
+fi
+echo "instruction-budget-test: all cases pass"
