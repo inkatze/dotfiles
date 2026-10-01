@@ -496,6 +496,30 @@ path. The check is on `PATH` itself rather than a sentinel variable, because
 Relatedly, the login block appends rather than prepends runtime bins: a
 prepend there outranks the shims whenever something activates them first.
 
+## planwright from the shell
+
+`conf.d/planwright.fish` exports `PLANWRIGHT_ADOPTER_OVERLAY` and
+`PLANWRIGHT_FLEET_STATE_DIR` at the `overlay` and `fleet` subdirectories of
+planwright's plugin-data dir, for every shell and every worker it spawns.
+Claude Code hands `CLAUDE_PLUGIN_DATA` only to the plugin's own hooks, so
+without these a planwright script run as a tool command cannot find its fleet
+state. The plugin-data dir survives upgrades; the versioned install root does
+not, which is why neither variable names it.
+
+`tower` launches `/planwright:tower` under planwright's tower permission
+profile (`config/tower-settings.json`), resolving the newest installed version
+at launch the same way `worker-guard-gate.sh` does. It exports
+`CLAUDE_PLUGIN_ROOT` for that process only, because the profile's hook names
+it and Claude Code does not inject it for a `--settings` file. Extra arguments
+pass through to `claude`.
+
+**It fails closed.** With no install or no profile in the newest one it
+refuses to launch, since a tower without `--settings` still starts, just
+without the deny block that is its security floor. That profile is
+tower-scoped by design: never merge it into the tracked `settings.json`,
+where every interactive session and worker would load it.
+`scripts/fish-tower-test.sh` pins both behaviours.
+
 ## Ansible role layout
 
 The repo is split by platform via `os_family` guards in `main.yml`:
