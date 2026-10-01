@@ -77,7 +77,7 @@ pre-commit:
     fish-tower:
       # The suite is what notices the launcher losing its fail-closed refusal;
       # the function alone still starts a tower, just without its deny floor.
-      glob: "{roles/fish/files/planwright.fish,roles/fish/files/fish/functions/tower.fish,\
+      glob: "{roles/fish/files/planwright.fish,roles/fish/files/fish/functions/{tower,claude}.fish,\
         scripts/fish-tower-test.sh}"
       run: scripts/fish-tower-test.sh
     fish-functions-ignore:

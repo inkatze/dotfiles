@@ -67,7 +67,10 @@ add_version() {
 # --- conf.d snippet ---------------------------------------------------------
 
 h="$(new_home env)"
-out="$(HOME="$h" fish --no-config -c "source '$snippet'; fish -c 'printf \"%s\n\" \$PLANWRIGHT_ADOPTER_OVERLAY \$PLANWRIGHT_FLEET_STATE_DIR'")"
+# The child takes --no-config too: with XDG_CONFIG_HOME pointing at a deployed
+# config it would re-derive the values itself and hide a snippet that stopped
+# exporting them.
+out="$(HOME="$h" fish --no-config -c "source '$snippet'; fish --no-config -c 'printf \"%s\n\" \$PLANWRIGHT_ADOPTER_OVERLAY \$PLANWRIGHT_FLEET_STATE_DIR'")"
 want="$h/.claude/plugins/data/planwright-planwright/overlay
 $h/.claude/plugins/data/planwright-planwright/fleet"
 if [ "$out" = "$want" ]; then
@@ -272,7 +275,9 @@ fi
 # a fresh scope: the root must still reach the binary behind it.
 h="$(new_home wrapper)"
 add_version "$h" 0.49.0
-HOME="$h" PATH="$scratch/bin:$PATH" STUB_LOG="$h/log" CLAUDE_PLUGIN_ROOT='' \
+# SSH_CONNECTION unset: on a Mac reached over ssh the wrapper would otherwise
+# try to unlock the login keychain, and block on its password prompt.
+env -u SSH_CONNECTION HOME="$h" PATH="$scratch/bin:$PATH" STUB_LOG="$h/log" CLAUDE_PLUGIN_ROOT='' \
     fish --no-config -c "source '$repo/roles/fish/files/fish/functions/claude.fish'; source '$fn'; tower" 2>/dev/null
 if grep -qx "CLAUDE_PLUGIN_ROOT=$h/.claude/plugins/cache/planwright/planwright/0.49.0" "$h/log" 2>/dev/null; then
     pass wrapper "root reaches claude through the wrapper function"
