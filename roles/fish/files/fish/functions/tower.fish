@@ -9,17 +9,29 @@ function tower --description 'Launch the planwright tower under its tower permis
         end
     end
 
-    # Newest installed version, resolved at launch like worker-guard-gate.sh
-    # does, so a planwright upgrade needs nothing regenerated here.
-    # `set` is the one place an unmatched glob is silently empty rather than
-    # an error.
-    set -l roots $HOME/.claude/plugins/cache/planwright/planwright/*/
-    set -l root (string trim --right --chars=/ -- (printf '%s\n' $roots | sort -V | tail -n 1))
-    if test -z "$root"
-        printf 'tower: no planwright install under %s; refusing to launch without the tower profile\n' \
-            "$HOME/.claude/plugins/cache/planwright/planwright" >&2
+    # Newest installed version, resolved at launch so a planwright upgrade
+    # needs nothing regenerated here.
+    # Only version-named directories count, and not one Claude Code has marked
+    # orphaned: it keeps superseded versions on disk, so the newest name there
+    # is not necessarily the version it loads.
+    set -l cache $HOME/.claude/plugins/cache/planwright/planwright
+    set -l versions
+    # `for` is one of the places an unmatched glob is silently empty rather
+    # than an error.
+    for dir in $cache/*/
+        set -l v (string replace -r '.*/([^/]+)/$' '$1' -- $dir)
+        string match -qr '^[0-9]+(\.[0-9]+)*$' -- $v; or continue
+        test -e "$cache/$v/.orphaned_at"; and continue
+        set -a versions $v
+    end
+    # Sorted on the bare name: a trailing slash changes what -V compares.
+    set -l newest (printf '%s\n' $versions | sort -V | tail -n 1)
+    if test -z "$newest"
+        printf 'tower: no live planwright install under %s; refusing to launch without the tower profile\n' \
+            "$cache" >&2
         return 1
     end
+    set -l root "$cache/$newest"
 
     # Fail closed: the profile's deny block is the tower's security floor, and
     # a tower started without it runs with nothing looking wrong.

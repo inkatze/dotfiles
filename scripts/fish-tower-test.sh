@@ -107,9 +107,8 @@ else
     fail no-settings "rc=$rc, claude started: $([ -e "$h/log" ] && echo yes || echo no), stderr: $(cat "$h/err")"
 fi
 
-# An older root that still has a profile must not be borrowed: the newest
-# install is the one Claude Code loads, and mixing versions would pair one
-# release's deny floor with another's guard.
+# An older root that still has a profile must not be borrowed: mixing versions
+# would pair one release's deny floor with another's guard and skill.
 h="$(new_home newest-lacks)"
 add_version "$h" 0.48.0
 add_version "$h" 0.49.0 without-settings
@@ -154,6 +153,53 @@ if [ "$rc" = 0 ] && grep -qx "CLAUDE_PLUGIN_ROOT=$h/.claude/plugins/cache/planwr
     pass version-order "0.10.0 wins over 0.9.0"
 else
     fail version-order "rc=$rc, log: $(cat "$h/log" 2>/dev/null)"
+fi
+
+# Only version-named directories are installs: a stray copy sorts after every
+# version under -V and would otherwise pair a stale profile with the session.
+h="$(new_home stray)"
+add_version "$h" 0.49.0
+add_version "$h" old-backup
+add_version "$h" 0.49.0.bak
+rc="$(run_tower "$h")"
+if [ "$rc" = 0 ] && grep -qx "CLAUDE_PLUGIN_ROOT=$h/.claude/plugins/cache/planwright/planwright/0.49.0" "$h/log"; then
+    pass stray-dirs "non-version directories are ignored"
+else
+    fail stray-dirs "rc=$rc, log: $(cat "$h/log" 2>/dev/null)"
+fi
+
+# Claude Code marks a superseded or un-pinned version .orphaned_at and keeps
+# it on disk, so newest-on-disk is not what it loads after a downgrade.
+h="$(new_home orphaned)"
+add_version "$h" 0.48.0
+add_version "$h" 0.49.0
+touch "$h/.claude/plugins/cache/planwright/planwright/0.49.0/.orphaned_at"
+rc="$(run_tower "$h")"
+if [ "$rc" = 0 ] && grep -qx "CLAUDE_PLUGIN_ROOT=$h/.claude/plugins/cache/planwright/planwright/0.48.0" "$h/log"; then
+    pass orphaned "an orphaned version is skipped"
+else
+    fail orphaned "rc=$rc, log: $(cat "$h/log" 2>/dev/null)"
+fi
+
+h="$(new_home all-orphaned)"
+add_version "$h" 0.49.0
+touch "$h/.claude/plugins/cache/planwright/planwright/0.49.0/.orphaned_at"
+rc="$(run_tower "$h")"
+if [ "$rc" != 0 ] && [ ! -e "$h/log" ]; then
+    pass all-orphaned "refuses when every version is orphaned"
+else
+    fail all-orphaned "rc=$rc, launched against an orphaned root"
+fi
+
+# A trailing slash flips -V's order here: `0.10.0/` sorts after `0.10.0.1/`.
+h="$(new_home slash-order)"
+add_version "$h" 0.10.0
+add_version "$h" 0.10.0.1
+rc="$(run_tower "$h")"
+if [ "$rc" = 0 ] && grep -qx "CLAUDE_PLUGIN_ROOT=$h/.claude/plugins/cache/planwright/planwright/0.10.0.1" "$h/log"; then
+    pass slash-order "ordered on the bare version, not the globbed path"
+else
+    fail slash-order "rc=$rc, log: $(cat "$h/log" 2>/dev/null)"
 fi
 
 # The root is scoped to the launched process, never left in the caller's shell.

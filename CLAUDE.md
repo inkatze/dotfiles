@@ -508,14 +508,15 @@ not, which is why neither variable names it.
 
 `tower` launches `/planwright:tower` under planwright's tower permission
 profile (`config/tower-settings.json`), resolving the newest installed version
-at launch the same way `worker-guard-gate.sh` does. It exports
+at launch: version-named directories only, skipping any Claude Code has marked
+`.orphaned_at`, since it keeps superseded versions on disk. It exports
 `CLAUDE_PLUGIN_ROOT` for that process only, because the profile's hook names
 it and Claude Code does not inject it for a `--settings` file. Extra arguments
 pass through to `claude`, except `--settings`, `--permission-*`, `--bare` and
 the `--dangerously-*` family, which it refuses: claude keeps only the last
 `--settings` it is given, so one passed through would replace the profile.
 
-**It fails closed.** With no install or no profile in the newest one it
+**It fails closed.** With no live install or no profile in the newest one it
 refuses to launch, since a tower without `--settings` still starts, just
 without the deny block that is its security floor. That profile is
 tower-scoped by design: never merge it into the tracked `settings.json`,
