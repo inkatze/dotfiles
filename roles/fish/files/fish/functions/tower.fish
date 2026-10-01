@@ -1,4 +1,14 @@
 function tower --description 'Launch the planwright tower under its tower permission profile'
+    # claude keeps the last --settings it is given, so passing one through
+    # would replace the profile rather than add to it; the others switch the
+    # permission layer or its hooks off outright.
+    for arg in $argv
+        if string match -qr -- '^--(settings|permission-|bare|dangerously-|allow-dangerously-)' $arg
+            printf 'tower: refusing %s, which would replace or disable the tower profile\n' $arg >&2
+            return 1
+        end
+    end
+
     # Newest installed version, resolved at launch like worker-guard-gate.sh
     # does, so a planwright upgrade needs nothing regenerated here.
     # `set` is the one place an unmatched glob is silently empty rather than

@@ -511,7 +511,9 @@ profile (`config/tower-settings.json`), resolving the newest installed version
 at launch the same way `worker-guard-gate.sh` does. It exports
 `CLAUDE_PLUGIN_ROOT` for that process only, because the profile's hook names
 it and Claude Code does not inject it for a `--settings` file. Extra arguments
-pass through to `claude`.
+pass through to `claude`, except `--settings`, `--permission-*`, `--bare` and
+the `--dangerously-*` family, which it refuses: claude keeps only the last
+`--settings` it is given, so one passed through would replace the profile.
 
 **It fails closed.** With no install or no profile in the newest one it
 refuses to launch, since a tower without `--settings` still starts, just

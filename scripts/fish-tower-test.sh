@@ -179,6 +179,23 @@ else
     fail wrapper "log: $(cat "$h/log" 2>/dev/null)"
 fi
 
+# Passed-through flags that would replace or disable the profile. claude keeps
+# the last --settings it is given, so `tower --settings '{}'` alone would start
+# a tower with no deny floor.
+h="$(new_home override)"
+add_version "$h" 0.49.0
+for flag in --settings --settings={} --dangerously-skip-permissions \
+    --allow-dangerously-skip-permissions --permission-mode \
+    --permission-mode=bypassPermissions --permission-prompt-tool --bare; do
+    rm -f "$h/log"
+    rc="$(run_tower "$h" --model opus "$flag" x)"
+    if [ "$rc" != 0 ] && [ ! -e "$h/log" ] && grep -q '^tower:' "$h/err"; then
+        pass "refuse $flag" "refused, claude not started"
+    else
+        fail "refuse $flag" "rc=$rc, claude started: $([ -e "$h/log" ] && echo yes || echo no)"
+    fi
+done
+
 # claude's own exit status is the function's.
 cat >"$scratch/bin/claude" <<'STUB'
 #!/usr/bin/env bash
