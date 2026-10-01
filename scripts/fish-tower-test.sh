@@ -79,6 +79,23 @@ got:
 $out"
 fi
 
+# A caller that points these at a scratch dir (a test, a harness) must keep
+# that through every fish child, `fish -c` included, or it is silently sent
+# back to the real fleet state. Empty counts as unset, as planwright reads it.
+h="$(new_home env-preset)"
+out="$(HOME="$h" PLANWRIGHT_FLEET_STATE_DIR=/custom/fleet PLANWRIGHT_ADOPTER_OVERLAY='' \
+    fish --no-config -c "source '$snippet'; printf '%s\n' \$PLANWRIGHT_ADOPTER_OVERLAY \$PLANWRIGHT_FLEET_STATE_DIR")"
+want="$h/.claude/plugins/data/planwright-planwright/overlay
+/custom/fleet"
+if [ "$out" = "$want" ]; then
+    pass env-preset "a caller's value is kept, an empty one replaced"
+else
+    fail env-preset "expected:
+$want
+got:
+$out"
+fi
+
 # A literal home path would publish a username and break every other host.
 if grep -q '/home/\|/Users/' "$snippet" "$fn"; then
     fail no-literal-home "a literal home path appears in the snippet or the function"

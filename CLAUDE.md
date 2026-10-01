@@ -499,32 +499,23 @@ prepend there outranks the shims whenever something activates them first.
 ## planwright from the shell
 
 `conf.d/planwright.fish` exports `PLANWRIGHT_ADOPTER_OVERLAY` and
-`PLANWRIGHT_FLEET_STATE_DIR` at the `overlay` and `fleet` subdirectories of
-planwright's plugin-data dir, for every shell and every worker it spawns.
-Claude Code hands `CLAUDE_PLUGIN_DATA` only to the plugin's own hooks, so
-without these a planwright script run as a tool command cannot find its fleet
-state. The plugin-data dir survives upgrades; the versioned install root does
-not, which is why neither variable names it.
+`PLANWRIGHT_FLEET_STATE_DIR` under planwright's plugin-data dir for every
+shell and worker, since Claude Code hands `CLAUDE_PLUGIN_DATA` only to the
+plugin's own hooks. A non-empty value the caller already set is kept.
 
 `tower` launches `/planwright:tower` under planwright's tower permission
-profile (`config/tower-settings.json`), resolving the newest installed version
-at launch: version-named directories only, skipping any Claude Code has marked
-`.orphaned_at`, since it keeps superseded versions on disk. It exports
-`CLAUDE_PLUGIN_ROOT` for that process only, because the profile's hook names
-it and Claude Code does not inject it for a `--settings` file. Extra arguments
-pass through to `claude`, except `--settings`, `--permission-*`, `--bare` and
-the `--dangerously-*` family, which it refuses: claude keeps only the last
-`--settings` it is given, so one passed through would replace the profile.
+profile (`config/tower-settings.json`) from the newest live install
+(version-named, not marked `.orphaned_at`), exporting `CLAUDE_PLUGIN_ROOT` for
+that process only: the profile's hook needs it and Claude Code does not inject
+it for a `--settings` file. Extra arguments pass through, except
+`--settings`, `--permission-*`, `--bare` and `--dangerously-*`, which could
+replace or disable the profile.
 
-**It fails closed.** With no live install or no profile in the newest one it
-refuses to launch, since a tower without `--settings` still starts, just
-without the deny block that is its security floor. It also refuses a profile
-whose `permissions.deny` is missing or empty (checked with `jq`, so no `jq`
-means no launch), because claude starts on an empty or malformed settings file
-without complaint. That profile is
-tower-scoped by design: never merge it into the tracked `settings.json`,
-where every interactive session and worker would load it.
-`scripts/fish-tower-test.sh` pins all of it.
+**It fails closed.** No live install, no profile, or a profile without a
+non-empty `permissions.deny` (checked with `jq`; no `jq`, no launch) refuses
+the launch, since a tower without that deny block starts anyway, minus its
+security floor. The profile is tower-scoped by design: never merge it into the
+tracked `settings.json`. `scripts/fish-tower-test.sh` pins all of it.
 
 ## Ansible role layout
 

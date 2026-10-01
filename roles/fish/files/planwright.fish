@@ -5,6 +5,10 @@
 #
 # Both sit under the plugin-data dir, which is stable across planwright
 # upgrades, unlike the versioned install root `tower` resolves at launch.
+#
+# A value the caller already set wins: planwright reads both as an explicit
+# override, and a test or harness pointing them at a scratch dir would
+# otherwise be sent back to the real fleet state by every `fish -c` it runs.
 set -l __pw_data "$HOME/.claude/plugins/data/planwright-planwright"
-set -gx PLANWRIGHT_ADOPTER_OVERLAY "$__pw_data/overlay"
-set -gx PLANWRIGHT_FLEET_STATE_DIR "$__pw_data/fleet"
+test -n "$PLANWRIGHT_ADOPTER_OVERLAY"; or set -gx PLANWRIGHT_ADOPTER_OVERLAY "$__pw_data/overlay"
+test -n "$PLANWRIGHT_FLEET_STATE_DIR"; or set -gx PLANWRIGHT_FLEET_STATE_DIR "$__pw_data/fleet"
