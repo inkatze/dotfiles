@@ -89,6 +89,7 @@ spelling got it there, and it is allowed only on a branch in scope:
 - **Work repos narrow it:** in a repository owned by an employer or another
   organization, a branch is in scope only while its PR is still a draft (or
   before one is opened); once the PR is ready for review, add commits instead.
+  If you cannot tell who owns a repository, treat it as a work repo.
 - **A repo can move the line:** a repository's own `CLAUDE.md` may narrow or
   widen the default scope, and its statement wins there. No repo widens it onto
   a protected branch or onto a branch someone else works from.
@@ -99,11 +100,14 @@ spelling got it there, and it is allowed only on a branch in scope:
 
 Publish a rewrite with `--force-with-lease` only, naming the expected ref where
 practical (`--force-with-lease=<branch>:<sha>`). Plain `--force`, a `+` refspec,
-and push-time force configuration stay forbidden.
+and push-time force configuration stay forbidden. A rejected lease means
+someone else moved the branch: treat it as shared from then on, and never
+retry with a broader force or a refetched lease that would overwrite their
+push.
 
-Within that scope you may fixup, squash or rebase and force-push on your own
-whenever a rewrite is the most correct fix, not only as a last resort, and you
-say so in your reply: which commits changed, and that the branch was
+Within that scope you may fixup, squash, amend or rebase and force-push on your
+own whenever a rewrite is the most correct fix, not only as a last resort, and
+you say so in your reply: which commits changed, and that the branch was
 force-pushed.
 
 Some workflows still want new-commits-only for their own reasons (a review loop
