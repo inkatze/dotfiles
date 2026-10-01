@@ -518,10 +518,13 @@ the `--dangerously-*` family, which it refuses: claude keeps only the last
 
 **It fails closed.** With no live install or no profile in the newest one it
 refuses to launch, since a tower without `--settings` still starts, just
-without the deny block that is its security floor. That profile is
+without the deny block that is its security floor. It also refuses a profile
+whose `permissions.deny` is missing or empty (checked with `jq`, so no `jq`
+means no launch), because claude starts on an empty or malformed settings file
+without complaint. That profile is
 tower-scoped by design: never merge it into the tracked `settings.json`,
 where every interactive session and worker would load it.
-`scripts/fish-tower-test.sh` pins both behaviours.
+`scripts/fish-tower-test.sh` pins all of it.
 
 ## Ansible role layout
 

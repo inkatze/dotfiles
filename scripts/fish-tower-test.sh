@@ -60,7 +60,7 @@ add_version() {
     local d="$1/.claude/plugins/cache/planwright/planwright/$2"
     mkdir -p "$d/config"
     if [ "${3:-with-settings}" = with-settings ]; then
-        echo '{}' >"$d/config/tower-settings.json"
+        echo '{"permissions": {"deny": ["Bash(gh pr merge:*)"]}}' >"$d/config/tower-settings.json"
     fi
 }
 
@@ -117,6 +117,44 @@ if [ "$rc" != 0 ] && [ ! -e "$h/log" ]; then
     pass no-fallback "does not fall back to an older root's profile"
 else
     fail no-fallback "rc=$rc, launched against an older root"
+fi
+
+# A profile that exists but carries no deny rules is no floor at all, and
+# claude starts on an empty or malformed --settings file without complaint, so
+# a truncated update would otherwise launch unguarded.
+for case in empty malformed no-deny empty-deny; do
+    h="$(new_home "profile-$case")"
+    add_version "$h" 0.49.0
+    p="$h/.claude/plugins/cache/planwright/planwright/0.49.0/config/tower-settings.json"
+    case $case in
+        empty) : >"$p" ;;
+        malformed) echo '{"permissions": {"deny": [' >"$p" ;;
+        no-deny) echo '{"permissions": {"allow": ["Read"]}}' >"$p" ;;
+        empty-deny) echo '{"permissions": {"deny": []}}' >"$p" ;;
+    esac
+    rc="$(run_tower "$h")"
+    if [ "$rc" != 0 ] && [ ! -e "$h/log" ] && grep -q '^tower:' "$h/err"; then
+        pass "profile-$case" "refused, claude not started"
+    else
+        fail "profile-$case" "rc=$rc, claude started: $([ -e "$h/log" ] && echo yes || echo no)"
+    fi
+done
+
+# Without jq the profile cannot be checked, which is a refusal, not a pass.
+mkdir -p "$scratch/nojq"
+for tool in sort tail; do
+    ln -sf "$(command -v "$tool")" "$scratch/nojq/$tool"
+done
+ln -sf "$scratch/bin/claude" "$scratch/nojq/claude"
+h="$(new_home nojq)"
+add_version "$h" 0.49.0
+HOME="$h" PATH="$scratch/nojq" STUB_LOG="$h/log" CLAUDE_PLUGIN_ROOT='' \
+    "$(command -v fish)" --no-config -c "source '$fn'; tower" 2>"$h/err"
+rc=$?
+if [ "$rc" != 0 ] && [ ! -e "$h/log" ] && grep -q '^tower: jq is required' "$h/err"; then
+    pass no-jq "refuses when jq is unavailable"
+else
+    fail no-jq "rc=$rc, claude started: $([ -e "$h/log" ] && echo yes || echo no), stderr: $(cat "$h/err")"
 fi
 
 # --- tower: launch ----------------------------------------------------------

@@ -41,6 +41,17 @@ function tower --description 'Launch the planwright tower under its tower permis
         return 1
     end
 
+    # claude starts on an empty or malformed --settings file without
+    # complaint, so a truncated profile would launch with no floor at all.
+    if not command -q jq
+        printf 'tower: jq is required to check %s; refusing to launch unchecked\n' "$settings" >&2
+        return 1
+    end
+    if not jq -e '.permissions.deny | length > 0' "$settings" >/dev/null 2>&1
+        printf 'tower: %s has no deny rules; refusing to launch without the tower profile\n' "$settings" >&2
+        return 1
+    end
+
     # The profile's hook command names ${CLAUDE_PLUGIN_ROOT}, which Claude Code
     # injects for plugin-declared hooks but not for a --settings file.
     set -lx CLAUDE_PLUGIN_ROOT "$root"
