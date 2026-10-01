@@ -496,6 +496,27 @@ path. The check is on `PATH` itself rather than a sentinel variable, because
 Relatedly, the login block appends rather than prepends runtime bins: a
 prepend there outranks the shims whenever something activates them first.
 
+## planwright from the shell
+
+`conf.d/planwright.fish` exports `PLANWRIGHT_ADOPTER_OVERLAY` and
+`PLANWRIGHT_FLEET_STATE_DIR` under planwright's plugin-data dir for every
+shell and worker, since Claude Code hands `CLAUDE_PLUGIN_DATA` only to the
+plugin's own hooks. A non-empty value the caller already set is kept.
+
+`tower` launches `/planwright:tower` under planwright's tower permission
+profile (`config/tower-settings.json`) from the newest live install
+(version-named, not marked `.orphaned_at`), exporting `CLAUDE_PLUGIN_ROOT` for
+that process only: the profile's hook needs it and Claude Code does not inject
+it for a `--settings` file. Extra arguments pass through, except
+`--settings`, `--permission-*`, `--bare` and `--dangerously-*`, which could
+replace or disable the profile.
+
+**It fails closed.** No live install, no profile, or a profile without a
+non-empty `permissions.deny` (checked with `jq`; no `jq`, no launch) refuses
+the launch, since a tower without that deny block starts anyway, minus its
+security floor. The profile is tower-scoped by design: never merge it into the
+tracked `settings.json`. `scripts/fish-tower-test.sh` pins all of it.
+
 ## Ansible role layout
 
 The repo is split by platform via `os_family` guards in `main.yml`:
