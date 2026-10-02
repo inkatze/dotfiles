@@ -404,7 +404,7 @@ submit_gate_checks=(
 # The isolated-session stop, so a refused review worktree never turns into
 # checking the PR out over the session's own branch.
 isolation_checks=(
-  "stop before anything else and tell me to rerun from a session in the main checkout"
+  "If this session's environment says it is isolated in a worktree, stop before anything else and tell me to rerun from a session in the main checkout."
   "Do not work around it by checking the PR out in this worktree."
   "If a git command is refused later for targeting another worktree, stop the same way at that point."
 )
