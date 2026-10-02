@@ -1,1 +1,2 @@
 - 2026-09-28 [dotfiles] panel-review's reviewer backend blocks repo-steered mise shims with a list of override env vars; two uncovered project-file sources (MISE_ENV via .miserc.toml, auto_env platform files) surfaced in consecutive review passes, and mise plans to load platform files by default, so extending the structural option this branch applies only to a shim CLI (strip mise shims dirs from the CLI PATH, resolve tools from HOME) to non-shim CLIs and the snippet's own helpers may be worth a spec.
+Consumed-by: specs/review-skills (2026-10-02)
