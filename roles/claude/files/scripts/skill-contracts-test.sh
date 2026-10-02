@@ -447,7 +447,7 @@ expect_fail submit-gate-wrapped \
 
 expect_fail isolated-worktree-gate \
   "perl -0pi -e 's/Do not work around it\\s+by checking the PR out/Feel free to work around it by checking the PR out/s' $CMDS/code-review.md" \
-  "missing expected submit-gate sentence"
+  "missing expected isolated-session sentence"
 
 expect_pass submit-gate-reflow \
   "perl -0pi -e 's/explicitly chosen\\s+verdict/explicitly\\nchosen verdict/s' $CMDS/code-review.md"
