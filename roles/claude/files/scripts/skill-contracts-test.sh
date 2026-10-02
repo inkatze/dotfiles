@@ -445,6 +445,22 @@ expect_fail submit-gate-wrapped \
   "perl -0pi -e 's/never\\s+submit\\s+any\\s+review\\s+without\\s+an\\s+explicitly\\s+chosen\\s+verdict/submit whatever/s' $CMDS/code-review.md" \
   "missing expected submit-gate sentence"
 
+expect_fail isolated-worktree-gate \
+  "perl -0pi -e 's/Do not work around it\\s+by checking the PR out/Feel free to work around it by checking the PR out/s' $CMDS/code-review.md" \
+  "missing expected isolated-session sentence"
+
+expect_fail isolated-worktree-stop \
+  "perl -0pi -e 's/stop before anything else and tell me\\s+to rerun/carry on and maybe\\nrerun/s' $CMDS/code-review.md" \
+  "missing expected isolated-session sentence"
+
+expect_fail isolated-worktree-trigger \
+  "perl -0pi -e 's/If this session.s environment\\s+says it is isolated in a worktree, stop/Stop/s' $CMDS/code-review.md" \
+  "missing expected isolated-session sentence"
+
+expect_fail isolated-worktree-refusal \
+  "perl -0pi -e 's/later for targeting another worktree, stop\\s+the same way/later for targeting another worktree, retry\\nanother way/s' $CMDS/code-review.md" \
+  "missing expected isolated-session sentence"
+
 expect_pass submit-gate-reflow \
   "perl -0pi -e 's/explicitly chosen\\s+verdict/explicitly\\nchosen verdict/s' $CMDS/code-review.md"
 

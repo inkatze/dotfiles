@@ -401,6 +401,13 @@ submit_gate_checks=(
   "never choose approval on my behalf"
   "deferred and dismissed items are never posted"
 )
+# The isolated-session stop, so a refused review worktree never turns into
+# checking the PR out over the session's own branch.
+isolation_checks=(
+  "If this session's environment says it is isolated in a worktree, stop before anything else and tell me to rerun from a session in the main checkout."
+  "Do not work around it by checking the PR out in this worktree."
+  "If a git command is refused later for targeting another worktree, stop the same way at that point."
+)
 if [ -f "$CMDS/code-review.md" ]; then
   # Whitespace-normalized match: these sentences sit inside hard-wrapped
   # paragraphs, so a routine reflow must not break the anchor.
@@ -411,8 +418,14 @@ if [ -f "$CMDS/code-review.md" ]; then
       *) err "code-review.md missing expected submit-gate sentence: \"$phrase\"" ;;
     esac
   done
+  for phrase in "${isolation_checks[@]}"; do
+    case "$normalized" in
+      *"$phrase"*) ;;
+      *) err "code-review.md missing expected isolated-session sentence: \"$phrase\"" ;;
+    esac
+  done
 else
-  err "code-review.md referenced by submit_gate_checks but does not exist at $CMDS/code-review.md"
+  err "code-review.md referenced by submit_gate_checks and isolation_checks but does not exist at $CMDS/code-review.md"
 fi
 
 # Slack notification contract. Any command citing the shared mechanism must cite
