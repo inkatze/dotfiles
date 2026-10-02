@@ -29,7 +29,7 @@ SURFACES="
 roles/claude/files/CLAUDE.md                  7908   8250   8750
 CLAUDE.md                                     6663   7000   7500
 roles/claude/files/commands/bot-review.md     5833   6250   6750
-roles/claude/files/commands/code-review.md    9050   9500   10000
+roles/claude/files/commands/code-review.md    9054   9500   10000
 roles/claude/files/commands/copilot-review.md 13872  14250  14750
 roles/claude/files/commands/panel-review.md   12161  12500  13000
 roles/claude/files/commands/peer-review.md    2268   2750   3250
