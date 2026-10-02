@@ -59,6 +59,11 @@
   },
   "permissions": {
     "defaultMode": "auto",
-    "allow": []
+    "allow": [
+      "Bash(git diff *)",
+      "Bash(git -C * diff *)",
+      "Bash(git show *)",
+      "Bash(git fetch origin *)"
+    ]
   }
 }

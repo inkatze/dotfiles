@@ -396,10 +396,13 @@ done
 # else's PR; the sentences gating that submission on an explicit human
 # verdict, and keeping unapproved comments out of it, must not silently
 # drift or disappear. Same posture as copilot-review's mark-ready anchor.
+# Also pins the isolated-session stop, so a refused review worktree never
+# turns into checking the PR out over the session's own branch.
 submit_gate_checks=(
   "never submit any review without an explicitly chosen verdict"
   "never choose approval on my behalf"
   "deferred and dismissed items are never posted"
+  "Do not work around it by checking the PR out in this worktree."
 )
 if [ -f "$CMDS/code-review.md" ]; then
   # Whitespace-normalized match: these sentences sit inside hard-wrapped
