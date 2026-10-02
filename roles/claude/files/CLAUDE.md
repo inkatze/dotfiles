@@ -85,7 +85,9 @@ the flag: a push that would not fast-forward the remote publishes one whatever
 spelling got it there, and it is allowed only on a branch in scope:
 
 - **Default scope:** a feature branch I own that nobody else works from, whether
-  its PR is a draft or ready.
+  it has no PR yet, a draft one, or a ready one. A ready PR with unresolved
+  review threads gets new commits instead, since a rewrite detaches those
+  threads from their lines.
 - **Work repos narrow it:** in a repository owned by an employer or another
   organization, a branch is in scope only while its PR is still a draft (or
   before one is opened); once the PR is ready for review, add commits instead.
@@ -93,10 +95,12 @@ spelling got it there, and it is allowed only on a branch in scope:
 - **A repo can move the line:** a repository's own `CLAUDE.md` may narrow or
   widen the default scope, and its statement wins there. No repo widens it onto
   a protected branch or onto a branch someone else works from.
-- **Never in scope:** `main`, any protected branch, and a shared branch. Before
-  rewriting, check whether anyone else works from the branch (another worktree,
-  a dispatched agent, a colleague) and branch instead if they do, unless I say
-  otherwise; a rewrite someone has already pulled costs them a recovery.
+- **Never in scope:** `main`, any protected branch, and a shared branch.
+  Immediately before the push, check whether anyone else works from the branch
+  (another worktree, a dispatched agent, a colleague) and branch instead if they
+  do, unless I say otherwise; a rewrite someone has already pulled costs them a
+  recovery. If you cannot tell whether anyone else works from it, treat it as
+  shared.
 
 Publish a rewrite with `--force-with-lease` only, naming the expected ref where
 practical (`--force-with-lease=<branch>:<sha>`). Plain `--force`, a `+` refspec,
