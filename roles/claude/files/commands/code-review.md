@@ -11,7 +11,8 @@ Before anything mutates branch state or messages anyone:
   to rerun from a session in the main checkout. Claude Code refuses git
   commands that target any other worktree, and step 1's review worktree is
   exactly that; no permission rule lifts the refusal. Do not work around it
-  by checking the PR out in this worktree.
+  by checking the PR out in this worktree. If a git command is refused
+  later for targeting another worktree, stop the same way at that point.
 - **Parse `$ARGUMENTS`.** It may carry a `--backends <name>` override
   (exactly one of `codex` or `gemini`; a comma-separated list is a
   `/panel-review` spelling and an error here, the opt-in `copilot`
