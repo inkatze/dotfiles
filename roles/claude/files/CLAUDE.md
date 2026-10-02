@@ -111,10 +111,11 @@ branch's reflog. When the expected SHA is already at hand, name it too
 (`--force-with-lease=<branch>:<sha>`), but only a SHA you saw before rewriting,
 never one read from the remote-tracking ref at push time: an explicit SHA turns
 the reflog check off. Plain `--force`, a `+` refspec,
-and push-time force configuration stay forbidden. A rejected lease means
-someone else moved the branch: treat it as shared from then on, and never
-retry with a broader force or a refetched lease that would overwrite their
-push.
+and push-time force configuration stay forbidden. A push either check rejects
+(`stale info` from the lease, `remote ref updated since checkout` from the
+reflog check) means someone else moved the branch: treat it as shared from then
+on, and never retry with a broader force or a refetched lease that would
+overwrite their push.
 
 Within that scope you may fixup, squash, amend or rebase and force-push on your
 own whenever a rewrite is the most correct fix, not only as a last resort, and
