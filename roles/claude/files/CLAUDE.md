@@ -72,24 +72,47 @@ When creating git commits:
 When pushing:
 - MUST always specify the remote and branch explicitly: `git push origin branch-name`
 - Never use bare `git push` without arguments
-- Never push to `main` or any other protected branch, with or without `--force`.
+- Never push to `main` or any other protected branch, with or without force.
   If you cannot determine whether a branch is protected, treat it as protected.
 - Never delete a remote branch (`git push origin --delete <branch>`, or a
   `:<branch>` refspec). That destroys published work without needing a
-  force-push, so the rule above does not reach it.
+  force-push, so the force-push rules below do not reach it.
 
-Rewriting history is allowed. Rebase, amend, squash and fixup are ordinary tools
-and you may use them on a local or feature branch, including rebasing a local
-`main` onto its upstream. What is forbidden is *publishing* a rewrite, and that
-turns on the effect rather than the flag: no `--force`, no `--force-with-lease`,
-no `+` refspec, no push-time force configuration, and no push to a protected
-branch. If a push would not fast-forward the remote, it publishes a rewrite
-whatever spelling got it there.
+Rewriting history is a tool, not a careless default. Rebase, amend, squash and
+fixup are ordinary on a local or feature branch, including rebasing a local
+`main` onto its upstream. *Publishing* a rewrite turns on the effect rather than
+the flag: a push that would not fast-forward the remote publishes one whatever
+spelling got it there, and it is allowed only on a branch in scope:
 
-On a shared feature branch, do not rewrite at all unless I say so. Check whether
-anyone else is working from it — another worktree, a dispatched agent, a
-colleague — and branch instead if they are; a rewrite someone has already
-pulled costs them a recovery.
+- **Default scope:** a feature branch I own that nobody else works from, whether
+  it has no PR yet, a draft one, or a ready one. A ready PR with unresolved
+  review threads gets new commits instead, since a rewrite detaches those
+  threads from their lines.
+- **Work repos narrow it:** in a repository owned by an employer or another
+  organization, a branch is in scope only while its PR is still a draft (or
+  before one is opened); once the PR is ready for review, add commits instead.
+  If you cannot tell who owns a repository, treat it as a work repo.
+- **A repo can move the line:** a repository's own `CLAUDE.md` may narrow or
+  widen the default scope, and its statement wins there. No repo widens it onto
+  a protected branch or onto a branch someone else works from.
+- **Never in scope:** `main`, any protected branch, and a shared branch.
+  Immediately before the push, check whether anyone else works from the branch
+  (another worktree, a dispatched agent, a colleague) and branch instead if they
+  do, unless I say otherwise; a rewrite someone has already pulled costs them a
+  recovery. If you cannot tell whether anyone else works from it, treat it as
+  shared.
+
+Publish a rewrite with `--force-with-lease` only, naming the expected ref where
+practical (`--force-with-lease=<branch>:<sha>`). Plain `--force`, a `+` refspec,
+and push-time force configuration stay forbidden. A rejected lease means
+someone else moved the branch: treat it as shared from then on, and never
+retry with a broader force or a refetched lease that would overwrite their
+push.
+
+Within that scope you may fixup, squash, amend or rebase and force-push on your
+own whenever a rewrite is the most correct fix, not only as a last resort, and
+you say so in your reply: which commits changed, and that the branch was
+force-pushed.
 
 Some workflows still want new-commits-only for their own reasons (a review loop
 that keeps each iteration separately revertible, for instance). That is a local
@@ -369,7 +392,7 @@ The review workflows above are the convergence layer of a larger spec-driven pip
 
 **The skills planwright supplies (pipeline order):** `/spec-draft` (elicit the four-file bundle), `/spec-kickoff` (walk to mutual understanding and sign off the kickoff brief; flips Draft → Active), `/orchestrate` (stateless step machine: pick the next ready task or bundle, create/reuse a worktree, dispatch execution), `/execute-task` (test-first execution workhorse converging via `/polish`, then a draft PR), and the read-only `/resume`, `/spec-walkthrough`, and `/drain`. `/self-review` and `/polish` (the convergence skills referenced in Review Workflows above) come from planwright too, as do the skills outside the pipeline order: `/builder` (detect a project's stack and recommend or apply planwright's mechanical quality guards) and `/offload` (dispatch a free-form piece of work to the smallest sufficient execution backend). Customize without editing planwright core via its overlay mechanism (config in `planwright.yml` layers, doctrine shadowing, catalog appends); see planwright's `docs/overlays.md`.
 
-**Hard invariants.** Never auto-merge (merge is a reserved human action, permanent, not deferred). Never act on a non-Active spec (no bypass flag). Never auto-chain `/orchestrate` into `/spec-kickoff`. Never publish a history rewrite: no force-push, and no push to a protected branch (see `Git Conventions`, which allows rewriting local and feature-branch history). planwright enforces a stricter version of this as its own REQ-J1.4, so a dispatched worker can be refused a rewrite this file permits; that requirement lives in planwright and changes there.
+**Hard invariants.** Never auto-merge (merge is a reserved human action, permanent, not deferred). Never act on a non-Active spec (no bypass flag). Never auto-chain `/orchestrate` into `/spec-kickoff`. Never publish a history rewrite outside the scope `Git Conventions` gives it: no force-push except `--force-with-lease` on an in-scope feature branch, and no push to a protected branch at all. planwright enforces a stricter version of this as its own REQ-J1.4, so a dispatched worker can be refused a rewrite this file permits; that requirement lives in planwright and changes there.
 
 ## Writing Style
 - Avoid em-dashes in prose unless strictly necessary. Use commas, parentheses, colons, or separate sentences instead.
