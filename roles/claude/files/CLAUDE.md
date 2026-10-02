@@ -102,12 +102,20 @@ spelling got it there, and it is allowed only on a branch in scope:
   recovery. If you cannot tell whether anyone else works from it, treat it as
   shared.
 
-Publish a rewrite with `--force-with-lease` only, naming the expected ref where
-practical (`--force-with-lease=<branch>:<sha>`). Plain `--force`, a `+` refspec,
-and push-time force configuration stay forbidden. A rejected lease means
-someone else moved the branch: treat it as shared from then on, and never
-retry with a broader force or a refetched lease that would overwrite their
-push.
+Publish a rewrite with `--force-with-lease --force-if-includes` only, always
+paired (git 2.30+). A bare lease compares against the remote-tracking ref, which
+a background fetch (an IDE, `git maintenance`, another agent) can move silently,
+so it passes and overwrites commits nobody looked at; `--force-if-includes`
+refuses unless the remote tip being replaced is reachable from the local
+branch's reflog. When the expected SHA is already at hand, name it too
+(`--force-with-lease=<branch>:<sha>`), but only a SHA you saw before rewriting,
+never one read from the remote-tracking ref at push time: an explicit SHA turns
+the reflog check off. Plain `--force`, a `+` refspec,
+and push-time force configuration stay forbidden. A push either check rejects
+(`stale info` from the lease, `remote ref updated since checkout` from the
+reflog check) means someone else moved the branch: treat it as shared from then
+on, and never retry with a broader force or a refetched lease that would
+overwrite their push.
 
 Within that scope you may fixup, squash, amend or rebase and force-push on your
 own whenever a rewrite is the most correct fix, not only as a last resort, and
@@ -392,7 +400,7 @@ The review workflows above are the convergence layer of a larger spec-driven pip
 
 **The skills planwright supplies (pipeline order):** `/spec-draft` (elicit the four-file bundle), `/spec-kickoff` (walk to mutual understanding and sign off the kickoff brief; flips Draft → Active), `/orchestrate` (stateless step machine: pick the next ready task or bundle, create/reuse a worktree, dispatch execution), `/execute-task` (test-first execution workhorse converging via `/polish`, then a draft PR), and the read-only `/resume`, `/spec-walkthrough`, and `/drain`. `/self-review` and `/polish` (the convergence skills referenced in Review Workflows above) come from planwright too, as do the skills outside the pipeline order: `/builder` (detect a project's stack and recommend or apply planwright's mechanical quality guards) and `/offload` (dispatch a free-form piece of work to the smallest sufficient execution backend). Customize without editing planwright core via its overlay mechanism (config in `planwright.yml` layers, doctrine shadowing, catalog appends); see planwright's `docs/overlays.md`.
 
-**Hard invariants.** Never auto-merge (merge is a reserved human action, permanent, not deferred). Never act on a non-Active spec (no bypass flag). Never auto-chain `/orchestrate` into `/spec-kickoff`. Never publish a history rewrite outside the scope `Git Conventions` gives it: no force-push except `--force-with-lease` on an in-scope feature branch, and no push to a protected branch at all. planwright enforces a stricter version of this as its own REQ-J1.4, so a dispatched worker can be refused a rewrite this file permits; that requirement lives in planwright and changes there.
+**Hard invariants.** Never auto-merge (merge is a reserved human action, permanent, not deferred). Never act on a non-Active spec (no bypass flag). Never auto-chain `/orchestrate` into `/spec-kickoff`. Never publish a history rewrite outside the scope `Git Conventions` gives it: no force-push except `--force-with-lease --force-if-includes` on an in-scope feature branch, and no push to a protected branch at all. planwright enforces a stricter version of this as its own REQ-J1.4, so a dispatched worker can be refused a rewrite this file permits; that requirement lives in planwright and changes there.
 
 ## Writing Style
 - Avoid em-dashes in prose unless strictly necessary. Use commas, parentheses, colons, or separate sentences instead.
