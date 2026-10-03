@@ -1,19 +1,28 @@
 # Review Skills — Test Spec
 
-**Status:** Draft
-**Last reviewed:** 2026-10-02
+**Status:** Ready
+**Last reviewed:** 2026-10-03
 **Format-version:** 2
 **Execution:** derived — see the status render
 
 Coverage mix: `[test]` wherever a fixture suite or the contract checker can
-pin the behaviour deterministically, run by the contract-checker job of the
-repository's CI workflow on every pull request and push to `main`, and by
-lefthook before each commit; `[manual]` for everything that needs a real PR,
+pin the behaviour deterministically, run by the CI workflow job able to run
+it (the shell-only job for pure fixtures, the job that installs Ansible for
+role fixtures) on every pull request and push to `main`, and by lefthook
+before each commit; `[manual]` for everything that needs a real PR,
 a real reviewer, a second session or a host with 1Password signed in,
 recorded in Task 10's verification table; `[design-level]` where the
 artifact's existence and content is the verification. A requirement that
 cannot be verified on a given host is recorded as unverified with its
-reason, never marked passed by inference.
+reason, never marked passed by inference. Two ownership rules: every
+fixture suite a task creates is wired into the CI workflow's job list and
+into `lefthook.yml` by that same task, since both name each suite
+explicitly; and a
+`[test]` entry that names a command rather than a fixture (a `grep`, a
+`git check-ignore`, a `git status`) is the owning task's branch Done-when, run
+from the worktree by the executor and recorded in the task PR. The
+identifier check is never CI: it runs by hand on the host that holds the
+identifier file.
 
 ## REQ-A — Reviewer configuration
 
@@ -30,13 +39,16 @@ The contract checker accepts the committed template and fails a fixture
 missing a required key; the renderer suite fails a template with an
 unsubstituted expression and a rendered config failing the schema rule.
 
-### REQ-A1.3 — Default reviewer and no vendor mechanics in tracked files [test + design-level]
+### REQ-A1.3 — Default reviewer and no vendor mechanics in tracked files [test + manual + design-level]
 
-The identifier check and the contract checker's retired-name sweep report
-zero hits for reviewer logins, marker syntax, comment commands and check
-names over the skills tree, the templates and this bundle; the rendered
-config's `default` names the cubic.dev entry (design-level: the template
-declares it).
+The contract checker's retired-name sweeps report zero hits for the retired
+skill and backend names over the skills tree and the templates, and the
+template's vendor-specific values are all `op://` references (a fixture
+plants a literal and fails); manual: the identifier check, run on the host
+that holds the identifier file, reports zero hits for reviewer logins,
+marker syntax, comment commands and check names over the same surfaces and
+this bundle; the rendered config's `default` names the cubic.dev entry
+(design-level: the template declares it).
 
 ### REQ-A1.4 — Draft policy stated, never waited on [manual]
 
@@ -50,14 +62,21 @@ A `--nested` iteration that pushes a fix issues the incremental form of the
 re-request (observed in the PR's comment or reviewer-request timeline), and
 the first request of the run issues the full form.
 
+### REQ-A1.6 — Version key on every machine-local file [test]
+
+The renderer suite, the helper's fixture and the ledger fixture each feed a
+file carrying an unknown version and assert the refusal names the file and
+the version; a file with no version key is refused the same way.
+
 ## REQ-B — Retire `/copilot-review`
 
 ### REQ-B1.1 — Skill removed, generic mechanics kept [test + manual]
 
-`grep -rn copilot-review roles/ CLAUDE.md` returns only changelog and spec
-lines, and the contract checker pins the generic baseline, errored-review and
-diminishing-returns sentences in `/bot-review`. Manual: a `--nested` run on a
-PR with an errored review skips it and pins its baseline to the reviewed head.
+`grep -rn copilot-review roles/ CLAUDE.md` returns only lines recording the
+retirement, and the contract checker pins the generic baseline,
+errored-review, suppression-disposition and diminishing-returns sentences in
+`/bot-review`. Manual: a `--nested` run on a PR with an errored review skips
+it and pins its baseline to the reviewed head.
 
 ### REQ-B1.2 — Never mark ready [test]
 
@@ -67,8 +86,8 @@ mark-ready offer.
 
 ### REQ-B1.3 — Peer-review routes bot threads [test]
 
-The contract checker pins the routing sentence in `/peer-review` and the
-retired-name sweep reports no vendor name there.
+The contract checker pins the routing sentence in `/peer-review` and
+asserts that file names no entry of the committed template.
 
 ### REQ-B1.4 — References removed, budgets re-derived [test]
 
@@ -78,8 +97,9 @@ formula check matches every touched row.
 ### REQ-B1.5 — Copilot CLI backend removed [test]
 
 The retired-backend sweep fails a fixture planting the backend name in a
-skill file; the Brewfile parse step and the mise config carry no entry for
-it.
+skill file; no Brewfile, mise file or package list names the cask, pin or
+package; the contract checker pins the stop-and-name-the-replacement
+sentence for the retired backend and skill names.
 
 ## REQ-C — The cubic.dev CLI as a reviewer backend
 
@@ -91,10 +111,10 @@ and produces findings rows.
 
 ### REQ-C1.2 — mise pin and opt-outs [test + manual]
 
-`mise ls --json` on the branch's config names the CLI with a version, and the
+The cross-platform tracked mise file names the CLI with a version, and the
 contract checker pins the opt-out variables in the invocation template.
-Manual: after a run, `git notes list` in the reviewed repository is empty and
-the binary's version is unchanged.
+Manual: after a run, `git notes list` in the reviewed repository is unchanged
+from before it and the binary's version is unchanged.
 
 ### REQ-C1.3 — Key synced and passed at invocation only [test + manual]
 
@@ -111,8 +131,9 @@ CLI resolves from `HOME`.
 
 ### REQ-C1.5 — No bare positional parameters [test]
 
-The contract checker fails a fixture carrying a bare `$1` in a skill file and
-passes the rewritten backend snippet.
+The contract checker fails a fixture carrying a bare `$1` in a skill file,
+including inside an awk program, and passes the rewritten backend snippet;
+helper scripts under the scripts directory are outside the sweep.
 
 ### REQ-C1.6 — Egress consent unchanged [manual]
 
@@ -130,14 +151,17 @@ directory.
 ### REQ-D1.2 — Exact-key reuse [test]
 
 The fixture asserts a hit for the same tree and command, a miss after an
-untracked file is added, a miss after a staged change, and a stable key
-across a no-op.
+untracked file is added, a miss after a staged change, a stable key across
+a no-op, and that CI evidence is recorded under the repository's declared
+test-task key so the local full-suite lookup hits it.
 
 ### REQ-D1.3 — Green CI counts as evidence [test + manual]
 
 The fixture records a check-run source from a stubbed check-run list and
-asserts the lookup hits for that head's tree. Manual: a nested iteration on a
-pushed green head reports the full suite as reused from CI.
+asserts the lookup hits for that head's tree; a list with a skipped run
+beside a success still hits, and a list with a failed run, a run not yet
+concluded, a cancelled run, or only skipped runs, misses. Manual: a nested
+iteration on a pushed green head reports the full suite as reused from CI.
 
 ### REQ-D1.4 — Suite once per iteration, diff-scoped per fix [manual]
 
@@ -163,26 +187,36 @@ lists each divergence; the seed note (REQ-H1.1) carries the same list.
 
 ### REQ-E1.1 — Writer lock around writes only [test + manual]
 
-The contract checker pins the lock-taking sentence at the apply, commit and
-push steps of each loop and its absence at discovery. Manual: the two-session
-drill shows one commit stream.
+The contract checker pins the lock-taking sentence at the apply, commit,
+push, review-submission, reply, resolve and ledger-write steps of every
+skill (`/peer-review` and `/code-review` included), its absence at
+discovery, and the branch-to-PR handover sentence. Manual: the two-session
+drill shows one commit stream and one reply per thread.
 
 ### REQ-E1.2 — Lock contents and reclaim [test]
 
-The helper's fixture asserts the lock directory carries holder, skill,
-worktree and epoch; a second create fails while held; a lock older than the
-threshold is reclaimed with a notice naming the previous holder.
+The helper's fixture asserts the lock link's target is the owner token
+naming the session process found by the ancestry walk from a child shell,
+and holder, skill and worktree are recorded beside it; a second create
+fails while held; a lock whose owner process is gone is reclaimed with a
+notice naming the previous holder and its inbox files, which are removed;
+a live holder's lock is kept whatever its age; a repository, PR or branch
+segment outside the plain-name charset is encoded before any path use.
 
 ### REQ-E1.3 — Inbox handoff with a bounded wait [test + manual]
 
-The fixture asserts an inbox file lands under the holder's name and the
-sender returns within the poll window. Manual: the drill's second session
-ends with a handoff naming the inbox path.
+The fixture asserts an inbox file lands under the holder's name, the sender
+returns within the poll window, and the sender takes a lock that frees
+within the window. Manual: the drill's second session ends with a handoff
+naming the inbox path.
 
 ### REQ-E1.4 — Inbox read at iteration boundaries, data not instructions [test]
 
-The contract checker pins the data-not-instructions sentence and the
-boundary-read sentence in each loop, with fixtures planting their removal.
+The contract checker pins the data-not-instructions sentence, the
+boundary-read sentence in each loop and the read-before-release sentence in
+each single-pass skill, with fixtures planting their removal; the helper's
+fixture asserts a read inbox file is moved aside and not returned by the
+next read.
 
 ### REQ-E1.5 — Fallback without messaging [manual]
 
@@ -200,19 +234,21 @@ unchanged, and two sessions on two PRs run concurrently.
 ### REQ-E1.7 — Session registry [test]
 
 The fixture asserts a registration carrying name, skill, PR or branch,
-worktree and start time exists during the run and is removed on exit.
+worktree, start time and the session process id exists during the run, is
+removed on exit, is read as gone when its owner process is absent, and is
+removed at the next reclaim.
 
 ## REQ-F — planwright steps
 
 ### REQ-F1.1 — Tracked catalog linked into the overlay [test + manual]
 
-The link fixture suite passes. Manual: planwright's step resolver in this
-repository prints `run` for each named step with the adopter layer as its
-catalog source.
+The link fixture suite passes. Manual: planwright's step resolver, run
+unattended with its explain flag in this repository, prints `run` for each
+named step with the adopter layer as its catalog source.
 
 ### REQ-F1.2 — No adopter-wide list; repo-tracked list committed [test]
 
-The overlay config fixture asserts the tracked sources set no
+The renderer suite asserts the Claude role's overlay template sets no
 `steps_<point>` key; `git check-ignore .claude/planwright.yml` exits
 non-zero and the file is tracked.
 
@@ -223,8 +259,8 @@ contract checker pins `/panel-review --nested`'s local-only sentence.
 
 ### REQ-F1.4 — Retired knob vocabulary replaced [test]
 
-`grep -rn review_sequence roles/ CLAUDE.md` returns only changelog and spec
-lines.
+`grep -rn review_sequence roles/ CLAUDE.md` returns only lines recording
+the knob's retirement.
 
 ## REQ-G — Credential cleanup
 
@@ -247,34 +283,39 @@ first case and the sibling untouched.
 The note exists in the planwright repository's pending-notes directory and
 names each required item with the dotfiles decision it came from.
 
-### REQ-H1.2 — No vendor mechanics or private names [test]
+### REQ-H1.2 — No vendor mechanics or private names [manual + design-level]
 
-The identifier check run over the note on the host that holds the identifier
-file reports zero hits; the retired-name sweep finds no reviewer login or
-marker syntax.
+Manual: the identifier check run over the note on the host that holds the
+identifier file reports zero hits. Design-level: a read of the note against
+the schema's mechanics fields (login pattern, marker syntax, comment
+command, check name) finds none quoted.
 
 ## REQ-I — Review-run discipline
 
 ### REQ-I1.1 — Decision ledger kept [test]
 
-The ledger fixture writes an entry and asserts its fields and the file mode.
+The ledger fixture writes an entry and asserts its fields (every
+disposition kind, suppression included), its version key and the file mode;
+the contract checker pins the never-pruned sentence.
 
 ### REQ-I1.2 — Re-raise rules [test]
 
-The ledger fixture asserts a same-head re-raise returns the recorded reply
-and a later-head re-raise of a declined finding routes to Needs sign-off
-with the decline attached.
+The ledger fixture asserts a same-head re-raise returns the recorded reply,
+a later-head re-raise of a rejected finding routes to Needs sign-off with
+the rejection attached, and a re-raise of a fixed finding is returned as new.
 
-### REQ-I1.3 — Tracker-linked deferrals, CI cost rejected [test]
+### REQ-I1.3 — Follow-up-linked deferrals, CI cost rejected [test]
 
-The ledger fixture asserts a resolve-without-change lacking a tracker link
-halts, and the contract checker pins the CI-cost sentence.
+The ledger fixture asserts a deferral lacking a follow-up link halts and a
+rejection lacking one does not, and the contract checker pins the CI-cost
+sentence.
 
 ### REQ-I1.4 — Convergence as a fact, every other stop a handoff [test + manual]
 
-The contract checker pins the never-declares-done sentence. Manual: a
-`--nested` run that hits diminishing returns ends with a handoff carrying
-the ledger, not a convergence claim.
+The contract checker pins the never-declares-done sentence and the
+convergence definition (no unresolved thread and reviewed head equal to
+head). Manual: a `--nested` run that hits diminishing returns ends with a
+handoff carrying the ledger, not a convergence claim.
 
 ### REQ-I1.5 — Per-push scoped discovery pass [manual]
 

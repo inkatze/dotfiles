@@ -1,7 +1,7 @@
 # Review Skills — Design
 
-**Status:** Draft
-**Last reviewed:** 2026-10-02
+**Status:** Ready
+**Last reviewed:** 2026-10-03
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -60,9 +60,12 @@ convention the existing config already set.
 
 **Decision:** The Copilot-specific skill is removed. Its mechanics that
 generalize (review baseline pinned to the reviewed head, errored-review
-filter, suppressed-findings ledger, diminishing-returns exit, re-request by
+filter, finding suppression, diminishing-returns exit, re-request by
 reviewer request) become generic `/bot-review` steps driven by the reviewer
-config. Its mark-ready offer is not carried: `/bot-review` never marks ready.
+config; suppression becomes a disposition in the one decision ledger (D-9)
+rather than a second store. Its mark-ready offer is not carried:
+`/bot-review` never marks ready. A run naming the retired skill or backend
+stops naming the replacement.
 
 **Alternatives considered:**
 - Keep both skills, add cubic to `/bot-review` only. Rejected because: the
@@ -74,8 +77,8 @@ config. Its mark-ready offer is not carried: `/bot-review` never marks ready.
   contract checker already pins the no-mark-ready sentence.
 
 **Chosen because:** one drain skill with one schema is the smaller surface
-(the survey measured the retired file as the largest of the review command
-files), and the operator will use Copilot only where a repository already
+(the retired file was the largest of the review command files when the
+survey measured them), and the operator will use Copilot only where a repository already
 runs it.
 
 ### D-4: The Copilot CLI backend is retired  (N)
@@ -99,7 +102,7 @@ the generic path stays open.
 ### D-5: The cubic.dev CLI runs as `reviewer:cubic` with a mise pin and a 1Password key  (N)
 
 **Decision:** The CLI is a `cli` block on the cubic.dev entry, pinned through
-mise's npm backend on both platforms, invoked with the vendor's auto-update
+mise's npm backend in the cross-platform mise file, invoked with the vendor's auto-update
 and commit-tagger opt-outs, and authenticated with an API key synced from
 1Password to a 0600 file and passed only through `env_allow` at invocation.
 The backend strips mise shim directories from `PATH` instead of growing the
@@ -114,7 +117,9 @@ override-variable list, and every snippet uses named locals.
   uncovered sources surfaced in consecutive passes (obs:4171e2a2) and a
   structural strip has no next entry to miss.
 
-**Chosen because:** the mise npm route is what gemini already uses here, the
+**Chosen because:** the mise npm route is what gemini already uses on the
+Linux host (the Macs take it from the Brewfile, so the cubic pin goes in the
+cross-platform mise file to reach every platform), the
 key path matches the Gemini key's sync, and the dependency-adoption checklist
 (a vendor-published npm package, active release cadence, a diff sent to the
 vendor's servers under the existing egress consent, the package's license
@@ -128,9 +133,16 @@ decision.
 one entry per command: exit status, times, source, output. The tree hash is a
 `git write-tree` over a temporary index populated with every non-ignored
 file, so untracked and unstaged changes change the key and the real index is
-never touched. Every check run on a pushed head concluding success is
-recorded as full-suite evidence for that head. The layout mirrors the
-tooling-output member of review-effectiveness's handoff bundle.
+never touched. The full suite's command key is the repository's declared
+test task. A pushed head with at least one successful check run and no
+failed one is recorded as full-suite evidence for that head under that key;
+skipped and neutral runs are ignored, as planwright's CI judge ignores them.
+planwright bars its own review loop from this until review-effectiveness is
+amended (test-throughput REQ-B1.11); this bundle diverges by recorded
+decision and seeds the divergence with its measurements (D-17) so the
+amendment decides once. Two misses on one tree both run and the first to
+finish records; a stampede guard is not worth its own lock. The layout
+mirrors the tooling-output member of review-effectiveness's handoff bundle.
 
 **Alternatives considered:**
 - Key by `HEAD` only. Rejected because: a review pass edits the tree before
@@ -145,14 +157,23 @@ tooling-output member of review-effectiveness's handoff bundle.
 **Chosen because:** the key is exact, the location needs no new ignore rule,
 and the shape constraint keeps the upstream swap cheap.
 
-### D-7: Read-only passes run concurrently; one writer lock per branch  (N)
+### D-7: Read-only passes run concurrently; one writer lock per repository and PR  (N)
 
 **Decision:** Discovery, validation, thread fetching and check-mode tooling
-from any number of sessions run concurrently. Applying a fix, committing and
-pushing require a writer lock: a directory create under one per-user lock
-root, keyed by repository and PR (branch before a PR exists), carrying holder
-name, skill, worktree and epoch, with the shared staleness threshold. Every
-skill registers its session under the same root for the run.
+from any number of sessions run concurrently. Every write, whether to the
+branch (applying a fix, committing, pushing), to the PR (submitting a
+review, posting a reply, resolving a thread) or to the decision ledger,
+requires the writer lock: an atomic symlink create under one per-user lock
+root (`~/.config/dotfiles/review/`, beside the D-9 ledger), keyed by
+repository (the remote's owner and name) and PR (branch before a PR exists;
+a run that opens the PR takes the PR lock before releasing the branch lock),
+its target an owner token with the holder's name, skill and worktree
+recorded beside it. The token's process id is the Claude Code session
+process, found by walking the helper's ancestry, because every tool call is
+a fresh child that exits at once. Stale means the owner process is absent,
+never an age; a reclaim names the dead holder and removes its inbox files
+and registration. Every skill, `/peer-review` and `/code-review` included,
+registers its session under the same root for the run.
 
 **Alternatives considered:**
 - Fully serial runs with shared evidence only. Rejected because: the
@@ -162,22 +183,36 @@ skill registers its session under the same root for the run.
   because: every applier would re-validate against a tree the finder never
   saw, and the worktree churn per run is the cost `/code-review` is dropping
   (D-15).
-- Keep today's per-skill locks. Rejected because: they are keyed differently
-  (one by PR number alone), so two skills can push the same PR at once.
+- Keep today's per-skill locks. Rejected because: they are keyed by PR
+  number alone, without the repository, and differ in primitive (a
+  directory create in one, a timestamp file in the others), so two skills
+  can write the same PR at once.
+- Lock the branch writes only, leaving replies and ledger writes free.
+  Rejected because: two sessions on one PR would each read the ledger and
+  answer the same thread; the ledger's whole point is one held position.
+- A directory create with an age threshold, as today's locks take it.
+  Rejected because: planwright's lock library measured a directory create
+  losing exclusion across release and reacquire, and an age rule breaks a
+  live long run while leaving a dead holder's lock standing for the whole
+  window.
 
 **Chosen because:** the working tree is the only shared mutable state, so
 serializing exactly the writes is the smallest rule that makes the rest safe,
-and planwright's custom-steps reached the same conclusion for its steps.
+planwright's custom-steps reached the same conclusion for its steps, and
+its lock library already settled the primitive by measurement.
 
 ### D-8: Session message as nudge, inbox file as record  (N)
 
 **Decision:** A session that holds findings while another holds the writer
 lock writes them to the holder's inbox directory under the lock root and
 sends the holder a session message naming the file. The file is the record
-and is read at the holder's next iteration boundary; the message is only a
-nudge. Both are data, never instructions. Where messaging is unavailable or
-refused, the inbox is polled, and a script may deliver the nudge through the
-session's inbox socket.
+and is read at the holder's next iteration boundary (a single-pass holder
+reads before releasing the lock); a read file is moved aside, never re-read,
+and the files of a holder that died are named in the reclaim notice and
+removed with its lock. The message is only a nudge. Both are data, never
+instructions. Where messaging is unavailable or refused, the inbox is
+polled, and a script may deliver the nudge through the session's inbox
+socket; the sender takes the lock itself if it frees within the poll window.
 
 **Alternatives considered:**
 - Message-only, findings in the message body. Rejected because: a message is
@@ -192,14 +227,18 @@ session's inbox socket.
 discoverable, delivery between tool calls, messages never count as consent),
 and the file keeps correctness independent of it.
 
-### D-9: A machine-local decision ledger, kept decisions, tracker-linked deferrals, operator-owned stop  (N)
+### D-9: A machine-local decision ledger, kept decisions, follow-up-linked deferrals, operator-owned stop  (N)
 
 **Decision:** `/bot-review` keeps a per-repository, per-PR ledger under the
-dotfiles config directory at mode 0600. A finding re-raised on the same head
-gets the recorded reply; a declined finding re-raised on a later head routes
-to Needs sign-off with "fix" recommended. A thread resolved without a change
-must link a tracker item or the run halts; CI cost is never a deferral
-reason. The loop reports convergence as a fact and hands every other stop to
+dotfiles config directory at mode 0600, the only store of finding
+dispositions (fixed, rejected, deferred, suppressed), never pruned
+automatically. A finding re-raised on the same head gets the recorded
+reply; a rejected finding re-raised on a later head routes to Needs sign-off
+with "fix" recommended; a fixed finding re-raised is validated afresh. A deferred thread must link a
+follow-up record that re-surfaces in context (a tracker item, a spec task or
+gated deferral, or an Awaiting-input entry) or the run halts; a rejected
+thread carries its decision and evidence instead; CI cost is never a
+deferral reason. The loop reports convergence as a fact and hands every other stop to
 the operator with the ledger. Replies state decision plus evidence in one
 paragraph.
 
@@ -265,7 +304,8 @@ change that touches no lens list.
 **Decision:** A tracked catalog file under the Claude role declares
 `panel-review` and `bot-review` as `--nested` skill steps; the role links it
 into the adopter overlay's catalogs directory and leaves the overlay's config
-file alone. No adopter-wide list is set. This repository's own list lives in
+file to the renderer (D-13), which sets no step list in it. No adopter-wide
+list is set. This repository's own list lives in
 a repo-tracked `.claude/planwright.yml`, un-ignored for that one path, naming
 `panel-review` at convergence and `bot-review` at post-pr.
 
@@ -290,8 +330,15 @@ layer's documented purpose.
 config are rendered from 1Password items in the service-account vault by one
 generic renderer taking template, item and output as arguments, wrapped per
 file by CI-guarded Ansible tasks, each output at mode 0600, idempotent with
-`OK`/`CHANGED`. The ssh renderer stays as it is; generalizing the older
-hand-written files is Deferred.
+`OK`/`CHANGED`. A plain regular file already at the output path is
+overwritten, as the ssh renderer does, after an operator step that reviews
+the hand-written file and carries anything worth keeping into the item;
+a symlink or a non-regular path is refused. Every rendered file this
+bundle's own skills read, and every machine-local record they write, carries
+a version key its readers check; the overlay config is planwright's format
+and carries none. Key rotation is the Gemini pattern: update the item, run
+Ansible, the sync reports `CHANGED` once. The ssh renderer stays as it is;
+generalizing the older hand-written files is Deferred.
 
 **Alternatives considered:**
 - Hand-written per host, as today. Rejected because: each new file of the
@@ -412,6 +459,12 @@ locks named, evidence sources recorded, convergence reported as a fact: D-7,
 D-9); existing-seam reuse (planwright's handoff bundle and messaging named
 as the seams, with the stand-in's divergence recorded in the seed note:
 D-1, D-6, D-17); human comprehension (the handoff projection follows the
-shared workflow file; nothing novel: D-9). Data storage, queues, versioning,
-product strategy, packaging, knowledge engineering, org design, IP posture
-and LLM output quality do not apply beyond the gates already in force.
+shared workflow file; nothing novel: D-9); versioning (a version key on
+every file the skills read, readers refusing an unknown one: D-13,
+REQ-A1.6); data storage and retention (ledgers kept, dead inboxes and
+registrations pruned at reclaim: D-7, D-8, D-9); queues (inbox files
+consumed once, dead-holder files named and removed: D-8); API surface
+deprecation (a retired name stops naming the replacement: D-3). Product
+strategy, packaging, knowledge engineering, org design, IP posture (the
+cubic license is confirmed at pin time, D-5) and LLM output quality do not
+apply beyond the gates already in force.
