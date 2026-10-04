@@ -7,6 +7,7 @@
 # Reports file and line only, never the matched name. A missing identifier
 # file is a warning, not a pass. Run from the repo root, by hand at task
 # review and from skill-contracts-test.sh; it is never a commit gate.
+# Exit 1 means hits; exit 2 means the check could not run as asked.
 set -euo pipefail
 
 idfile="${IDENTIFIER_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/private-identifiers}"
@@ -20,23 +21,28 @@ scope=(
   specs/claude-instructions
 )
 
-if [ ! -f "$idfile" ] || [ ! -r "$idfile" ]; then
-  echo "WARN: no readable identifier file at $idfile; the identifier check could not run here" >&2
+if [ ! -e "$idfile" ]; then
+  echo "WARN: no identifier file at $idfile; the identifier check could not run here" >&2
   exit 0
 fi
+if [ ! -f "$idfile" ] || [ ! -r "$idfile" ]; then
+  echo "ERROR: $idfile exists but is not a readable file" >&2
+  exit 2
+fi
 
-patterns="$(mktemp)" || exit 1
+patterns="$(mktemp)" || exit 2
 trap 'rm -f "$patterns"' EXIT
 # The same shape scripts/gitleaks-identifier-rules.sh accepts: a line outside
 # it would match nothing or nearly everything, so the file is refused.
 n=0
 while IFS= read -r line || [ -n "$line" ]; do
   n=$((n + 1))
+  line="${line%%#*}"
   line="${line#"${line%%[![:space:]]*}"}"; line="${line%"${line##*[![:space:]]}"}"
-  case "$line" in ''|'#'*) continue ;; esac
+  [ -n "$line" ] || continue
   if [[ ! "$line" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$ ]]; then
     echo "ERROR: $idfile line $n is not a plain identifier; refusing the file" >&2
-    exit 1
+    exit 2
   fi
   printf '%s\n' "$line" >> "$patterns"
 done < "$idfile"
@@ -49,14 +55,14 @@ paths=()
 for p in "${scope[@]}"; do
   if [ -e "$p" ]; then paths+=("$p"); else echo "WARN: $p is not present; not checked" >&2; fi
 done
-[ "${#paths[@]}" -gt 0 ] || { echo "ERROR: none of the checked paths exist; run from the repo root" >&2; exit 1; }
+[ "${#paths[@]}" -gt 0 ] || { echo "ERROR: none of the checked paths exist; run from the repo root" >&2; exit 2; }
 
 # grep exits 1 on no match and 2 on a read error; only 2 is a failure.
 set +e
 raw="$(grep -rniI -F -f "$patterns" -- "${paths[@]}")"
 status=$?
 set -e
-[ "$status" -le 1 ] || { echo "ERROR: grep could not read the checked files (exit $status)" >&2; exit 1; }
+[ "$status" -le 1 ] || { echo "ERROR: grep could not read the checked files (exit $status)" >&2; exit 2; }
 hits="$(printf '%s\n' "$raw" | cut -d: -f1,2 | grep . || true)"
 if [ -n "$hits" ]; then
   printf '%s\n' "$hits"

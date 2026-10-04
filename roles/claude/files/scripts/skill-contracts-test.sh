@@ -24,6 +24,7 @@ setup() {
   mkdir -p "$tmp/roles/claude/files/scripts"
   cp -R "$ROOT/roles/claude/files/skills" "$tmp/roles/claude/files/"
   cp "$ROOT/roles/claude/files/CLAUDE.md" "$tmp/roles/claude/files/"
+  cp "$ROOT/CLAUDE.md" "$tmp/"
   cp "$ROOT/roles/claude/files/scripts/skill-contracts.sh" "$tmp/roles/claude/files/scripts/"
 }
 
@@ -35,7 +36,7 @@ run_checker() { (cd "$tmp" && bash roles/claude/files/scripts/skill-contracts.sh
 # Tree fingerprint, used to prove a mutation changed something. Paths in this
 # tree are controlled (no whitespace), so plain xargs is safe.
 tree_sum() {
-  (cd "$tmp" && find roles -type f | LC_ALL=C sort | xargs cksum | cksum)
+  (cd "$tmp" && find roles CLAUDE.md -type f | LC_ALL=C sort | xargs cksum | cksum)
 }
 
 # The unmutated tree must pass, or every case below is meaningless.
@@ -364,6 +365,8 @@ expect_fail maintenance-section \
 # --- Discovery cadence in each nested skill (REQ-C1.4) ---
 expect_fail discovery-cadence-missing \
   "perl -pi -e 's/and on the iteration that detects convergence only; middle iterations/and whenever it likes; other iterations/' $(md panel-review)" "discovery-cadence sentence"
+expect_fail discovery-cadence-bot-review \
+  "perl -0pi -e 's/runs no discovery pass\\s+of its own/runs discovery when it likes/' $(md bot-review)" "discovery-cadence sentence"
 
 # --- Shared thresholds declared once (REQ-C1.6) ---
 expect_fail threshold-bare-override \
@@ -372,6 +375,10 @@ expect_fail threshold-override-no-reason \
   "printf '\\nOverride (iteration cap): 15 iterations.\\n\\n' >> $(md panel-review)" "has no Reason: line"
 expect_pass threshold-override-with-reason \
   "printf '\\nOverride (iteration cap): 15 iterations.\\nReason: each iteration applies only the tool-grounded tail.\\n' >> $(md panel-review)"
+expect_fail threshold-poll-literal-drift \
+  "perl -pi -e 's/push_epoch \\+ 600 /push_epoch + 900 /' $(md copilot-review)" "review-poll seconds from limits.md"
+expect_fail threshold-staleness-literal-drift \
+  "perl -pi -e 's/-lt 1800 \\]/-lt 3600 ]/' $SHARED/github.md" "lock-staleness seconds from limits.md"
 expect_fail threshold-shared-value-changed \
   "perl -pi -e 's/\\| Iteration cap \\| 10 iterations \\|/| Iteration cap | 12 iterations |/' $SHARED/limits.md" "missing expected shared threshold"
 
@@ -398,6 +405,10 @@ expect_fail codex-rule-removed \
 # --- Relative links resolve inside the skills tree ---
 expect_fail broken-link \
   "echo 'See [the gone file](../review-shared/gone.md).' >> $(md bot-review)" "which does not exist"
+expect_fail broken-link-in-shared \
+  "echo 'See [the gone file](gone.md).' >> $SHARED/limits.md" "which does not exist"
+expect_fail shared-doctrine-invocation-copied \
+  "echo '<root>/scripts/resolve-rule-doc.sh discovery-rigor' >> $(md panel-review)" "must live only in"
 
 # --- Safety pins survive (REQ-C1.10) ---
 expect_fail retired-file \
@@ -490,6 +501,8 @@ expect_fail threshold-in-supporting-file \
   "printf '\\nThe iteration cap here is 15 iterations.\\n' >> $SKILLS/panel-review/reviewer-backend.md" "states a shared threshold value"
 expect_fail cache-path-in-global \
   "echo 'planwright lives under ~/.claude/plugins/cache/planwright.' >> roles/claude/files/CLAUDE.md" "names the plugin cache path"
+expect_fail cache-path-in-root \
+  "echo 'planwright lives under ~/.claude/plugins/cache/planwright.' >> CLAUDE.md" "names the plugin cache path"
 
 # --- The identifier check (REQ-C1.8, REQ-J1.2) ---
 # Pointed at a temporary identifier file holding a synthetic name: a planted
@@ -511,7 +524,7 @@ for planted in "$(md peer-review)" "$SHARED/github.md" roles/claude/files/CLAUDE
   printf 'Seen in the zqx-synthetic-project repo.\n' >> "$tmp/$planted"
   if out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" 2>&1)"; then
     echo "FAIL identifier-hit ($planted): the check passed with a planted name"; failures=$((failures + 1))
-  elif ! printf '%s' "$out" | grep -qF "$planted:"; then
+  elif ! printf '%s\n' "$out" | grep -qxF -e "$planted:$(grep -c '' "$tmp/$planted")"; then
     echo "FAIL identifier-hit ($planted): no file:line in the report: $out"; failures=$((failures + 1))
   elif printf '%s' "$out" | grep -qF 'zqx-synthetic-project'; then
     echo "FAIL identifier-hit ($planted): the report printed the matched name"; failures=$((failures + 1))
@@ -531,9 +544,25 @@ if ! out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" 2>&1
 fi
 teardown
 id_setup
-printf 'name  # trailing note\n' > "$tmp/identifiers"
-if out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" 2>&1)"; then
-  echo "FAIL identifier-malformed-line: a malformed identifier line was accepted"; failures=$((failures + 1))
+printf 'bad name!\n' > "$tmp/identifiers"
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 2 ] || ! printf '%s' "$out" | grep -qF 'is not a plain identifier'; then
+  echo "FAIL identifier-malformed-line: a malformed identifier line was not refused (exit $rc): $out"; failures=$((failures + 1))
+fi
+teardown
+id_setup
+printf 'zqx-synthetic-project  # trailing note\n' > "$tmp/identifiers"
+printf 'Seen in the zqx-synthetic-project repo.\n' >> "$tmp/CLAUDE.md"
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 1 ]; then
+  echo "FAIL identifier-inline-comment: a name with a trailing comment was not read as that name (exit $rc): $out"; failures=$((failures + 1))
+fi
+teardown
+id_setup
+mkdir "$tmp/identifiers.d"
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers.d" bash "$IDCHECK" 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 2 ]; then
+  echo "FAIL identifier-unreadable-file: an identifier path that is not a readable file did not error (exit $rc): $out"; failures=$((failures + 1))
 fi
 teardown
 setup
@@ -545,7 +574,12 @@ fi
 teardown
 # The real tree, against this host's identifier file when it has one. It never
 # fails the suite: the check is a review-time report, not a commit gate.
-(cd "$ROOT" && bash "$IDCHECK") || echo "WARN identifier-check reported hits above; review them before merge" >&2
+(cd "$ROOT" && bash "$IDCHECK") && rc=0 || rc=$?
+case "$rc" in
+  0) ;;
+  1) echo "WARN identifier-check reported hits above; review them before merge" >&2 ;;
+  *) echo "WARN identifier-check could not run (exit $rc); see its message above" >&2 ;;
+esac
 
 if [ "$failures" -gt 0 ]; then
   echo ""

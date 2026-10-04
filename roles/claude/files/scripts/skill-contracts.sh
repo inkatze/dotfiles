@@ -58,22 +58,28 @@ skill_md() { printf '%s/%s/SKILL.md' "$SKILLS" "$1"; }
 tree_files=()
 tree_norm=()
 [ -d "$SKILLS" ] || { echo "ERROR: $SKILLS does not exist; run from the dotfiles checkout"; exit 1; }
+# A directory find cannot read would otherwise drop its files from every scan.
+tree_list="$(find "$SKILLS" -type f \( -name '*.md' -o -name '*.json' \))" \
+  || err "find could not list every file under $SKILLS"
 while IFS= read -r f; do
+  [ -n "$f" ] || continue
   if norm="$(tr -s '[:space:]' ' ' < "$f")"; then
     tree_files+=("$f")
     tree_norm+=("$norm")
   else
     err "$f could not be read"
   fi
-done < <(find "$SKILLS" -type f \( -name '*.md' -o -name '*.json' \) | LC_ALL=C sort)
+done <<< "$(LC_ALL=C sort <<< "$tree_list")"
 [ "${#tree_files[@]}" -gt 0 ] || err "no files under $SKILLS"
 
-# files_matching <grep flags> <pattern> [<file>...]: files with a match, one
-# per line; the tree files when none are named. A read error is an error,
-# never an empty result.
+# files_matching <grep flags> <pattern> [<file>...]: sets matched to the files
+# with a match; the tree files when none are named. Called in this shell, never
+# in $(...), so a read error reaches the error count instead of a subshell.
+matched=()
 files_matching() {
   local flags="$1" pattern="$2" out status
   shift 2
+  matched=()
   [ "$#" -gt 0 ] || set -- "${tree_files[@]}"
   [ "$#" -gt 0 ] || return 0
   set +e
@@ -81,7 +87,9 @@ files_matching() {
   status=$?
   set -e
   [ "$status" -le 1 ] || { err "grep failed (exit $status) looking for '$pattern'"; return 0; }
-  printf '%s' "$out"
+  local line
+  while IFS= read -r line; do [ -n "$line" ] && matched+=("$line"); done <<< "$out"
+  return 0
 }
 
 if command -v jq >/dev/null 2>&1; then
@@ -142,11 +150,11 @@ for name in "${SKILL_NAMES[@]}"; do
 done
 cache_files=("${tree_files[@]}" "$GLOBAL_MD")
 [ -f CLAUDE.md ] && cache_files+=(CLAUDE.md)
-while IFS= read -r f; do
-  [ -n "$f" ] || continue
+files_matching -F 'plugins/cache' "${cache_files[@]}"
+for f in ${matched[@]+"${matched[@]}"}; do
   case "$f" in "$SHARED"/*) continue ;; esac
   err "$f names the plugin cache path; locate planwright through $SHARED/doctrine.md only"
-done <<< "$(files_matching -F 'plugins/cache' "${cache_files[@]}")"
+done
 
 # The skills that apply findings to their own branch use the four tables and
 # state each drain-scope override with its reason.
@@ -166,15 +174,20 @@ done
 
 # No skill claims membership of planwright's review_sequence, whose resolver
 # accepts no skill from outside planwright.
-while IFS= read -r f; do
-  [ -n "$f" ] && err "$f claims a review_sequence role; the resolver accepts no skill outside planwright"
-done <<< "$(files_matching -F 'review_sequence')"
+files_matching -F 'review_sequence'
+for f in ${matched[@]+"${matched[@]}"}; do
+  err "$f claims a review_sequence role; the resolver accepts no skill outside planwright"
+done
 
 # --- Shared mechanics stated once ---
 # <shared file>|<anchor>: the anchor lives in that file and nowhere else under
 # the skills tree. Safety anchors are marked by the comment beside them.
 shared_blocks=(
   "doctrine.md|planwright's install root is the enabled version's"
+  "doctrine.md|<root>/scripts/resolve-rule-doc.sh validation-rigor"
+  "doctrine.md|<root>/scripts/resolve-rule-doc.sh discovery-rigor"
+  "doctrine.md|<root>/scripts/resolve-rule-doc.sh finding-categorization"
+  "doctrine.md|<root>/scripts/resolve-rule-doc.sh refactor-instinct"
   "doctrine.md|The lens list is discovery-rigor's lens checklist, pointed at and never copied."
   "workflow.md|an empty bucket or lens is one line"
   "workflow.md|skip the \"how do you want to walk these\" question"
@@ -217,9 +230,10 @@ for pair in "${shared_links[@]}"; do
 done
 
 # --- No per-run Maintenance section ---
-while IFS= read -r f; do
-  [ -n "$f" ] && err "$f has a Maintenance section; skills carry no per-run self-audit"
-done <<< "$(files_matching -E '^#+ Maintenance')"
+files_matching -E '^#+ Maintenance'
+for f in ${matched[@]+"${matched[@]}"}; do
+  err "$f has a Maintenance section; skills carry no per-run self-audit"
+done
 
 # --- Nested loops run discovery on the first and converging iterations ---
 for name in panel-review copilot-review; do
@@ -232,6 +246,17 @@ require_normalized "$(skill_md bot-review)" "discovery-cadence sentence" \
 # --- Shared thresholds declared once ---
 require_phrases "$SHARED/limits.md" "shared threshold" \
   "| Iteration cap | 10 iterations |" "| Lock staleness | 30 minutes |" "| Review-poll window | 10 minutes |"
+# The seconds the shared lock and copilot-review's poll compute with are those
+# rows' values, so a change to limits.md cannot leave a stale literal behind.
+minutes_of() { sed -n "s/^| $1 | \([0-9][0-9]*\) minutes |.*/\1/p" "$SHARED/limits.md" 2>/dev/null; }
+stale_min="$(minutes_of 'Lock staleness')"
+poll_min="$(minutes_of 'Review-poll window')"
+if [ -n "$stale_min" ] && [ -n "$poll_min" ]; then
+  require_phrases "$SHARED/github.md" "lock-staleness seconds from limits.md" \
+    "if [ \"\$age\" -lt $((stale_min * 60)) ]; then" "\`$((stale_min * 60))\` is the lock-staleness value"
+  require_phrases "$(skill_md copilot-review)" "review-poll seconds from limits.md" \
+    "deadline=\$(( push_epoch + $((poll_min * 60)) ))"
+fi
 # Outside the shared directory, a threshold named beside a number is an
 # override, and an override line is followed by its Reason: line.
 for f in "${tree_files[@]}"; do
@@ -248,12 +273,14 @@ for f in "${tree_files[@]}"; do
 done
 
 # --- Stale references ---
-while IFS= read -r f; do
-  [ -n "$f" ] && err "$f cites a numbered /self-review step; /self-review is a planwright skill without numbered steps"
-done <<< "$(files_matching -E '/self-review`? step [0-9]')"
-while IFS= read -r f; do
-  [ -n "$f" ] && err "$f names 'gh copilot --help'; its help output proves nothing about the CLI"
-done <<< "$(files_matching -F 'gh copilot --help')"
+files_matching -E '/self-review`? step [0-9]'
+for f in ${matched[@]+"${matched[@]}"}; do
+  err "$f cites a numbered /self-review step; /self-review is a planwright skill without numbered steps"
+done
+files_matching -F 'gh copilot --help'
+for f in ${matched[@]+"${matched[@]}"}; do
+  err "$f names 'gh copilot --help'; its help output proves nothing about the CLI"
+done
 require_phrases "$SHARED/backends.md" "contained codex invocation" \
   '( cd "$scratch" && "$codex_bin" exec --sandbox read-only --skip-git-repo-check < "$prompt_file" )'
 
@@ -262,39 +289,50 @@ require_normalized "$SHARED/backends.md" "contained-codex rule" \
   "The flag that skips its git check is used only together with that form"
 require_normalized "$SHARED/github.md" "posted-body rule" \
   "reaches the posting command on stdin; it is never interpolated into argv."
-for f in $(files_matching -E 'codex(_bin"?)? exec'); do
+files_matching -E 'codex(_bin"?)? exec'
+for f in ${matched[@]+"${matched[@]}"}; do
+  lines="$(grep -E 'codex(_bin"?)? exec' "$f")" || { err "$f could not be read while checking codex invocations"; continue; }
   while IFS= read -r line; do
     [[ "$line" == *"--sandbox read-only"* ]] \
       || err "$f runs codex outside the contained form (read-only sandbox, prompt on stdin, empty scratch directory): $line"
-  done < <(grep -E 'codex(_bin"?)? exec' "$f")
+  done <<< "$lines"
 done
-while IFS= read -r f; do
-  [ -n "$f" ] && [ "$f" != "$SHARED/backends.md" ] \
+files_matching -F '--skip-git-repo-check'
+for f in ${matched[@]+"${matched[@]}"}; do
+  [ "$f" != "$SHARED/backends.md" ] \
     && err "$f uses codex's git-check skip outside the contained form in $SHARED/backends.md"
-done <<< "$(files_matching -F '--skip-git-repo-check')"
-while IFS= read -r f; do
-  [ -n "$f" ] && err "$f has an unquoted heredoc; a posted or prompt body uses a quoted delimiter"
-done <<< "$(files_matching -E '(^|[^<])<<-?[[:space:]]*[A-Za-z_]')"
-while IFS= read -r f; do
-  [ -n "$f" ] && err "$f carries a copied lens list; build it from the resolved discovery-rigor document"
-done <<< "$(files_matching -F 'Correctness, logic, edge cases')"
+done
+files_matching -E '(^|[^<])<<-?[[:space:]]*[A-Za-z_]'
+for f in ${matched[@]+"${matched[@]}"}; do
+  err "$f has an unquoted heredoc; a posted or prompt body uses a quoted delimiter"
+done
+files_matching -F 'Correctness, logic, edge cases'
+for f in ${matched[@]+"${matched[@]}"}; do
+  err "$f carries a copied lens list; build it from the resolved discovery-rigor document"
+done
 
-# --- Every relative link from a SKILL.md resolves inside the skills tree ---
+# --- Every relative link from a skills-tree file resolves inside the tree ---
+# Parameter expansion rather than dirname: the fixture suite runs this per
+# case, and a fork per link dominated its runtime.
 skills_root="$(cd "$SKILLS" && pwd -P)"
-for name in "${SKILL_NAMES[@]}"; do
-  f="$(skill_md "$name")"
-  [ -f "$f" ] || continue
-  dir="$(dirname "$f")"
+for f in "${tree_files[@]}"; do
+  case "$f" in *.md) ;; *) continue ;; esac
+  dir="${f%/*}"
+  links="$(grep -oE '\]\([^)]+\)' "$f")" && rc=0 || rc=$?
+  [ "$rc" -le 1 ] || { err "$f could not be read while checking links"; continue; }
+  [ -n "$links" ] || continue
   while IFS= read -r target; do
+    target="${target#](}"; target="${target%)}"
     case "$target" in http:*|https:*|mailto:*|\#*|'') continue ;; esac
     target="${target%%#*}"
     if [ ! -f "$dir/$target" ]; then
       err "$f links to $target, which does not exist"
     else
-      real="$(cd "$(dirname "$dir/$target")" && pwd -P)"
+      t="$dir/$target"
+      real="$(cd "${t%/*}" && pwd -P)"
       case "$real" in "$skills_root"|"$skills_root"/*) ;; *) err "$f links to $target, outside $SKILLS" ;; esac
     fi
-  done < <(grep -oE '\]\([^)]+\)' "$f" | sed -E 's/^\]\(//; s/\)$//')
+  done <<< "$(LC_ALL=C sort -u <<< "$links")"
 done
 
 # --- Safety pins ---
@@ -308,9 +346,10 @@ done
 # Retired backends: nothing provisions Ollama any more, so a qwen-coder,
 # gpt-oss or OLLAMA_BASE_URL mention re-advertises a backend that can only fail.
 for retired_name in qwen-coder gpt-oss OLLAMA_BASE_URL; do
-  while IFS= read -r path; do
-    [ -n "$path" ] && err "$path references the retired backend name '$retired_name'; nothing provisions Ollama any more"
-  done <<< "$(grep -lF -- "$retired_name" "${tree_files[@]}" "$GLOBAL_MD" 2>/dev/null || true)"
+  files_matching -F "$retired_name" "${tree_files[@]}" "$GLOBAL_MD"
+  for path in ${matched[@]+"${matched[@]}"}; do
+    err "$path references the retired backend name '$retired_name'; nothing provisions Ollama any more"
+  done
 done
 
 # copilot-review's nested loop may flip a PR ready only at convergence and only

@@ -163,7 +163,7 @@ teardown
 
 lefthook_run="$(awk '/^    instruction-budget:/{f=1;next} f&&/^    [a-z]/{f=0} f' "$ROOT/lefthook.yml")"
 [[ "$lefthook_run" == *"run: $SCRIPT"* ]] || fail lefthook-entry "no instruction-budget command running $SCRIPT"
-[[ "$lefthook_run" == *"glob:"*"skills/"*"CLAUDE.md"* ]] || fail lefthook-glob "entry has no glob over the surfaces"
+[[ "$lefthook_run" == *"glob:"*"CLAUDE.md"*"skills/*/*.md"* ]] || fail lefthook-glob "entry has no glob over the surfaces"
 
 workflow="$ROOT/.github/workflows/test.yml"
 ci_job="$(awk '/^  skill-contracts:/{f=1;next} f&&/^  [a-z]/{f=0} f' "$workflow")"
