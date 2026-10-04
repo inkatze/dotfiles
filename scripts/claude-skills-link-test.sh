@@ -11,7 +11,7 @@ set -uo pipefail
 
 here="$(cd -- "$(dirname "$0")" && pwd -P)"
 repo="$(cd -- "$here/.." && pwd -P)"
-work="$(mktemp -d)"
+work="$(mktemp -d)" || { echo "FAIL[harness]: mktemp failed"; exit 1; }
 trap 'rm -rf "$work"' EXIT
 trap 'exit 130' INT TERM HUP
 fails=0
@@ -19,9 +19,9 @@ fails=0
 ok()   { printf 'ok[%s]: %s\n' "$1" "$2"; }
 fail() { printf 'FAIL[%s]: %s\n' "$1" "$2"; fails=$((fails + 1)); }
 
-ln -s "$repo/roles" "$work/roles"
+ln -s "$repo/roles" "$work/roles" || { echo "FAIL[harness]: cannot link roles"; exit 1; }
 play="$work/play.yml"
-cat >"$play" <<'YAML'
+cat >"$play" <<'YAML' || { echo "FAIL[harness]: cannot write the play"; exit 1; }
 - name: Exercise the Claude skill link tasks
   hosts: localhost
   connection: local
@@ -67,17 +67,27 @@ else
 fi
 
 h="$(fresh_home)"; mkdir "$h/.claude/skills/${skills[0]}"
-if ! run_role "$h" && [ -d "$h/.claude/skills/${skills[0]}" ] && [ ! -L "$h/.claude/skills/${skills[0]}" ]; then
+if ! run_role "$h" && grep -qF 'is not a link into this repo' "$work/out" \
+    && [ -d "$h/.claude/skills/${skills[0]}" ] && [ ! -L "$h/.claude/skills/${skills[0]}" ]; then
     ok foreign-dir-refused "a real directory under a tracked name fails the play and survives"
 else
     fail foreign-dir-refused "the play replaced or ignored a directory it does not own"
 fi
 
 h="$(fresh_home)"; ln -s /elsewhere/"${skills[0]}" "$h/.claude/skills/${skills[0]}"
-if ! run_role "$h" && [ "$(readlink "$h/.claude/skills/${skills[0]}")" = "/elsewhere/${skills[0]}" ]; then
+if ! run_role "$h" && grep -qF 'is not a link into this repo' "$work/out" \
+    && [ "$(readlink "$h/.claude/skills/${skills[0]}")" = "/elsewhere/${skills[0]}" ]; then
     ok foreign-link-refused "a link someone else made under a tracked name fails the play and survives"
 else
     fail foreign-link-refused "the play replaced a link it does not own"
+fi
+
+h="$(fresh_home)"; echo mine >"$h/.claude/skills/${skills[0]}"
+if ! run_role "$h" && grep -qF 'is not a link into this repo' "$work/out" \
+    && [ "$(cat "$h/.claude/skills/${skills[0]}")" = mine ]; then
+    ok foreign-file-refused "a regular file under a tracked name fails the play and survives"
+else
+    fail foreign-file-refused "the play replaced or ignored a file it does not own"
 fi
 
 h="$(fresh_home)"; ln -s "/other/clone/roles/claude/files/skills/${skills[0]}" "$h/.claude/skills/${skills[0]}"
@@ -96,6 +106,16 @@ else
     fail prune-own-dangling "$(ls -l "$h/.claude/skills" | tr '\n' ';')"
 fi
 
+# A relative target resolves against the link's directory, not the play's cwd,
+# so a live one must survive the prune. From $h/.claude/skills, ../../.. is $work.
+h="$(fresh_home)"
+ln -s "../../../roles/claude/files/skills/${skills[0]}" "$h/.claude/skills/relative-alias"
+if [ -d "$h/.claude/skills/relative-alias" ] && run_role "$h" && [ -L "$h/.claude/skills/relative-alias" ]; then
+    ok prune-keeps-live-relative "a live relative link into this repo is kept"
+else
+    fail prune-keeps-live-relative "$(ls -l "$h/.claude/skills" | tr '\n' ';')"
+fi
+
 h="$(fresh_home)"; ln -s "/some/clone/roles/claude/files/commands" "$h/.claude/commands"
 if run_role "$h" && [ ! -e "$h/.claude/commands" ] && [ ! -L "$h/.claude/commands" ]; then
     ok commands-link-removed "the retired commands link into this repo is removed"
@@ -110,8 +130,15 @@ else
     fail commands-dir-kept "a commands directory this repo does not own was removed"
 fi
 
-h="$(fresh_home)"; run_role "$h" >/dev/null; run_role "$h"
-if grep -qE 'changed=0 ' "$work/out"; then
+h="$(fresh_home)"; ln -s "/elsewhere/commands" "$h/.claude/commands"
+if run_role "$h" && [ "$(readlink "$h/.claude/commands")" = /elsewhere/commands ]; then
+    ok commands-foreign-link-kept "a commands link into somewhere else is left alone"
+else
+    fail commands-foreign-link-kept "a commands link this repo does not own was removed"
+fi
+
+h="$(fresh_home)"
+if run_role "$h" >/dev/null && run_role "$h" && grep -qE 'changed=0 ' "$work/out"; then
     ok idempotent "a second run changes nothing"
 else
     fail idempotent "$(grep -E 'ok=|changed=' "$work/out" | tail -1)"

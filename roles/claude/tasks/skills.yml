@@ -16,6 +16,9 @@
     paths: "{{ ansible_facts.env.PWD }}/roles/claude/files/skills"
     file_type: directory
   register: claude_skills_tracked
+  # find only warns on a missing path; run from anywhere but the repo root,
+  # this would link nothing and still retire the commands link below.
+  failed_when: claude_skills_tracked.matched == 0
   tags: [claude]
 
 - name: Inspect Claude skill link destinations
@@ -70,14 +73,16 @@
   tags: [claude]
 
 # Only this repo's links, and only once their target is gone (a skill renamed
-# or removed here); a link another tool made is never touched.
+# or removed here); a link another tool made is never touched. lnk_source is
+# the resolved path: a relative lnk_target would be tested against the play's
+# cwd instead of the link's directory.
 - name: Prune dangling Claude skill links this repo created
   ansible.builtin.file:
     path: "{{ item.stat.path }}"
     state: absent
   when:
     - item.stat.lnk_target | default('') is search('/roles/claude/files/skills/[^/]+$')
-    - not (item.stat.lnk_target is exists)
+    - not (item.stat.lnk_source is exists)
   loop: "{{ claude_skills_link_stat.results }}"
   loop_control:
     label: "{{ item.item.path | basename }}"
