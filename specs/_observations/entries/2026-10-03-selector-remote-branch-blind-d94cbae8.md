@@ -1,0 +1,1 @@
+- 2026-10-03 [dotfiles] orchestrate-state.sh derived claude-instructions Task 2 as ready (deps-met) while origin/planwright/claude-instructions/task-2 carried 8 unmerged commits and no PR; meta-select then picked Task 2 for dispatch. The live derivation appears to read only local task branches, so a task with remote-only work reads as fresh and is re-dispatched.
