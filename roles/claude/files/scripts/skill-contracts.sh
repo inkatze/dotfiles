@@ -1,197 +1,382 @@
 #!/usr/bin/env bash
-# Contract-consistency checker for the dotfiles-local review command files
-# (panel-review, peer-review, copilot-review, code-review, bot-review) and
-# the tracked global CLAUDE.md they share contracts with. Asserted invariant
-# classes:
-# the three-bucket presentation contract (and code-review's deliberate
-# inverse of it: severity tiers, no buckets), the panel-pairing /
-# copilot-pairing retirement into --nested, the retired Ollama backend
-# names, copilot-review's mark-ready confirmation gate, bot-review's
-# single-mutation safety sentences, JSON validity of commands/*.json,
-# code-review's review-submission gate, the /code-review
-# option-set literals mirrored in CLAUDE.md, the code-review/panel-review
-# backend-resolver sync lines, panel-review's reviewer-backend containment
-# lines, and the Slack notification contract. Runs as
-# a lefthook pre-commit job (glob in lefthook.yml: the command files,
-# CLAUDE.md, this script, and its fixture suite) and in CI alongside
-# skill-contracts-test.sh, which plants drifts to prove these checks fire.
-#
-# The spec-driven pipeline skills (orchestrate, execute-task, spec-draft,
-# spec-kickoff, polish, self-review, resume) moved to the planwright plugin,
-# which carries its own contract tests; only the review commands that stay in
-# this repo are checked here.
+# Contract-consistency checker for the dotfiles review skills
+# (roles/claude/files/skills/<name>/SKILL.md), their shared reference
+# directory (skills/review-shared/), and the tracked global CLAUDE.md they share
+# contracts with. Runs as a lefthook pre-commit job and in CI alongside
+# skill-contracts-test.sh, which plants a drift for each check to prove it
+# fires. Every pin is literal: a reword that trips one means the contract text
+# moved, so update the pin and its fixture in the same commit.
 set -euo pipefail
 
-CMDS="roles/claude/files/commands"
+SKILLS="roles/claude/files/skills"
+SHARED="$SKILLS/review-shared"
 GLOBAL_MD="roles/claude/files/CLAUDE.md"
+SKILL_NAMES=(bot-review code-review copilot-review panel-review peer-review)
 errors=0
 
 err() { echo "ERROR: $1"; errors=$((errors + 1)); }
 
-# require_phrases <file> <array-name> <label> <phrase>... : each phrase must appear verbatim in $CMDS/<file>.
-require_phrases() {
-  local file="$1" name="$2" label="$3" phrase
-  shift 3
-  if [ -f "$CMDS/$file" ]; then
-    # One read and builtin matching: a grep per phrase dominated the fixture
-    # suite's runtime once the reviewer-backend anchors grew.
-    local body=""
-    IFS= read -r -d "" body < "$CMDS/$file" || true
-    for phrase in "$@"; do
-      if [[ "$body" != *"$phrase"* ]]; then
-        err "$file missing expected $label: \"$phrase\""
-      fi
-    done
+# read_file <path> <var>: whole file into var, or an error, an empty var and
+# a non-zero return, so a caller never runs phrase checks on missing text.
+read_file() {
+  local __body="" __rc=0
+  if [ ! -f "$1" ]; then
+    err "$1 does not exist"; __rc=1
+  elif [ ! -r "$1" ]; then
+    err "$1 could not be read"; __rc=1
   else
-    err "$file referenced by $name but does not exist at $CMDS/$file"
+    IFS= read -r -d "" __body < "$1" || true
   fi
+  printf -v "$2" '%s' "$__body"
+  return "$__rc"
 }
 
-# JSON validity for any example config shipped alongside a command (currently
-# bot-review.config.example.json). Nothing else in this repo's CI or hooks
-# reads these files, so a malformed edit would otherwise go undetected until
-# someone tried to use it as a template.
+# require_phrases <path> <label> <phrase>...: each phrase verbatim in the file.
+require_phrases() {
+  local path="$1" label="$2" phrase body
+  shift 2
+  [ -f "$path" ] || { err "$path (needed for $label) does not exist"; return; }
+  read_file "$path" body || return 0
+  for phrase in "$@"; do
+    [[ "$body" == *"$phrase"* ]] || err "$path missing expected $label: \"$phrase\""
+  done
+}
+
+# require_normalized <path> <label> <phrase>...: whitespace-normalized match,
+# so a reflow of the sentence does not break the pin.
+require_normalized() {
+  local path="$1" label="$2" phrase normalized
+  shift 2
+  [ -f "$path" ] || { err "$path (needed for $label) does not exist"; return; }
+  if ! normalized="$(tr -s '[:space:]' ' ' < "$path")"; then
+    err "$path could not be read (needed for $label)"; return
+  fi
+  for phrase in "$@"; do
+    [[ "$normalized" == *"$phrase"* ]] || err "$path missing expected $label: \"$phrase\""
+  done
+}
+
+skill_md() { printf '%s/%s/SKILL.md' "$SKILLS" "$1"; }
+
+# Every text file under the skills tree, read and whitespace-normalized once:
+# the fixture suite runs this checker per case, so a fork per file per check
+# dominated its runtime.
+tree_files=()
+tree_norm=()
+[ -d "$SKILLS" ] || { echo "ERROR: $SKILLS does not exist; run from the dotfiles checkout"; exit 1; }
+# A directory find cannot read would otherwise drop its files from every scan.
+tree_list="$(find "$SKILLS" -type f \( -name '*.md' -o -name '*.json' \))" \
+  || err "find could not list every file under $SKILLS"
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  if norm="$(tr -s '[:space:]' ' ' < "$f")"; then
+    tree_files+=("$f")
+    tree_norm+=("$norm")
+  else
+    err "$f could not be read"
+  fi
+done <<< "$(LC_ALL=C sort <<< "$tree_list")"
+[ "${#tree_files[@]}" -gt 0 ] || err "no files under $SKILLS"
+
+# files_matching <grep flags> <pattern> [<file>...]: sets matched to the files
+# with a match; the tree files when none are named. Called in this shell, never
+# in $(...), so a read error reaches the error count instead of a subshell.
+matched=()
+files_matching() {
+  local flags="$1" pattern="$2" out status
+  shift 2
+  matched=()
+  [ "$#" -gt 0 ] || set -- "${tree_files[@]}"
+  [ "$#" -gt 0 ] || return 0
+  set +e
+  out="$(grep -l "$flags" -- "$pattern" "$@")"
+  status=$?
+  set -e
+  [ "$status" -le 1 ] || { err "grep failed (exit $status) looking for '$pattern'"; return 0; }
+  local line
+  while IFS= read -r line; do [ -n "$line" ] && matched+=("$line"); done <<< "$out"
+  return 0
+}
+
 if command -v jq >/dev/null 2>&1; then
-  for f in "$CMDS"/*.json; do
+  for f in "$SKILLS"/*/*.json; do
     [ -e "$f" ] || continue
-    if ! jq empty "$f" >/dev/null 2>&1; then
-      err "$f is not valid JSON"
-    fi
+    jq empty "$f" >/dev/null 2>&1 || err "$f is not valid JSON"
   done
 else
-  err "jq is required to validate $CMDS/*.json but is not on PATH"
+  err "jq is required to validate $SKILLS/*/*.json but is not on PATH"
 fi
 
-# Three-bucket presentation contract (Finding Categorization). Anchored to
-# each file's own specific declarative sentence rather than a shared
-# alternation-regex across files: a shared regex lets an unrelated match
-# elsewhere in the same file (e.g. "three-pass" validation prose) mask a real
-# regression in the sentence that actually declares the bucket count. This is
-# the exact gap the v1-retrospective (specs/pair-flow/research/v1-retrospective.md:89)
-# already caught once ("three findings tables" drifted to four undetected).
-#
-# panel-review.md carries two anchor sentences, not one, both inside the
-# shared Steps 1-6 pipeline that standalone and --nested both run identically
-# (step 5's "bucket out of three" phrasing and step 6's "three findings
-# tables" phrasing); neither is nested-only. copilot-review.md carries a
-# third, analogous anchor for its own adjacent-findings output ("Three
-# adjacent-findings tables"). All three must independently hold.
-#
-# NOTE: each check below is an explicit if-block, not a `cond && ! grep &&
-# err` chain. Under `set -e`, a chain like that exits the script silently
-# the moment grep SUCCEEDS (the good case): the short-circuited `&&` list
-# evaluates to non-zero as the last command run, and errexit kills the
-# script before `err` (or anything after it) ever runs. Bare-loop chains of
-# that shape happened not to trip it in testing, but it's fragile either
-# way; explicit ifs are unambiguous under set -e.
-bucket_checks=(
-  "panel-review.md|three findings tables in fixed order"
-  "panel-review.md|bucket out of three: Auto-applicable, Needs sign-off, or Needs human judgment"
-  "peer-review.md|the validated threads as three tables"
-  "copilot-review.md|Three adjacent-findings tables"
-  "bot-review.md|Present all three tables, in fixed order"
-)
-# Derived from bucket_checks, not hand-maintained, so the Agent-resolvable
-# guard below can never drift out of sync with the files bucket_checks
-# actually covers (a malformed entry is reported by the main loop below;
-# this pass just skips it rather than double-reporting).
-bucket_files=""
-for check in "${bucket_checks[@]}"; do
-  case "$check" in
-    *'|'*) f="${check%%|*}" ;;
-    *) continue ;;
-  esac
-  case " $bucket_files " in
-    *" $f "*) ;;
-    *) bucket_files="$bucket_files $f" ;;
-  esac
+for name in "${SKILL_NAMES[@]}"; do
+  [ -f "$(skill_md "$name")" ] || err "$(skill_md "$name") does not exist"
 done
-for check in "${bucket_checks[@]}"; do
-  case "$check" in
-    *'|'*) ;;
-    *) err "malformed bucket_checks entry (missing '|' separator): \"$check\""; continue ;;
+
+# --- Slash-invoked only, with fixed names and flags ---
+# Each skill's argument-hint. peer-review takes no arguments, so it has none.
+expected_hint() {
+  case "$1" in
+    bot-review) echo '[--reviewer <name>] [--local] [--nested] [--dry-run] [--effort <value>]' ;;
+    code-review) echo '<pr-number-or-url> [--backends <codex|gemini>]' ;;
+    copilot-review) echo '[--nested]' ;;
+    panel-review) echo '[--nested] [--backends <a,b,c>] [--effort <value>]' ;;
+    peer-review) echo '' ;;
   esac
-  f="${check%%|*}"
-  phrase="${check#*|}"
-  if [ -f "$CMDS/$f" ]; then
-    if ! grep -qF "$phrase" "$CMDS/$f"; then
-      err "$f missing expected bucket-count sentence: \"$phrase\""
-    fi
+}
+for name in "${SKILL_NAMES[@]}"; do
+  f="$(skill_md "$name")"
+  [ -f "$f" ] || continue
+  # Front matter is the lines between a first-line --- and the next ---; with no
+  # closing delimiter there is none, so a body line cannot stand in for it.
+  front="$(awk 'NR==1 { if ($0 != "---") exit; next } $0 == "---" { closed = 1; exit } { buf = buf $0 "\n" } END { if (closed) printf "%s", buf }' "$f")"
+  [ -n "$front" ] || { err "$f has no front matter"; continue; }
+  grep -qx "name: $name" <<< "$front" || err "$f front matter does not name the skill '$name'"
+  grep -qx 'disable-model-invocation: true' <<< "$front" || err "$f front matter lacks disable-model-invocation: true"
+  want="$(expected_hint "$name")"
+  hint_lines="$(grep -c '^argument-hint:' <<< "$front" || true)"
+  if [ -z "$want" ]; then
+    [ "$hint_lines" -eq 0 ] || err "$f has an argument-hint, but $name takes no arguments"
   else
-    err "$f referenced in bucket_checks but does not exist at $CMDS/$f"
-  fi
-done
-# Guard against the retired bucket being reintroduced under wording the
-# sentence checks above wouldn't catch.
-for f in $bucket_files; do
-  if [ -f "$CMDS/$f" ] && grep -q 'Agent-resolvable' "$CMDS/$f"; then
-    err "$f references the retired Agent-resolvable bucket"
+    hint="$(sed -n 's/^argument-hint: "\(.*\)"$/\1/p' <<< "$front")"
+    [ "$hint_lines" -eq 1 ] && [ "$hint" = "$want" ] \
+      || err "$f argument-hint is \"$hint\", expected \"$want\" (quoted, one line)"
   fi
 done
 
-# Retired-files guard. panel-pairing.md and copilot-pairing.md were folded
-# into panel-review.md / copilot-review.md's --nested flag; if either
-# reappears, the fold either regressed or is being silently duplicated.
-for retired in panel-pairing.md copilot-pairing.md; do
-  if [ -f "$CMDS/$retired" ]; then
-    err "$retired exists but was retired into --nested; remove it or update this guard if reintroducing it is intentional"
-  fi
+# --- One source of review doctrine ---
+require_phrases "$SHARED/doctrine.md" "doctrine resolution" \
+  "<root>/scripts/resolve-rule-doc.sh validation-rigor" \
+  "<root>/scripts/resolve-rule-doc.sh discovery-rigor" \
+  "<root>/scripts/resolve-rule-doc.sh finding-categorization" \
+  "<root>/scripts/resolve-rule-doc.sh refactor-instinct"
+require_normalized "$SHARED/doctrine.md" "root-resolution sentence" \
+  "planwright's install root is the enabled version's \`installPath\`, as Claude Code records it in \`~/.claude/plugins/installed_plugins.json\`." \
+  "If the record is missing, names no enabled install, or a document does not resolve, stop and name what is missing; never fall back to a remembered or inline copy of the rule."
+for name in "${SKILL_NAMES[@]}"; do
+  require_phrases "$(skill_md "$name")" "doctrine pointer" "](../review-shared/doctrine.md)"
+done
+cache_files=("${tree_files[@]}" "$GLOBAL_MD")
+[ -f CLAUDE.md ] && cache_files+=(CLAUDE.md)
+files_matching -F 'plugins/cache' "${cache_files[@]}"
+for f in ${matched[@]+"${matched[@]}"}; do
+  case "$f" in "$SHARED"/*) continue ;; esac
+  err "$f names the plugin cache path; locate planwright through $SHARED/doctrine.md only"
 done
 
-# Retired-backend sweep. The Ollama-backed qwen-coder / gpt-oss backends were
-# dropped from /panel-review along with the daemon that served them, and
-# OLLAMA_BASE_URL was the knob only they read; a name reappearing in a command
-# file or the tracked CLAUDE.md re-advertises a backend that can only fail
-# with connection-refused.
-for retired_name in qwen-coder gpt-oss OLLAMA_BASE_URL; do
-  for path in "$CMDS"/*.md "$GLOBAL_MD"; do
-    [ -f "$path" ] || continue
-    if grep -qF "$retired_name" "$path"; then
-      err "$(basename "$path") references the retired backend name '$retired_name'; nothing provisions Ollama any more (see the dotfiles CLAUDE.md), so remove it or update this sweep if reintroducing it is intentional"
+# The skills that apply findings to their own branch use the four tables and
+# state each drain-scope override with its reason.
+for name in panel-review copilot-review bot-review; do
+  require_normalized "$(skill_md "$name")" "four-bucket reference" "finding-categorization's four tables, in fixed order"
+done
+for name in panel-review copilot-review bot-review; do
+  f="$(skill_md "$name")"
+  [ -f "$f" ] || continue
+  paras="$(awk 'BEGIN{RS=""} /Drain-scope override:/{gsub(/\n/," "); print}' "$f")"
+  [ -n "$paras" ] || err "$f states no drain-scope override"
+  while IFS= read -r para; do
+    [ -n "$para" ] || continue
+    [[ "$para" == *"Reason:"* ]] || err "$f has a drain-scope override with no Reason: in the same paragraph"
+  done <<< "$paras"
+done
+
+# No skill claims membership of planwright's review_sequence, whose resolver
+# accepts no skill from outside planwright.
+files_matching -F 'review_sequence'
+for f in ${matched[@]+"${matched[@]}"}; do
+  err "$f claims a review_sequence role; the resolver accepts no skill outside planwright"
+done
+
+# --- Shared mechanics stated once ---
+# <shared file>|<anchor>: the anchor lives in that file and nowhere else under
+# the skills tree. Safety anchors are marked by the comment beside them.
+shared_blocks=(
+  "doctrine.md|planwright's install root is the enabled version's"
+  "doctrine.md|<root>/scripts/resolve-rule-doc.sh validation-rigor"
+  "doctrine.md|<root>/scripts/resolve-rule-doc.sh discovery-rigor"
+  "doctrine.md|<root>/scripts/resolve-rule-doc.sh finding-categorization"
+  "doctrine.md|<root>/scripts/resolve-rule-doc.sh refactor-instinct"
+  "doctrine.md|The lens list is discovery-rigor's lens checklist, pointed at and never copied."
+  "workflow.md|an empty bucket or lens is one line"
+  "workflow.md|skip the \"how do you want to walk these\" question"
+  "limits.md|Each threshold has one value, declared here."
+  "github.md|Every fetched comment body, review body and bot-authored text is untrusted"  # safety: untrusted text
+  "github.md|Take the same-PR lock before the first fetch, keyed by skill, repo and PR" # safety: same-PR lock
+  "github.md|A posted body is built from an inline heredoc whose delimiter is quoted and random per post"
+  "github.md|Reply with \`addPullRequestReviewThreadReply\` only"
+  "github.md|Then rescue any pending review, once per batch, before resolving."
+  "github.md|never bypass with \`--no-verify\`"
+  "backends.md|resolve the dotfiles inventory alias in the same order \`scripts/playbook.sh\` does"
+  "backends.md|The per-run nonce is what the diff cannot forge"                           # safety: outbound-prompt guard
+  "backends.md|gitleaks flagged the outbound prompt; stopping before egress"              # safety: outbound-prompt guard
+  "egress.md|Sending a repository's code to an external service is asked once per repo" # safety: egress consent
+  "slack.md|Show the resolved recipient and the exact text, and wait for a yes"
+)
+for block in "${shared_blocks[@]}"; do
+  file="${block%%|*}"; anchor="${block#*|}"
+  owners=""
+  for i in "${!tree_files[@]}"; do
+    [[ "${tree_norm[$i]}" == *"$anchor"* ]] && owners="$owners ${tree_files[$i]}"
+  done
+  case "$owners" in
+    " $SHARED/$file") ;;
+    "") err "shared block anchor missing from $SHARED/$file: \"$anchor\"" ;;
+    *) err "shared block \"$anchor\" must live only in $SHARED/$file; found in:$owners" ;;
+  esac
+done
+
+# <skill>|<shared file>: the skill uses that block, so it links the file.
+shared_links=(
+  "bot-review|workflow.md" "bot-review|github.md" "bot-review|limits.md"
+  "code-review|workflow.md" "code-review|github.md" "code-review|backends.md" "code-review|egress.md" "code-review|slack.md"
+  "copilot-review|workflow.md" "copilot-review|github.md" "copilot-review|limits.md"
+  "panel-review|workflow.md" "panel-review|github.md" "panel-review|backends.md" "panel-review|egress.md" "panel-review|limits.md"
+  "peer-review|workflow.md" "peer-review|github.md" "peer-review|slack.md"
+)
+for pair in "${shared_links[@]}"; do
+  require_phrases "$(skill_md "${pair%%|*}")" "link to the shared ${pair#*|}" "](../review-shared/${pair#*|})"
+done
+
+# --- No per-run Maintenance section ---
+files_matching -E '^#+ Maintenance'
+for f in ${matched[@]+"${matched[@]}"}; do
+  err "$f has a Maintenance section; skills carry no per-run self-audit"
+done
+
+# --- Nested loops run discovery on the first and converging iterations ---
+for name in panel-review copilot-review; do
+  require_normalized "$(skill_md "$name")" "discovery-cadence sentence" \
+    "runs on the first iteration and on the iteration that detects convergence only; middle iterations"
+done
+require_normalized "$(skill_md bot-review)" "discovery-cadence sentence" \
+  "Discovery cadence: this loop triages the bot's own findings and runs no discovery pass of its own"
+
+# --- Shared thresholds declared once ---
+require_phrases "$SHARED/limits.md" "shared threshold" \
+  "| Iteration cap | 10 iterations |" "| Lock staleness | 30 minutes |" "| Review-poll window | 10 minutes |"
+# The seconds the shared lock and copilot-review's poll compute with are those
+# rows' values, so a change to limits.md cannot leave a stale literal behind.
+minutes_of() { sed -n "s/^| $1 | \([0-9][0-9]*\) minutes |.*/\1/p" "$SHARED/limits.md" 2>/dev/null; }
+stale_min="$(minutes_of 'Lock staleness')"
+poll_min="$(minutes_of 'Review-poll window')"
+if [ -n "$stale_min" ] && [ -n "$poll_min" ]; then
+  require_phrases "$SHARED/github.md" "lock-staleness seconds from limits.md" \
+    "if [ \"\$age\" -lt $((stale_min * 60)) ]; then" "\`$((stale_min * 60))\` is the lock-staleness value"
+  require_phrases "$(skill_md copilot-review)" "review-poll seconds from limits.md" \
+    "deadline=\$(( push_epoch + $((poll_min * 60)) ))"
+fi
+# Outside the shared directory, a threshold named beside a number is an
+# override, and an override line is followed by its Reason: line.
+for f in "${tree_files[@]}"; do
+  case "$f" in "$SHARED"/*|*.json) continue ;; esac
+  found="$(awk -v f="$f" '
+    pending { if ($0 !~ /^Reason:/) { print f ": \"" prev "\" has no Reason: line after it" } pending = 0 }
+    tolower($0) ~ /(iteration cap|lock staleness|staleness window|poll window)/ && $0 ~ /[0-9]/ {
+      if ($0 ~ /^Override \(/) { pending = 1; prev = $0 }
+      else { print f ": \"" $0 "\" states a shared threshold value; override it with an Override (<threshold>): line and a Reason: line" }
+    }
+    END { if (pending) print f ": \"" prev "\" has no Reason: line after it" }
+  ' "$f")"
+  while IFS= read -r line; do [ -n "$line" ] && err "$line"; done <<< "$found"
+done
+
+# --- Stale references ---
+files_matching -E '/self-review`? step [0-9]'
+for f in ${matched[@]+"${matched[@]}"}; do
+  err "$f cites a numbered /self-review step; /self-review is a planwright skill without numbered steps"
+done
+files_matching -F 'gh copilot --help'
+for f in ${matched[@]+"${matched[@]}"}; do
+  err "$f names 'gh copilot --help'; its help output proves nothing about the CLI"
+done
+CODEX_CONTAINED='( cd "$scratch" && "$codex_bin" exec --sandbox read-only --skip-git-repo-check < "$prompt_file" )'
+require_phrases "$SHARED/backends.md" "contained codex invocation" "$CODEX_CONTAINED"
+
+# --- One rule per mechanic the skills share ---
+require_normalized "$SHARED/backends.md" "contained-codex rule" \
+  "The flag that skips its git check is used only together with that form"
+require_normalized "$SHARED/github.md" "posted-body rule" \
+  "reaches the posting command on stdin; it is never interpolated into argv."
+files_matching -E 'codex(_bin"?)? exec'
+for f in ${matched[@]+"${matched[@]}"}; do
+  lines="$(grep -E 'codex(_bin"?)? exec' "$f")" || { err "$f could not be read while checking codex invocations"; continue; }
+  while IFS= read -r line; do
+    [[ "$line" == *"$CODEX_CONTAINED"* ]] \
+      || err "$f runs codex outside the contained form (read-only sandbox, prompt on stdin, empty scratch directory): $line"
+  done <<< "$lines"
+done
+files_matching -F '--skip-git-repo-check'
+for f in ${matched[@]+"${matched[@]}"}; do
+  [ "$f" != "$SHARED/backends.md" ] \
+    && err "$f uses codex's git-check skip outside the contained form in $SHARED/backends.md"
+done
+files_matching -E '(^|[^<])<<-?[[:space:]]*[A-Za-z_]'
+for f in ${matched[@]+"${matched[@]}"}; do
+  err "$f has an unquoted heredoc; a posted or prompt body uses a quoted delimiter"
+done
+files_matching -F 'Correctness, logic, edge cases'
+for f in ${matched[@]+"${matched[@]}"}; do
+  err "$f carries a copied lens list; build it from the resolved discovery-rigor document"
+done
+
+# --- Every relative link from a skills-tree file resolves inside the tree ---
+# Parameter expansion rather than dirname: the fixture suite runs this per
+# case, and a fork per link dominated its runtime.
+skills_root="$(cd "$SKILLS" && pwd -P)"
+for f in "${tree_files[@]}"; do
+  case "$f" in *.md) ;; *) continue ;; esac
+  dir="${f%/*}"
+  links="$(grep -oE '\]\([^)]+\)' "$f")" && rc=0 || rc=$?
+  [ "$rc" -le 1 ] || { err "$f could not be read while checking links"; continue; }
+  [ -n "$links" ] || continue
+  while IFS= read -r target; do
+    target="${target#](}"; target="${target%)}"
+    case "$target" in http:*|https:*|mailto:*|\#*|'') continue ;; esac
+    target="${target%%#*}"
+    if [ ! -f "$dir/$target" ]; then
+      err "$f links to $target, which does not exist"
+    else
+      t="$dir/$target"
+      # realpath, not the directory's pwd -P: a link to a symlink that points
+      # outside the tree must count as outside.
+      if ! real="$(realpath "$t")"; then
+        err "$f links to $target, which could not be resolved"
+      else
+        case "$real" in "$skills_root"/*) ;; *) err "$f links to $target, outside $SKILLS" ;; esac
+      fi
     fi
+  done <<< "$(LC_ALL=C sort -u <<< "$links")"
+done
+
+# --- Safety pins ---
+
+# Retired files: panel-pairing and copilot-pairing were folded into the
+# --nested flag; either reappearing means the fold regressed or is duplicated.
+for retired in panel-pairing copilot-pairing; do
+  [ -e "$SKILLS/$retired" ] && err "$SKILLS/$retired exists but was retired into --nested"
+done
+
+# Retired backends: nothing provisions Ollama any more, so a qwen-coder,
+# gpt-oss or OLLAMA_BASE_URL mention re-advertises a backend that can only fail.
+for retired_name in qwen-coder gpt-oss OLLAMA_BASE_URL; do
+  files_matching -F "$retired_name" "${tree_files[@]}" "$GLOBAL_MD"
+  for path in ${matched[@]+"${matched[@]}"}; do
+    err "$path references the retired backend name '$retired_name'; nothing provisions Ollama any more"
   done
 done
 
-# Mark-ready safety anchor. copilot-review.md's nested loop may flip a PR
-# ready only at convergence and only after an explicit per-run confirmation;
-# this is the one PR-lifecycle mutation the loop is allowed, so its two
-# guarding sentences must not silently drift or disappear.
-mark_ready_checks=(
-  "This confirmation-gated ready-flip is the only PR-lifecycle action this loop takes, and only on this exit path."
+# copilot-review's nested loop may flip a PR ready only at convergence and only
+# after an explicit per-run confirmation.
+require_phrases "$(skill_md copilot-review)" "mark-ready safety sentence" \
+  "This confirmation-gated ready-flip is the only PR-lifecycle action this loop takes, and only on this exit path." \
   "Never automatically, never on a diminishing-returns/stop-condition/iteration-cap exit, and never for create or merge"
-)
-require_phrases copilot-review.md mark_ready_checks "mark-ready safety sentence" "${mark_ready_checks[@]}"
 
-# Single-mutation safety anchors for bot-review.md. It permits exactly three
-# PR-lifecycle mutations (a confirmation-gated opt-in label add, an applied
-# Auto-applicable fix, and a Needs-sign-off deferral reply) and forbids
-# everything else (auto-adding a label speculatively, applying a Needs-sign-off
-# code change while nested, force-pushing, merging, marking ready); these are
-# the same class of guarantee mark_ready_checks protects for copilot-review.md,
-# so bot-review.md gets the same drift protection.
-bot_review_safety_checks=(
-  "Never apply the code change in this bucket while nested."
-  "force-push, push to a protected branch, mark the PR ready, or merge"
+# bot-review permits one confirmation-gated label add and forbids the rest.
+require_phrases "$(skill_md bot-review)" "safety sentence" \
+  "Never apply the code change in this bucket while nested." \
+  "force-push, push to a protected branch, mark the PR ready, or merge" \
   "Do not add the opt-in label speculatively"
-)
-require_phrases bot-review.md bot_review_safety_checks "safety sentence" "${bot_review_safety_checks[@]}"
 
-# Containment for panel-review's reviewer:<name> backend, which runs a vendor
-# CLI from the repo root rather than an empty scratch dir. Each anchor pins the
-# guard itself, not just its message: bounded with a kill-after, argv built by
-# a whitespace split (no eval, no globbing), the resolved binary exec'd, the
-# split EXIT/INT traps, the empty, multi-document and row-shape stops that
-# keep a silent or partial run from reading as zero findings, the env -i
-# allowlist read through printenv, the PATH filter and in-repo checks on the
-# binary and timeout, the mise guard that turns off project-local mise config
-# for the snippet and the CLI, a mise shim (and the CLI's tool PATH) resolved
-# from HOME rather than the repo, the jq and realpath probes, the git-setup
-# checksum and isolated git calls, the working-tree check, the findings
-# file's realpath containment, the not-a-sandbox disclaimer, and the egress
-# consent asked once per repo and reviewer
-# (binary-bound, under a bounded lock, private directory, exit 2 to stop,
-# never overwriting a file that is unreadable, not a regular file, or not a
-# single JSON object).
+# panel-review's reviewer:<name> backend runs a vendor CLI from the repo root.
+# Each anchor pins a guard itself, not only its message.
 reviewer_backend_checks=(
   '"$tbin" -k 30 "$secs" "${argv[@]}" < /dev/null'
   "IFS=\$' \\t' read -r -a words <<< \"\$tpl\""
@@ -215,8 +400,6 @@ reviewer_backend_checks=(
   'in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] || { echo "cli.binary resolves inside the repo'
   'bin_real="$(realpath "$bin_abs")" || { echo "cannot resolve cli.binary ($bin_abs) to a real path" >&2; exit 1; }'$'\n''  in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] || { echo "cli.binary is a link into the repo under review'
   'in_repo "${next%/*}/"; [ "$?" -eq 1 ] || { echo "cli.binary'"'"'s link chain passes through the repo'
-  'where `<approved-binary-path>` is item 5'"'"'s `bin_real`'
-  'up to, not including, its `[ "$bin_real" = "$approved" ]` check'
   '[ "$bin_real" = "$approved" ] ||'
   'if is_mise "$bin_real"; then'
   'bin_exec="$(cd "$HOME" && /usr/bin/env -i "${home_env[@]}" "$mise_exe" which "$shim")"'
@@ -263,27 +446,14 @@ reviewer_backend_checks=(
   '"$git_hooks" "$git_hooks"/*; do'
   '"$git_common/info/exclude" "$git_common/info/attributes"'
   '"$(readlink "$path")"; fi'
-  'this run cannot continue without it" >&2; exit 2; }'
-  "jq -n --arg k \"\$key\" --arg v \"\$val\" '{(\$k): \$v}'"
-  "grep -q '[^[:space:]]' \"\$f\"; }; }; then seed=1; fi"
-  '&& [ -s "$tmp" ] && chmod 600 "$tmp" && mv "$tmp" "$f"; }; then'
   'elif [ ! -f "./$p" ] || [ ! -r "./$p" ]; then printf'
   'command -v jq > /dev/null || { echo "jq is not on the filtered PATH"'
   'command -v printenv > /dev/null || { echo "printenv is not on the filtered PATH"'
   'elif [ "$tree_after" != "$tree_before" ]; then'
   '[ -z "$tree_msg" ] || { echo "$tree_msg" >&2; exit 1; }'
   'case "$(realpath "$src")" in "$(realpath "$out")"/*) ;;'
-  '6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).**'
-  'it reads the whole repo tree, not just the diff, and uploads it to that vendor'
-  'Anything other than a yes stops the run.'
-  'key="reviewer:<name>:<owner>/<repo>"'
-  "jq --arg k \"\$key\" --arg v \"\$val\" '.[\$k] = \$v' \"\$f\""
-  'or one naming a different binary'
-  'while [ "$n" -lt "$tries" ]; do'
-  'dir="${f%/*}"; tries=50; n=0;'
   'if [ -e "$path" ] && [ ! -r "$path" ]; then echo "cannot read $path" >&2; exit 1; fi'
   'setup_before="$(git_setup_sum)" || { echo "cannot checksum'
-  'if [ -L "$f.lock" ] || { [ -e "$f.lock" ] && [ ! -d "$f.lock" ]; }; then'
   'case "$git_common$git_hooks" in /*) ;; *) echo "cannot resolve git'"'"'s directories'
   'git_common="$(git -C "$top" rev-parse --path-format=absolute --git-common-dir)"'
   'LC_ALL=C; unset CDPATH'
@@ -296,9 +466,33 @@ reviewer_backend_checks=(
   'if [ "$backend_status" -ne 0 ]; then'
   'select(type == "number" and . == floor and . > 0 and . <= 86400)'
   'case "$src" in */..|*/../*) echo'
+  'if ! setup_after="$(git_setup_sum)" || [ "$setup_after" != "$setup_before" ]; then'
+  '**This containment is an accident guard, not a sandbox.**'
+  'the CLI itself still runs with your full filesystem and network access'
+)
+panel_consent_checks=(
+  'where `<approved-binary-path>` is item 5'"'"'s `bin_real`'
+  'up to, not including, its `[ "$bin_real" = "$approved" ]` check'
+  '6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).**'
+  'it reads the whole repo tree, not just the diff, and uploads it to that vendor'
+  'Anything other than a yes stops the run.'
+  'or one naming a different binary'
+  'Run every "## Pre-flight" item above before entering the loop'
+  'with key `reviewer:<name>:<owner>/<repo>`'
+  'It is pasted into single quotes, so refuse one containing `'"'"'`, a newline or a control character.'
+)
+egress_checks=(
+  $'\nexit "$rc"\n'
+  'this run cannot continue without it" >&2; exit 2; }'
+  "jq -n --arg k \"\$key\" --arg v \"\$val\" '{(\$k): \$v}'"
+  "grep -q '[^[:space:]]' \"\$f\"; }; }; then seed=1; fi"
+  '&& [ -s "$tmp" ] && chmod 600 "$tmp" && mv "$tmp" "$f"; }; then'
+  "jq --arg k \"\$key\" --arg v \"\$val\" '.[\$k] = \$v' \"\$f\""
+  'while [ "$n" -lt "$tries" ]; do'
+  'dir="${f%/*}"; tries=50; n=0;'
+  'if [ -L "$f.lock" ] || { [ -e "$f.lock" ] && [ ! -d "$f.lock" ]; }; then'
   'why="$f.lock exists and is not a lock directory"; n=$tries'
   'if [ -d "$dir" ] && [ -w "$dir" ]; then'
-  'if ! setup_after="$(git_setup_sum)" || [ "$setup_after" != "$setup_before" ]; then'
   'n=$((n + 1)); sleep 0.2'
   'mkdir "$f.lock" 2>/dev/null && { locked=1; break; }'
   'if [ -z "$locked" ]; then'
@@ -306,182 +500,77 @@ reviewer_backend_checks=(
   'if [ ! -L "$f" ] && { [ ! -e "$f" ] || { [ -f "$f" ] && [ -r "$f" ] && ! LC_ALL=C grep -q'
   'if [ -z "$seed" ] && { [ -L "$f" ] || [ ! -f "$f" ] || ! jq -e -s '"'"'length == 1 and (.[0] | type == "object")'"'"' "$f"'
   'echo "$f is a symlink, unreadable, not a regular file, or not a single JSON object; nothing recorded or overwritten" >&2; rc=2'
-  '   exit "$rc"'
-  '**This containment is an accident guard, not a sandbox.**'
-  'the CLI itself still runs with your full filesystem and network access'
-  'Run every "## Pre-flight" item above before entering the loop'
 )
-require_phrases panel-review.md reviewer_backend_checks "reviewer-backend containment line" "${reviewer_backend_checks[@]}"
+require_phrases "$SKILLS/panel-review/reviewer-backend.md" "reviewer-backend containment line" "${reviewer_backend_checks[@]}"
+require_phrases "$(skill_md panel-review)" "reviewer-backend consent line" "${panel_consent_checks[@]}"
+require_phrases "$SHARED/egress.md" "egress-consent line" "${egress_checks[@]}"
 # The consent lock is released after the write whether or not it succeeded,
-# so the rmdir must sit after the failure branch's fi, not inside it.
-if [ -f "$CMDS/panel-review.md" ] \
-  && ! perl -0ne 'exit(index($_, "     fi\n     rmdir \"\$f.lock\"\n   fi") < 0 ? 1 : 0)' "$CMDS/panel-review.md"; then
-  err "panel-review.md missing expected reviewer-backend containment line: the consent lock's release after the write"
+# so the rmdir sits after the failure branch's fi, not inside it.
+if [ -f "$SHARED/egress.md" ] \
+  && ! perl -0ne 'exit(index($_, "  fi\n  rmdir \"\$f.lock\"\nfi") < 0 ? 1 : 0)' "$SHARED/egress.md"; then
+  err "$SHARED/egress.md missing expected egress-consent line: the lock's release after the write"
 fi
 # The combined trap shape resumes after Ctrl-C with $work already deleted.
-if [ -f "$CMDS/panel-review.md" ] && grep -qF "trap 'rm -rf \"\$work\"' EXIT INT" "$CMDS/panel-review.md"; then
-  err "panel-review.md combines the reviewer backend's EXIT and INT traps; keep them split"
+if grep -qF "trap 'rm -rf \"\$work\"' EXIT INT" "$SKILLS/panel-review/reviewer-backend.md" 2>/dev/null; then
+  err "$SKILLS/panel-review/reviewer-backend.md combines the reviewer backend's EXIT and INT traps; keep them split"
 fi
 
-# Severity-tier contract for code-review.md. It is checked against its OWN
-# anchors rather than being added to bucket_checks: per CLAUDE.md, commands that
-# only draft output for elsewhere skip the finding categorization and present
-# severity-grouped instead, so both the bucket-count sentence and the
-# Agent-resolvable guard would be wrong for it. Before this, code-review.md was
-# globbed by the lefthook job but matched by no check at all.
-severity_checks=(
-  "**Blockers**"
-  "**Concerns**"
-  "**Suggestions**"
-  "**Nits**"
-  "each as its own table in fixed order: Blockers, Concerns, Suggestions, Nits"
-)
-require_phrases code-review.md severity_checks "severity tier" "${severity_checks[@]}"
+# code-review never applies a fix to another author's branch, so it keeps
+# severity tiers instead of the buckets.
+require_phrases "$(skill_md code-review)" "severity tier" \
+  "**Blockers**" "**Concerns**" "**Suggestions**" "**Nits**" \
+  "each as its own table in fixed order: Blockers, Concerns, Suggestions, Nits" \
+  'does **not** use the bucket categorization from finding-categorization'
 
-# code-review presentation contract: severity-grouped, deliberately NOT the
-# three-bucket categorization. The declaring sentence must not silently
-# invert, and the retired bucket must not sneak in here either (this file is
-# outside bucket_files, so the sweep above does not cover it).
-if [ -f "$CMDS/code-review.md" ]; then
-  if ! grep -qF 'does **not** use the three-bucket categorization' "$CMDS/code-review.md"; then
-    err "code-review.md missing its no-bucket-categorization sentence"
-  fi
-  if grep -q 'Agent-resolvable' "$CMDS/code-review.md"; then
-    err "code-review.md references the retired Agent-resolvable bucket"
-  fi
-else
-  err "code-review.md referenced by the no-bucket-categorization check but does not exist at $CMDS/code-review.md"
-fi
-
-# The /code-review option sets are stated verbatim in both CLAUDE.md and the
-# command file; two copies of one contract, so both must carry the literals.
+# The /code-review option sets are stated in both the global file and the skill.
 optset_checks=(
   "Post inline / Post as PR-level / Defer to follow-up / Dismiss"
   "Post all inline / Post all as PR-level / Defer all to follow-up / Dismiss all / Pick individually"
 )
-[ -f "$CMDS/code-review.md" ] || err "code-review.md referenced by optset_checks but does not exist at $CMDS/code-review.md"
-[ -f "$GLOBAL_MD" ] || err "CLAUDE.md referenced by optset_checks but does not exist at $GLOBAL_MD"
-for phrase in "${optset_checks[@]}"; do
-  if [ -f "$CMDS/code-review.md" ] && ! grep -qF "$phrase" "$CMDS/code-review.md"; then
-    err "code-review.md missing option-set literal: \"$phrase\""
-  fi
-  if [ -f "$GLOBAL_MD" ] && ! grep -qF "$phrase" "$GLOBAL_MD"; then
-    err "CLAUDE.md missing /code-review option-set literal: \"$phrase\""
-  fi
-done
+require_phrases "$(skill_md code-review)" "option-set literal" "${optset_checks[@]}"
+require_phrases "$GLOBAL_MD" "/code-review option-set literal" "${optset_checks[@]}"
 
-# Backend-resolver sync: code-review.md mirrors panel-review.md's Pre-flight
-# resolver line for line (the trailing case mapping is code-review-only).
-# These are the shared load-bearing lines; a drift in either file breaks the
-# documented sync invariant.
-resolver_lines=(
-  'alias_file="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"'
-  '[ -n "$from_file" ]'
+# The machine-profile resolver's load-bearing lines.
+require_phrases "$SHARED/backends.md" "resolver line" \
+  'alias_file="${DOTFILES_HOST_FILE:-$HOME/.config/dotfiles/host}"' \
+  '[ -n "$from_file" ]' \
   'hostname | grep -q panela'
-)
-for f in code-review.md panel-review.md; do
-  if [ -f "$CMDS/$f" ]; then
-    for lineph in "${resolver_lines[@]}"; do
-      if ! grep -qF "$lineph" "$CMDS/$f"; then
-        err "$f missing shared resolver line: \"$lineph\""
-      fi
-    done
-  else
-    err "$f referenced by resolver_lines but does not exist at $CMDS/$f"
-  fi
-done
 
-# Submit-gate safety anchor for code-review.md. The command submits the
-# review to GitHub itself, which is its one outward mutation of someone
-# else's PR; the sentences gating that submission on an explicit human
-# verdict, and keeping unapproved comments out of it, must not silently
-# drift or disappear. Same posture as copilot-review's mark-ready anchor.
-submit_gate_checks=(
-  "never submit any review without an explicitly chosen verdict"
-  "never choose approval on my behalf"
+# code-review's one outward mutation of someone else's PR: the review
+# submission, gated on a verdict I chose.
+require_normalized "$(skill_md code-review)" "submit-gate sentence" \
+  "never submit any review without an explicitly chosen verdict" \
+  "never choose approval on my behalf" \
   "deferred and dismissed items are never posted"
-)
 # The isolated-session stop, so a refused review worktree never turns into
 # checking the PR out over the session's own branch.
-isolation_checks=(
-  "If this session's environment says it is isolated in a worktree, stop before anything else and tell me to rerun from a session in the main checkout."
-  "Do not work around it by checking the PR out in this worktree."
+require_normalized "$(skill_md code-review)" "isolated-session sentence" \
+  "If this session's environment says it is isolated in a worktree, stop before anything else and tell me to rerun from a session in the main checkout." \
+  "Do not work around it by checking the PR out in this worktree." \
   "If a git command is refused later for targeting another worktree, stop the same way at that point."
-)
-if [ -f "$CMDS/code-review.md" ]; then
-  # Whitespace-normalized match: these sentences sit inside hard-wrapped
-  # paragraphs, so a routine reflow must not break the anchor.
-  normalized="$(tr -s '[:space:]' ' ' < "$CMDS/code-review.md")"
-  for phrase in "${submit_gate_checks[@]}"; do
-    case "$normalized" in
-      *"$phrase"*) ;;
-      *) err "code-review.md missing expected submit-gate sentence: \"$phrase\"" ;;
-    esac
-  done
-  for phrase in "${isolation_checks[@]}"; do
-    case "$normalized" in
-      *"$phrase"*) ;;
-      *) err "code-review.md missing expected isolated-session sentence: \"$phrase\"" ;;
-    esac
-  done
-else
-  err "code-review.md referenced by submit_gate_checks and isolation_checks but does not exist at $CMDS/code-review.md"
-fi
 
-# Slack notification contract. Any command citing the shared mechanism must cite
-# a heading that actually resolves, and must carry the exact sign-off, because
-# both reach a colleague rather than staying in the repo.
-#
-# The sign-off's leading character is an EN DASH (U+2013). A hyphen or em dash
-# there is invisible in review and lands in someone's DMs.
+# Slack messages reach a colleague, so every skill linking the shared Slack
+# mechanics carries the exact sign-off: EN DASH (U+2013), space, clanky, and
+# nothing after the name. The multibyte dashes sit inside alternation groups,
+# never a bracket expression, which a byte-wise matcher would split. grep -c
+# prints nothing on a read error, so an empty count is a read failure.
 SIGNOFF='– clanky'
-SLACK_SECTION='Slack Notifications (review workflows)'
-slack_citers=""
-for path in "$CMDS"/*.md; do
-  [ -f "$path" ] || continue
-  if grep -qF "$SLACK_SECTION" "$path"; then
-    slack_citers="$slack_citers $(basename "$path")"
+require_phrases "$SHARED/slack.md" "sign-off" "$SIGNOFF"
+for name in "${SKILL_NAMES[@]}"; do
+  f="$(skill_md "$name")"
+  [ -f "$f" ] || continue
+  [ -r "$f" ] || { err "$f could not be read while checking sign-offs"; continue; }
+  grep -qF '](../review-shared/slack.md)' "$f" || continue
+  exact=$(grep -cE '^[[:space:]]*– clanky[[:space:]]*$' "$f" || true)
+  wrongdash=$(grep -cE '^[[:space:]]*(-|—)[[:space:]]*clanky[[:space:]]*$' "$f" || true)
+  decorated=$(grep -cE '^[[:space:]]*–[[:space:]]*clanky[[:space:]]+[^[:space:]]' "$f" || true)
+  if [ -z "$exact" ] || [ -z "$wrongdash" ] || [ -z "$decorated" ]; then
+    err "$f: grep could not read the file while checking sign-offs"; continue
   fi
+  [ "$exact" -eq 0 ] && err "$f links the Slack mechanics but carries no \"$SIGNOFF\" sign-off literal"
+  [ "$wrongdash" -gt 0 ] && err "$f has a sign-off with a wrong dash (hyphen or em dash); every one must be exactly \"$SIGNOFF\""
+  [ "$decorated" -gt 0 ] && err "$f has a decoration after clanky; the sign-off is exactly \"$SIGNOFF\" with nothing after the name"
 done
-if [ -n "$slack_citers" ]; then
-  if [ ! -f "$GLOBAL_MD" ]; then
-    err "commands cite \"$SLACK_SECTION\" but $GLOBAL_MD does not exist"
-  elif ! grep -qF "## $SLACK_SECTION" "$GLOBAL_MD"; then
-    err "commands cite \"$SLACK_SECTION\" but no such heading exists in $GLOBAL_MD"
-  fi
-  for f in $slack_citers; do
-    # Every sign-off-shaped line must be exactly the canonical literal:
-    # EN DASH (U+2013), space, clanky, nothing decorating the name. Three
-    # counts, so one drifted occurrence among several correct ones is
-    # caught (a boolean grep would wave it through). The multibyte dashes
-    # appear only inside alternation groups, never a bracket expression: a
-    # byte-wise matcher (BSD grep in a non-UTF-8 locale) splits a bracketed
-    # multibyte character into garbage bytes, while alternation of literal
-    # strings stays byte-exact in any locale. The wrong-dash pattern
-    # requires the exact sign-off shape (line ends after clanky) so a prose
-    # bullet like "- clanky never ..." cannot false-positive; the residual
-    # blind spot (a wrong dash AND a decoration on the same line) is
-    # accepted for that. grep -c prints 0 on no matches (exit 1) and prints
-    # nothing on a read error (exit 2), so an empty capture means the file
-    # could not be read, not a clean pass.
-    exact=$(grep -cE '^[[:space:]]*– clanky[[:space:]]*$' "$CMDS/$f" || true)
-    wrongdash=$(grep -cE '^[[:space:]]*(-|—)[[:space:]]*clanky[[:space:]]*$' "$CMDS/$f" || true)
-    decorated=$(grep -cE '^[[:space:]]*–[[:space:]]*clanky[[:space:]]+[^[:space:]]' "$CMDS/$f" || true)
-    if [ -z "$exact" ] || [ -z "$wrongdash" ] || [ -z "$decorated" ]; then
-      err "$f: grep could not read the file while checking sign-offs"
-      continue
-    fi
-    if [ "$exact" -eq 0 ]; then
-      err "$f cites the Slack section but carries no \"$SIGNOFF\" sign-off literal"
-    fi
-    if [ "$wrongdash" -gt 0 ]; then
-      err "$f has a sign-off with a wrong dash (hyphen or em dash); every occurrence must be exactly \"$SIGNOFF\" on its own line"
-    fi
-    if [ "$decorated" -gt 0 ]; then
-      err "$f has a decoration after clanky; the sign-off is exactly \"$SIGNOFF\" on its own line with nothing after the name"
-    fi
-  done
-fi
 
 if [ "$errors" -gt 0 ]; then
   echo ""

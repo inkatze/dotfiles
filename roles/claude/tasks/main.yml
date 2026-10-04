@@ -54,12 +54,8 @@
   changed_when: "'CHANGED' in claude_settings.stdout"
   tags: [claude]
 
-- name: Symlink Claude custom commands
-  ansible.builtin.file:
-    src: "{{ ansible_facts.env.PWD }}/roles/claude/files/commands"
-    dest: "{{ ansible_facts.env.HOME }}/.claude/commands"
-    state: link
-  tags: [claude]
+- name: Link the Claude review skills
+  ansible.builtin.import_tasks: skills.yml
 
 - name: Symlink Claude hook scripts
   ansible.builtin.file:

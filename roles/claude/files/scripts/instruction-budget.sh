@@ -14,7 +14,7 @@ set -euo pipefail
 COVERED=(
   roles/claude/files/CLAUDE.md
   CLAUDE.md
-  "roles/claude/files/commands/*.md"
+  "roles/claude/files/skills/*/*.md"
 )
 
 # Thresholds are set by rule, never by taste. For a surface's declared word
@@ -24,15 +24,23 @@ COVERED=(
 # A change that grows or adds a surface re-derives its row in the same commit;
 # `--count <file>` gives n.
 #
-# path                                        n      warn   error
+# path                                                     n      warn   error
 SURFACES="
-roles/claude/files/CLAUDE.md                  7908   8250   8750
-CLAUDE.md                                     6663   7000   7500
-roles/claude/files/commands/bot-review.md     5833   6250   6750
-roles/claude/files/commands/code-review.md    9054   9500   10000
-roles/claude/files/commands/copilot-review.md 13872  14250  14750
-roles/claude/files/commands/panel-review.md   12161  12500  13000
-roles/claude/files/commands/peer-review.md    2268   2750   3250
+roles/claude/files/CLAUDE.md                               7951   8250   8750
+CLAUDE.md                                                  7006   7500   8000
+roles/claude/files/skills/bot-review/SKILL.md              3386   3750   4250
+roles/claude/files/skills/code-review/SKILL.md             4050   4500   5000
+roles/claude/files/skills/copilot-review/SKILL.md          4985   5250   5750
+roles/claude/files/skills/panel-review/reviewer-backend.md 4405   4750   5250
+roles/claude/files/skills/panel-review/SKILL.md            2492   2750   3250
+roles/claude/files/skills/peer-review/SKILL.md             778    1250   1750
+roles/claude/files/skills/review-shared/backends.md        1890   2250   2750
+roles/claude/files/skills/review-shared/doctrine.md        434    750    1250
+roles/claude/files/skills/review-shared/egress.md          615    1000   1500
+roles/claude/files/skills/review-shared/github.md          1620   2000   2500
+roles/claude/files/skills/review-shared/limits.md          117    500    1000
+roles/claude/files/skills/review-shared/slack.md           704    1000   1500
+roles/claude/files/skills/review-shared/workflow.md        378    750    1250
 "
 
 # Whitespace-separated words, byte-wise in the C locale. Not `wc -w`: GNU and

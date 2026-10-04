@@ -17,7 +17,7 @@ tmp=""
 setup() {
   tmp="$(mktemp -d -t instruction-budget-test.XXXXXX)"
   mkdir -p "$tmp/roles/claude/files/scripts"
-  cp -r "$ROOT/roles/claude/files/commands" "$tmp/roles/claude/files/"
+  cp -R "$ROOT/roles/claude/files/skills" "$tmp/roles/claude/files/"
   cp "$ROOT/roles/claude/files/CLAUDE.md" "$tmp/roles/claude/files/"
   cp "$ROOT/CLAUDE.md" "$tmp/"
   cp "$ROOT/$SCRIPT" "$tmp/$SCRIPT"
@@ -55,7 +55,7 @@ check() {
   teardown
 }
 
-peer=roles/claude/files/commands/peer-review.md
+peer=roles/claude/files/skills/peer-review/SKILL.md
 
 setup
 check baseline 0 "all surfaces within budget" "WARN"
@@ -82,8 +82,8 @@ rm "$tmp/roles/claude/files/CLAUDE.md"
 check unreadable-global 1 "cannot be read" ""
 
 setup
-printf 'new command\n' >"$tmp/roles/claude/files/commands/new-review.md"
-check no-thresholds 1 "commands/new-review.md: covered surface has no declared thresholds" ""
+mkdir "$tmp/roles/claude/files/skills/new-review" && printf "new skill\n" >"$tmp/roles/claude/files/skills/new-review/SKILL.md"
+check no-thresholds 1 "skills/new-review/SKILL.md: covered surface has no declared thresholds" ""
 
 setup
 set_row "$peer" "$n" "$((w + 250))" "$((e + 250))"
@@ -94,7 +94,7 @@ set_row "$peer" 2500 2750 3250
 check formula-exact-multiple 0 "all surfaces within budget" ""
 
 setup
-set_row "$peer" 0 250 750
+set_row roles/claude/files/CLAUDE.md 0 250 750
 check formula-zero 1 "exceeds the error threshold 750" "do not match the rule"
 
 setup
@@ -144,8 +144,8 @@ set_row "$peer" "$n" "$w" ""
 check malformed-missing-field 1 "malformed row" ""
 
 setup
-ln -s missing.md "$tmp/roles/claude/files/commands/dangling.md"
-check dangling-symlink 1 "commands/dangling.md: covered surface has no declared thresholds" ""
+ln -s missing.md "$tmp/roles/claude/files/skills/peer-review/dangling.md"
+check dangling-symlink 1 "skills/peer-review/dangling.md: covered surface has no declared thresholds" ""
 
 setup
 check bad-argument 2 "usage:" "" --bogus
@@ -154,16 +154,16 @@ out="$(cd "$tmp" && bash "$SCRIPT" --count CLAUDE.md extra 2>&1)" && fail count-
 teardown
 
 setup
-printf 'x\n' >"$tmp/roles/claude/files/commands/a,b%c.md"
+printf 'x\n' >"$tmp/roles/claude/files/skills/peer-review/a,b%c.md"
 out="$(cd "$tmp" && GITHUB_ACTIONS=true bash "$SCRIPT" 2>/dev/null)" || true
-[[ "$out" == *"::error file=roles/claude/files/commands/a%2Cb%25c.md::"* ]] ||
+[[ "$out" == *"::error file=roles/claude/files/skills/peer-review/a%2Cb%25c.md::"* ]] ||
   fail ci-annotation-escaped "annotation path not escaped: $out"
 teardown
 
 
 lefthook_run="$(awk '/^    instruction-budget:/{f=1;next} f&&/^    [a-z]/{f=0} f' "$ROOT/lefthook.yml")"
 [[ "$lefthook_run" == *"run: $SCRIPT"* ]] || fail lefthook-entry "no instruction-budget command running $SCRIPT"
-[[ "$lefthook_run" == *"glob:"*"commands/"*"CLAUDE.md"* ]] || fail lefthook-glob "entry has no glob over the surfaces"
+[[ "$lefthook_run" == *"glob:"*"CLAUDE.md"*"skills/*/*.md"* ]] || fail lefthook-glob "entry has no glob over the surfaces"
 
 workflow="$ROOT/.github/workflows/test.yml"
 ci_job="$(awk '/^  skill-contracts:/{f=1;next} f&&/^  [a-z]/{f=0} f' "$workflow")"

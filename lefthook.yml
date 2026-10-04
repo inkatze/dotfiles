@@ -21,18 +21,30 @@ pre-commit:
       glob: "*.sh"
       run: shellcheck --severity=warning {staged_files}
     skill-contracts:
-      # Beyond the command files: CLAUDE.md is in the glob because the checker
-      # asserts against it; the checker so its own edits re-run it; and the
-      # fixture suite both so its edits are validated and because the suite is
-      # the only thing that notices a check class being deleted from the
-      # checker (the checker alone still reports "all invariants hold").
-      glob: "roles/claude/files/{commands/*.{md,json},CLAUDE.md,scripts/skill-contracts{.sh,-test.sh}}"
-      run: roles/claude/files/scripts/skill-contracts.sh && roles/claude/files/scripts/skill-contracts-test.sh
+      # Beyond the skill files: both CLAUDE.md files are in the glob because the
+      # checker asserts against them, and the checker so its own edits re-run it.
+      glob: "{CLAUDE.md,roles/claude/files/{skills/*/*.{md,json},CLAUDE.md,\
+        scripts/{skill-contracts.sh,skill-contracts-test.sh,identifier-check.sh}}}"
+      run: roles/claude/files/scripts/skill-contracts.sh
+    skill-contracts-suite:
+      # The fixture suite is what notices a check class being deleted from the
+      # checker (the checker alone still reports "all invariants hold"). It is
+      # slow, so it runs here only when the checker, the suite or the
+      # identifier check it runs changes; CI (.github/workflows/test.yml) runs
+      # it on every PR.
+      glob: "roles/claude/files/scripts/{skill-contracts.sh,skill-contracts-test.sh,identifier-check.sh}"
+      run: roles/claude/files/scripts/skill-contracts-test.sh
     instruction-budget:
       # lefthook.yml and the workflow too: the suite asserts both wire the checker.
       glob: "{CLAUDE.md,lefthook.yml,.github/workflows/test.yml,\
-        roles/claude/files/{commands/*.md,CLAUDE.md,scripts/instruction-budget{.sh,-test.sh}}}"
+        roles/claude/files/{skills/*/*.md,CLAUDE.md,scripts/instruction-budget{.sh,-test.sh}}}"
       run: roles/claude/files/scripts/instruction-budget.sh && roles/claude/files/scripts/instruction-budget-test.sh
+    claude-skills-link:
+      # The suite is what notices the ownership guard being dropped; the role
+      # alone still converges on a host whose skills directory holds nothing
+      # foreign.
+      glob: "{roles/claude/tasks/skills.yml,roles/claude/tasks/main.yml,scripts/claude-skills-link-test.sh}"
+      run: scripts/claude-skills-link-test.sh
     claude-settings-merge:
       # The suite is what notices a merge case being dropped; the script alone
       # would still report OK.

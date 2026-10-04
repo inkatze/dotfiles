@@ -1,0 +1,107 @@
+---
+
+# ~/.claude/skills already holds entries this repo does not own, so each
+# tracked skill directory gets its own link, and an existing entry is replaced
+# only when it is already a link into this repo. A match on the repo-relative
+# suffix, because the link may name a different clone than the one running.
+- name: Create Claude skills directory
+  ansible.builtin.file:
+    path: "{{ ansible_facts.env.HOME }}/.claude/skills"
+    state: directory
+    mode: '0755'
+  tags: [claude]
+
+- name: Find tracked Claude skills
+  ansible.builtin.find:
+    paths: "{{ ansible_facts.env.PWD }}/roles/claude/files/skills"
+    file_type: directory
+  register: claude_skills_tracked
+  # find only warns on a missing path; run from anywhere but the repo root,
+  # this would link nothing and still retire the commands link below.
+  failed_when: claude_skills_tracked.matched == 0
+  tags: [claude]
+
+- name: Inspect Claude skill link destinations
+  ansible.builtin.stat:
+    path: "{{ ansible_facts.env.HOME }}/.claude/skills/{{ item.path | basename }}"
+    follow: false
+  loop: "{{ claude_skills_tracked.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  register: claude_skills_dest
+  tags: [claude]
+
+- name: Refuse to replace a Claude skill entry this repo does not own
+  ansible.builtin.fail:
+    msg: >-
+      {{ item.stat.path }} exists and is not a link into this repo's
+      roles/claude/files/skills; move it aside, then re-run.
+  when:
+    - item.stat.exists
+    - not (item.stat.islnk | default(false))
+      or item.stat.lnk_target | default('') is not search('/roles/claude/files/skills/[^/]+$')
+  loop: "{{ claude_skills_dest.results }}"
+  loop_control:
+    label: "{{ item.item.path | basename }}"
+  tags: [claude]
+
+- name: Symlink Claude skills
+  ansible.builtin.file:
+    src: "{{ item.path }}"
+    dest: "{{ ansible_facts.env.HOME }}/.claude/skills/{{ item.path | basename }}"
+    state: link
+  loop: "{{ claude_skills_tracked.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  tags: [claude]
+
+- name: Find Claude skill links
+  ansible.builtin.find:
+    paths: "{{ ansible_facts.env.HOME }}/.claude/skills"
+    file_type: link
+  register: claude_skills_links
+  tags: [claude]
+
+- name: Inspect Claude skill links
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+    follow: false
+  loop: "{{ claude_skills_links.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  register: claude_skills_link_stat
+  tags: [claude]
+
+# Only this repo's links, and only once their target is gone (a skill renamed
+# or removed here); a link another tool made is never touched. lnk_source is
+# the resolved path: a relative lnk_target would be tested against the play's
+# cwd instead of the link's directory.
+- name: Prune dangling Claude skill links this repo created
+  ansible.builtin.file:
+    path: "{{ item.stat.path }}"
+    state: absent
+  when:
+    - item.stat.lnk_target | default('') is search('/roles/claude/files/skills/[^/]+$')
+    - not (item.stat.lnk_source is exists)
+  loop: "{{ claude_skills_link_stat.results }}"
+  loop_control:
+    label: "{{ item.item.path | basename }}"
+  tags: [claude]
+
+- name: Inspect the retired Claude commands link
+  ansible.builtin.stat:
+    path: "{{ ansible_facts.env.HOME }}/.claude/commands"
+    follow: false
+  register: claude_commands_link
+  tags: [claude]
+
+# The review commands became skills; the old link is removed only when it is
+# this repo's, so a commands directory someone else put there survives.
+- name: Remove the retired Claude commands link
+  ansible.builtin.file:
+    path: "{{ ansible_facts.env.HOME }}/.claude/commands"
+    state: absent
+  when:
+    - claude_commands_link.stat.islnk | default(false)
+    - claude_commands_link.stat.lnk_target | default('') is search('/roles/claude/files/commands$')
+  tags: [claude]
