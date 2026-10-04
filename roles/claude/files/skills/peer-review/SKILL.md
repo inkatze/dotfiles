@@ -33,8 +33,9 @@ might be required by the AC). Otherwise skip this step.
 
 Take the same-PR lock, keyed `peer-review`, and fetch the threads per
 [github.md](../review-shared/github.md). Refresh the lock before the walk in
-step 6 and release it at the end of the run. Keep threads where `isResolved`
-is false and the first comment's author is not a `Bot`:
+step 6 and again after it, before the first push, reply or resolve; release
+it at the end of the run. Keep threads where `isResolved` is false and the
+first comment's author is not a `Bot`:
 
 ```bash
 jq '[.[].data.repository.pullRequest.reviewThreads.nodes[]
@@ -126,9 +127,9 @@ went through your comments on #<number> :warning:
 – clanky
 ```
 
-Use the second whenever a thread of theirs is still open in Needs human
-judgment: claiming done-ness while their thread sits unanswered invites a
-re-review of something that is not ready. Drop the `<sha>` clause when no code
+Use the second whenever any thread of theirs is still open after step 8,
+skipped or deferred items included: claiming done-ness while their thread
+sits unanswered invites a re-review of something that is not ready. Drop the `<sha>` clause when no code
 changed. Each message is confirmed separately, since each goes to a separate
 person.
 

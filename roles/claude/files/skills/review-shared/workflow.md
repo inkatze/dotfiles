@@ -6,8 +6,10 @@ How a review skill walks the operator through what is left to decide.
 
 The full record (lens-coverage table, bucket or tier tables, declined log,
 pending-sign-off checklist) belongs to the artifact: the PR body, or the audit
-file a local-only run writes. In the turn, an empty bucket or lens is one line,
-`none: <reason>`; the full tables, `none` rows included, stay in the artifact.
+file a local-only run writes. A skill with neither (`/code-review` drafts on
+another author's PR and keeps no file) shows the full record in the turn.
+Otherwise, in the turn, an empty bucket or lens is one line, `none: <reason>`;
+the full tables, `none` rows included, stay in the artifact.
 
 ## Choosing how to walk the items
 

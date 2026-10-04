@@ -22,13 +22,43 @@ review is the deliverable, the message is a courtesy. Default to a DM.
    handle. The first run for a new person sends nothing; later runs do.
 
 Record what you learn with a read-modify-write, never an append (the file is
-one JSON object):
+one JSON object), as its own `Bash` call. This is the locked write
+[egress.md](egress.md) uses, except that every failure is one terminal line
+and the review goes on: a mapping that is not recorded only means asking
+again next time. Both values are pasted into single quotes, and a GitHub login
+and a Slack user id are letters, digits and `-` only, so refuse anything else
+before substituting.
 
 ```bash
 f=~/.config/dotfiles/slack-users.json
-[ -s "$f" ] || { umask 077; echo '{}' > "$f"; }
-tmp=$(mktemp "$f.XXXXXX") && jq --arg l "<github-login>" --arg id "<slack-user-id>" \
-  '.[$l] = $id' "$f" > "$tmp" && mv "$tmp" "$f"
+login='<github-login>'; id='<slack-user-id>'
+command -v jq > /dev/null || { echo "jq not found; $login's Slack id not recorded" >&2; exit 0; }
+dir="${f%/*}"; tries=50; n=0; locked=""; why="$dir is missing or not writable"
+[ -d "$dir" ] || (umask 077; mkdir -p "$dir") 2>/dev/null
+if [ -d "$dir" ] && [ -w "$dir" ]; then
+  why="$f.lock is still held after 10s (another run, or a killed one: rmdir it if no review is running)"
+  if [ -L "$f.lock" ] || { [ -e "$f.lock" ] && [ ! -d "$f.lock" ]; }; then
+    why="$f.lock exists and is not a lock directory"; n=$tries
+  fi
+  while [ "$n" -lt "$tries" ]; do
+    mkdir "$f.lock" 2>/dev/null && { locked=1; break; }
+    n=$((n + 1)); sleep 0.2
+  done
+fi
+if [ -z "$locked" ]; then
+  echo "could not lock $f: $why; $login's Slack id not recorded" >&2
+else
+  seed=""
+  if [ ! -L "$f" ] && { [ ! -e "$f" ] || { [ -f "$f" ] && [ -r "$f" ] && ! LC_ALL=C grep -q '[^[:space:]]' "$f"; }; }; then seed=1; fi
+  tmp=""
+  if [ -z "$seed" ] && { [ -L "$f" ] || [ ! -f "$f" ] || ! jq -e -s 'length == 1 and (.[0] | type == "object")' "$f" > /dev/null 2>&1; }; then
+    echo "$f is a symlink, unreadable, not a regular file, or not a single JSON object; $login's Slack id not recorded" >&2
+  elif ! { tmp=$(mktemp "$f.XXXXXX") && if [ -n "$seed" ]; then jq -n --arg k "$login" --arg v "$id" '{($k): $v}'
+      else jq --arg k "$login" --arg v "$id" '.[$k] = $v' "$f"; fi > "$tmp" && [ -s "$tmp" ] && chmod 600 "$tmp" && mv "$tmp" "$f"; }; then
+    rm -f "$tmp"; echo "could not record $login's Slack id in $f" >&2
+  fi
+  rmdir "$f.lock"
+fi
 ```
 
 A recipient is never guessed.

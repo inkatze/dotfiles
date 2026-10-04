@@ -52,7 +52,7 @@ Steps 1-6 are the shared discovery and validation pipeline both modes run. Steps
 
 ### 1. Run project tooling once
 
-Linters, formatters, type checkers, static analyzers, complexity and duplication meters, dead-code detectors, security scanners, discovered from `lefthook.yml`, CI workflows, `mise.toml` tasks, language config files and the SessionStart tool-discovery summary. Capture the output; every prompt-driven backend gets the same text, which is what keeps "tool-grounded" meaningful across backends. A `reviewer:<name>` backend takes no prompt and does not receive it.
+Linters, formatters, type checkers, static analyzers, complexity and duplication meters, dead-code detectors, security scanners, discovered from `lefthook.yml`, CI workflows, `mise.toml` tasks, language config files and the SessionStart tool-discovery summary. Run each in check or dry-run mode only (a formatter's write would land in the next fix commit). Capture the output; every prompt-driven backend gets the same text, which is what keeps "tool-grounded" meaningful across backends. A `reviewer:<name>` backend takes no prompt and does not receive it.
 
 ### 2. Backend discovery pass
 

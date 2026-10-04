@@ -45,7 +45,7 @@ The `cli` block is read by `/panel-review`'s `reviewer:<name>` backend, not here
 
 A PR-drain mode (standalone, `--nested` without `--local`, `--dry-run`) on a reviewer with no hosted mechanics stops and says so, suggesting `--local` if it has a `cli`. `--local` on a reviewer with no `cli` stops and says so, suggesting a drain mode if it has hosted mechanics. Never fall back silently between the two.
 
-PR-drain modes require `login_pattern` and `addressed_marker_format`, and the marker must contain `{key}` (a constant marker would make the first acknowledgment match every later finding). Every other hosted key is optional, with the degradation described where it is used. Name a missing required key and stop.
+PR-drain modes require `login_pattern` and `addressed_marker_format`, and the marker must contain `{key}` (a constant marker would make the first acknowledgment match every later finding). Every other hosted key is optional, with the degradation described where it is used; without `build_id_regex`, `--nested` runs a single iteration, since nothing can detect a re-review. Name a missing required key and stop.
 
 ## Invocation modes
 
@@ -60,7 +60,11 @@ Read `--reviewer <name>`, `--local`, `--nested`, `--dry-run`, and `--effort <val
 
 1. **PR and repo info.** `gh pr view --json number,isDraft,labels,headRefOid` and `gh repo view --json owner,name`.
 
-2. **Availability detection, before anything about labels or drafts.** A drain against a bot never installed on this org looks identical, from inside this skill, to a drain against an installed but suppressed one, and the fix for each is the opposite of the other. Check, in order:
+2. **Same-PR lock**, per [github.md](../review-shared/github.md), keyed `bot-review`, taken before any other fetch or label change: refreshed before each long step and each nested iteration, released when the run ends. `--nested` also starts an iteration counter at 0.
+
+3. **Clean working tree.** `git status --porcelain` must be empty, standalone and `--nested` alike: a fix commit would otherwise sweep in unrelated changes. If it is not, stop (**Dirty working tree**) and ask for the changes to be committed or stashed first.
+
+4. **Availability detection, before anything about labels or drafts.** A drain against a bot never installed on this org looks identical, from inside this skill, to a drain against an installed but suppressed one, and the fix for each is the opposite of the other. Check, in order:
    - Does any name in `gating_checks` appear at all in `gh pr view <n> --json statusCheckRollup` (in any state)? Not `gh pr checks`, which exits non-zero while a check is pending.
    - Has any comment on this PR (either endpoint, step 1) been authored by a login matching `login_pattern`? A single unpaginated page can confirm a hit but never an absence.
    - Is `opt_in_label` defined on the repo? Look it up by name, `gh api repos/<o>/<r>/labels/<url-encoded opt_in_label>` (404 means not defined); `gh label list` matches by substring and stops at 30. Skip (non-conclusive) when no `opt_in_label` is configured.
@@ -73,7 +77,7 @@ Read `--reviewer <name>`, `--local`, `--nested`, `--dry-run`, and `--effort <val
 
    **A fourth, informational signal: the reviewer's repo-local config file.** If `repo_config_path` is configured, fetch it and decode as two steps, so a missing file stays distinct from a decode failure: `c=$(gh api repos/<o>/<r>/contents/<repo_config_path> --jq '.content')` (a 404 means absent, which signals nothing), then `printf '%s' "$c" | base64 --decode`. Print what it holds, unparsed (its schema is vendor-specific): a repo can carry a valid label and an installed App and still disable the bot there. It never overrides the three-signal conclusion.
 
-3. **Why a review might still look absent, on a reachable repo.**
+5. **Why a review might still look absent, on a reachable repo.**
    - `opt_in_label` present → review is active regardless of draft state or `opt_out_label`. Opt-in wins.
    - No `opt_in_label`, `opt_out_label` present → review is suppressed. Say so; do not offer to remove someone else's label.
    - Neither, PR is a draft → most vendors skip drafts. If an `opt_in_label` is configured, **offer** (never silently apply) to add it: `y/N`, proceeding only on an explicit yes, and never under `--dry-run`. With none configured, say there is no override label for this reviewer.
@@ -81,9 +85,7 @@ Read `--reviewer <name>`, `--local`, `--nested`, `--dry-run`, and `--effort <val
 
    **Report the requirement-level hint and the opt-in label together, never the level alone as decisive**: a review can run at a level its own metadata calls excluded, because the opt-in label overrode it.
 
-4. **Gating checks are not a drain signal, ever.** Report each `gating_checks` entry by name and state from `statusCheckRollup`, and **state plainly, every run, that a passing check does not mean every finding was replied to and resolved**: checks can report success while findings sit unresolved underneath.
-
-5. **Same-PR lock**, per [github.md](../review-shared/github.md), keyed `bot-review`, taken right after item 1 and before any other fetch or label change: refreshed before each long step and each nested iteration, released when the run ends. `--nested` also starts an iteration counter at 0.
+6. **Gating checks are not a drain signal, ever.** Report each `gating_checks` entry by name and state from `statusCheckRollup`, and **state plainly, every run, that a passing check does not mean every finding was replied to and resolved**: checks can report success while findings sit unresolved underneath.
 
 ## Steps (standalone and the `--nested` loop body)
 
@@ -98,7 +100,7 @@ gh api --paginate repos/<o>/<r>/pulls/<n>/comments || { echo "fetch failed: pull
 
 ### 2. Fetch resolution state via GraphQL
 
-Fetch the review threads per [github.md](../review-shared/github.md). Map each thread's **first comment** `databaseId` (the REST id) to `{threadId, isResolved}`; neither REST endpoint knows about resolution. Drop inline findings whose thread is resolved, keeping them in the step-1 counts. A thread with more than 20 comments only matters for finding its first, so the per-thread cap is acceptable; note it rather than assume it never bites.
+Fetch the review threads per [github.md](../review-shared/github.md). Map each thread's **first comment** `databaseId` (the REST id) to `{threadId, isResolved}`; neither REST endpoint knows about resolution. Drop inline findings whose thread is resolved, keeping them in the step-1 counts. A thread longer than the per-thread comment cap only matters for finding its first, so the cap is acceptable here; the already-handled pre-check in step 10 is where it can bite, and [github.md](../review-shared/github.md) says what to do then.
 
 ### 3. Anchor every surviving inline finding
 
@@ -180,11 +182,13 @@ Discovery cadence: this loop triages the bot's own findings and runs no discover
 
 When in doubt about a disposition, route to Needs human judgment: a false negative costs an iteration, a false positive mishandles someone's finding.
 
-Per iteration: run Steps 1-7. **If no unresolved finding survives step 2 and the latest review is fresh for the current HEAD, the loop has converged: stop before any push or poll.** If Needs human judgment is non-empty, stop and hand back, presenting the residue per [workflow.md](../review-shared/workflow.md)'s handoff rule. Otherwise run step 9 before step 10:
+Per iteration: run Steps 1-7. **If no unresolved finding survives step 2 and the latest review is fresh for the current HEAD, the loop has converged: stop before any push or poll.** If Needs human judgment is non-empty, first drain the other buckets (step 9, then step 10, by Path A or B below, so the push still precedes any reply), then stop (**Human attention required**) without polling and hand back, presenting the residue per [workflow.md](../review-shared/workflow.md)'s handoff rule. Otherwise run step 9 before step 10:
 
 **Path A, an Auto-applicable or Agent-resolvable fix landed:** commit, capture `push_head` (`git rev-parse HEAD`), then push (`git push origin <branch>`, never forced). This makes `--nested` here not local-only: a hosted bot needs a new head to re-review. On a push failure, stop (**Push failure**) before step 10: the fix is committed locally, and nothing has been said. Then run step 10, citing `push_head`'s short SHA in fix replies.
 
 **Path B, nothing to push:** run step 10 for the Needs-sign-off deferrals. Whether the bot re-reviews an unchanged HEAD after reply activity alone is vendor-specific.
+
+**Without `build_id_regex`, do not poll**: this reviewer's config cannot detect a re-review, so the loop runs this one iteration (drain, push, reply and resolve) and then stops with **No response**, saying why.
 
 **Either path, then poll** for the next review, keyed on `build_id_regex` changing, never on check state or timestamps, and on Path A matched to `push_head` where the review exposes the commit it reviewed (a review of another commit is a concurrent actor's). A build id alone names no commit: when the vendor exposes no reviewed SHA, say so once and accept any new build id. Pace to the vendor (full cycles have measured around seven minutes): background the wait or bound an until-loop, never a blocking multi-minute sleep, bounded by the review-poll window in [limits.md](../review-shared/limits.md).
 
@@ -201,24 +205,24 @@ On a new review, increment the counter and loop.
 | Test failure | Any test, lint or type-check failed after applying a fix |
 | Push failure | Step 9's push failed on an iteration that applied a fix |
 | Loop detection | The same anchor re-raised as unresolved in two consecutive iterations after a fix. Known limitation: an inline anchor includes `original_commit_id`, which changes on every push, so this rarely fires; the iteration cap is the real backstop |
-| No response | The poll window passed with no new build id, or the regex never matched (format drift) |
+| No response | The poll window passed with no new build id, the regex never matched (format drift), or no `build_id_regex` is configured (after one iteration) |
 | Iteration cap | The shared cap reached without convergence |
 | Ambiguity | A finding borderline between buckets across two consecutive iterations |
 | Hard-disqualifier zone | A finding touches security-sensitive code, a migration or destructive op, CI config, a lockfile or a secrets file; finding-categorization pauses these before anything is applied or deferred |
-| Dirty working tree | Uncommitted changes before iteration one |
+| Dirty working tree | Pre-flight item 3 found uncommitted changes |
 
 **Convergence is zero unresolved findings against the current HEAD, never a check-state read**: gating checks can be green with findings open underneath.
 
 A transient failure on any other `gh` call (a label check, a poll, a reply, a resolve) is retried once; if it still fails, treat it as the nearest condition above, never a silent skip.
 
-**Never** force-push, push to a protected branch, mark the PR ready, or merge. This loop's only PR-lifecycle mutation is the optional opt-in-label add from Pre-flight step 3, confirmation-gated on every run. **Never** push with `--no-verify`.
+**Never** force-push, push to a protected branch, mark the PR ready, or merge. This loop's only PR-lifecycle mutation is the optional opt-in-label add from Pre-flight step 5, confirmation-gated on every run. **Never** push with `--no-verify`.
 
 ## Local mode (`--local`)
 
 The reviewer's local CLI is a `/panel-review` backend: `--local` is an alias for `/panel-review --backends reviewer:<name>` with the selected reviewer, which gives its findings the same merge, validation, triage and nested loop as any other backend.
 
 - It forwards `--effort <value>` and `--nested`. Standalone, the handoff lands in `/panel-review`'s interactive pass, which can end in its own commit-and-offer-to-push step; `--nested` lands in its local-only loop.
-- `--dry-run` has no `/panel-review` counterpart, so `--local --dry-run` stops and says so, and Pre-flight step 2's offer under `--dry-run` prints the command it would run and stops.
+- `--dry-run` has no `/panel-review` counterpart, so `--local --dry-run` stops and says so, and Pre-flight step 4's offer under `--dry-run` prints the command it would run and stops.
 - `/panel-review` requires the reviewer key to match `^[A-Za-z0-9_-]+$`, and its [reviewer-backend.md](../panel-review/reviewer-backend.md) is the full contract for the `cli` block.
 
 ## Naming

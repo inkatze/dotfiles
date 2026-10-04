@@ -47,20 +47,21 @@ Each clause is load-bearing:
 ## Probe each backend before anything is sent
 
 Probes are bash; tool resolution goes through the mise-activated shell
-(`fish -c 'mise which …'`), since a bare `command -v` in bash misses
-mise-installed tools. Do not wrap the probes themselves in `fish -c`: fish
+(`fish -c 'cd ~; mise which …'`), since a bare `command -v` in bash misses
+mise-installed tools, and from `~`, so the reviewed repo's mise config cannot
+pick the binary. Do not wrap the probes themselves in `fish -c`: fish
 rejects `${VAR:-}`. A failed probe stops the run with its message; never drop
 a backend silently, because its variance is why the run exists.
 
 - **gitleaks**, for every backend: `command -v gitleaks` resolves, since the
   outbound-prompt guard below refuses to send an unscanned prompt. Missing:
   `gitleaks not installed; the outbound-prompt guard cannot scan the prompt`.
-- **codex**: `fish -c 'mise which codex 2>/dev/null; or command -v codex'`
+- **codex**: `fish -c 'cd ~; mise which codex 2>/dev/null; or command -v codex'`
   resolves, and `codex login status` succeeds (exit status only; never print
   account details). Missing: `Codex CLI not installed; mise run osx will
   install via Brewfile cask 'codex'` (a cask, so macOS only; nothing installs
   codex on Linux). Not authed: `Codex CLI needs auth; run 'codex login'`.
-- **gemini**: `fish -c 'mise which gemini'` resolves, and `GEMINI_API_KEY` is
+- **gemini**: `fish -c 'cd ~; mise which gemini'` resolves, and `GEMINI_API_KEY` is
   set or `~/.gemini/.api-key` is non-empty at mode 600 or 400 (the invocation
   below enforces both). Missing on macOS: `Gemini CLI not installed; mise run
   osx will install via Brewfile 'gemini-cli'`; on Linux: `Gemini CLI not
@@ -106,14 +107,14 @@ Build the prompt inside a fresh scratch directory, and in the same `Bash` call
 that sends it. `prompt_file` holds the instruction; `payload_file` holds the
 untrusted region. For codex and gemini they are the same file. For copilot the
 payload is `$scratch/payload.txt`, which its file viewer reads, and the prompt
-is a separate file outside `$scratch` whose instruction says to review
-`payload.txt`, so only that instruction reaches argv, never the diff.
+stays `$scratch/prompt.txt`, whose instruction says to review `payload.txt`,
+so only that instruction reaches argv, never the diff.
 
 ```bash
 scratch="$(mktemp -d)" || exit 1
 prompt_file="$scratch/prompt.txt"; payload_file="$prompt_file"
-# copilot: prompt_file="$(mktemp)" || exit 1; payload_file="$scratch/payload.txt"
-trap 'rm -rf "$scratch"; [ "$prompt_file" = "$payload_file" ] || rm -f "$prompt_file"' EXIT
+# copilot: payload_file="$scratch/payload.txt"
+trap 'rm -rf "$scratch"' EXIT
 trap 'exit 130' INT TERM HUP
 command -v gitleaks > /dev/null || { echo "gitleaks is not installed; refusing to send an unscanned prompt" >&2; exit 1; }
 nonce="$(head -c8 /dev/urandom | od -An -tx1 | tr -d ' \n')"
@@ -121,7 +122,7 @@ nonce="$(head -c8 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 cat > "$prompt_file" <<'PROMPT_EOF' || exit 1
 <instruction>
 PROMPT_EOF
-lenses="$(awk '/^## Lens checklist/{s=1;next} s&&/^[0-9]+\. /{l=1} l&&/^$/{exit} l' "<discovery-rigor path>")"
+lenses="$(awk '/^## Lens checklist/{s=1;next} s&&/^## /{exit} s&&/^[0-9]+\. /{l=1} l&&/^$/{b=1;next} l&&b&&!/^[0-9]+\. /&&!/^   /{exit} l{b=0;print}' "<discovery-rigor path>")"
 [ -n "$lenses" ] || { echo "no lens list in discovery-rigor; stopping" >&2; exit 1; }
 printf 'Lenses:\n%s\n<any skill-specific lenses>\n' "$lenses" >> "$prompt_file" || exit 1
 cat >> "$prompt_file" <<'PROMPT_EOF' || exit 1
@@ -138,8 +139,8 @@ gitleaks dir "$scratch" --no-banner --redact \
   || { echo "gitleaks flagged the outbound prompt; stopping before egress" >&2; exit 1; }
 ```
 
-A copilot prompt outside `$scratch` carries no untrusted text, so the scan of
-`$scratch` covers everything the backend can read.
+Both files sit in `$scratch`, so the one scan covers the instruction, lens
+list included, as well as the payload.
 
 - The per-run nonce is what the diff cannot forge: with fixed markers, a file
   containing the end-marker line would close the region and speak in the
@@ -166,7 +167,7 @@ never from `/tmp` itself (world-writable, so pre-seedable with a `GEMINI.md` or
   scratch directory is deliberately not a repository:
 
   ```bash
-  codex_bin="$(fish -c 'mise which codex 2>/dev/null; or command -v codex')" || exit 1
+  codex_bin="$(fish -c 'cd ~; mise which codex 2>/dev/null; or command -v codex')" || exit 1
   ( cd "$scratch" && "$codex_bin" exec --sandbox read-only --skip-git-repo-check < "$prompt_file" )
   backend_status=$?
   ```
@@ -180,8 +181,8 @@ never from `/tmp` itself (world-writable, so pre-seedable with a `GEMINI.md` or
   non-emptiness and never echoes the value:
 
   ```bash
-  gemini_bin="$(fish -c 'mise which gemini')" || exit 1
-  node_dir="$(fish -c 'dirname (mise which node 2>/dev/null; or command -v node)')" || exit 1
+  gemini_bin="$(fish -c 'cd ~; mise which gemini')" || exit 1
+  node_dir="$(fish -c 'cd ~; dirname (mise which node 2>/dev/null; or command -v node)')" || exit 1
   if [ -z "${GEMINI_API_KEY:-}" ]; then
     k=~/.gemini/.api-key
     case "$(stat -c %a "$k" 2>/dev/null || stat -f %Lp "$k" 2>/dev/null)" in
@@ -205,8 +206,7 @@ never from `/tmp` itself (world-writable, so pre-seedable with a `GEMINI.md` or
 - **copilot** is allowed exactly one tool, the file viewer, confined to the
   scratch directory; the payload goes in `$scratch/payload.txt` (the viewer
   reads files, and with no tools at all the CLI sees no stdin) and the lens
-  prompt, the copilot variant's `prompt_file` outside `$scratch`, goes in
-  `-p`. That prompt is the lens instruction only, never the diff, since argv
+  prompt, `$scratch/prompt.txt`, goes in `-p`. That prompt is the lens instruction only, never the diff, since argv
   is visible in `ps` and bounded by `ARG_MAX`:
 
   ```bash

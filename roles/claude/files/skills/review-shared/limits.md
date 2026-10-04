@@ -8,7 +8,7 @@ line saying why.
 | --- | --- | --- |
 | Iteration cap | 10 iterations | every nested review loop |
 | Lock staleness | 30 minutes | the same-PR lock in [github.md](github.md) |
-| Review-poll window | 10 minutes | waiting for a hosted reviewer's next review after a push or a request |
+| Review-poll window | 10 minutes | waiting for a hosted reviewer's next review after a push, a request, or reply activity |
 
 A loop checks its iteration cap at the top of each iteration, before any work,
 and hands off when the cap is reached.

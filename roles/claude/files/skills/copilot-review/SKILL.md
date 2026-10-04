@@ -230,16 +230,9 @@ gh api -X POST "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
 | Outcome | Body contains | Action |
 |---|---|---|
 | 2xx | n/a | (g). |
-| 422 | `already requested` | DELETE the reviewer, re-POST, then (g). |
+| 422 | `already requested` | **Success**, as in app mode: never DELETE and re-POST. (g). |
 | 422 | `not a collaborator` | Mode detection was likely wrong: retry once with the `[bot]` login per app mode, and on success set `repo_mode = "app"` for the rest of the run. If that also 422s, **Re-review unavailable** (not a poll that would misreport as **No response**). |
 | Other | n/a | Log a warning and go to (g). |
-
-```bash
-gh api -X DELETE "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
-  -f 'reviewers[]=copilot-pull-request-reviewer'
-gh api -X POST "repos/OWNER/REPO/pulls/NUMBER/requested_reviewers" \
-  -f 'reviewers[]=copilot-pull-request-reviewer'
-```
 
 This step's HTTP outcome never triggers **No response**; only (g)'s poll does.
 
@@ -265,8 +258,9 @@ case "$push_epoch" in
 esac
 [ -n "$push_head" ] || { echo "push_head not set; capture it in step (e) before running"; exit 2; }
 deadline=$(( push_epoch + 600 ))
+polls=0; fails=0
 while [ $(date +%s) -lt $deadline ]; do
-  latest=$(gh api graphql -f query='
+  resp=$(gh api graphql -f query='
     query($owner: String!, $repo: String!, $number: Int!) {
       repository(owner: $owner, name: $repo) {
         pullRequest(number: $number) {
@@ -274,8 +268,8 @@ while [ $(date +%s) -lt $deadline ]; do
         }
       }
     }
-  ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER \
-    | jq -r --arg bot 'copilot-pull-request-reviewer' --arg baseline "$baseline_id" --arg head "$push_head" --argjson since "$push_epoch" '
+  ' -f owner='OWNER' -f repo='REPO' -F number=NUMBER) || { fails=$((fails + 1)); sleep 30; continue; }
+  latest=$(printf '%s' "$resp" | jq -r --arg bot 'copilot-pull-request-reviewer' --arg baseline "$baseline_id" --arg head "$push_head" --argjson since "$push_epoch" '
         .data.repository.pullRequest.reviews.nodes
         | map(select(
             (.author.login? // "") == $bot
@@ -285,13 +279,15 @@ while [ $(date +%s) -lt $deadline ]; do
             and ((.commit.oid? // "") == $head)
             and ((.body? // "") | test("encountered an error and was unable to review"; "i") | not)
           ))
-        | last // empty')
+        | last // empty') || { fails=$((fails + 1)); sleep 30; continue; }
+  polls=$((polls + 1))
   if [ -n "$latest" ]; then
     printf '%s' "$latest" > <lock>/latest-review
     echo "NEW_REVIEW $latest"; exit 0
   fi
   sleep 30
 done
+[ "$polls" -gt 0 ] || { echo "POLL_ERROR: all $fails polls failed; no review state was read"; exit 3; }
 echo "TIMEOUT"; exit 1
 ```
 
@@ -307,6 +303,7 @@ Branch on the script's exit:
 - **1 (`TIMEOUT`) on Path A**: **No response**.
 - **1 (`TIMEOUT`) on Path B**: step (f.5).
 - **2**: step (e) failed to capture its values; stop and surface stderr.
+- **3 (`POLL_ERROR`)**: no poll in the window read the reviews (the API call or its parse failed every time): **Poll failure**, never **No response**, since Copilot's silence was never observed.
 - **Anything else** (a 128+N signal exit when the script was killed): its output is not authoritative. Re-run the same query once with the same filter, reading the same files. A match is `NEW_REVIEW`. No match inside the window: restart the poll, at most twice per iteration, then treat as `TIMEOUT`. Past the window: `TIMEOUT`, split by path as above.
 
 #### h. Iteration summary
@@ -331,6 +328,7 @@ Stop, print the latest iteration table, name the condition, and wait: no push, n
 | **Diminishing returns** | The last 3 iterations each netted at most one resolved thread while threads remained; never before 3 iterations. |
 | **Cannot reproduce** | Not reproducible, and the proposed fix is non-trivial. |
 | **No response** | The review-poll window expired with no new Copilot review. |
+| **Poll failure** | Every poll in (g) failed to read the reviews (`POLL_ERROR`), so no silence was observed. |
 | **Re-review unavailable** | No transport can request a review: the gh route failed or is unavailable, and in app mode REST genuinely 422'd with no MCP fallback available, or in collaborator mode both login forms 422'd. Offer the CLI fallback in the handoff; never run it unasked. |
 | **Pending reply unsubmittable** | A viewer-owned pending review cannot be submitted, so replies would stay invisible. |
 | **Conflicting signals** | A later Copilot review contradicts an earlier one already addressed. |

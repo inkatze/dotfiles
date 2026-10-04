@@ -18,7 +18,7 @@ a nested one) would otherwise both act on the same finding. Take the same-PR
 lock before the first fetch, keyed by skill, repo and PR:
 
 ```bash
-lock="/tmp/<skill>-lock.<owner>-<repo>.<number>"
+lock="/tmp/<skill>-lock.<owner>%<repo>.<number>"
 token="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 [ "${#token}" -eq 16 ] || { echo "could not generate a lock token; stopping" >&2; exit 1; }
 take='umask 077; mkdir "$lock" || exit 1; date +%s > "$lock/epoch" || { rm -rf "$lock"; exit 1; }'
@@ -39,6 +39,8 @@ echo "lock=$lock token=$token"
 ```
 
 `1800` is the lock-staleness value from [limits.md](limits.md), in seconds.
+The `%` between owner and repo is a character neither name can contain, so two
+repos never share a lock.
 `mkdir` is the atomic test-and-set, and the epoch is written in the same
 step, so a lock without one (a run that has just made the directory) counts
 as fresh only for that instant; a failed write removes the directory rather
@@ -66,6 +68,10 @@ lock to age out, so a missed exit path cannot block the next run for good):
 [ "$(cat '<lock>/owner' 2>/dev/null)" = '<token>' ] && rm -rf '<lock>'
 ```
 
+Release has the same narrow window as takeover: the owner check and the `rm`
+are two steps, so a takeover landing between them loses its lock, and a run
+whose lock vanished stops at its next refresh.
+
 A skill that needs files across `Bash` calls for one PR keeps them inside the
 lock directory, which is already keyed by skill, repo and PR and private to
 this user.
@@ -85,7 +91,8 @@ gh api graphql --paginate --slurp -f query='
             path
             line
             startLine
-            comments(first: 20) {
+            comments(first: 100) {
+              totalCount
               nodes { id databaseId body author { __typename login } createdAt }
             }
           }
@@ -152,9 +159,17 @@ endpoint (`pulls/<n>/comments/<id>/replies`, which takes a comment id and
 posts at once, outside any review) states that in its own text; it still
 follows the posted-body rule and resolves through the mutation below.
 
+**Before the first reply in a batch, check for a pending review of mine.**
+Run the pending-review query below first; if it prints any id, stop: "you have
+a draft review on this PR; submit or discard it, then rerun". The rescue
+submits whatever is pending, so a draft that predates the batch would be
+published with it.
+
 **Then rescue any pending review, once per batch, before resolving.** The
 reply mutation can create a pending review owned by the viewer, and a reply
 parented under it is invisible to everyone until that review is submitted.
+With the check above clean, every pending review the query finds now was
+created by this run's replies.
 Sometimes the review is instead submitted at once as `COMMENTED`; that is
 harmless timeline clutter, never something to delete.
 
@@ -200,7 +215,9 @@ gh api graphql -f threadId='THREAD_ID' -f query='
 
 A reply that posted but whose resolve failed is picked up by the next pass:
 before replying to a thread, check whether it already carries a reply from the
-viewer, and if so only re-attempt the resolve.
+viewer, and if so only re-attempt the resolve. If the thread's `totalCount` is
+larger than the comments fetched, the fetch cannot show there is no such reply:
+stop rather than risk a duplicate public reply.
 
 ## Land the code before talking about it
 
