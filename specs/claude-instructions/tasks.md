@@ -111,7 +111,7 @@ swept by the drain pass's manual inventory.
 - **Operator departure (2026-09-29):** approved by the operator. The
   dispatching host holds neither the machine-local inventory nor the
   identifier file, so on the branch the stale-reference pins cover only the
-  two strings `test-spec.md` names for REQ-C1.7. Two steps move to manual
+  two strings that `test-spec.md` names for REQ-C1.7. Two checks move to manual
   pre-merge steps, run on the host that holds those files and recorded on
   the task PR before it merges: inventorying each new shared file with the
   inventory directory at 0700 and its files at 0600 (REQ-K1.1, REQ-K1.2),

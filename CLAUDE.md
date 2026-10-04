@@ -97,8 +97,8 @@ repo does not mention.
    `skill-contracts.sh`, with a fixture, or the checker never sees it.
 3. Commit and run Ansible: the link task adds `~/.claude/skills/<name>`,
    refusing an existing entry that is not already this repo's link.
-4. Verify from the main checkout in a fresh session; a worktree's skills are
-   never the ones loaded.
+4. Run Ansible from the main checkout, then verify in a fresh session: the
+   links point into whichever checkout Ansible ran from.
 
 Edits to the review skills, to `roles/claude/files/CLAUDE.md`, and to
 the checker itself are gated by `roles/claude/files/scripts/skill-contracts.sh`
@@ -113,8 +113,9 @@ not exact counts, so a change that grows or adds a surface re-derives its row
 there by hand, in the same commit.
 
 Hook logic lives in `roles/claude/files/scripts/` and is wired from
-`settings.json`. Adding a new tracked directory requires a matching symlink
-task in `roles/claude/tasks/main.yml`.
+`settings.json`. Adding a new tracked directory under `roles/claude/files/`
+requires a matching symlink task in `roles/claude/tasks/main.yml`; a skill
+directory needs none, since `skills.yml` links each one.
 
 ## Adding a new hook
 
