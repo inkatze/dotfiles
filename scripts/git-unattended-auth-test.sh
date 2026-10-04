@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Fixture suite for the sshCommand roles/git writes into ~/.gitconfig.local.
+# Fixture suite for the sshCommand roles/git writes into ~/.gitconfig.local,
+# and for the modes it leaves on that file and on ~/.gitconfig.
 #
 # A host on git_unattended_auth_hosts must get an sshCommand that offers its
 # on-disk key and nothing from an agent (IdentitiesOnly), and a host off the
 # list must get no sshCommand at all, since that would change how a host with a
-# working agent authenticates.
+# working agent authenticates. Both files can hold a credential, so neither may
+# end up readable by anyone but its owner.
 #
 # Driven through ansible-playbook against a scratch HOME rather than by reading
 # the template, because the result depends on the inventory alias resolving

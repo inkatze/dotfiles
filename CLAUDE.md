@@ -465,8 +465,9 @@ Resolution chain, lowest precedence first:
 The last two are machine-local and untracked like the files under
 `~/.config/dotfiles/` below, but they sit in `$HOME` because git looks for them
 there. Both are asserted 0600, since a tool writing `--global` can put a
-credential in either; a re-run takes the tighter of 0600 and the current mode,
-so a file you tightened further stays that way.
+credential in either; a re-run keeps only the owner's read and write bits of
+the current mode, so a file you tightened to 0400 stays that way and group or
+other bits never survive (0444 is numerically lower than 0600, not tighter).
 
 **Migration, on a host that ran the old role.** The symlink is replaced only
 when its target ends in `/roles/git/files/gitconfig` — a suffix match, because
