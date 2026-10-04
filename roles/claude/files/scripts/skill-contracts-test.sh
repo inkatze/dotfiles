@@ -102,6 +102,7 @@ expect_pass() {
 
 SKILLS="roles/claude/files/skills"
 SHARED="$SKILLS/review-shared"
+GLOBAL_MD=roles/claude/files/CLAUDE.md
 SKILL_NAMES=(bot-review code-review copilot-review panel-review peer-review)
 md() { printf '%s/%s/SKILL.md' "$SKILLS" "$1"; }
 
@@ -306,9 +307,9 @@ for t in bash grep tr cat sort cksum find xargs basename dirname awk sed perl mk
 done
 if out="$(cd "$tmp" && PATH="$nojq" bash roles/claude/files/scripts/skill-contracts.sh 2>&1)"; then
   echo "FAIL missing-jq: checker passed without jq"; failures=$((failures + 1))
-elif ! printf '%s' "$out" | grep -qF "jq is required"; then
+elif ! grep -qF "jq is required" <<< "$out"; then
   echo "FAIL missing-jq: expected \"jq is required\", got: $out"; failures=$((failures + 1))
-elif printf '%s' "$out" | grep -qF "is not valid JSON"; then
+elif grep -qF "is not valid JSON" <<< "$out"; then
   echo "FAIL missing-jq: still blamed the config"; failures=$((failures + 1))
 fi
 rm -rf "$nojq"
@@ -424,7 +425,7 @@ expect_fail retired-file \
 expect_fail retired-backend-name \
   "echo 'qwen-coder' >> $(md panel-review)" "retired backend name"
 expect_fail retired-backend-name-global \
-  "echo 'OLLAMA_BASE_URL' >> roles/claude/files/CLAUDE.md" "retired backend name"
+  "echo 'OLLAMA_BASE_URL' >> $GLOBAL_MD" "retired backend name"
 expect_fail mark-ready \
   "perl -pi -e 's/This confirmation-gated ready-flip is the only PR-lifecycle action this loop takes, and only on this exit path\\.//' $(md copilot-review)" "mark-ready safety sentence"
 expect_fail bot-review-safety-nested-apply \
@@ -469,7 +470,6 @@ expect_fail signoff-shared-missing \
   "perl -0pi -e 's/– clanky/- clanky/g' $SHARED/slack.md" "missing expected sign-off"
 
 # --- The user-global file ---
-GLOBAL_MD=roles/claude/files/CLAUDE.md
 
 # Ready flips (REQ-A1.1, REQ-A1.2, REQ-A1.3, REQ-A1.5)
 expect_fail ready-flip-base-current \
@@ -479,7 +479,7 @@ expect_fail ready-flip-sync-ritual \
 expect_fail ready-flip-cadence-dropped \
   "perl -0pi -e 's/ and the review\\s+cadence the PR calls for has actually run//' $GLOBAL_MD" "ready-flip sentence"
 expect_fail ready-flip-unknown-dropped \
-  "perl -0pi -e 's/, including a mergeability GitHub still\\s+reports as \`UNKNOWN\` after a brief re-query//' $GLOBAL_MD" "ready-flip sentence"
+  "perl -0pi -e 's/, including a mergeability GitHub still\\s+reports as \`UNKNOWN\` after one re-query a few seconds later//' $GLOBAL_MD" "ready-flip sentence"
 expect_pass ready-flip-reflow \
   "perl -0pi -e 's/once it is mergeable/once it is\\nmergeable/' $GLOBAL_MD"
 expect_fail kickoff-exception-dropped \
@@ -586,7 +586,7 @@ expect_fail never-auto-chain-dropped \
 expect_fail drafts-dropped \
   "perl -0pi -e 's/Open pull requests as drafts\\./Open pull requests./' $GLOBAL_MD" "ready-flip sentence"
 expect_fail origin-story \
-  "printf '\\nOrigin: a stale socket broke signing.\\n' >> $GLOBAL_MD" "origin story"
+  "printf '\\nOrigin: a stale socket broke signing.\\n' >> $GLOBAL_MD" "carries an origin story"
 expect_fail dated-origin-month \
   "printf '\\nAdded after the 2026-06 orchestration run.\\n' >> $GLOBAL_MD" "dated origin story"
 expect_pass key-type-not-a-commit \
@@ -612,7 +612,7 @@ expect_fail deepwiki-capitalized \
 
 # Doctrine pointer and workflow sections.
 expect_fail global-doctrine-name-dropped \
-  "perl -0pi -e 's/\`refactor-instinct\` documents/documents/' $GLOBAL_MD" "names refactor-instinct in 0 places"
+  "perl -0pi -e 's/\`finding-categorization\` documents/documents/' $GLOBAL_MD" "names finding-categorization in 0 places"
 expect_fail workflow-heading-renamed \
   "perl -0pi -e 's/### Review Workflows/### Workflows/' $GLOBAL_MD" "no Review Workflows pointer bullets"
 
@@ -634,6 +634,27 @@ expect_fail slack-pointer-dropped \
 expect_pass slack-mcp-optional-reflowed \
   "perl -0pi -e 's/The Slack MCP server is optional;/The Slack MCP server is\\noptional;/' $GLOBAL_MD"
 
+expect_fail first-exception-dropped \
+  "perl -0pi -e 's/- An explicit go-ahead I give for a specific message, or for a run, which\\s+covers only the recipients and message kinds I named when giving it\\.\\n//' $GLOBAL_MD" "outbound-message rule"
+expect_pass exceptions-other-marker \
+  "perl -0pi -e 's/^- (An explicit go-ahead|Replies to automated)/* \$1/mg' $GLOBAL_MD"
+expect_fail slack-mcp-second-sentence \
+  "perl -0pi -e 's/(The Slack MCP server is optional;)/A Slack MCP server must always run. \$1/' $GLOBAL_MD" "without calling it optional"
+expect_pass origin-in-prose \
+  "printf '\\nWhen you push to origin: always name the branch.\\n' >> $GLOBAL_MD"
+expect_pass year-range-not-a-date \
+  "printf '\\nThe 2024-25 budget is not a date.\\n' >> $GLOBAL_MD"
+expect_fail ready-flip-up-to-date-hyphenated \
+  "printf '\\nThe branch must be up-to-date with its base.\\n' >> $GLOBAL_MD" "currency condition"
+expect_fail lifecycle-non-active-backticked \
+  "printf '\\nNever act on a non-\`Active\` spec.\\n' >> $GLOBAL_MD" "lifecycle wording"
+expect_fail fish-set-comma \
+  "printf '\\nUse fish syntax: \`set\`, not \`export\`.\\n' >> $GLOBAL_MD" "fish-only wording"
+expect_fail fish-run-directly \
+  "printf '\\nRun commands directly in Fish.\\n' >> $GLOBAL_MD" "fish-only wording"
+expect_fail protected-branch-invariant-dropped \
+  "perl -0pi -e 's/and never push to a\\s+protected branch/and push freely/' $GLOBAL_MD" "hard-invariants paragraph"
+
 # A missing global file still lets every skills-tree scan run.
 expect_fail missing-global-file-tree-still-scanned \
   "rm $GLOBAL_MD && printf '\\nNothing is sent unless I have seen it and said yes in this session.\\n' >> $(md peer-review)" "restates the outbound-message rule"
@@ -642,12 +663,14 @@ if [ "$(id -u)" -ne 0 ]; then
   setup
   chmod 000 "$tmp/$GLOBAL_MD"
   out="$(run_checker 2>&1)" && rc=0 || rc=$?
-  if [ "$rc" -eq 0 ] || ! grep -qF "could not be read" <<< "$out" || ! grep -qF "invariant(s) broken" <<< "$out"; then
+  if [ "$rc" -eq 0 ] || ! grep -qF "$GLOBAL_MD could not be read" <<< "$out" || ! grep -qF "invariant(s) broken" <<< "$out"; then
     echo "FAIL unreadable-global-file: expected a read error and the summary (exit $rc): $out"
     failures=$((failures + 1))
   fi
   chmod 644 "$tmp/$GLOBAL_MD"
   teardown
+else
+  echo "SKIP unreadable-global-file: root reads a mode-000 file"
 fi
 
 # --- File-missing guards ---
@@ -694,7 +717,7 @@ expect_fail stale-self-review-step-unquoted \
 expect_fail threshold-in-supporting-file \
   "printf '\\nThe iteration cap here is 15 iterations.\\n' >> $SKILLS/panel-review/reviewer-backend.md" "states a shared threshold value"
 expect_fail cache-path-in-global \
-  "echo 'planwright lives under ~/.claude/plugins/cache/planwright.' >> roles/claude/files/CLAUDE.md" "names the plugin cache path"
+  "echo 'planwright lives under ~/.claude/plugins/cache/planwright.' >> $GLOBAL_MD" "names the plugin cache path"
 expect_fail cache-path-in-root \
   "echo 'planwright lives under ~/.claude/plugins/cache/planwright.' >> CLAUDE.md" "names the plugin cache path"
 
@@ -712,7 +735,7 @@ id_setup() {
   cp "$ROOT/specs/pair-flow/requirements.md" "$tmp/specs/pair-flow/"
   printf '# synthetic\nzqx-synthetic-project\n' > "$tmp/identifiers"
 }
-for planted in "$(md peer-review)" "$SHARED/github.md" roles/claude/files/CLAUDE.md CLAUDE.md \
+for planted in "$(md peer-review)" "$SHARED/github.md" "$GLOBAL_MD" CLAUDE.md \
     specs/claude-instructions/requirements.md; do
   id_setup
   printf 'Seen in the zqx-synthetic-project repo.\n' >> "$tmp/$planted"

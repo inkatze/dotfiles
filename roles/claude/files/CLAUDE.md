@@ -82,8 +82,9 @@ instead of flipping.
 
 Evaluate every condition against the PR's current head immediately before the
 flip; a condition you cannot confirm, including a mergeability GitHub still
-reports as `UNKNOWN` after a brief re-query, counts as unmet. Being behind the base is not a
-condition: sync only when a conflict or a stale test result calls for it.
+reports as `UNKNOWN` after one re-query a few seconds later, counts as unmet.
+Being behind the base is not a condition: sync only when a conflict or a stale
+test result calls for it.
 
 Never flip a PR ready on your own initiative, with one exception: the spec PR
 after a signed-off kickoff, which planwright marks ready by configuration. A
@@ -106,8 +107,9 @@ the code.
 
 **Composability by default.** Small data-in, data-out units composed through
 the language's natural mechanism, idiomatic at the framework boundary;
-planwright's `composability` document holds the full rule, resolved as
-`~/.claude/skills/review-shared/doctrine.md` describes.
+planwright's `composability` document holds the full rule (locate planwright
+as `~/.claude/skills/review-shared/doctrine.md` describes, then resolve it with
+`resolve-rule-doc.sh composability`).
 
 **Machine-local environment layer.** Every project gets a gitignored,
 per-machine env file in the stack's native convention (`mise.local.toml`, or
@@ -131,10 +133,10 @@ When reviewing code or addressing review feedback:
   progress tracker and the post-loop handoff that picks the mode itself are in
   `~/.claude/skills/review-shared/workflow.md`.
 - **Review doctrine is planwright's.** Issue and solution validation,
-  discovery (its lens list included), and, for reviews that apply findings to
-  my own branch, finding categorization and refactor flags follow planwright's
-  `validation-rigor`, `discovery-rigor`, `finding-categorization` and
-  `refactor-instinct` documents, resolved at run time as
+  discovery (its lens list included), refactor flags and, for reviews that
+  apply findings to my own branch, finding categorization follow planwright's
+  `validation-rigor`, `discovery-rigor`, `refactor-instinct` and
+  `finding-categorization` documents, resolved at run time as
   `~/.claude/skills/review-shared/doctrine.md` describes, never from a
   remembered copy. `/code-review` keeps its own severity tiers.
 

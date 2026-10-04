@@ -12,7 +12,10 @@ SKILLS="roles/claude/files/skills"
 SHARED="$SKILLS/review-shared"
 GLOBAL_MD="roles/claude/files/CLAUDE.md"
 SKILL_NAMES=(bot-review code-review copilot-review panel-review peer-review)
+RESOLUTION_ANCHOR="Resolve the GitHub login to a Slack user"
 errors=0
+# Set once the tree and the global file are read, below; empty until then.
+tree_files=(); tree_norm=(); global_raw=""; global_norm=""; global_ok=""
 
 err() { echo "ERROR: $1"; errors=$((errors + 1)); }
 
@@ -61,14 +64,13 @@ forbid_normalized() {
   shift 2
   [ -f "$path" ] || { err "$path (needed for $label) does not exist"; return; }
   normalized_of "$path" normalized || { err "$path could not be read (needed for $label)"; return; }
-  normalized="$(lower "$normalized")"
+  # nocasematch rather than ${x,,}, which macOS's bash 3.2 lacks.
+  shopt -s nocasematch
   for phrase in "$@"; do
-    [[ "$normalized" != *"$(lower "$phrase")"* ]] || err "$path carries forbidden $label: \"$phrase\""
+    [[ "$normalized" != *"$phrase"* ]] || err "$path carries forbidden $label: \"$phrase\""
   done
+  shopt -u nocasematch
 }
-
-# lower <text>: tr rather than ${x,,}, which macOS's bash 3.2 lacks.
-lower() { tr '[:upper:]' '[:lower:]' <<< "$1"; }
 
 # normalized_of <path> <var>: the file whitespace-normalized, from the copies
 # read once below when it is one of them, so a check costs no fork per file.
@@ -77,7 +79,7 @@ normalized_of() {
   if [ "$1" = "$GLOBAL_MD" ] && [ -n "$global_ok" ]; then
     __n="$global_norm"
   else
-    for __i in "${!tree_files[@]}"; do
+    for __i in ${tree_files[@]+"${!tree_files[@]}"}; do
       [ "${tree_files[$__i]}" = "$1" ] && { printf -v "$2" '%s' "${tree_norm[$__i]}"; return 0; }
     done
     __n="$(tr -s '[:space:]' ' ' < "$1")" || return 1
@@ -90,8 +92,6 @@ skill_md() { printf '%s/%s/SKILL.md' "$SKILLS" "$1"; }
 # Every text file under the skills tree, read and whitespace-normalized once:
 # the fixture suite runs this checker per case, so a fork per file per check
 # dominated its runtime.
-tree_files=()
-tree_norm=()
 [ -d "$SKILLS" ] || { echo "ERROR: $SKILLS does not exist; run from the dotfiles checkout"; exit 1; }
 # A directory find cannot read would otherwise drop its files from every scan.
 tree_list="$(find "$SKILLS" -type f \( -name '*.md' -o -name '*.json' \))" \
@@ -109,10 +109,12 @@ done <<< "$(LC_ALL=C sort <<< "$tree_list")"
 
 # The global file, read once the same way. global_ok stays empty when it cannot
 # be read, which read_file has already reported.
-global_raw=""; global_norm=""; global_ok=""
 if read_file "$GLOBAL_MD" global_raw; then
-  global_ok=1
-  global_norm="$(tr -s '[:space:]' ' ' <<< "$global_raw")"
+  if global_norm="$(tr -s '[:space:]' ' ' <<< "$global_raw")"; then
+    global_ok=1
+  else
+    err "$GLOBAL_MD could not be normalized"
+  fi
 fi
 
 # files_matching <grep flags> <pattern> [<file>...]: sets matched to the files
@@ -191,7 +193,7 @@ require_normalized "$SHARED/doctrine.md" "root-resolution sentence" \
 for name in "${SKILL_NAMES[@]}"; do
   require_phrases "$(skill_md "$name")" "doctrine pointer" "](../review-shared/doctrine.md)"
 done
-cache_files=("${tree_files[@]}")
+cache_files=(${tree_files[@]+"${tree_files[@]}"})
 [ -z "$global_ok" ] || cache_files+=("$GLOBAL_MD")
 [ -f CLAUDE.md ] && cache_files+=(CLAUDE.md)
 files_matching -F 'plugins/cache' "${cache_files[@]}"
@@ -247,7 +249,7 @@ shared_blocks=(
   "backends.md|gitleaks flagged the outbound prompt; stopping before egress"              # safety: outbound-prompt guard
   "egress.md|Sending a repository's code to an external service is asked once per repo" # safety: egress consent
   "slack.md|Show the resolved recipient and the exact text, and wait for a yes"
-  "slack.md|Resolve the GitHub login to a Slack user"
+  "slack.md|$RESOLUTION_ANCHOR"
 )
 for block in "${shared_blocks[@]}"; do
   file="${block%%|*}"; anchor="${block#*|}"
@@ -392,7 +394,7 @@ done
 records_of() {
   awk '
     /^- / { if (have) print rec; rec = $0; have = 1; bullet = 1; next }
-    bullet && /^  +([^ -]|--)/ { sub(/^ +/, ""); rec = rec " " $0; next }
+    bullet && /^  +/ && !/^ +[-*+] / { sub(/^ +/, ""); rec = rec " " $0; next }
     { if (have) print rec; rec = $0; have = 1; bullet = 0 }
     END { if (have) print rec }
   '
@@ -408,9 +410,8 @@ occurrences() {
 # The outbound-message rule and the Slack mechanics each live in one place, so
 # neither the skills tree nor the repo-root file restates them.
 OUTBOUND_ANCHOR="and said yes in this session"
-RESOLUTION_ANCHOR="Resolve the GitHub login to a Slack user"
 FIXED_TEMPLATE="it is a fixed template the command supplies"
-for i in "${!tree_files[@]}"; do
+for i in ${tree_files[@]+"${!tree_files[@]}"}; do
   [[ "${tree_norm[$i]}" != *"$OUTBOUND_ANCHOR"* ]] \
     || err "${tree_files[$i]} restates the outbound-message rule; it lives only in $GLOBAL_MD"
   [[ "${tree_norm[$i]}" != *"$FIXED_TEMPLATE"* ]] \
@@ -422,7 +423,8 @@ require_normalized "$SHARED/slack.md" "unattended handoff step" \
   "With no operator present, draft the message and its recipient into the handoff instead of sending it."
 
 if [ -n "$global_ok" ]; then
-  global_records="$(records_of <<< "$global_raw")"
+  global_records="$(records_of <<< "$global_raw")" \
+    || { err "$GLOBAL_MD could not be split into records"; global_records=""; }
 
   # Review doctrine is planwright's: no section copies a doctrine document, and
   # each review doctrine document is named in exactly one pointer bullet.
@@ -474,7 +476,7 @@ if [ -n "$global_ok" ]; then
   require_normalized "$GLOBAL_MD" "ready-flip sentence" \
     "Open pull requests as drafts." \
     "flip it once it is mergeable (GitHub reports \`mergeable: MERGEABLE\`: no conflicts with its base), CI is green and the review cadence the PR calls for has actually run" \
-    "Evaluate every condition against the PR's current head immediately before the flip; a condition you cannot confirm, including a mergeability GitHub still reports as \`UNKNOWN\` after a brief re-query, counts as unmet."
+    "Evaluate every condition against the PR's current head immediately before the flip; a condition you cannot confirm, including a mergeability GitHub still reports as \`UNKNOWN\` after one re-query a few seconds later, counts as unmet."
   forbid_normalized "$GLOBAL_MD" "currency condition" \
     "current with its base" "up to date with its base" "up-to-date with its base" "sync, push and re-run"
   require_normalized "$GLOBAL_MD" "kickoff-flip exception" \
@@ -501,34 +503,40 @@ if [ -n "$global_ok" ]; then
     *"exactly two exceptions: "*"An automated reviewer is"*)
       block="${global_norm#*"exactly two exceptions: "}"
       block="${block%%"An automated reviewer is"*}"
-      rest="${block//"$EXC1"/}"; rest="${rest//"$EXC2"/}"; rest="${rest//[[:space:]]/}"
-      [ "$rest" = "--" ] \
-        || err "$GLOBAL_MD's exceptions list holds something besides its two exceptions; the rule has exactly two" ;;
+      # A missing exception is reported by its pin above; only extra content
+      # is reported here. Any list marker counts as formatting.
+      if [[ "$block" == *"$EXC1"* && "$block" == *"$EXC2"* ]]; then
+        rest="${block//"$EXC1"/}"; rest="${rest//"$EXC2"/}"; rest="${rest//[[:space:]]/}"
+        two_markers='^([-*+]|[0-9]+[.)]){2}$'
+        [[ "$rest" =~ $two_markers ]] \
+          || err "$GLOBAL_MD's exceptions list holds something besides its two exceptions; the rule has exactly two"
+      fi ;;
     *) err "$GLOBAL_MD has no \"exactly two exceptions:\" list ahead of the automated-reviewer definition" ;;
   esac
   forbid_normalized "$GLOBAL_MD" "Slack mechanics" "$RESOLUTION_ANCHOR" "$FIXED_TEMPLATE"
-  case "$(lower "$global_norm")" in
-    *slack*) require_normalized "$GLOBAL_MD" "Slack mechanics pointer" "review-shared/slack.md\`" ;;
-  esac
-  slack_paras="$(awk 'BEGIN { RS = "" } { gsub(/\n/, " "); print }' <<< "$global_raw" | grep -iE 'slack[- ]*(.s )?mcp' || true)"
-  while IFS= read -r para; do
-    [ -n "$para" ] || continue
-    [[ "$(lower "$para")" == *optional* ]] \
-      || err "$GLOBAL_MD names a Slack MCP server without calling it optional: \"$para\""
-  done <<< "$slack_paras"
+  if grep -qi slack <<< "$global_raw"; then
+    require_normalized "$GLOBAL_MD" "Slack mechanics pointer" "review-shared/slack.md\`"
+  fi
+  # Per sentence, so "optional" must describe the server the sentence names.
+  slack_sentences="$(awk 'BEGIN { RS = "" } { gsub(/\n/, " "); gsub(/\. /, ".\n"); print }' <<< "$global_raw" \
+    | grep -iE 'slack[- ]*(.s )?mcp' || true)"
+  while IFS= read -r sentence; do
+    [ -n "$sentence" ] || continue
+    grep -qi optional <<< "$sentence" \
+      || err "$GLOBAL_MD names a Slack MCP server without calling it optional: \"$sentence\""
+  done <<< "$slack_sentences"
   forbid_normalized "$GLOBAL_MD" "phantom tool" "deepwiki"
 
   # Incident rules keep their constraint, not their story, and every listed
   # push spelling with the prohibition around it.
-  dates="$(grep -nE '(^|[^0-9])20[0-9]{2}-[0-9]{2}(-[0-9]{2})?([^0-9]|$)' <<< "$global_raw" || true)"
+  dates="$(grep -nE '(^|[^0-9])20[0-9]{2}-(0[1-9]|1[0-2])(-[0-9]{2})?([^0-9]|$)' <<< "$global_raw" || true)"
   [ -z "$dates" ] || err "$GLOBAL_MD carries a dated origin story: ${dates%%$'\n'*}"
-  forbid_normalized "$GLOBAL_MD" "origin story" "Origin:"
+  ! grep -qE '^[[:space:]]*([-*][[:space:]]+)?(\*\*)?Origin:' <<< "$global_raw" \
+    || err "$GLOBAL_MD carries an origin story; keep the constraint, not its history"
   while IFS= read -r tok; do
-    [ -n "$tok" ] || continue
-    tok="${tok//[!0-9a-f]/}"
-    [ "$tok" != ed25519 ] || continue
+    [ -n "$tok" ] && [ "$tok" != ed25519 ] || continue
     [[ "$tok" == *[0-9]* && "$tok" == *[a-f]* ]] && err "$GLOBAL_MD carries a commit reference: $tok"
-  done <<< "$(grep -oE '(^|[^0-9A-Za-z])[0-9a-f]{7,40}([^0-9A-Za-z]|$)' <<< "$global_raw" || true)"
+  done <<< "$(grep -owE '[0-9a-f]{7,40}' <<< "$global_raw" || true)"
   require_normalized "$GLOBAL_MD" "push rule" \
     "Never push to \`main\` or any other protected branch, with or without force." \
     "A branch you cannot confirm is unprotected counts as protected." \
@@ -559,7 +567,7 @@ done
 
 # Retired backends: nothing provisions Ollama any more, so a qwen-coder,
 # gpt-oss or OLLAMA_BASE_URL mention re-advertises a backend that can only fail.
-retired_scope=("${tree_files[@]}")
+retired_scope=(${tree_files[@]+"${tree_files[@]}"})
 [ -z "$global_ok" ] || retired_scope+=("$GLOBAL_MD")
 for retired_name in qwen-coder gpt-oss OLLAMA_BASE_URL; do
   files_matching -F "$retired_name" "${retired_scope[@]}"
