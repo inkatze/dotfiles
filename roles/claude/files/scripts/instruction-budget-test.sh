@@ -178,7 +178,7 @@ ceiling_of() {
 }
 
 root_links() {
-  perl -ne 'while (/\]\(<?([^)\s>]+)>?(?:\s+"[^"]*")?\)/g) { print "$1\n" }
+  perl -ne 'while (/\]\(<?([^)\s>]+)>?(?:\s+(?:"[^"]*"|\x27[^\x27]*\x27|\([^)]*\)))?\)/g) { print "$1\n" }
     print "$1\n" if /^\s*\[[^\]]+\]:\s*<?([^\s>]+)/' "$1" 2>/dev/null |
     perl -ne 'chomp; next if m{^[a-z][a-z0-9+.-]*:}i || m{^//} || m{^#}; s/#.*//; print "$_\n"' |
     sort -u
@@ -220,11 +220,12 @@ root_file_problems() {
   done < <(root_paths "$claude")
 }
 
-# One copy of the tracked and new-but-unignored files, so a gitignored local
-# directory can never make a path resolve. Fixtures edit copies of the two
-# files under test, and move a target aside and back rather than recopying.
+# One copy of the tracked files, as a clean CI checkout has them, so neither a
+# gitignored directory nor a file not yet added can make a path resolve.
+# Fixtures edit copies of the two files under test, and move a target aside and
+# back rather than recopying.
 rtree="$(mktemp -d -t instruction-budget-root.XXXXXX)"
-(cd "$ROOT" && git ls-files -z --cached --others --exclude-standard |
+(cd "$ROOT" && git ls-files -z --cached |
   while IFS= read -r -d '' f; do if [ -e "$f" ]; then printf '%s\0' "$f"; fi; done |
   tar --null -T - -cf -) | tar -xf - -C "$rtree"
 fx_claude="$rtree/.fixture-CLAUDE.md"
@@ -295,13 +296,15 @@ reset_root_fixture
 rm -f "$fx_claude"
 expect_root root-file-missing "CLAUDE.md is missing"
 
+# Planted, so these test detection rather than what the live file names.
 reset_root_fixture
-link="$(root_links "$fx_claude" | grep -v '\.\.' |
-  while IFS= read -r l; do if [ -f "$rtree/$l" ]; then echo "$l"; break; fi; done || true)"
+link="$(cd "$rtree" && ls docs/*.md 2>/dev/null | head -n 1 || true)"
+printf '[a](%s)\n' "$link" >"$fx_claude"
 expect_root_moved root-link-missing "$link" "links to $link, which does not exist"
 
 reset_root_fixture
-path="$(root_paths "$fx_claude" | grep '^scripts/' | head -n 1 || true)"
+path="$(cd "$rtree" && ls scripts/*.sh 2>/dev/null | head -n 1 || true)"
+printf '`%s`\n' "$path" >"$fx_claude"
 expect_root_moved root-path-missing "$path" "names $path, which does not exist"
 expect_root_moved root-top-dir-missing scripts "names $path, which does not exist"
 
@@ -310,6 +313,14 @@ expect_root_moved root-top-dir-missing scripts "names $path, which does not exis
 reset_root_fixture
 printf '[a](docs/no-such-note.md "title")\n' >"$fx_claude"
 expect_root root-link-titled "links to docs/no-such-note.md"
+
+reset_root_fixture
+printf "[a](docs/no-such-note.md 'title')\n" >"$fx_claude"
+expect_root root-link-titled-single "links to docs/no-such-note.md"
+
+reset_root_fixture
+printf '[a](docs/no-such-note.md (title))\n' >"$fx_claude"
+expect_root root-link-titled-paren "links to docs/no-such-note.md"
 
 reset_root_fixture
 printf '[r]: docs/no-such-ref.md\n' >"$fx_claude"
