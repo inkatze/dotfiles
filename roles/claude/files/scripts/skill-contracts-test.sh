@@ -434,7 +434,7 @@ expect_fail severity-order \
 expect_fail no-bucket-sentence \
   "perl -pi -e 's/does \\*\\*not\\*\\* use the bucket categorization/uses the bucket categorization/' $(md code-review)" "missing expected severity tier"
 expect_fail option-set \
-  "perl -pi -e 's{Post inline / Post as PR-level / Defer to follow-up / Dismiss}{Post / Defer}g' roles/claude/files/CLAUDE.md" "missing expected /code-review option-set literal"
+  "perl -pi -e 's{Post inline / Post as PR-level / Defer to follow-up / Dismiss}{Post / Defer}g' $(md code-review)" "missing expected option-set literal"
 expect_fail option-set-code-review \
   "perl -pi -e 's{Post all inline / Post all as PR-level / Defer all to follow-up / Dismiss all / Pick individually}{Post all / Skip all}g' $(md code-review)" "missing expected option-set literal"
 expect_fail resolver-line \
@@ -462,11 +462,112 @@ expect_fail signoff-missing \
 expect_fail signoff-shared-missing \
   "perl -0pi -e 's/– clanky/- clanky/g' $SHARED/slack.md" "missing expected sign-off"
 
+# --- The user-global file ---
+G=roles/claude/files/CLAUDE.md
+
+# Ready flips (REQ-A1.1, REQ-A1.2, REQ-A1.3, REQ-A1.5)
+expect_fail ready-flip-base-current \
+  "perl -0pi -e 's/CI is green and the review/the branch current with its base, CI is green and the review/' $G" "retired currency condition"
+expect_fail ready-flip-sync-ritual \
+  "printf '\\nBefore the flip, bring the branch current with its base.\\n' >> $G" "retired currency condition"
+expect_fail ready-flip-cadence-dropped \
+  "perl -0pi -e 's/ and the review\\s+cadence the PR calls for has actually run//' $G" "ready-flip sentence"
+expect_fail ready-flip-unknown-dropped \
+  "perl -0pi -e 's/, including a mergeability GitHub still\\s+reports as \`UNKNOWN\`//' $G" "ready-flip sentence"
+expect_pass ready-flip-reflow \
+  "perl -0pi -e 's/once it is mergeable/once it is\\nmergeable/' $G"
+expect_fail kickoff-exception-dropped \
+  "perl -0pi -e 's/, with one exception: the spec PR\\s+after a signed-off kickoff, which planwright marks ready by configuration\\././' $G" "kickoff-flip exception"
+expect_fail operator-confirmed-clause-dropped \
+  "perl -0pi -e 's/is one I requested, not an exception/is fine/' $G" "kickoff-flip exception"
+expect_fail hook-denial-dropped \
+  "perl -0pi -e 's/report the denial to me and never work around it/sync and retry/' $G" "hook-denial sentence"
+
+# One source of review doctrine (REQ-B1.1, REQ-B1.3, REQ-B1.4, REQ-B1.5)
+expect_fail global-doctrine-section \
+  "printf '\\n### Discovery Rigor (Issue Identification)\\n\\nWalk every lens.\\n' >> $G" "heading for a planwright doctrine document"
+expect_fail global-doctrine-named-twice \
+  "printf '\\nFollow discovery-rigor here as well.\\n' >> $G" "names discovery-rigor in 2 places"
+expect_fail global-doctrine-pointer-missing \
+  "perl -0pi -e 's{\\\`~/\\.claude/skills/review-shared/doctrine\\.md\\\`}{the shared notes}' $G" "outside a pointer bullet naming review-shared/doctrine.md"
+expect_fail global-lens-list \
+  "printf '\\n1. Correctness, logic, edge cases (null, empty)\\n' >> $G" "copied lens list"
+expect_fail workflow-description \
+  "perl -0pi -e 's/(### Review Workflows\\n\\n)/\$1Each review workflow has a slash command. Pick the one that fits.\\n/' $G" "not a one-line pointer bullet"
+expect_fail workflow-bullet-no-pointer \
+  "perl -0pi -e 's/(### Review Workflows\\n\\n)/\$1- \`\\/panel-review\`: reviews my branch.\\n/' $G" "names no skill file or planwright skill"
+expect_fail hard-invariants-dropped \
+  "perl -0pi -e 's/\\*\\*Hard invariants\\.\\*\\* //' $G" "hard-invariants paragraph"
+expect_fail review-sequence-claim-global \
+  "printf '\\n\`/panel-review --nested\` fits planwright.s review_sequence.\\n' >> $G" "claims a review_sequence role"
+
+# Messages to people (REQ-D1.1 to REQ-D1.5)
+expect_fail outbound-rule-dropped \
+  "perl -0pi -e 's/and said yes in this session/and it seems fine/' $G" "outbound-message rule"
+expect_fail never-guess-dropped \
+  "perl -0pi -e 's/A recipient\\s+that cannot be resolved is never guessed\\.//' $G" "outbound-message rule"
+expect_fail third-exception \
+  "perl -0pi -e 's/(human may read them\\.\\n)/\$1- Messages to colleagues on my team.\\n/' $G" "lists 3 exceptions"
+expect_fail unscoped-go-ahead \
+  "perl -0pi -e 's/, which\\s+covers only the recipients and message kinds I named when giving it//' $G" "outbound-message rule"
+expect_fail outbound-rule-in-skill \
+  "printf '\\nNothing is sent unless I have seen it and said yes in this session.\\n' >> $(md peer-review)" "restates the outbound-message rule"
+expect_fail slack-resolution-in-global \
+  "printf '\\n## Resolve the GitHub login to a Slack user\\n' >> $G" "retired Slack mechanics"
+expect_fail slack-resolution-duplicated \
+  "printf '\\nResolve the GitHub login to a Slack user first.\\n' >> $(md code-review)" "must live only in"
+expect_fail fixed-template-global \
+  "printf '\\nThe body does not need confirming: it is a fixed template the command supplies.\\n' >> $G" "retired Slack mechanics"
+expect_fail fixed-template-shared \
+  "printf '\\nThe body does not need confirming: it is a fixed template the command supplies.\\n' >> $SHARED/slack.md" "fixed-template exemption"
+expect_fail unattended-global-dropped \
+  "perl -0pi -e 's/drafted, with\\s+its recipient, into the run.s handoff and never sent/sent anyway/' $G" "outbound-message rule"
+expect_fail unattended-shared-dropped \
+  "perl -0pi -e 's/With no operator present, draft the message and\\s+its recipient into the handoff instead of sending it\\./Send it anyway./' $SHARED/slack.md" "unattended handoff step"
+expect_fail bot-definition-dropped \
+  "perl -0pi -e 's/a login ending in\\s+\`\\[bot\\]\`, //' $G" "outbound-message rule"
+expect_fail mixed-thread-dropped \
+  "perl -0pi -e 's/a thread any\\s+human has replied in is a message to that human/a thread is a bot thread/' $G" "outbound-message rule"
+expect_fail own-pr-clause-dropped \
+  "perl -0pi -e 's/, and review requests on them, are not messages/ are messages too/' $G" "outbound-message rule"
+
+# The diet (REQ-E1.1 to REQ-E1.5)
+expect_fail dated-origin-story \
+  "printf '\\nOrigin: the 2026-06-12 orchestration run.\\n' >> $G" "dated origin story"
+expect_fail commit-reference \
+  "printf '\\nAdded in ee7a5f8 after a review.\\n' >> $G" "commit reference"
+expect_fail push-spelling-dropped \
+  "perl -0pi -e 's/, adding \`--force-with-lease=<branch>:<sha>\` only with a SHA you saw\\s+before rewriting//' $G" "push spelling"
+expect_fail push-delete-spelling-dropped \
+  "perl -0pi -e 's/\\(\`git push origin --delete <branch>\`, or a\\s+\`:<branch>\` refspec\\)//' $G" "push spelling"
+expect_fail fish-only-wording \
+  "printf '\\nUse fish syntax, \`set\` not \`export\`.\\n' >> $G" "fish-only wording"
+expect_fail shell-line-dropped \
+  "perl -0pi -e 's/and cannot be pointed at\\s+fish/and runs fish/' $G" "shell line"
+expect_fail lifecycle-draft-active \
+  "printf '\\nA spec runs Draft → Active → Done.\\n' >> $G" "lifecycle wording"
+expect_fail lifecycle-non-active \
+  "printf '\\nNever act on a non-Active spec.\\n' >> $G" "lifecycle wording"
+expect_fail lifecycle-ready-dropped \
+  "perl -0pi -e 's/\`Ready\` or \`Active\`/\`Active\`/' $G" "hard-invariants paragraph"
+expect_fail deepwiki-named \
+  "printf '\\nUse the deepwiki MCP for repo facts.\\n' >> $G" "deepwiki"
+expect_fail slack-mcp-not-optional \
+  "printf '\\nIf a Slack MCP server is available, DM the author.\\n' >> $G" "without calling it optional"
+expect_pass slack-mcp-absent \
+  "perl -0pi -e 's/The Slack MCP server is optional;[^\\n]*\\n[^\\n]*\\n//' $G"
+expect_fail polish-scope-twice \
+  "printf '\\n\`/polish\` applies every finding except Needs human judgment, Needs-sign-off fixes included, on the branch.\\n' >> $G" "drain scope 2 times"
+expect_fail polish-scope-contradiction \
+  "printf '\\n\`/polish\` and \`/panel-review --nested\` use Needs human judgment as their loop boundary.\\n' >> $G" "/polish drain-scope phrasing"
+
 # --- File-missing guards ---
 expect_fail missing-skill \
   "rm $(md peer-review)" "does not exist"
 expect_fail missing-shared-file \
   "rm $SHARED/limits.md" "does not exist"
+expect_fail missing-global-file \
+  "rm roles/claude/files/CLAUDE.md" "CLAUDE.md does not exist"
 
 # --- Checks the fixtures above do not reach ---
 expect_fail front-matter-missing \

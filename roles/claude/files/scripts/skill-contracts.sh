@@ -209,6 +209,7 @@ shared_blocks=(
   "backends.md|gitleaks flagged the outbound prompt; stopping before egress"              # safety: outbound-prompt guard
   "egress.md|Sending a repository's code to an external service is asked once per repo" # safety: egress consent
   "slack.md|Show the resolved recipient and the exact text, and wait for a yes"
+  "slack.md|Resolve the GitHub login to a Slack user"
 )
 for block in "${shared_blocks[@]}"; do
   file="${block%%|*}"; anchor="${block#*|}"
@@ -345,6 +346,158 @@ for f in "${tree_files[@]}"; do
     fi
   done <<< "$(LC_ALL=C sort -u <<< "$links")"
 done
+
+# --- The user-global file ---
+
+# forbid_normalized <path> <label> <phrase>...: no phrase in the file, matched
+# whitespace-normalized like require_normalized.
+forbid_normalized() {
+  local path="$1" label="$2" phrase normalized
+  shift 2
+  [ -f "$path" ] || { err "$path (needed for $label) does not exist"; return; }
+  if ! normalized="$(tr -s '[:space:]' ' ' < "$path")"; then
+    err "$path could not be read (needed for $label)"; return
+  fi
+  for phrase in "$@"; do
+    [[ "$normalized" != *"$phrase"* ]] || err "$path carries the retired $label: \"$phrase\""
+  done
+}
+
+# occurrences <haystack> <needle>: how many times needle appears.
+occurrences() {
+  local h="$1" c=0
+  while [[ "$h" == *"$2"* ]]; do h="${h#*"$2"}"; c=$((c + 1)); done
+  echo "$c"
+}
+
+# Records of a markdown file, one per line: a bullet joined with its indented
+# continuation lines, every other line on its own.
+records_of() {
+  awk '
+    /^- / { if (have) print rec; rec = $0; have = 1; bullet = 1; next }
+    bullet && /^  +[^ -]/ { sub(/^ +/, ""); rec = rec " " $0; next }
+    { if (have) print rec; rec = $0; have = 1; bullet = 0 }
+    END { if (have) print rec }
+  ' "$1"
+}
+
+global_raw=""
+if read_file "$GLOBAL_MD" global_raw; then
+  global_norm="$(tr -s '[:space:]' ' ' <<< "$global_raw")"
+
+  # Review doctrine is planwright's: no section copies a doctrine document, and
+  # each review doctrine document is named in exactly one pointer bullet.
+  if grep -qiE '^#+ .*(validation rigor|discovery rigor|finding categorization|refactor instinct|composability)' "$GLOBAL_MD"; then
+    err "$GLOBAL_MD carries a heading for a planwright doctrine document; point at the document instead"
+  fi
+  global_records="$(records_of "$GLOBAL_MD")"
+  for doc in validation-rigor discovery-rigor finding-categorization refactor-instinct; do
+    hits="$(grep -F -- "$doc" <<< "$global_records" || true)"
+    n="$(grep -c . <<< "$hits" || true)"
+    if [ "$n" -ne 1 ]; then
+      err "$GLOBAL_MD names $doc in $n places; name it once, in the doctrine pointer bullet"
+    elif [[ "$hits" != "- "* || "$hits" != *"review-shared/doctrine.md"* ]]; then
+      err "$GLOBAL_MD names $doc outside a pointer bullet naming review-shared/doctrine.md"
+    fi
+  done
+  [[ "$global_norm" != *"Correctness, logic, edge cases"* ]] \
+    || err "$GLOBAL_MD carries a copied lens list; discovery-rigor holds it"
+
+  # The workflow sections are one-line pointers.
+  wf="$(awk '/^### Review Workflows/ { on = 1; next } on && /^#/ { exit } on' "$GLOBAL_MD")"
+  grep -q '^- ' <<< "$wf" || err "$GLOBAL_MD has no Review Workflows pointer bullets"
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    if [[ "$line" != "- "* ]]; then
+      err "$GLOBAL_MD Review Workflows line is not a one-line pointer bullet: \"$line\""
+    elif [[ "$line" != *"~/.claude/skills/"*"/SKILL.md"* && "$line" != *"planwright's \`"*"\` skill"* ]]; then
+      err "$GLOBAL_MD Review Workflows bullet names no skill file or planwright skill: \"$line\""
+    fi
+  done <<< "$wf"
+  require_normalized "$GLOBAL_MD" "hard-invariants paragraph" \
+    "**Hard invariants.** Never auto-merge" \
+    "planwright executes only signed-off specs, \`Ready\` or \`Active\`, with no bypass flag."
+  forbid_normalized "$GLOBAL_MD" "lifecycle wording" "Draft → Active" "non-Active spec"
+  [[ "$global_norm" != *"review_sequence"* ]] \
+    || err "$GLOBAL_MD claims a review_sequence role; the resolver accepts no skill outside planwright"
+
+  POLISH_SCOPE="\`/polish\` applies every finding except Needs human judgment, Needs-sign-off fixes included, on the branch"
+  n="$(occurrences "$global_norm" "$POLISH_SCOPE")"
+  [ "$n" -eq 1 ] || err "$GLOBAL_MD states /polish's drain scope $n times; state it once: \"$POLISH_SCOPE\""
+  forbid_normalized "$GLOBAL_MD" "/polish drain-scope phrasing" \
+    "use Needs human judgment as their loop boundary" \
+    "use the Auto-applicable bucket as their loop boundary" \
+    "Auto-applicable and Needs sign-off, all applied on the branch"
+
+  # Ready flips: mergeable is the currency condition, and the rest stay.
+  require_normalized "$GLOBAL_MD" "ready-flip sentence" \
+    "flip it once it is mergeable (GitHub reports \`mergeable: MERGEABLE\`: no conflicts with its base), CI is green and the review cadence the PR calls for has actually run" \
+    "Evaluate every condition against the PR's current head immediately before the flip; a condition you cannot confirm, including a mergeability GitHub still reports as \`UNKNOWN\`, counts as unmet."
+  forbid_normalized "$GLOBAL_MD" "currency condition" \
+    "current with its base" "up to date with its base before" "sync, push and re-run"
+  require_normalized "$GLOBAL_MD" "kickoff-flip exception" \
+    "Never flip a PR ready on your own initiative, with one exception: the spec PR after a signed-off kickoff, which planwright marks ready by configuration." \
+    "A flip I confirm in that run (such as \`/copilot-review --nested\` asking at convergence) is one I requested, not an exception."
+  require_normalized "$GLOBAL_MD" "hook-denial sentence" \
+    "If planwright's ready-guard hook denies a flip on a branch that meets these conditions, report the denial to me and never work around it: no sync to satisfy it, no bypass."
+
+  # Messages to people: the rule and its definitions are always loaded; the
+  # Slack mechanics live in the shared directory.
+  require_normalized "$GLOBAL_MD" "outbound-message rule" \
+    "No message addressed to another person (a chat message, an email, a pull-request review, comment or reply, an issue comment) is sent unless I have seen its exact text and recipient and said yes in this session." \
+    "A recipient that cannot be resolved is never guessed." \
+    "An explicit go-ahead I give for a specific message, or for a run, which covers only the recipients and message kinds I named when giving it." \
+    "Replies to automated reviewers, which are addressed to a bot even when a human may read them." \
+    "An automated reviewer is an account GitHub reports as a bot, a login ending in \`[bot]\`, or a login matching a configured bot-review pattern" \
+    "a thread any human has replied in is a message to that human." \
+    "The bodies of my own pull requests and issues, and review requests on them, are not messages." \
+    "With no operator present, a message this rule would hold back is drafted, with its recipient, into the run's handoff and never sent."
+  n="$(awk '
+    found && /^- / { n++; inb = 1; next }
+    found && inb && /^  / { next }
+    found && !inb && /^$/ { next }
+    found { exit }
+    /exactly two exceptions:/ { found = 1 }
+    END { print n + 0 }
+  ' "$GLOBAL_MD")"
+  [ "$n" -eq 2 ] || err "$GLOBAL_MD lists $n exceptions to the outbound-message rule; it has exactly two"
+  OUTBOUND_ANCHOR="and said yes in this session"
+  for i in "${!tree_files[@]}"; do
+    [[ "${tree_norm[$i]}" != *"$OUTBOUND_ANCHOR"* ]] \
+      || err "${tree_files[$i]} restates the outbound-message rule; it lives only in $GLOBAL_MD"
+    [[ "${tree_norm[$i]}" != *"it is a fixed template the command supplies"* ]] \
+      || err "${tree_files[$i]} carries the retired fixed-template exemption"
+  done
+  forbid_normalized "$GLOBAL_MD" "Slack mechanics" \
+    "Resolve the GitHub login to a Slack user" "it is a fixed template the command supplies"
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    [[ "$line" == *[Oo]ptional* ]] || err "$GLOBAL_MD names a Slack MCP server without calling it optional: \"$line\""
+  done <<< "$(grep -iE 'slack mcp' <<< "$global_records" || true)"
+  [[ "$global_norm" != *deepwiki* ]] || err "$GLOBAL_MD names a deepwiki MCP, which no host registers"
+
+  # Incident rules keep their constraint, not their story, and every listed
+  # push spelling.
+  dates="$(grep -nE '(^|[^0-9])20[0-9]{2}-[0-9]{2}-[0-9]{2}([^0-9]|$)' "$GLOBAL_MD" || true)"
+  [ -z "$dates" ] || err "$GLOBAL_MD carries a dated origin story: ${dates%%$'\n'*}"
+  hashes="$(grep -noE '(^|[^0-9A-Za-z])[0-9a-f]{7,40}([^0-9A-Za-z]|$)' "$GLOBAL_MD" | grep -E ':.*[0-9].*' | grep -E ':.*[a-f]' || true)"
+  [ -z "$hashes" ] || err "$GLOBAL_MD carries a commit reference: ${hashes%%$'\n'*}"
+  require_normalized "$GLOBAL_MD" "push spelling" \
+    "\`git push origin --delete <branch>\`" "a \`:<branch>\` refspec" \
+    "\`--force-with-lease --force-if-includes\`" "\`--force-with-lease=<branch>:<sha>\`" \
+    "plain \`--force\`" "a \`+\` refspec" "push-time force configuration" \
+    "\`stale info\`" "\`remote ref updated since checkout\`"
+
+  # The shell rules state what the Bash tool actually runs.
+  require_normalized "$GLOBAL_MD" "shell line" \
+    "The Bash tool runs bash on Linux and zsh on macOS, and cannot be pointed at fish." \
+    "Commands written for me to run use fish syntax." \
+    "Run mise-managed tools through \`fish -c\` so mise activation applies"
+  forbid_normalized "$GLOBAL_MD" "fish-only wording" "\`set\` not \`export\`"
+fi
+# The Slack mechanics' resolution step and unattended handoff, in the shared file.
+require_normalized "$SHARED/slack.md" "unattended handoff step" \
+  "With no operator present, draft the message and its recipient into the handoff instead of sending it."
 
 # --- Safety pins ---
 
@@ -522,13 +675,10 @@ require_phrases "$(skill_md code-review)" "severity tier" \
   "each as its own table in fixed order: Blockers, Concerns, Suggestions, Nits" \
   'does **not** use the bucket categorization from finding-categorization'
 
-# The /code-review option sets are stated in both the global file and the skill.
-optset_checks=(
-  "Post inline / Post as PR-level / Defer to follow-up / Dismiss"
+# /code-review's own option sets, since it does not use the bucket ones.
+require_phrases "$(skill_md code-review)" "option-set literal" \
+  "Post inline / Post as PR-level / Defer to follow-up / Dismiss" \
   "Post all inline / Post all as PR-level / Defer all to follow-up / Dismiss all / Pick individually"
-)
-require_phrases "$(skill_md code-review)" "option-set literal" "${optset_checks[@]}"
-require_phrases "$GLOBAL_MD" "/code-review option-set literal" "${optset_checks[@]}"
 
 # The machine-profile resolver's load-bearing lines.
 require_phrases "$SHARED/backends.md" "resolver line" \
