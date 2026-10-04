@@ -122,6 +122,11 @@ body is written after the delimiter exists, so nothing it quotes can know the
 delimiter in advance; still read the body over once and confirm the delimiter
 line does not appear inside it.
 
+A body may instead be written to a file under a private `mktemp -d` directory
+(mode 0700) and posted later, as `/code-review` does for its batched review,
+provided it still reaches the posting command on stdin (`--rawfile`,
+`--body-file -`, `-F body=@-`) and never through argv.
+
 ## Reply, rescue, resolve
 
 **Reply with `addPullRequestReviewThreadReply` only**, never
