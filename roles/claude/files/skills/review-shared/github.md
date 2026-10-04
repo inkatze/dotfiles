@@ -21,31 +21,37 @@ lock before the first fetch, keyed by skill, repo and PR:
 lock="/tmp/<skill>-lock.<owner>-<repo>.<number>"
 token="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 [ "${#token}" -eq 16 ] || { echo "could not generate a lock token; stopping" >&2; exit 1; }
-if ! (umask 077; mkdir "$lock") 2>/dev/null; then
+take='umask 077; mkdir "$lock" || exit 1; date +%s > "$lock/epoch" || { rm -rf "$lock"; exit 1; }'
+if ! (eval "$take") 2>/dev/null; then
   epoch="$(sed -n 1p "$lock/epoch" 2>/dev/null)"
   case "$epoch" in ''|*[!0-9]*) epoch=$(date +%s) ;; esac
   age=$(( $(date +%s) - epoch ))
   if [ "$age" -lt 1800 ]; then
-    echo "another run appears active on this PR (lock is ${age}s old); stopping" >&2; exit 1
+    echo "another run appears active on this PR (lock $lock is ${age}s old); if none is, remove that directory and rerun" >&2; exit 1
   fi
   mv "$lock" "$lock.stale.$token" 2>/dev/null && rm -rf "$lock.stale.$token" \
-    && (umask 077; mkdir "$lock") 2>/dev/null \
+    && (eval "$take") 2>/dev/null \
     || { echo "another run took the stale lock first; stopping" >&2; exit 1; }
 fi
 printf '%s\n' "$(date +%s)" > "$lock/epoch" && printf '%s\n' "$token" > "$lock/owner" \
-  || { echo "could not write $lock; stopping" >&2; exit 1; }
+  || { rm -rf "$lock"; echo "could not write $lock; stopping" >&2; exit 1; }
 echo "lock=$lock token=$token"
 ```
 
 `1800` is the lock-staleness value from [limits.md](limits.md), in seconds.
-`mkdir` is the atomic test-and-set, and a stale lock is taken over by
-renaming it, which only one run can win. A lock with no epoch yet (a run that
-has just made the directory) counts as fresh. Each `Bash` call is a fresh
+`mkdir` is the atomic test-and-set, and the epoch is written in the same
+step, so a lock without one (a run that has just made the directory) counts
+as fresh only for that instant; a failed write removes the directory rather
+than leaving one that never ages. A stale lock is taken over by renaming it;
+two runs racing for the same stale lock can both get through, and the loser
+finds out at its next refresh. Each `Bash` call is a fresh
 shell, so carry the printed `lock` and `token` as literals into the refresh
 and the release.
 
-**Refresh** at the top of every loop iteration and before each step that can
-run long (an interactive walk, a backend call, a poll):
+**Refresh** at the top of every loop iteration, before each step that can run
+long (an interactive walk, a backend call, a poll), and again after an
+interactive walk, before the first push, reply, resolve, review request or
+label change it leads to, since the walk can outlast the lock:
 
 ```bash
 [ "$(cat '<lock>/owner' 2>/dev/null)" = '<token>' ] \

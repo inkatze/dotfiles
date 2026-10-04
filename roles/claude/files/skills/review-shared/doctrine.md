@@ -9,7 +9,10 @@ planwright's install root is the enabled version's `installPath`, as Claude
 Code records it in `~/.claude/plugins/installed_plugins.json`.
 
 ```bash
+command -v jq > /dev/null || { echo "jq is required to locate planwright and is not on PATH" >&2; exit 1; }
 [ -r ~/.claude/settings.json ] || { echo "cannot read ~/.claude/settings.json" >&2; exit 1; }
+[ -r ~/.claude/plugins/installed_plugins.json ] \
+  || { echo "cannot read ~/.claude/plugins/installed_plugins.json" >&2; exit 1; }
 jq -e '.enabledPlugins["planwright@planwright"] == true' ~/.claude/settings.json > /dev/null \
   || { echo "planwright is not enabled in ~/.claude/settings.json" >&2; exit 1; }
 root="$(jq -er '.plugins["planwright@planwright"] // [] | map(select(.scope == "user")) | last | .installPath // empty' \
@@ -58,11 +61,6 @@ its own text says so.
 
 The lens list is discovery-rigor's lens checklist, pointed at and never copied.
 A backend prompt that needs the list builds it at run time from the resolved
-document:
-
-```bash
-awk '/^## Lens checklist/{s=1;next} s&&/^[0-9]+\. /{l=1} l&&/^$/{exit} l' "<discovery-rigor path>"
-```
-
-Empty output means the document changed shape: stop rather than send a prompt
-with no lenses.
+document, in the outbound-prompt block of [backends.md](backends.md), which
+stops when the extraction comes back empty rather than send a prompt with no
+lenses.

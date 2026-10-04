@@ -139,7 +139,7 @@ Stop, print the latest tables, name the condition, and wait. Commit nothing furt
 | **Test failure** | Any test, linter, type check or formatter failed at (c), including pre-existing failures surfaced for the first time. |
 | **Loop detection** | The same root issue in the same file, from any backend, raised in two consecutive iterations after a fix was applied for it. |
 | **Backend failure** | A backend did not recover, per [backends.md](../review-shared/backends.md). |
-| **Iteration cap** | The shared cap reached without convergence. |
+| **Iteration cap** | The iteration cap, as overridden above, reached without convergence. |
 | **Ambiguity** | A finding borderline between buckets across two consecutive iterations. |
 | **Hard-disqualifier zone** | A candidate touches security-sensitive code, a migration or destructive op, CI config, a lockfile or a secrets file; finding-categorization pauses these before anything is applied. |
 | **Dirty working tree** | Pre-flight found uncommitted changes. |

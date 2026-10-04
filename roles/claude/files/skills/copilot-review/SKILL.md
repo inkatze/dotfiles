@@ -41,7 +41,7 @@ A ticket key from the branch name or PR title, fetched when Jira tools are avail
 
 ### 3. Fetch unresolved review threads
 
-Take the same-PR lock, keyed `copilot-review`, per [github.md](../review-shared/github.md) (nested mode already holds it from its pre-flight), and release it when the run ends. Fetch the threads per [github.md](../review-shared/github.md), and keep those where `isResolved` is false and the first comment's author is the Copilot bot. The standard login is `copilot-pull-request-reviewer` (`__typename: Bot`), but verify per run from `reviews(last: 5)` (`last`, not `first`, which returns the oldest):
+Take the same-PR lock, keyed `copilot-review`, per [github.md](../review-shared/github.md) (nested mode already holds it from its pre-flight), and release it when the run ends. Fetch the threads per [github.md](../review-shared/github.md), and keep those where `isResolved` is false and the first comment's author is the Copilot bot. The standard login is `copilot-pull-request-reviewer` (`__typename: Bot`), but verify per run from `reviews(last: 20)` (`last`, not `first`, which returns the oldest), and use the verified login in every `--arg bot` below, or the baseline and poll silently match nothing:
 
 ```bash
 jq --arg bot 'copilot-pull-request-reviewer' '[.[].data.repository.pullRequest.reviewThreads.nodes[]
@@ -115,7 +115,7 @@ Drain-scope override: each iteration applies the fixes for `valid` threads (Auto
    - Otherwise → `repo_mode = "collaborator"`.
 
    Do not assume a push alone triggers a review: auto-review on push can silently not fire, so step (g)'s poll is the only authoritative confirmation.
-4. **Bootstrap a first review when the PR has none**: zero unresolved Copilot threads **and** no Copilot review at all. Capture the baseline and poll-window start as step (e) Path A does (the baseline lands empty, which step (g) treats as "any new review id passes"), request a review via step (f), and poll via step (g), treating the bootstrap like Path A. On `NEW_REVIEW`, parse its suppressed comments per step (g), then enter the loop at step (a); a first review with zero threads is an immediate success. On `TIMEOUT`, **No response**. The bootstrap adds no iteration of its own. With any existing Copilot activity, skip it.
+4. **Bootstrap a first review when the PR has none**: zero unresolved Copilot threads **and** no Copilot review at all. Capture the baseline, poll-window start and head as step (e) Path A does (the baseline lands empty, which step (g) treats as "any new review id passes"), request a review via step (f), and poll via step (g), treating the bootstrap like Path A. On `NEW_REVIEW`, parse its suppressed comments per step (g), then enter the loop at step (a); a first review with zero threads is an immediate success. On `TIMEOUT`, **No response**. The bootstrap adds no iteration of its own. With any existing Copilot activity, skip it.
 
 ### Iteration loop
 
@@ -352,7 +352,7 @@ With **no** in-scope threads, the full **Scope creep** stop applies instead.
 - **Never** resolve a thread without an explanatory reply.
 - **Never** skip the failing-test-first step on a behavior-changing fix.
 - **Never** touch files outside the PR's diff to fix something noticed in passing; surface it as an adjacent finding.
-- **Never** modify CI configuration, `.env`, secrets or lockfiles unless the thread is about that file.
+- **Never** modify CI configuration, `.env`, secrets or lockfiles; a thread asking for it is a **Hard-disqualifier zone** stop.
 - **Never** post to chat platforms or tickets.
 - **Never** create or merge the PR itself. Nested mode pushes commits to the existing branch but otherwise leaves the PR's lifecycle alone, with one narrow exception: marking it ready, only at convergence and only after the explicit per-run confirmation in "After the loop". Never automatically, never on a diminishing-returns/stop-condition/iteration-cap exit, and never for create or merge; those stay absolute.
 - **Never** skip (g) after a Path-A push, except the Partial scope creep recipe's pre-decision pause. Path B runs (g) too.

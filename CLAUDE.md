@@ -13,7 +13,7 @@ runtime:
 | Runtime path | Tracked source | Mechanism |
 |---|---|---|
 | `~/.claude/CLAUDE.md` | `roles/claude/files/CLAUDE.md` | Symlink |
-| `~/.claude/skills/<name>` | `roles/claude/files/skills/<name>/` | One symlink per tracked skill directory (`skills.yml`); other entries there are left alone |
+| `~/.claude/skills/<name>` | `roles/claude/files/skills/<name>/` | One symlink per tracked directory, `review-shared/` included (`skills.yml`); other entries there are left alone, and only this repo's dangling links and its retired `~/.claude/commands` link are removed |
 | `~/.claude/scripts/*` | `roles/claude/files/scripts/` | Symlink (scripts `settings.json` invokes: hooks, the status line) |
 | `~/.claude/output-styles/*` | `roles/claude/files/output-styles/` | Symlink (resolved by name from `outputStyle`) |
 | `~/.claude/settings.json` | `roles/claude/files/settings.json` | jq merge (not symlink) |
@@ -93,9 +93,11 @@ repo does not mention.
    (`name`, `description`, and `disable-model-invocation: true` for a
    slash-invoked review skill). Mechanics more than one skill uses go in
    `skills/review-shared/`, linked by relative path.
-2. Commit and run Ansible: the link task adds `~/.claude/skills/<name>`,
+2. A review skill also joins `SKILL_NAMES` and `expected_hint` in
+   `skill-contracts.sh`, with a fixture, or the checker never sees it.
+3. Commit and run Ansible: the link task adds `~/.claude/skills/<name>`,
    refusing an existing entry that is not already this repo's link.
-3. Verify from the main checkout in a fresh session; a worktree's skills are
+4. Verify from the main checkout in a fresh session; a worktree's skills are
    never the ones loaded.
 
 Edits to the review skills, to `roles/claude/files/CLAUDE.md`, and to
@@ -273,7 +275,7 @@ connection-refused. Restoring any of it means digging up the git history of
 this section and of `panel-review.md`, plus re-reading the LAN-exposure caveat
 that was here: Ollama has no auth, so binding `0.0.0.0` exposes it to the
 whole network. The contract checker also refuses those two names (and
-`OLLAMA_BASE_URL`) in the command files and the tracked global `CLAUDE.md`, so
+`OLLAMA_BASE_URL`) in the skills tree and the tracked global `CLAUDE.md`, so
 restoring them means updating its retired-backend sweep in the same change.
 
 ## Review backends: codex vs gemini
@@ -286,7 +288,7 @@ backend and `/panel-review` a comma-separated list, plus
 itself). `/panel-review` also accepts an opt-in `copilot` via `--backends`;
 only the two below are ever chosen automatically. That backend is the Copilot
 CLI allowed only its file viewer, confined to a scratch directory holding the
-diff (see `panel-review.md` for why each flag matters). It is declared like
+diff (see `roles/claude/files/skills/review-shared/backends.md` for why each flag matters). It is declared like
 the other two: `cask "copilot-cli"` in the `Brewfile`, and `copilot` in
 `linux.toml` through mise's registry default, `aqua:github/copilot-cli`, which
 unpacks the same GitHub release tarball the cask does. Of the other Linux
@@ -629,7 +631,9 @@ be connected. It is not. Wiring it up without first amending that spec
 reverses a recorded decision, and doing the enforcement half alone leaves the
 files that already carry the identifiers permanently exempt — containment, not
 coverage, which is the half the successor bundle exists to avoid doing in
-isolation.
+isolation. `roles/claude/files/scripts/identifier-check.sh` reads the same file
+for a review-time report over the live instruction files, run by hand and by
+the contract fixture suite; it warns and never blocks a commit.
 
 `code-review-egress.json` is untracked for the same class of reason as
 `slack-users.json` below: it enumerates repos (employer and third-party
@@ -644,8 +648,8 @@ repo means deleting the bare `owner/repo` key and every
 `reviewer:<name>:owner/repo` key for it. Absent file means every repo, or
 for that backend every repo-and-reviewer pair, asks once, which degrades
 visibly. When nothing can be recorded, and when a bad consent file or a
-missing `jq` stops the run instead, is spelled out in `/panel-review`'s
-Pre-flight item 6.
+missing `jq` stops the run instead, is spelled out in
+`roles/claude/files/skills/review-shared/egress.md`.
 
 `slack-users.json` is untracked for a different reason than the others: it is
 not a secret, but it holds *other people's* email-derived identities. This repo

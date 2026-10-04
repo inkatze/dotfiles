@@ -52,6 +52,9 @@ mise-installed tools. Do not wrap the probes themselves in `fish -c`: fish
 rejects `${VAR:-}`. A failed probe stops the run with its message; never drop
 a backend silently, because its variance is why the run exists.
 
+- **gitleaks**, for every backend: `command -v gitleaks` resolves, since the
+  outbound-prompt guard below refuses to send an unscanned prompt. Missing:
+  `gitleaks not installed; the outbound-prompt guard cannot scan the prompt`.
 - **codex**: `fish -c 'mise which codex 2>/dev/null; or command -v codex'`
   resolves, and `codex login status` succeeds (exit status only; never print
   account details). Missing: `Codex CLI not installed; mise run osx will
@@ -84,8 +87,9 @@ Build it at run time, never from a stored copy of the lenses:
 1. The instruction: walk every lens and report findings for each;
    severity-pruning is forbidden; an empty lens is a `none` row with a
    one-line reason.
-2. The lens list, extracted from the resolved discovery-rigor document per
-   [doctrine.md](doctrine.md). A skill may append lenses of its own after it.
+2. The lens list, extracted from the resolved discovery-rigor document (see
+   [doctrine.md](doctrine.md)) by the `awk` in the block below. A skill may
+   append lenses of its own after it.
 3. The output format: only a Markdown table with columns `Lens | File:Line |
    Finding | Rule cited | Severity`, no preamble, no reasoning trace, nothing
    after the table.
@@ -145,7 +149,8 @@ A copilot prompt outside `$scratch` carries no untrusted text, so the scan of
 
 ## Contained invocations
 
-Every backend runs from that empty scratch directory, in a subshell, with the
+Every prompt-driven backend (codex, gemini, copilot) runs from that empty
+scratch directory, in a subshell, with the
 payload on stdin or in a file inside it, never from the repo under review and
 never from `/tmp` itself (world-writable, so pre-seedable with a `GEMINI.md` or
 `AGENTS.md`). The subshell is because this session keeps its cwd between calls.

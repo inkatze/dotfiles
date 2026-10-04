@@ -83,7 +83,7 @@ Read `--reviewer <name>`, `--local`, `--nested`, `--dry-run`, and `--effort <val
 
 4. **Gating checks are not a drain signal, ever.** Report each `gating_checks` entry by name and state from `statusCheckRollup`, and **state plainly, every run, that a passing check does not mean every finding was replied to and resolved**: checks can report success while findings sit unresolved underneath.
 
-5. **Same-PR lock**, per [github.md](../review-shared/github.md), keyed `bot-review`: refreshed before each long step and each nested iteration, released when the run ends. `--nested` also starts an iteration counter at 0.
+5. **Same-PR lock**, per [github.md](../review-shared/github.md), keyed `bot-review`, taken right after item 1 and before any other fetch or label change: refreshed before each long step and each nested iteration, released when the run ends. `--nested` also starts an iteration counter at 0.
 
 ## Steps (standalone and the `--nested` loop body)
 
@@ -94,7 +94,7 @@ gh api --paginate repos/<o>/<r>/issues/<n>/comments || { echo "fetch failed: iss
 gh api --paginate repos/<o>/<r>/pulls/<n>/comments || { echo "fetch failed: pulls/comments"; exit 1; }
 ```
 
-`--paginate` is not optional: an unpaginated read silently undercounts. Filter both to the reviewer (`author.login` against `login_pattern` as a regex). On `issues/comments`, the comment `build_id_regex` matches is the bot's summary, not a finding (it is step 6's freshness source); with `finding_key_regex` configured, only comments it matches are description-level findings. Report both counts **before** any filtering by resolution state, every run (`N_description_level`, `N_inline`): a single-endpoint read that reports 3 findings while the other endpoint carries 7 is the failure this step exists to prevent.
+`--paginate` is not optional: an unpaginated read silently undercounts. Filter both to the reviewer (`user.login`, the REST field, against `login_pattern` as a regex). On `issues/comments`, the comment `build_id_regex` matches is the bot's summary, not a finding (it is step 6's freshness source); with `finding_key_regex` configured, only comments it matches are description-level findings. Report both counts **before** any filtering by resolution state, every run (`N_description_level`, `N_inline`): a single-endpoint read that reports 3 findings while the other endpoint carries 7 is the failure this step exists to prevent.
 
 ### 2. Fetch resolution state via GraphQL
 
@@ -132,7 +132,7 @@ Act-then-review, per finding-categorization: Auto-applicable, Agent-resolvable a
 
 ### 9. Commit and push, before replying to anyone
 
-Land the code first, per [github.md](../review-shared/github.md). Standalone: ask before pushing; on a push failure, stop before step 10 (nothing has been said to GitHub yet, so there is nothing to unwind). `--nested`: see below.
+Land the code first, per [github.md](../review-shared/github.md). Standalone: ask before pushing; on a push failure, stop before step 10 (nothing has been said to GitHub yet, so there is nothing to unwind), and on a hook failure follow the push-hook rule in [github.md](../review-shared/github.md). `--nested`: see below.
 
 ### 10. Reply to and resolve (or acknowledge) every disposed finding
 
@@ -191,6 +191,8 @@ Per iteration: run Steps 1-7. **If no unresolved finding survives step 2 and the
 - A poll that times out with no new build id is **No response**.
 - If `build_id_regex` never matched any reviewer comment across the window, say specifically that the regex has likely drifted from the vendor's format, not that the bot was silent.
 
+On a new review, increment the counter and loop.
+
 **Stop conditions** (print the latest tables, name the condition, hand back; commit nothing further):
 
 | Condition | Trigger |
@@ -209,7 +211,7 @@ Per iteration: run Steps 1-7. **If no unresolved finding survives step 2 and the
 
 A transient failure on any other `gh` call (a label check, a poll, a reply, a resolve) is retried once; if it still fails, treat it as the nearest condition above, never a silent skip.
 
-**Never** force-push, push to a protected branch, mark the PR ready, or merge. This loop's only PR-lifecycle mutation is the optional opt-in-label add from Pre-flight step 3, confirmation-gated on every run.
+**Never** force-push, push to a protected branch, mark the PR ready, or merge. This loop's only PR-lifecycle mutation is the optional opt-in-label add from Pre-flight step 3, confirmation-gated on every run. **Never** push with `--no-verify`.
 
 ## Local mode (`--local`)
 
