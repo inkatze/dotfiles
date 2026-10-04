@@ -2,7 +2,8 @@
 
 **Status:** Ready
 **Cold-start next step:** Implement the plan: write `CLAUDE.md` at the dotfiles repo root per the Required Content section of this file. See `tasks.md` for the ordered task list.
-**Last reviewed:** 2026-04-09
+**Last reviewed:** 2026-10-04
+**Format-version:** 1
 
 ## File location and tracking
 
@@ -47,15 +48,18 @@ have something non-obvious to say; sections that do not may be omitted:
   land in this repo, an Ansible run propagates them.
 - **How Claude config is materialized.** The non-obvious fact that the tracked
   Claude sources live in the Ansible role and are materialized by different
-  mechanisms: `roles/osx/files/claude/commands/` is symlinked into
-  `~/.claude/commands/`, `roles/osx/files/claude/scripts/` is symlinked into
+  mechanisms: `roles/claude/files/commands/` is symlinked into
+  `~/.claude/commands/`, `roles/claude/files/scripts/` is symlinked into
   `~/.claude/scripts/` (hook scripts invoked from `settings.json`),
-  `~/.claude/CLAUDE.md` is symlinked from `roles/osx/files/CLAUDE.md` (note:
-  outside the `claude/` directory), and `roles/osx/files/claude/settings.json`
+  `~/.claude/CLAUDE.md` is symlinked from `roles/claude/files/CLAUDE.md`, and
+  `roles/claude/files/settings.json`
   is merged into `~/.claude/settings.json` by a jq-based task rather than
   symlinked. Editing the materialized file directly is wrong; edit the tracked
   source. Adding further surfaces (e.g., skills) requires creating the tracked
-  directory and matching management in `roles/osx/tasks/osx.yml`.
+  directory and matching management in `roles/claude/tasks/main.yml`.
+  **Superseded-by: specs/claude-instructions REQ-C1.1** (2026-10-04), for the
+  commands clause: the review commands are now skills under
+  `roles/claude/files/skills/`.
 - **Permissions three-layer model.** A compact restatement of #8's decision:
   global `~/.claude/settings.json` (tracked via this repo) for durable cross-project
   allows plus the deny list; per-repo tracked `.claude/settings.json` for
@@ -63,18 +67,25 @@ have something non-obvious to say; sections that do not may be omitted:
   ephemeral, short, nukeable rules. Note that for the dotfiles repo itself, the
   tracked `.claude/settings.json` (created in #8) holds dotfiles-specific durable
   rules and the local file should stay near-empty.
+  **Superseded-by: specs/claude-instructions REQ-F1.3** (2026-10-04), for the
+  dotfiles note: this repo gitignores `.claude/` and tracks no per-repo
+  settings file.
 - **Adding a new Claude command.** The path and propagation: drop the file under
-  `roles/osx/files/claude/commands/`, commit, let the Ansible symlink task pick
+  `roles/claude/files/commands/`, commit, let the Ansible symlink task pick
   it up, verify in a fresh session. Command front-matter is required for
-  discovery. Hook scripts are now managed under `roles/osx/files/claude/scripts/`
+  discovery. Hook scripts are now managed under `roles/claude/files/scripts/`
   with a matching symlink task and are wired from `settings.json`. Skills are
   still out of scope for this section and would require a new tracked directory
   plus symlink task.
+  **Superseded-by: specs/claude-instructions REQ-C1.1** (2026-10-04): the
+  review commands are skills under `roles/claude/files/skills/`, linked one
+  directory at a time.
 - **Things to NOT edit directly in `~/.claude/`.** Anything symlinked from this
   repo. If in doubt, `readlink` the file first.
-- **Ansible role layout pointer.** A single-line hint that `roles/osx/` is the Mac
-  role, most Claude-related files live under `roles/osx/files/claude/`, and
-  `roles/osx/tasks/` contains the symlink tasks. Deliberately not a full tree dump.
+- **Ansible role layout pointer.** A single-line hint that `roles/claude/` is
+  the Claude role, its files live under `roles/claude/files/`, and
+  `roles/claude/tasks/` contains the symlink tasks. Deliberately not a full
+  tree dump.
 
 ## Excluded content
 
@@ -104,3 +115,20 @@ The file shall **not** contain:
 - The "Permissions three-layer model" section shall consume #8's decisions without
   duplicating their full reasoning.
 - If #8's model changes during implementation, this file shall be updated to match.
+
+## Changelog
+
+- **2026-10-04 (expression-only).** Header repaired so the planwright
+  validator can read the bundle: `**Format-version:** 1` declared in all four files,
+  and the `**Status:**` header mirrored into `design.md`, `tasks.md` and
+  `test-spec.md`. Role paths corrected for the move of the Claude config from
+  `roles/osx/` to `roles/claude/`; the commands paths keep their pre-skills
+  meaning and are superseded below rather than rewritten. Ceiling and scope
+  gate unchanged. (specs/claude-instructions REQ-F1.5)
+- **2026-10-04 (supersession).** Content this bundle required that the
+  claude-instructions bundle made false is marked superseded in place: the
+  commands section, its materialization clause and its fresh-session checks
+  by that bundle's REQ-C1.1 (the review commands became skills), and the
+  tracked per-repo settings note by its REQ-F1.3 (this repo tracks no such
+  file). The line ceiling and the scope gate stay in force.
+  (specs/claude-instructions REQ-F1.6)
