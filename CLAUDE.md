@@ -25,8 +25,8 @@ appear at runtime:
   replaces Claude Code's built-in coding instructions. A style change needs
   `/clear` or a new session.
 - To remove a hook, drop its entry from the tracked event; for its last
-  entry declare the event `[]` (deleting the key leaves it live). Removing
-  `statusLine` means editing each live `settings.json`.
+  entry, declare the event `[]` (deleting the key leaves our entries live).
+  Removing `statusLine` means editing each live `settings.json`.
 - Declare any Claude Code behaviour meant to be shared in the tracked
   `settings.json` (including `permissions.defaultMode`), never by toggling it
   in the app: an undeclared key silently differs per machine. Audit by diffing
@@ -110,8 +110,9 @@ See [docs/review-backends.md](docs/review-backends.md).
 
 ## Machine-local files under `~/.config/dotfiles/`
 
-Untracked and optional; absence degrades visibly. None is created by the
-repo except `pushover-credentials`, which the osx health role writes. Keep machine-specific values here, never in tracked files.
+Untracked and optional; absence degrades visibly. Only `pushover-credentials`
+is written by the repo (the osx health role). Keep machine-specific values
+here, never in tracked files.
 
 | File | Read by | Holds |
 |---|---|---|
@@ -194,6 +195,6 @@ See [docs/ansible-roles.md](docs/ansible-roles.md).
 already set. `tower` launches `/planwright:tower` under planwright's tower
 permission profile, fails closed when that profile is missing or has no
 `permissions.deny`, and refuses pass-through flags that would replace or
-disable it. Never merge that profile into the tracked `settings.json`. Why:
-`roles/fish/files/fish/functions/tower.fish`; pinned by
-`scripts/fish-tower-test.sh`.
+disable it. Never merge that profile into the tracked `settings.json`. The
+rationale is in `roles/fish/files/fish/functions/tower.fish`, and
+`scripts/fish-tower-test.sh` pins it.
