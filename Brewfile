@@ -75,6 +75,10 @@ cask "codex"
 # The opt-in `copilot` backend. Declared so it does not depend on the
 # interactive `gh copilot` first-run download.
 cask "copilot-cli"
+# The outbound secret scan those backends run before any egress. Global rather
+# than per-repo: resolving it through the reviewed repo's mise config would let
+# that repo supply its own scanner.
+brew "gitleaks"
 
 # MAS CLI
 brew "mas"

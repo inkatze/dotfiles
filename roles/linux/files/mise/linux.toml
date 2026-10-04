@@ -68,6 +68,14 @@ gemini = "0.54.4"
 # dependency on `gh copilot`'s interactive first-run download.
 copilot = "1.0.89"
 
+# The outbound secret scan /panel-review and /code-review run before any
+# backend egress; they stop when it is not on PATH. Global rather than resolved
+# through the reviewed repo's mise config, which would let that repo supply its
+# own scanner. The Macs get it from the Brewfile. apt's 8.16.0 predates the
+# `gitleaks dir` subcommand the scan calls (added in 8.19), so mise it is. Kept
+# in step with this repo's own pin in mise.toml.
+gitleaks = "8.30.0"
+
 # Ubuntu resolute ships gh 2.46.0, tagged upstream in March 2024. gh is a
 # credential-holding network client and a hard dependency of the planwright
 # pipeline; two years of missed releases is the less secure option here, not
