@@ -160,6 +160,81 @@ out="$(cd "$tmp" && GITHUB_ACTIONS=true bash "$SCRIPT" 2>/dev/null)" || true
   fail ci-annotation-escaped "annotation path not escaped: $out"
 teardown
 
+# The root file's own limits: the line ceiling the claude-context bundle sets,
+# read from that bundle rather than copied, and every markdown link and
+# backticked repo path in the file resolving. A repo path is a backticked span
+# whose first segment is a top-level directory of the tree; placeholders,
+# globs and home-relative paths are not paths.
+root_file_problems() {
+  local dir="$1" ceiling lines target
+  ceiling="$(sed -n 's/.*shall not exceed \([0-9][0-9]*\) lines.*/\1/p' \
+    "$dir/specs/claude-context/requirements.md" 2>/dev/null | head -n 1)"
+  if [ -z "$ceiling" ]; then
+    echo "no line ceiling found in specs/claude-context/requirements.md"
+  else
+    lines="$(wc -l <"$dir/CLAUDE.md" | tr -d ' ')"
+    [ "$lines" -le "$ceiling" ] || echo "CLAUDE.md has $lines lines, over the ceiling of $ceiling"
+  fi
+  while IFS= read -r target; do
+    [ -e "$dir/$target" ] || echo "CLAUDE.md links to $target, which does not exist"
+  done < <(perl -ne 'while (/\]\(([^)\s#]+)(?:#[^)]*)?\)/g) { print "$1\n" unless $1 =~ m{^[a-z]+:} }' "$dir/CLAUDE.md")
+  while IFS= read -r target; do
+    [ -d "$dir/${target%%/*}" ] || continue
+    [ -e "$dir/$target" ] || echo "CLAUDE.md names $target, which does not exist"
+  done < <(perl -ne 'while (/`([^`\s]+\/[^`\s]*)`/g) { my $p = $1; next if $p =~ m{[<>*{}\$~:]} || $p =~ m{^/}; $p =~ s{/$}{}; print "$p\n" }' "$dir/CLAUDE.md")
+}
+
+# Tracked and new-but-unignored files only, so a gitignored local directory
+# can never make a path resolve.
+copy_tree() {
+  rtree="$(mktemp -d -t instruction-budget-root.XXXXXX)"
+  (cd "$ROOT" && git ls-files -z --cached --others --exclude-standard |
+    while IFS= read -r -d '' f; do [ -e "$f" ] && printf '%s\0' "$f"; done |
+    tar --null -T - -cf -) | tar -xf - -C "$rtree"
+}
+
+# expect_root_problem <name> <fragment>: the planted tree must report it.
+expect_root_problem() {
+  local out
+  out="$(root_file_problems "$rtree")"
+  [[ "$out" == *"$2"* ]] || fail "$1" "no '$2' reported: ${out:-nothing}"
+  rm -rf "$rtree"
+}
+
+copy_tree
+out="$(root_file_problems "$rtree")"
+[ -z "$out" ] || fail root-file "$out"
+rm -rf "$rtree"
+
+copy_tree
+ceiling="$(sed -n 's/.*shall not exceed \([0-9][0-9]*\) lines.*/\1/p' "$rtree/specs/claude-context/requirements.md" | head -n 1)"
+lines="$(wc -l <"$rtree/CLAUDE.md" | tr -d ' ')"
+for ((i = lines; i <= ceiling; i++)); do echo >>"$rtree/CLAUDE.md"; done
+expect_root_problem root-over-ceiling "over the ceiling of $ceiling"
+
+copy_tree
+perl -pi -e 's/shall not exceed \d+ lines/shall stay short/' "$rtree/specs/claude-context/requirements.md"
+expect_root_problem root-ceiling-unreadable "no line ceiling found"
+
+copy_tree
+link="$(perl -ne 'if (/\]\(([^)\s#:]+)/) { print "$1\n"; exit }' "$rtree/CLAUDE.md")"
+if [ -z "$link" ]; then
+  fail root-link-missing "CLAUDE.md has no relative markdown link to remove"
+  rm -rf "$rtree"
+else
+  rm -rf "${rtree:?}/$link"
+  expect_root_problem root-link-missing "links to $link"
+fi
+
+copy_tree
+path="$(perl -ne 'if (/`(scripts\/[^`\s<>*{}\$~:]+)`/) { print "$1\n"; exit }' "$rtree/CLAUDE.md")"
+if [ -z "$path" ]; then
+  fail root-path-missing "CLAUDE.md names no scripts/ path to remove"
+  rm -rf "$rtree"
+else
+  rm -rf "${rtree:?}/$path"
+  expect_root_problem root-path-missing "names $path"
+fi
 
 lefthook_run="$(awk '/^    instruction-budget:/{f=1;next} f&&/^    [a-z]/{f=0} f' "$ROOT/lefthook.yml")"
 [[ "$lefthook_run" == *"run: $SCRIPT"* ]] || fail lefthook-entry "no instruction-budget command running $SCRIPT"
