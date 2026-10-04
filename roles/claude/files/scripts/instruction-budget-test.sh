@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Fixture tests for instruction-budget.sh. Each case copies the tracked
 # surfaces into a temp tree, plants one change, and asserts the checker's exit
-# status and message. The wiring cases read lefthook.yml and the workflow,
-# since a guard nothing runs fails silently.
+# status and message. The root-file cases instead check the repo-root CLAUDE.md
+# itself: its line ceiling and that its links and repo paths resolve. The
+# wiring cases read lefthook.yml and the workflow, since a guard nothing runs
+# fails silently.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
@@ -252,7 +254,7 @@ expect_root() {
 # fixture must report the fragment.
 expect_root_moved() {
   if [ -z "$2" ] || [ ! -e "$rtree/$2" ]; then
-    fail "$1" "CLAUDE.md names no existing target to remove"
+    fail "$1" "no existing target '$2' to move aside"
     return
   fi
   mv "$rtree/$2" "$rtree/.fixture-moved"
