@@ -405,6 +405,7 @@ records_of() {
 
 # occurrences <haystack> <needle> <var>: how many times needle appears.
 occurrences() {
+  [ -n "$2" ] || { printf -v "$3" '%s' 0; return; }
   local r="${1//"$2"/}"
   printf -v "$3" '%s' $(( (${#1} - ${#r}) / ${#2} ))
 }
