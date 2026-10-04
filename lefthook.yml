@@ -81,6 +81,12 @@ pre-commit:
       glob: "{scripts/op-token.sh,scripts/op-token-test.sh,\
         scripts/claude-gemini-auth-sync.sh,scripts/ssh-lan-config-sync.sh}"
       run: scripts/op-token-test.sh
+    fish-tower:
+      # The suite is what notices the launcher losing its fail-closed refusal;
+      # the function alone still starts a tower, just without its deny floor.
+      glob: "{roles/fish/files/planwright.fish,roles/fish/files/fish/functions/{tower,claude}.fish,\
+        scripts/fish-tower-test.sh}"
+      run: scripts/fish-tower-test.sh
     fish-functions-ignore:
       # No glob, deliberately: the drift it catches is a plugin file sitting in
       # the working tree, which can be there with nothing in that directory

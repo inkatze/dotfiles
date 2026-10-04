@@ -492,6 +492,12 @@ require_normalized "$(skill_md code-review)" "submit-gate sentence" \
   "never submit any review without an explicitly chosen verdict" \
   "never choose approval on my behalf" \
   "deferred and dismissed items are never posted"
+# The isolated-session stop, so a refused review worktree never turns into
+# checking the PR out over the session's own branch.
+require_normalized "$(skill_md code-review)" "isolated-session sentence" \
+  "If this session's environment says it is isolated in a worktree, stop before anything else and tell me to rerun from a session in the main checkout." \
+  "Do not work around it by checking the PR out in this worktree." \
+  "If a git command is refused later for targeting another worktree, stop the same way at that point."
 
 # Slack messages reach a colleague, so every skill linking the shared Slack
 # mechanics carries the exact sign-off: EN DASH (U+2013), space, clanky, and

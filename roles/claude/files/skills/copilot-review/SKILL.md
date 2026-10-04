@@ -348,7 +348,7 @@ With **no** in-scope threads, the full **Scope creep** stop applies instead.
 ### Auto-execution invariants
 
 - **Never** force-push, or silently retry or `--no-verify` a failed push.
-- **Never** rewrite a commit already pushed to this PR's branch: Copilot's threads anchor to commit SHAs, so a rewrite orphans the threads being replied to.
+- **Never** rewrite a commit already pushed to this PR's branch: Copilot's threads anchor to commit SHAs, so a rewrite orphans the threads being replied to. That is this loop's reason, distinct from the repo-wide rule, which allows a lease-guarded force-push on an in-scope feature branch.
 - **Never** resolve a thread without an explanatory reply.
 - **Never** skip the failing-test-first step on a behavior-changing fix.
 - **Never** touch files outside the PR's diff to fix something noticed in passing; surface it as an adjacent finding.

@@ -1,0 +1,2 @@
+- 2026-10-02 [dotfiles] /code-review stops in a worktree-isolated session because step 1 needs a second worktree. Most of the review only reads the PR, which git diff <base>...<sha> and git show <sha>:<path> over a fetched ref can do from the session's own repo; only running the PR's tooling needs a checked-out tree, so only that step would need the stop.
+Consumed-by: specs/review-skills (2026-10-02)

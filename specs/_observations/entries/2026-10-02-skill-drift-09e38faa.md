@@ -1,0 +1,1 @@
+- 2026-10-02 [dotfiles] skill-drift(self-review): pre-flight brief detection says to resolve Ready-or-Active bundles through the status render (scripts/spec-status.sh), but that script takes a single <spec-dir> and renders no cross-bundle candidate list, so the skill gives no way to enumerate candidates in one call.

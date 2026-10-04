@@ -1,0 +1,2 @@
+- 2026-10-02 [dotfiles] panel-review.md reviewer:<name> snippet uses $1 inside in_repo, get and is_mise; Claude Code substitutes positional arguments into command files, so a run invoked with --backends reviewer:<name> receives those three as the literal argument string, and the snippet pasted as printed refuses every PATH entry. The helpers need a form the substitution leaves alone (verify which, e.g. a named local assigned from ${1}), and skill-contracts.sh could refuse bare $1 in command files.
+Consumed-by: specs/review-skills (2026-10-02)
