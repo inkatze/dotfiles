@@ -100,11 +100,27 @@ else
     ok unlisted-untouched "no sshCommand written"
 fi
 
-# 3. Both files can hold a credential, so a re-run keeps only the owner's read
-# and write bits: a numerically lower mode such as 0444 still lets others read.
-# A mode its owner tightened (0400) stays.
 mode_of() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }
-for pair in 444:400 640:600 400:400 604:600; do
+
+# $1: home, $2: expected mode, $3: label for the starting state.
+expect_modes() {
+    for f in .gitconfig .gitconfig.local; do
+        got="$(mode_of "$1/$f")"
+        if [ "$got" = "$2" ]; then
+            ok "mode-$3-$f" "$3 becomes 0$2"
+        else
+            fail "mode-$3-$f" "$3 became 0$got, want 0$2"
+        fi
+    done
+}
+
+# 3. Neither file existed in the home above, so both were created 0600.
+expect_modes "$h" 600 absent
+
+# 4. Both files can hold a credential, so a re-run keeps only the owner's read
+# and write bits: a numerically lower mode such as 0444 still lets others read.
+# A mode its owner tightened (0400) stays, and the execute bit goes.
+for pair in 444:400 640:600 400:400 604:600 700:600; do
     before="${pair%%:*}" want="${pair##*:}"
     h="$(fresh_home)"
     for f in .gitconfig .gitconfig.local; do
@@ -112,14 +128,7 @@ for pair in 444:400 640:600 400:400 604:600; do
         chmod "$before" "$h/$f"
     done
     run_role "$h" personal
-    for f in .gitconfig .gitconfig.local; do
-        got="$(mode_of "$h/$f")"
-        if [ "$got" = "$want" ]; then
-            ok "mode-$before-$f" "0$before becomes 0$want"
-        else
-            fail "mode-$before-$f" "0$before became 0$got, want 0$want"
-        fi
-    done
+    expect_modes "$h" "$want" "0$before"
 done
 
 if [ "$fails" -eq 0 ]; then
