@@ -6,7 +6,8 @@ decides when to send and what to say; the mechanics are these.
 **Optional, and never blocking.** If no Slack MCP server is available, or a
 recipient cannot be resolved, say so once in the terminal and carry on. A
 notification failure never aborts, retry-loops or delays the review: the
-review is the deliverable, the message is a courtesy. Default to a DM.
+review is the deliverable, the message is a courtesy. Default to a DM unless
+I say otherwise for that run.
 
 ## Resolve the GitHub login to a Slack user
 

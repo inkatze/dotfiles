@@ -82,7 +82,7 @@ instead of flipping.
 
 Evaluate every condition against the PR's current head immediately before the
 flip; a condition you cannot confirm, including a mergeability GitHub still
-reports as `UNKNOWN`, counts as unmet. Being behind the base is not a
+reports as `UNKNOWN` after a brief re-query, counts as unmet. Being behind the base is not a
 condition: sync only when a conflict or a stale test result calls for it.
 
 Never flip a PR ready on your own initiative, with one exception: the spec PR
@@ -106,37 +106,42 @@ the code.
 
 **Composability by default.** Small data-in, data-out units composed through
 the language's natural mechanism, idiomatic at the framework boundary;
-planwright's `composability` document holds the full rule.
+planwright's `composability` document holds the full rule, resolved as
+`~/.claude/skills/review-shared/doctrine.md` describes.
 
 **Machine-local environment layer.** Every project gets a gitignored,
 per-machine env file in the stack's native convention (`mise.local.toml`, or
-the local variant of `.envrc` or `.env`) for machine paths and session plumbing, never
-tracked config and never secrets. Long-lived processes (tmux workers,
-orchestrators, daemons) reference stable indirections (a fixed symlink like
+the local variant of `.envrc` or `.env`) for machine paths and session
+plumbing, which never go in tracked config; secrets go in neither. With
+worktrees inside the repo, one at the repo root covers them all, paired with
+the tool's trusted-path mechanism so a fresh worktree needs no trust step.
+
+**Stable indirections.** Long-lived processes (tmux workers, orchestrators,
+daemons) reference stable indirections (a fixed symlink like
 `~/.ssh/auth_sock`, a named socket path), never ephemeral values that die with
-the session that created them. With worktrees inside the repo, a repo-root
-local env file covers them all; pair it with the tool's trusted-path mechanism
-so a fresh worktree needs no trust step.
+the session that created them.
 
 ## Code & PR Reviews
 
 When reviewing code or addressing review feedback:
 - Report only confirmed issues: verify each against the code, running tests or
   linters where they apply.
-- Present the complete list first, as a numbered summary, then ask how I want
-  to walk it rather than assuming all at once. The walk modes, option sets and
-  progress tracker are in `~/.claude/skills/review-shared/workflow.md`.
+- Present the complete list first, as a numbered summary, then let me choose
+  how to walk it rather than assuming all at once. The walk modes, option sets,
+  progress tracker and the post-loop handoff that picks the mode itself are in
+  `~/.claude/skills/review-shared/workflow.md`.
 - **Review doctrine is planwright's.** Issue and solution validation,
-  discovery (its lens list included), finding categorization and refactor
-  flags follow planwright's `validation-rigor`, `discovery-rigor`,
-  `finding-categorization` and `refactor-instinct` documents, resolved at run
-  time as `~/.claude/skills/review-shared/doctrine.md` describes, never from a
-  remembered copy.
+  discovery (its lens list included), and, for reviews that apply findings to
+  my own branch, finding categorization and refactor flags follow planwright's
+  `validation-rigor`, `discovery-rigor`, `finding-categorization` and
+  `refactor-instinct` documents, resolved at run time as
+  `~/.claude/skills/review-shared/doctrine.md` describes, never from a
+  remembered copy. `/code-review` keeps its own severity tiers.
 
 ### Review Workflows
 
 - `/self-review`: planwright's `self-review` skill, a review of my branch that ends in a draft PR.
-- `/polish`: planwright's `polish` skill. `/polish` applies every finding except Needs human judgment, Needs-sign-off fixes included, on the branch, and never pushes.
+- `/polish`: planwright's `polish` skill. `/polish` applies Auto-applicable, Agent-resolvable and Needs-sign-off fixes on the branch, stops at Needs human judgment, and never pushes.
 - `/panel-review`: `~/.claude/skills/panel-review/SKILL.md`, a review of my branch through non-Anthropic backends.
 - `/copilot-review`: `~/.claude/skills/copilot-review/SKILL.md`, GitHub Copilot's review threads on my PR.
 - `/bot-review`: `~/.claude/skills/bot-review/SKILL.md`, a third-party review bot's findings on my PR.
@@ -170,7 +175,10 @@ sign-off are in `~/.claude/skills/review-shared/slack.md`.
 
 ## Spec-Driven Autonomy Pipeline
 
-- planwright (`planwright@planwright`) supplies the spec pipeline and its skills (`/spec-draft`, `/spec-kickoff`, `/orchestrate`, `/execute-task`, `/resume`, `/tower` and the rest); its `README.md` and `doctrine/` describe each.
+- planwright (`planwright@planwright`) supplies the spec pipeline and its
+  skills (`/spec-draft`, `/spec-kickoff`, `/orchestrate`, `/execute-task`,
+  `/resume`, `/tower` and the rest); its `README.md` and `doctrine/` describe
+  each.
 
 **Hard invariants.** Never auto-merge: merging is mine. planwright executes
 only signed-off specs, `Ready` or `Active`, with no bypass flag. Never
