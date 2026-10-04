@@ -58,5 +58,5 @@ already carries.
 | Per-repo tracked | `<repo>/.claude/settings.json` | Project-specific durable allows | Durable, committed |
 | Per-repo local | `<repo>/.claude/settings.local.json` | Ephemeral, short rules | Nukeable, gitignored |
 
-This repo gitignores `.claude/` wholesale, so it has no per-repo tracked
-layer: its durable rules belong in the global tracked file.
+This repo gitignores `.claude/` wholesale today, so it carries no per-repo
+tracked file yet; adding one means un-ignoring that path.

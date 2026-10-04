@@ -36,11 +36,11 @@ See [docs/claude-config.md](docs/claude-config.md).
 
 ## Permissions
 
-Durable cross-project allows and the deny list go in the tracked
-`roles/claude/files/settings.json`. A project's own durable allows go in its
-tracked `.claude/settings.json`, ephemeral ones in its gitignored
-`.claude/settings.local.json`, which stays near-empty. This repo gitignores
-`.claude/`, so its durable rules belong in the global tracked file.
+Three valid layers, chosen by scope: global tracked
+`roles/claude/files/settings.json` for cross-project allows and the deny list;
+per-repo tracked `<repo>/.claude/settings.json` for project-specific durable
+rules; per-repo local `.claude/settings.local.json` for ephemeral rules, kept
+near-empty.
 
 ## Adding a new Claude skill
 
