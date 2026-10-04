@@ -8,8 +8,8 @@ Rationale behind the hook rules in the repo-root `CLAUDE.md`.
 header is the reference for what it does (mise trust, a background dependency
 install keyed on lockfile and project-file pairs, the per-repo
 `.claude/worktree-bootstrap` extension), the marker state machine, the log
-path, and how to force a re-run. In a primary checkout it is a silent no-op by
-design.
+path, and how to force a re-run. A failed run removes the marker so the next
+session retries. In a primary checkout it is a silent no-op by design.
 
 The per-repo script runs with no sandboxing, so opening Claude in an
 untrusted checkout executes whatever it contains. Same trust model as
@@ -43,4 +43,5 @@ just started.
 `scripts/claude-settings-merge.sh` rebuilds the entries this repo owns from
 the tracked file on every run, so dropping the `Read|Edit|Write` entry there
 silently unwires `path-guard`. Hooks other tools install on the same event are
-preserved; ours exist only as long as the tracked file declares them.
+preserved. On an event the tracked file declares, ours exist only as long as
+it lists them; an event key it drops is left as it was, ours included.

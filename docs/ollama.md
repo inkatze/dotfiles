@@ -12,9 +12,10 @@ The `qwen-coder` and `gpt-oss` backends `/panel-review` routed to that daemon
 went with it, since without a daemon they could only fail with
 connection-refused.
 
-Restoring any of it means digging up the git history of this note's subject
-and of the panel-review skill, and re-reading the LAN-exposure caveat: Ollama
-has no auth, so binding `0.0.0.0` exposes it to the whole network. The
-contract checker refuses those two backend names (and `OLLAMA_BASE_URL`) in
-the skills tree and the tracked global `CLAUDE.md`, so a restore also updates
-its retired-backend sweep in the same change.
+Restoring any of it means digging up the git history of the repo-root
+`CLAUDE.md` section this note replaced and of the panel-review skill, and
+re-reading the LAN-exposure caveat: Ollama has no auth, so binding `0.0.0.0`
+exposes it to the whole network. The contract checker refuses those two
+backend names (and `OLLAMA_BASE_URL`) in the skills tree and the tracked
+global `CLAUDE.md`, so a restore also updates its retired-backend sweep in the
+same change.

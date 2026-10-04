@@ -40,7 +40,7 @@ Three valid layers, chosen by scope: global tracked
 `roles/claude/files/settings.json` for cross-project allows and the deny list;
 per-repo tracked `<repo>/.claude/settings.json` for project-specific durable
 rules; per-repo local `.claude/settings.local.json` for ephemeral rules, kept
-near-empty.
+near-empty. See [docs/claude-config.md](docs/claude-config.md).
 
 ## Adding a new Claude skill
 
@@ -60,9 +60,9 @@ a matching symlink task in `roles/claude/tasks/main.yml`.
 ## Contract and budget guards
 
 - `roles/claude/files/scripts/skill-contracts.sh` literal-matches
-  load-bearing sentences in the review skills, the global `CLAUDE.md` and
-  itself. A reword that trips it means the contract moved: update the checker
-  and the fixture that plants that drift in the same commit.
+  load-bearing sentences in the review skills and the global `CLAUDE.md`, and
+  re-runs when it is edited. A reword that trips it means the contract moved:
+  update the checker and the fixture that plants that drift, in one commit.
 - `roles/claude/files/scripts/instruction-budget.sh` holds per-surface word
   budgets. A change that grows or adds a surface re-derives its row there, in
   the same commit. Its suite also holds this file to the line ceiling
@@ -110,9 +110,8 @@ See [docs/review-backends.md](docs/review-backends.md).
 
 ## Machine-local files under `~/.config/dotfiles/`
 
-Untracked and optional; absence degrades visibly. Only `pushover-credentials`
-is written by the repo (the osx health role). Keep machine-specific values
-here, never in tracked files.
+Untracked and optional; absence degrades visibly. Written by hand unless the
+row names a writer. Keep machine-specific values here, never in tracked files.
 
 | File | Read by | Holds |
 |---|---|---|
@@ -120,13 +119,13 @@ here, never in tracked files.
 | `ssh-host` | the `sshc` function in `roles/fish/files/fish/config.fish` | `kitten ssh` target hostname |
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (`globinclude`) | Host-specific kitty `ssh.conf` sections |
 | `op-account` | `scripts/playbook.sh` | The 1Password account every `op` call uses, where more than one is signed in |
-| `op-service-account-token` | `scripts/op-token.sh`, for the 1Password syncs | Service-account token, the only secret here (0600) |
+| `op-service-account-token` | `scripts/op-token.sh`, for the 1Password syncs | Service-account token, a bearer credential (0600) |
 | `git-work-email` | `roles/git/defaults/main.yml` | The work identity written to `~/.gitconfig.work` |
-| `pushover-credentials` | `roles/osx/files/health/health-check.sh` | Health-check notification credentials, written by `roles/osx/tasks/health-signal.yml` |
+| `pushover-credentials` | `roles/osx/files/health/health-check.sh` | Health-check notification credentials (0600), written by `roles/osx/tasks/health-signal.yml` |
 | `health-target` | `roles/osx/files/health/health-check.sh` | The host the health check polls; absent means nothing is polled |
 | `work-shell-init` | `roles/fish/files/work-init.fish` | Path of a second config manager's shell init to source |
-| `slack-users.json` | `roles/claude/files/skills/review-shared/slack.md` | GitHub login to Slack user ID (0600) |
-| `code-review-egress.json` | `roles/claude/files/skills/review-shared/egress.md` | Per-repo (and per-reviewer) upload consents (0600) |
+| `slack-users.json` | `roles/claude/files/skills/review-shared/slack.md` | GitHub login to Slack user ID (0600), written by the skills |
+| `code-review-egress.json` | `roles/claude/files/skills/review-shared/egress.md` | Per-repo (and per-reviewer) upload consents (0600), written by the skills |
 | `bot-review.json` | the `/bot-review` skill, `/panel-review`'s `reviewer:<name>` backend | Named third-party reviewers; example at `roles/claude/files/skills/bot-review/bot-review.config.example.json` (0600) |
 | `private-identifiers` | `scripts/gitleaks-identifier-rules.sh`, `roles/claude/files/scripts/identifier-check.sh` | Names that must never reach a committed file |
 | `claude-instructions-inventory/` | the `specs/claude-instructions` tasks, by hand | Dated instruction-surface audit (directory 0700, files 0600) |
@@ -193,8 +192,8 @@ See [docs/ansible-roles.md](docs/ansible-roles.md).
 `roles/fish/files/planwright.fish` exports `PLANWRIGHT_ADOPTER_OVERLAY` and
 `PLANWRIGHT_FLEET_STATE_DIR` for every shell, keeping a non-empty value
 already set. `tower` launches `/planwright:tower` under planwright's tower
-permission profile, fails closed when that profile is missing or has no
-`permissions.deny`, and refuses pass-through flags that would replace or
+permission profile, fails closed without a live install, the profile, `jq`
+or a non-empty `permissions.deny`, and refuses flags that would replace or
 disable it. Never merge that profile into the tracked `settings.json`. The
 rationale is in `roles/fish/files/fish/functions/tower.fish`, and
 `scripts/fish-tower-test.sh` pins it.

@@ -43,8 +43,9 @@ value, it adds a second helper that also receives every credential.
 | `~/.gitconfig.work` | the git role, included only for repositories under the work directory prefix | the work identity, from the machine-local `git-work-email` file |
 | `~/.gitconfig` | you, and every other tool on the machine | whatever `git config --global` writes |
 
-The untracked files are asserted 0600, since a tool writing `--global` can put
-a credential in them; a re-run takes the tighter of 0600 and the current mode.
+`~/.gitconfig` and `~/.gitconfig.local` are asserted 0600, since a tool
+writing `--global` can put a credential in either; a re-run takes the tighter
+of 0600 and the current mode. `~/.gitconfig.work` is rewritten at 0600.
 
 ## Migration from the old symlink
 

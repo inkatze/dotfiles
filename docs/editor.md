@@ -22,4 +22,5 @@ bundle install` never removes, `mise install` never prunes, and the
 the Linux host was cleaned, by hand.
 
 The language servers the old config drove were removed with it; the only one
-still declared is `lua-language-server`.
+still declared is `lua-language-server`, which the `lua-lsp` Claude Code
+plugin uses, not an editor.

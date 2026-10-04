@@ -28,11 +28,13 @@ Claude Code's own "context left until auto-compact" warning, which cannot be
 moved or turned off from here. The line stays blank in a folder whose trust
 dialog has not been accepted, and when `disableAllHooks` is true.
 
-A hook is removed by declaring its event as `[]` in the tracked file;
-`statusLine` has no such handle, since the merge treats it as an ordinary key
-that it only adds or overwrites and never removes. Dropping the key from the
-tracked file leaves it live on every host, so removing the status line means
-editing each live `~/.claude/settings.json`.
+A hook is removed by dropping its entry from the tracked event, or, for the
+event's last entry, by declaring the event as `[]`; deleting the event key
+leaves our entries live. `statusLine` has no such handle, since the merge
+treats it as an ordinary key that it only adds or overwrites and never
+removes. Dropping the key from the tracked file leaves it live on every host,
+so removing the status line means editing each live
+`~/.claude/settings.json`.
 
 ## The settings merge is a one-way mirror
 

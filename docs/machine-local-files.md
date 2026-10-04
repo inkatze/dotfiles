@@ -17,7 +17,8 @@ public.
   `roles/claude/files/skills/review-shared/egress.md`.
 - **`slack-users.json`** is not a secret, but it holds other people's
   identities, which are not this repo's to publish.
-- **`op-service-account-token`** is the only secret. It exists because the
+- **`op-service-account-token`** is the only secret you provide by hand
+  (`pushover-credentials` is Ansible-written). It exists because the
   1Password desktop integration authorizes per calling process: fine in a
   long-lived terminal, useless under Ansible (a fresh process per task), and
   impossible during a headless boot with no app to approve anything.
