@@ -342,19 +342,7 @@ by that task. Blocks are listed in dependency order.
 
 ## Awaiting input
 
-- **Task 1** — Parked until `specs/claude-instructions` Task 2 (the skills
-  conversion) merges to `main`; the shared reference directory it extends
-  does not exist on `main` yet. Unpark by removing this bullet once that PR
-  merges. Citations: D-16. Pending on the spec PR itself: the kickoff's
-  ready-flip was not performed because the CI wait expired with a check
-  still running on the head commit; the PR stays draft until the flip is
-  completed on a green head.
-- **Task 2** — Parked on the same merge: its config section lands in the
-  `/bot-review` skill directory that conversion creates. Unpark with Task 1.
-  Citations: D-16.
-- **Task 4** — Parked on the same merge: the backend set it edits lives in
-  the shared backends file that conversion creates. Unpark with Task 1.
-  Citations: D-16.
+(none yet)
 
 ## Deferred
 
