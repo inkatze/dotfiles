@@ -100,6 +100,28 @@ else
     ok unlisted-untouched "no sshCommand written"
 fi
 
+# 3. Both files can hold a credential, so a re-run keeps only the owner's read
+# and write bits: a numerically lower mode such as 0444 still lets others read.
+# A mode its owner tightened (0400) stays.
+mode_of() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }
+for pair in 444:400 640:600 400:400 604:600; do
+    before="${pair%%:*}" want="${pair##*:}"
+    h="$(fresh_home)"
+    for f in .gitconfig .gitconfig.local; do
+        : >"$h/$f"
+        chmod "$before" "$h/$f"
+    done
+    run_role "$h" personal
+    for f in .gitconfig .gitconfig.local; do
+        got="$(mode_of "$h/$f")"
+        if [ "$got" = "$want" ]; then
+            ok "mode-$before-$f" "0$before becomes 0$want"
+        else
+            fail "mode-$before-$f" "0$before became 0$got, want 0$want"
+        fi
+    done
+done
+
 if [ "$fails" -eq 0 ]; then
     echo "git-unattended-auth-test: all assertions hold"
 else
