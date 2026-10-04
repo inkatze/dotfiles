@@ -1,0 +1,1 @@
+- 2026-10-03 [dotfiles] The repo-root CLAUDE.md describes a tracked per-repo .claude/settings.json as the durable permissions layer, but the ignore file excludes the whole .claude/ directory and nothing under it is versioned; the documented layer does not exist on disk. Surfaced during the review-skills kickoff while checking the un-ignore mechanics REQ-F1.2 needs.
