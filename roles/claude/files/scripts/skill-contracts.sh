@@ -116,6 +116,10 @@ if read_file "$GLOBAL_MD" global_raw; then
     err "$GLOBAL_MD could not be normalized"
   fi
 fi
+# The tree plus the global file when it could be read: what the plugin-cache
+# and retired-backend scans cover.
+scan_scope=(${tree_files[@]+"${tree_files[@]}"})
+[ -z "$global_ok" ] || scan_scope+=("$GLOBAL_MD")
 
 # files_matching <grep flags> <pattern> [<file>...]: sets matched to the files
 # with a match; the tree files when none are named. Called in this shell, never
@@ -163,7 +167,7 @@ expected_hint() {
 }
 for name in "${SKILL_NAMES[@]}"; do
   f="$(skill_md "$name")"
-  [ -f "$f" ] || continue
+  [ -f "$f" ] && [ -r "$f" ] || continue
   # Front matter is the lines between a first-line --- and the next ---; with no
   # closing delimiter there is none, so a body line cannot stand in for it.
   front="$(awk 'NR==1 { if ($0 != "---") exit; next } $0 == "---" { closed = 1; exit } { buf = buf $0 "\n" } END { if (closed) printf "%s", buf }' "$f")"
@@ -193,10 +197,9 @@ require_normalized "$SHARED/doctrine.md" "root-resolution sentence" \
 for name in "${SKILL_NAMES[@]}"; do
   require_phrases "$(skill_md "$name")" "doctrine pointer" "](../review-shared/doctrine.md)"
 done
-cache_files=(${tree_files[@]+"${tree_files[@]}"})
-[ -z "$global_ok" ] || cache_files+=("$GLOBAL_MD")
+cache_files=(${scan_scope[@]+"${scan_scope[@]}"})
 [ -f CLAUDE.md ] && cache_files+=(CLAUDE.md)
-files_matching -F 'plugins/cache' "${cache_files[@]}"
+files_matching -F 'plugins/cache' ${cache_files[@]+"${cache_files[@]}"}
 for f in ${matched[@]+"${matched[@]}"}; do
   case "$f" in "$SHARED"/*) continue ;; esac
   err "$f names the plugin cache path; locate planwright through $SHARED/doctrine.md only"
@@ -209,7 +212,7 @@ for name in panel-review copilot-review bot-review; do
 done
 for name in panel-review copilot-review bot-review; do
   f="$(skill_md "$name")"
-  [ -f "$f" ] || continue
+  [ -f "$f" ] && [ -r "$f" ] || continue
   paras="$(awk 'BEGIN{RS=""} /Drain-scope override:/{gsub(/\n/," "); print}' "$f")"
   [ -n "$paras" ] || err "$f states no drain-scope override"
   while IFS= read -r para; do
@@ -389,12 +392,12 @@ done
 
 # --- The user-global file ---
 
-# records_of: the markdown on stdin, one record per line: a bullet joined with
-# its indented continuation lines, every other line on its own.
+# records_of: the markdown on stdin, one record per line: a list item joined
+# with its deeper-indented continuation lines, every other line on its own.
 records_of() {
   awk '
-    /^- / { if (have) print rec; rec = $0; have = 1; bullet = 1; next }
-    bullet && /^  +/ && !/^ +[-*+] / { sub(/^ +/, ""); rec = rec " " $0; next }
+    /^ *([-*+]|[0-9]+[.)]) / { if (have) print rec; rec = $0; have = 1; bullet = 1; next }
+    bullet && /^  +/ { sub(/^ +/, ""); rec = rec " " $0; next }
     { if (have) print rec; rec = $0; have = 1; bullet = 0 }
     END { if (have) print rec }
   '
@@ -402,9 +405,8 @@ records_of() {
 
 # occurrences <haystack> <needle> <var>: how many times needle appears.
 occurrences() {
-  local h="$1" c=0
-  while [[ "$h" == *"$2"* ]]; do h="${h#*"$2"}"; c=$((c + 1)); done
-  printf -v "$3" '%s' "$c"
+  local r="${1//"$2"/}"
+  printf -v "$3" '%s' $(( (${#1} - ${#r}) / ${#2} ))
 }
 
 # The outbound-message rule and the Slack mechanics each live in one place, so
@@ -420,7 +422,7 @@ done
 [ ! -f CLAUDE.md ] || forbid_normalized CLAUDE.md "copy of a global rule or the Slack mechanics" \
   "$OUTBOUND_ANCHOR" "$RESOLUTION_ANCHOR" "$FIXED_TEMPLATE"
 require_normalized "$SHARED/slack.md" "unattended handoff step" \
-  "With no operator present, draft the message and its recipient into the handoff instead of sending it."
+  "With no operator present, draft a message no go-ahead covers, and its recipient, into the handoff instead of sending it."
 
 if [ -n "$global_ok" ]; then
   global_records="$(records_of <<< "$global_raw")" \
@@ -431,6 +433,7 @@ if [ -n "$global_ok" ]; then
   if grep -qiE '^#+ .*(validation rigor|discovery rigor|finding categorization|refactor instinct|composability)' <<< "$global_raw"; then
     err "$GLOBAL_MD carries a heading for a planwright doctrine document; point at the document instead"
   fi
+  list_item='^ *([-*+]|[0-9]+[.)]) '
   for doc in validation-rigor discovery-rigor finding-categorization refactor-instinct; do
     n=0; hit=""
     while IFS= read -r rec; do
@@ -438,7 +441,7 @@ if [ -n "$global_ok" ]; then
     done <<< "$global_records"
     if [ "$n" -ne 1 ]; then
       err "$GLOBAL_MD names $doc in $n places; name it once, in the doctrine pointer bullet"
-    elif [[ "$hit" != "- "* || "$hit" != *"review-shared/doctrine.md"* ]]; then
+    elif ! [[ "$hit" =~ $list_item ]] || [[ "$hit" != *"review-shared/doctrine.md"* ]]; then
       err "$GLOBAL_MD names $doc outside a pointer bullet naming review-shared/doctrine.md"
     fi
   done
@@ -464,7 +467,7 @@ if [ -n "$global_ok" ]; then
     "Draft → Active" "\`Draft\` → \`Active\`" "non-Active spec" "non-\`Active\` spec"
   forbid_normalized "$GLOBAL_MD" "review_sequence claim" "review_sequence"
 
-  POLISH_SCOPE="\`/polish\` applies Auto-applicable, Agent-resolvable and Needs-sign-off fixes on the branch, stops at Needs human judgment"
+  POLISH_SCOPE="\`/polish\` applies Auto-applicable, Agent-resolvable and Needs-sign-off fixes on the branch, pausing first on planwright's hard-disqualifier zones and stopping at Needs human judgment"
   occurrences "$global_norm" "$POLISH_SCOPE" n
   [ "$n" -eq 1 ] || err "$GLOBAL_MD states /polish's drain scope $n times; state it once: \"$POLISH_SCOPE\""
   forbid_normalized "$GLOBAL_MD" "/polish drain-scope phrasing" \
@@ -481,7 +484,7 @@ if [ -n "$global_ok" ]; then
     "current with its base" "up to date with its base" "up-to-date with its base" "sync, push and re-run"
   require_normalized "$GLOBAL_MD" "kickoff-flip exception" \
     "Never flip a PR ready on your own initiative, with one exception: the spec PR after a signed-off kickoff, which planwright marks ready by configuration." \
-    "A flip I confirm in that run (such as \`/copilot-review --nested\` asking at convergence) is one I requested, not an exception."
+    "A flip I confirm when a run asks me (such as \`/copilot-review --nested\` asking at convergence) is one I requested, not an exception."
   require_normalized "$GLOBAL_MD" "hook-denial sentence" \
     "If planwright's ready-guard hook denies a flip on a branch that meets these conditions, report the denial to me and never work around it: no sync to satisfy it, no bypass."
 
@@ -493,7 +496,7 @@ if [ -n "$global_ok" ]; then
     "No message addressed to another person (a chat message, an email, a pull-request review, comment or reply, an issue comment) is sent unless I have seen its exact text and recipient $OUTBOUND_ANCHOR." \
     "A recipient that cannot be resolved is never guessed." \
     "$EXC1" "$EXC2" \
-    "An automated reviewer is an account GitHub reports as a bot, a login ending in \`[bot]\`, or a login matching a configured bot-review pattern" \
+    "An automated reviewer is an account GitHub reports as a bot, a login ending in \`[bot]\`, or a login a configured bot-review pattern matches in full" \
     "a thread any human has replied in is a message to that human." \
     "The bodies of my own pull requests and issues, and review requests on them, are not messages." \
     "With no operator present, a message this rule would hold back is drafted, with its recipient, into the run's handoff and never sent."
@@ -501,16 +504,26 @@ if [ -n "$global_ok" ]; then
   # exceptions and nothing else, however it is wrapped.
   case "$global_norm" in
     *"exactly two exceptions: "*"An automated reviewer is"*)
-      block="${global_norm#*"exactly two exceptions: "}"
-      block="${block%%"An automated reviewer is"*}"
+      # ${x#*needle} is quadratic on a string this long; cut by length.
+      anchor="exactly two exceptions: "
+      pre="${global_norm%%"$anchor"*}"
+      exceptions_text="${global_norm:$((${#pre} + ${#anchor}))}"
+      pre="${exceptions_text%%"An automated reviewer is"*}"
+      section_tail="${exceptions_text:${#pre}}"
+      section_tail="${section_tail%%" ## "*}"
+      exceptions_text="$pre"
       # A missing exception is reported by its pin above; only extra content
-      # is reported here. Any list marker counts as formatting.
-      if [[ "$block" == *"$EXC1"* && "$block" == *"$EXC2"* ]]; then
-        rest="${block//"$EXC1"/}"; rest="${rest//"$EXC2"/}"; rest="${rest//[[:space:]]/}"
-        two_markers='^([-*+]|[0-9]+[.)]){2}$'
-        [[ "$rest" =~ $two_markers ]] \
+      # is reported here. Any list marker, or none, counts as formatting.
+      if [[ "$exceptions_text" == *"$EXC1"* && "$exceptions_text" == *"$EXC2"* ]]; then
+        rest="${exceptions_text//"$EXC1"/}"; rest="${rest//"$EXC2"/}"; rest="${rest//[[:space:]]/}"
+        markers='^(([-*+]|[0-9]+[.)]){2})?$'
+        [[ "$rest" =~ $markers ]] \
           || err "$GLOBAL_MD's exceptions list holds something besides its two exceptions; the rule has exactly two"
-      fi ;;
+      fi
+      shopt -s nocasematch
+      [[ "$section_tail" != *exception* ]] \
+        || err "$GLOBAL_MD names a further exception after the outbound rule's two; the rule has exactly two"
+      shopt -u nocasematch ;;
     *) err "$GLOBAL_MD has no \"exactly two exceptions:\" list ahead of the automated-reviewer definition" ;;
   esac
   forbid_normalized "$GLOBAL_MD" "Slack mechanics" "$RESOLUTION_ANCHOR" "$FIXED_TEMPLATE"
@@ -518,14 +531,14 @@ if [ -n "$global_ok" ]; then
     require_normalized "$GLOBAL_MD" "Slack mechanics pointer" "review-shared/slack.md\`"
   fi
   # Per sentence, so "optional" must describe the server the sentence names.
-  # A list item starts its own sentence; a sentence ends at . ? or !, bold or
-  # code markup closing it included.
+  # A list item or heading is its own sentence; a sentence ends at . ? or !,
+  # bold or code markup closing it included.
   slack_sentences="$(awk '
     BEGIN { RS = "" }
     {
       n = split($0, l, "\n"); out = ""
       for (i = 1; i <= n; i++) {
-        if (out != "") out = out (l[i] ~ /^ *([-*+]|[0-9]+[.)]) / ? "\n" : " ")
+        if (out != "") out = out (l[i] ~ /^ *([-*+]|[0-9]+[.)]|#+) / || l[i - 1] ~ /^#+ / ? "\n" : " ")
         out = out l[i]
       }
       gsub(/[.?!](\*\*|\*|`)?[)"]? /, "&\n", out); print out
@@ -546,22 +559,28 @@ if [ -n "$global_ok" ]; then
   [ -z "$dates" ] || err "$GLOBAL_MD carries a dated origin story: ${dates%%$'\n'*}"
   # Origin: as a lead (line, quote, list item or new sentence), never the
   # git remote in ordinary prose ("push to origin:").
-  ! grep -qiE '(^[[:space:]]*(>[[:space:]]*)?(([-*+]|[0-9]+[.)])[[:space:]]+)?|[.!?][[:space:]]+)(\*\*|_|\*)?Origin:' <<< "$global_raw" \
+  ! grep -qiE '(^[[:space:]]*(>[[:space:]]*)?(([-*+]|[0-9]+[.)])[[:space:]]+)?|[.!?][[:space:]]+)(\*\*|_|\*)?Origin(\*\*|_|\*)?:' <<< "$global_raw" \
     || err "$GLOBAL_MD carries an origin story; keep the constraint, not its history"
   while IFS= read -r tok; do
     [ -n "$tok" ] && [ "$tok" != ed25519 ] || continue
     [[ "$tok" == *[0-9]* && "$tok" == *[a-f]* ]] && err "$GLOBAL_MD carries a commit reference: $tok"
-  done <<< "$(grep -owE '[0-9a-f]{7,40}' <<< "$global_raw" || true)"
+  done <<< "$(grep -owE '[0-9a-f]{7,64}' <<< "$global_raw" || true)"
   require_normalized "$GLOBAL_MD" "push rule" \
     "Never push to \`main\` or any other protected branch, with or without force." \
     "A branch you cannot confirm is unprotected counts as protected." \
     "Never delete a remote branch (\`git push origin --delete <branch>\`, or a \`:<branch>\` refspec)." \
     "any push that would not fast-forward the remote, whatever its spelling" \
     "Publish a rewrite only with \`--force-with-lease --force-if-includes\`, always paired" \
-    "\`--force-with-lease=<branch>:<sha>\` only with a SHA you saw before rewriting" \
+    "naming the SHA (\`--force-with-lease=<branch>:<sha>\`) only when it is the one your rewrite started from, never one read from the remote-tracking ref at push time, since an explicit SHA turns \`--force-if-includes\` off" \
     "plain \`--force\`, a \`+\` refspec and push-time force configuration are forbidden." \
     "A push either check rejects (\`stale info\`, \`remote ref updated since checkout\`) means someone else moved the branch" \
     "never retry with a broader force or a refetched lease."
+  require_normalized "$GLOBAL_MD" "rewrite scope" \
+    "never a bare \`git push\`" \
+    "A repository whose owner you cannot tell counts as a work repo." \
+    "It never widens it onto a protected or shared branch." \
+    "**Never in scope:** \`main\`, any protected branch, and a shared branch." \
+    "and branch instead if they do or you cannot tell."
 
   # The shell rules state what the Bash tool actually runs.
   require_normalized "$GLOBAL_MD" "shell line" \
@@ -582,10 +601,8 @@ done
 
 # Retired backends: nothing provisions Ollama any more, so a qwen-coder,
 # gpt-oss or OLLAMA_BASE_URL mention re-advertises a backend that can only fail.
-retired_scope=(${tree_files[@]+"${tree_files[@]}"})
-[ -z "$global_ok" ] || retired_scope+=("$GLOBAL_MD")
 for retired_name in qwen-coder gpt-oss OLLAMA_BASE_URL; do
-  files_matching -F "$retired_name" "${retired_scope[@]}"
+  files_matching -F "$retired_name" ${scan_scope[@]+"${scan_scope[@]}"}
   for path in ${matched[@]+"${matched[@]}"}; do
     err "$path references the retired backend name '$retired_name'; nothing provisions Ollama any more"
   done

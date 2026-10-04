@@ -60,9 +60,10 @@ only on a branch in scope:
   you cannot tell.
 
 Publish a rewrite only with `--force-with-lease --force-if-includes`, always
-paired, adding `--force-with-lease=<branch>:<sha>` only with a SHA you saw
-before rewriting; plain `--force`, a `+` refspec and push-time force
-configuration are forbidden. A push either check rejects (`stale info`,
+paired, naming the SHA (`--force-with-lease=<branch>:<sha>`) only when it is
+the one your rewrite started from, never one read from the remote-tracking ref
+at push time, since an explicit SHA turns `--force-if-includes` off; plain
+`--force`, a `+` refspec and push-time force configuration are forbidden. A push either check rejects (`stale info`,
 `remote ref updated since checkout`) means someone else moved the branch:
 treat it as shared from then on, and never retry with a broader force or a
 refetched lease.
@@ -88,7 +89,7 @@ test result calls for it.
 
 Never flip a PR ready on your own initiative, with one exception: the spec PR
 after a signed-off kickoff, which planwright marks ready by configuration. A
-flip I confirm in that run (such as `/copilot-review --nested` asking at
+flip I confirm when a run asks me (such as `/copilot-review --nested` asking at
 convergence) is one I requested, not an exception. Once I have asked, do not
 hand the flip back to me as a manual step.
 
@@ -143,7 +144,7 @@ When reviewing code or addressing review feedback:
 ### Review Workflows
 
 - `/self-review`: planwright's `self-review` skill, a review of my branch that ends in a draft PR.
-- `/polish`: planwright's `polish` skill. `/polish` applies Auto-applicable, Agent-resolvable and Needs-sign-off fixes on the branch, stops at Needs human judgment, and never pushes.
+- `/polish`: planwright's `polish` skill. `/polish` applies Auto-applicable, Agent-resolvable and Needs-sign-off fixes on the branch, pausing first on planwright's hard-disqualifier zones and stopping at Needs human judgment, and never pushes.
 - `/panel-review`: `~/.claude/skills/panel-review/SKILL.md`, a review of my branch through non-Anthropic backends.
 - `/copilot-review`: `~/.claude/skills/copilot-review/SKILL.md`, GitHub Copilot's review threads on my PR.
 - `/bot-review`: `~/.claude/skills/bot-review/SKILL.md`, a third-party review bot's findings on my PR.
@@ -165,7 +166,7 @@ The rule has exactly two exceptions:
   human may read them.
 
 An automated reviewer is an account GitHub reports as a bot, a login ending in
-`[bot]`, or a login matching a configured bot-review pattern; a thread any
+`[bot]`, or a login a configured bot-review pattern matches in full; a thread any
 human has replied in is a message to that human. The bodies of my own pull
 requests and issues, and review requests on them, are not messages.
 

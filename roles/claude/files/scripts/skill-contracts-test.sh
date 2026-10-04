@@ -529,7 +529,7 @@ expect_fail fixed-template-shared \
 expect_fail unattended-global-dropped \
   "perl -0pi -e 's/drafted, with\\s+its recipient, into the run.s handoff and never sent/sent anyway/' $GLOBAL_MD" "outbound-message rule"
 expect_fail unattended-shared-dropped \
-  "perl -0pi -e 's/With no operator present, draft the message and\\s+its recipient into the handoff instead of sending it\\./Send it anyway./' $SHARED/slack.md" "unattended handoff step"
+  "perl -0pi -e 's/With no operator present, draft a message no\\s+go-ahead covers, and its recipient, into the handoff instead of sending it\\./Send it anyway./' $SHARED/slack.md" "unattended handoff step"
 expect_fail bot-definition-dropped \
   "perl -0pi -e 's/a login ending in\\s+\`\\[bot\\]\`, //' $GLOBAL_MD" "outbound-message rule"
 expect_fail mixed-thread-dropped \
@@ -542,8 +542,6 @@ expect_fail dated-origin-story \
   "printf '\\nOrigin: the 2026-06-12 orchestration run.\\n' >> $GLOBAL_MD" "dated origin story"
 expect_fail commit-reference \
   "printf '\\nAdded in ee7a5f8 after a review.\\n' >> $GLOBAL_MD" "commit reference"
-expect_fail push-spelling-dropped \
-  "perl -0pi -e 's/, adding \`--force-with-lease=<branch>:<sha>\` only with a SHA you saw\\s+before rewriting//' $GLOBAL_MD" "push rule"
 expect_fail push-delete-spelling-dropped \
   "perl -0pi -e 's/\\(\`git push origin --delete <branch>\`, or a\\s+\`:<branch>\` refspec\\)//' $GLOBAL_MD" "push rule"
 expect_fail fish-only-wording \
@@ -563,7 +561,7 @@ expect_fail slack-mcp-not-optional \
 expect_pass slack-mcp-absent \
   "perl -0pi -e 's/The Slack MCP server is optional;[^\\n]*\\n[^\\n]*\\n//' $GLOBAL_MD"
 expect_fail polish-scope-twice \
-  "printf '\\n\`/polish\` applies Auto-applicable, Agent-resolvable and Needs-sign-off fixes on the branch, stops at Needs human judgment.\\n' >> $GLOBAL_MD" "drain scope 2 times"
+  "printf '\\n\`/polish\` applies Auto-applicable, Agent-resolvable and Needs-sign-off fixes on the branch, pausing first on planwright'\\''s hard-disqualifier zones and stopping at Needs human judgment.\\n' >> $GLOBAL_MD" "drain scope 2 times"
 expect_fail polish-scope-contradiction \
   "printf '\\n\`/polish\` and \`/panel-review --nested\` use Needs human judgment as their loop boundary.\\n' >> $GLOBAL_MD" "/polish drain-scope phrasing"
 expect_fail polish-scope-auto-boundary \
@@ -571,15 +569,20 @@ expect_fail polish-scope-auto-boundary \
 expect_fail polish-scope-old-drain \
   "printf '\\nIt drains Auto-applicable and Needs sign-off, all applied on the branch.\\n' >> $GLOBAL_MD" "/polish drain-scope phrasing"
 expect_fail polish-scope-missing \
-  "perl -0pi -e 's/\`\\/polish\` applies Auto-applicable, Agent-resolvable and Needs-sign-off fixes on the branch, stops at Needs human judgment/It polishes/' $GLOBAL_MD" "drain scope 0 times"
+  "perl -0pi -e 's/\`\\/polish\` applies Auto-applicable, Agent-resolvable and Needs-sign-off fixes on the branch, pausing first on planwright.s hard-disqualifier zones and stopping at Needs human judgment/It polishes/' $GLOBAL_MD" "drain scope 0 times"
 
 # Each pinned prohibition and spelling fails on its own (REQ-E1.1).
 for pin in 'with or without force' 'counts as protected' 'Never delete a remote branch' \
     'whatever its spelling' '--force-with-lease --force-if-includes' \
     '--force-with-lease=<branch>:<sha>' 'plain `--force`' 'a `+` refspec' \
     'push-time force configuration are forbidden' '`stale info`' \
-    '`remote ref updated since checkout`' 'never retry with a broader force'; do
+    '`remote ref updated since checkout`' 'never retry with a broader force' \
+    'never one read from the remote-tracking ref' 'turns `--force-if-includes` off'; do
   PIN="$pin" expect_fail "push-rule-dropped ($pin)" 'drop_pin "$PIN" "$GLOBAL_MD"' "push rule"
+done
+for pin in 'never a bare `git push`' 'counts as a work repo' 'It never widens it onto a protected or shared' \
+    'any protected branch, and a shared branch' 'or you cannot tell'; do
+  PIN="$pin" expect_fail "rewrite-scope-dropped ($pin)" 'drop_pin "$PIN" "$GLOBAL_MD"' "rewrite scope"
 done
 expect_fail never-auto-chain-dropped \
   "perl -0pi -e 's/Never\\s+auto-chain/Feel free to auto-chain/' $GLOBAL_MD" "hard-invariants paragraph"
@@ -663,6 +666,27 @@ expect_fail fish-run-directly \
 expect_fail protected-branch-invariant-dropped \
   "perl -0pi -e 's/and never push to a\\s+protected branch/and push freely/' $GLOBAL_MD" "hard-invariants paragraph"
 
+for heading in 'Validation Rigor (Issue Identification)' 'Finding Categorization' 'Refactor Instinct' 'Composability by default'; do
+  HEADING="$heading" expect_fail "global-doctrine-heading ($heading)" \
+    'printf "\n### %s\n\nCopied rule text.\n" "$HEADING" >> "$GLOBAL_MD"' "heading for a planwright doctrine document"
+done
+expect_fail fixed-template-in-root \
+  "printf '\\nThe body does not need confirming: it is a fixed template the command supplies.\\n' >> CLAUDE.md" "copy of a global rule or the Slack mechanics"
+expect_fail slack-resolution-anchor-removed \
+  "perl -0pi -e 's/Resolve the GitHub login\\s+to a Slack user/Look them up/' $SHARED/slack.md" "shared block anchor missing"
+expect_fail exception-after-definition \
+  "perl -0pi -e 's/(into the run.s handoff and never sent\\.\\n)/\$1\\nMessages to my team are a third exception.\\n/' $GLOBAL_MD" "further exception after"
+expect_pass exceptions-as-prose \
+  "perl -0pi -e 's/^- (An explicit go-ahead|Replies to automated)/\$1/mg' $GLOBAL_MD"
+expect_pass doctrine-pointer-nested-bullet \
+  "perl -0pi -e 's/^- \\*\\*Review doctrine is planwright.s\\.\\*\\*/  - **Review doctrine is planwright.s.**/m' $GLOBAL_MD"
+expect_fail origin-bold-colon-outside \
+  "printf '\\n**Origin**: a stale socket broke signing.\\n' >> $GLOBAL_MD" "carries an origin story"
+expect_fail commit-reference-sha256 \
+  "printf '\\nFixed in 3f1a9c0d2b7e4a6f8c1d0e9b2a4c6e8f0a1b3c5d7e9f1a2b4c6d8e0f2a4b6c8d.\\n' >> $GLOBAL_MD" "commit reference"
+expect_fail slack-mcp-heading-joined \
+  "printf '\\n### Slack MCP\\nOther servers are optional.\\n' >> $GLOBAL_MD" "without calling it optional"
+
 # A missing global file still lets every skills-tree scan run.
 expect_fail missing-global-file-tree-still-scanned \
   "rm $GLOBAL_MD && printf '\\nNothing is sent unless I have seen it and said yes in this session.\\n' >> $(md peer-review)" "restates the outbound-message rule"
@@ -677,8 +701,17 @@ if [ "$(id -u)" -ne 0 ]; then
   fi
   chmod 644 "$tmp/$GLOBAL_MD"
   teardown
+  setup
+  chmod 000 "$tmp/$(md copilot-review)"
+  out="$(run_checker 2>&1)" && rc=0 || rc=$?
+  if [ "$rc" -eq 0 ] || ! grep -qF "$(md copilot-review) could not be read" <<< "$out" || ! grep -qF "invariant(s) broken" <<< "$out"; then
+    echo "FAIL unreadable-skill-file: expected a read error and the summary (exit $rc): $out"
+    failures=$((failures + 1))
+  fi
+  chmod 644 "$tmp/$(md copilot-review)"
+  teardown
 else
-  echo "SKIP unreadable-global-file: root reads a mode-000 file"
+  echo "SKIP unreadable-global-file, unreadable-skill-file: root reads a mode-000 file"
 fi
 
 # --- File-missing guards ---
