@@ -55,8 +55,8 @@ tags = ["hostname", "req-f1.1"]
 [allowlist]
 description = "Retired LAN reservation still named in specs/, plus repo-owned filenames the hostname rule cannot distinguish from hosts"
 regexes = [
-  # Retired LAN reservation. Nothing provisions Ollama any more (CLAUDE.md,
-  # "Ollama is no longer provisioned"), but the frozen record in
+  # Retired LAN reservation. Nothing provisions Ollama any more
+  # (docs/ollama.md), but the frozen record in
   # specs/pair-flow/research/panel-underuse.md still names this address.
   '''192\.168\.1\.20''',
   '''^config\.local$''',
