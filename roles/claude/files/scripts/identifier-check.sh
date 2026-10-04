@@ -58,8 +58,10 @@ done
 [ "${#paths[@]}" -gt 0 ] || { echo "ERROR: none of the checked paths exist; run from the repo root" >&2; exit 2; }
 
 # grep exits 1 on no match and 2 on a read error; only 2 is a failure.
+# -w matches whole words, as the gitleaks rule generator's \b does, so a
+# name inside a longer word is not a hit.
 set +e
-raw="$(grep -rniI -F -f "$patterns" -- "${paths[@]}")"
+raw="$(grep -rniIw -F -f "$patterns" -- "${paths[@]}")"
 status=$?
 set -e
 [ "$status" -le 1 ] || { echo "ERROR: grep could not read the checked files (exit $status)" >&2; exit 2; }

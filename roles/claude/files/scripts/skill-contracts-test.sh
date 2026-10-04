@@ -393,6 +393,8 @@ expect_fail codex-without-git-check-flag \
 # --- One rule where skills disagreed (REQ-C1.9) ---
 expect_fail bare-codex-invocation \
   "echo 'Run codex exec \"review this\" from the repo.' >> $(md code-review)" "runs codex outside the contained form"
+expect_fail codex-argv-prompt \
+  "echo 'codex exec --sandbox read-only \"review this\"' >> $(md code-review)" "runs codex outside the contained form"
 expect_fail unquoted-heredoc \
   "printf 'body=\$(cat <<EOF\\nhi\\nEOF\\n)\\n' >> $(md peer-review)" "unquoted heredoc"
 expect_fail copied-lens-list \
@@ -487,6 +489,8 @@ expect_fail skip-git-outside-backends \
   "echo 'Pass --skip-git-repo-check when codex complains.' >> $(md panel-review)" "git-check skip outside the contained form"
 expect_fail link-outside-tree \
   "echo 'See [the global file](../../CLAUDE.md).' >> $(md bot-review)" "outside $SKILLS"
+expect_fail link-via-symlink-outside \
+  "ln -s ../../CLAUDE.md $SHARED/outside.md && echo 'See [the shared file](../review-shared/outside.md).' >> $(md bot-review)" "outside $SKILLS"
 expect_fail retired-file-copilot-pairing \
   "mkdir $SKILLS/copilot-pairing && touch $SKILLS/copilot-pairing/SKILL.md" "was retired into --nested"
 expect_fail mark-ready-second-sentence \
@@ -531,6 +535,12 @@ for planted in "$(md peer-review)" "$SHARED/github.md" roles/claude/files/CLAUDE
   fi
   teardown
 done
+id_setup
+printf 'Seen in the zqx-synthetic-projectfoo repo.\n' >> "$tmp/CLAUDE.md"
+if ! out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" 2>&1)"; then
+  echo "FAIL identifier-substring: a name inside a longer word was reported: $out"; failures=$((failures + 1))
+fi
+teardown
 id_setup
 printf 'Seen in the zqx-synthetic-project repo.\n' >> "$tmp/specs/pair-flow/requirements.md"
 if ! out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" 2>&1)"; then

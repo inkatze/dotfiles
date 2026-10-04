@@ -16,15 +16,19 @@ errors=0
 
 err() { echo "ERROR: $1"; errors=$((errors + 1)); }
 
-# read_file <path> <var>: whole file into var, or an error and an empty var.
+# read_file <path> <var>: whole file into var, or an error, an empty var and
+# a non-zero return, so a caller never runs phrase checks on missing text.
 read_file() {
-  local __body=""
-  if [ -f "$1" ]; then
-    IFS= read -r -d "" __body < "$1" || true
+  local __body="" __rc=0
+  if [ ! -f "$1" ]; then
+    err "$1 does not exist"; __rc=1
+  elif [ ! -r "$1" ]; then
+    err "$1 could not be read"; __rc=1
   else
-    err "$1 does not exist"
+    IFS= read -r -d "" __body < "$1" || true
   fi
   printf -v "$2" '%s' "$__body"
+  return "$__rc"
 }
 
 # require_phrases <path> <label> <phrase>...: each phrase verbatim in the file.
@@ -32,7 +36,7 @@ require_phrases() {
   local path="$1" label="$2" phrase body
   shift 2
   [ -f "$path" ] || { err "$path (needed for $label) does not exist"; return; }
-  read_file "$path" body
+  read_file "$path" body || return 0
   for phrase in "$@"; do
     [[ "$body" == *"$phrase"* ]] || err "$path missing expected $label: \"$phrase\""
   done
@@ -44,7 +48,9 @@ require_normalized() {
   local path="$1" label="$2" phrase normalized
   shift 2
   [ -f "$path" ] || { err "$path (needed for $label) does not exist"; return; }
-  normalized="$(tr -s '[:space:]' ' ' < "$path")"
+  if ! normalized="$(tr -s '[:space:]' ' ' < "$path")"; then
+    err "$path could not be read (needed for $label)"; return
+  fi
   for phrase in "$@"; do
     [[ "$normalized" == *"$phrase"* ]] || err "$path missing expected $label: \"$phrase\""
   done
@@ -281,8 +287,8 @@ files_matching -F 'gh copilot --help'
 for f in ${matched[@]+"${matched[@]}"}; do
   err "$f names 'gh copilot --help'; its help output proves nothing about the CLI"
 done
-require_phrases "$SHARED/backends.md" "contained codex invocation" \
-  '( cd "$scratch" && "$codex_bin" exec --sandbox read-only --skip-git-repo-check < "$prompt_file" )'
+CODEX_CONTAINED='( cd "$scratch" && "$codex_bin" exec --sandbox read-only --skip-git-repo-check < "$prompt_file" )'
+require_phrases "$SHARED/backends.md" "contained codex invocation" "$CODEX_CONTAINED"
 
 # --- One rule per mechanic the skills share ---
 require_normalized "$SHARED/backends.md" "contained-codex rule" \
@@ -293,7 +299,7 @@ files_matching -E 'codex(_bin"?)? exec'
 for f in ${matched[@]+"${matched[@]}"}; do
   lines="$(grep -E 'codex(_bin"?)? exec' "$f")" || { err "$f could not be read while checking codex invocations"; continue; }
   while IFS= read -r line; do
-    [[ "$line" == *"--sandbox read-only"* ]] \
+    [[ "$line" == *"$CODEX_CONTAINED"* ]] \
       || err "$f runs codex outside the contained form (read-only sandbox, prompt on stdin, empty scratch directory): $line"
   done <<< "$lines"
 done
@@ -329,8 +335,13 @@ for f in "${tree_files[@]}"; do
       err "$f links to $target, which does not exist"
     else
       t="$dir/$target"
-      real="$(cd "${t%/*}" && pwd -P)"
-      case "$real" in "$skills_root"|"$skills_root"/*) ;; *) err "$f links to $target, outside $SKILLS" ;; esac
+      # realpath, not the directory's pwd -P: a link to a symlink that points
+      # outside the tree must count as outside.
+      if ! real="$(realpath "$t")"; then
+        err "$f links to $target, which could not be resolved"
+      else
+        case "$real" in "$skills_root"/*) ;; *) err "$f links to $target, outside $SKILLS" ;; esac
+      fi
     fi
   done <<< "$(LC_ALL=C sort -u <<< "$links")"
 done

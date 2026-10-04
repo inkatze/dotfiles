@@ -22,14 +22,18 @@ pre-commit:
       run: shellcheck --severity=warning {staged_files}
     skill-contracts:
       # Beyond the skill files: both CLAUDE.md files are in the glob because the
-      # checker asserts against them; the checker so its own edits re-run it;
-      # the fixture suite both so its edits are validated and because the suite
-      # is the only thing that notices a check class being deleted from the
-      # checker (the checker alone still reports "all invariants hold"); and
-      # identifier-check.sh because the suite runs it.
+      # checker asserts against them, and the checker so its own edits re-run it.
       glob: "{CLAUDE.md,roles/claude/files/{skills/*/*.{md,json},CLAUDE.md,\
         scripts/{skill-contracts.sh,skill-contracts-test.sh,identifier-check.sh}}}"
-      run: roles/claude/files/scripts/skill-contracts.sh && roles/claude/files/scripts/skill-contracts-test.sh
+      run: roles/claude/files/scripts/skill-contracts.sh
+    skill-contracts-suite:
+      # The fixture suite is what notices a check class being deleted from the
+      # checker (the checker alone still reports "all invariants hold"). It is
+      # slow, so it runs here only when the checker, the suite or the
+      # identifier check it runs changes; CI (.github/workflows/test.yml) runs
+      # it on every PR.
+      glob: "roles/claude/files/scripts/{skill-contracts.sh,skill-contracts-test.sh,identifier-check.sh}"
+      run: roles/claude/files/scripts/skill-contracts-test.sh
     instruction-budget:
       # lefthook.yml and the workflow too: the suite asserts both wire the checker.
       glob: "{CLAUDE.md,lefthook.yml,.github/workflows/test.yml,\
