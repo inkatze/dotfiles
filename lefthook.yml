@@ -39,6 +39,11 @@ pre-commit:
       glob: "{CLAUDE.md,lefthook.yml,.github/workflows/test.yml,\
         roles/claude/files/{skills/*/*.md,CLAUDE.md,scripts/instruction-budget{.sh,-test.sh}}}"
       run: roles/claude/files/scripts/instruction-budget.sh && roles/claude/files/scripts/instruction-budget-test.sh
+    review-state:
+      # The suite is what notices the lock reclaiming a live holder or the
+      # evidence key ignoring untracked files; the helper alone still exits 0.
+      glob: "roles/claude/files/scripts/review-state{.sh,-test.sh}"
+      run: roles/claude/files/scripts/review-state-test.sh
     claude-skills-link:
       # The suite is what notices the ownership guard being dropped; the role
       # alone still converges on a host whose skills directory holds nothing
