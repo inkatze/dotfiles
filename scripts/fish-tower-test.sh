@@ -69,8 +69,9 @@ add_version() {
 h="$(new_home env)"
 # The child takes --no-config too: with XDG_CONFIG_HOME pointing at a deployed
 # config it would re-derive the values itself and hide a snippet that stopped
-# exporting them.
-out="$(HOME="$h" fish --no-config -c "source '$snippet'; fish --no-config -c 'printf \"%s\n\" \$PLANWRIGHT_ADOPTER_OVERLAY \$PLANWRIGHT_FLEET_STATE_DIR'")"
+# exporting them. Both are cleared because the snippet keeps a caller's value,
+# and every planwright session already exports them.
+out="$(env -u PLANWRIGHT_ADOPTER_OVERLAY -u PLANWRIGHT_FLEET_STATE_DIR HOME="$h" fish --no-config -c "source '$snippet'; fish --no-config -c 'printf \"%s\n\" \$PLANWRIGHT_ADOPTER_OVERLAY \$PLANWRIGHT_FLEET_STATE_DIR'")"
 want="$h/.claude/plugins/data/planwright-planwright/overlay
 $h/.claude/plugins/data/planwright-planwright/fleet"
 if [ "$out" = "$want" ]; then
