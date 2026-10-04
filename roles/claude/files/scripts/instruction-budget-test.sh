@@ -286,20 +286,22 @@ path="$(root_paths "$fx_claude" | grep '^scripts/' | head -n 1 || true)"
 expect_root_moved root-path-missing "$path" "names $path"
 expect_root_moved root-top-dir-missing scripts "names $path"
 
+# The planted fixtures below replace the file, so its own size and links
+# cannot mask or trip them.
 reset_root_fixture
-printf '\n[a](docs/no-such-note.md "title")\n' >>"$fx_claude"
+printf '[a](docs/no-such-note.md "title")\n' >"$fx_claude"
 expect_root root-link-titled "links to docs/no-such-note.md"
 
 reset_root_fixture
-printf '\n[r]: docs/no-such-ref.md\n' >>"$fx_claude"
+printf '[r]: docs/no-such-ref.md\n' >"$fx_claude"
 expect_root root-link-reference "links to docs/no-such-ref.md"
 
 reset_root_fixture
-printf '\n[up](../outside.md)\n' >>"$fx_claude"
+printf '[up](../outside.md)\n' >"$fx_claude"
 expect_root root-link-escapes "links to ../outside.md, outside the repository"
 
 reset_root_fixture
-printf '\n[web](HTTPS://example.invalid/x)\n' >>"$fx_claude"
+printf '[web](HTTPS://example.invalid/x)\n' >"$fx_claude"
 expect_root root-link-url
 
 lefthook_run="$(awk '/^    instruction-budget:/{f=1;next} f&&/^    [a-z]/{f=0} f' "$ROOT/lefthook.yml")"
