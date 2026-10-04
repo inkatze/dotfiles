@@ -30,7 +30,7 @@ gemini on every review, the opposite of the table. Keying on the alias the
 rest of the repo already uses means the work host is right with nothing to
 remember.
 
-Three resolver clauses are easy to drop, and the first cut dropped all three:
+These resolver clauses are easy to drop, and the first cut dropped them all:
 
 - Without the `alt` hostname branch, an `alt` Mac (which legitimately has no
   alias file) resolves to `work` and reaches for codex, which it never logs
@@ -41,7 +41,7 @@ Three resolver clauses are easy to drop, and the first cut dropped all three:
   `scripts/playbook.sh` and the review skills disagreeing about which machine
   it is.
 
-The fourth is the fallback direction: an unresolved alias must resolve to
+The fallback direction matters too: an unresolved alias must resolve to
 `work`, matching `playbook.sh`, because `work` is the host that does not write
 an alias file.
 
@@ -81,7 +81,8 @@ Private vault, so the key item lives in `Dotfiles Service Account` and must be
 addressed with an explicit `--vault`: without one, `op` refuses every field
 with "a vault query must be provided when this command is called by a service
 account", which reads like a missing item and is not. Moving an item between
-vaults reassigns its id; the script's header owns the current one.
+vaults reassigns its id; the comment above `ITEM_UUID` in the script owns the
+current one.
 
 ## Gemini under untrusted content
 

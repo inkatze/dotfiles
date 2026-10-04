@@ -14,7 +14,7 @@ scripts.
 ## The services role guards itself
 
 `roles/services/` runs on every host with no `when:` in `main.yml`, but its
-two task files guard themselves. On Debian it provisions the declared
+task files guard themselves. On Debian it provisions the declared
 dev-services layer (`specs/dev-services`); on Darwin it applies only the older
 macOS content (the `~/.my.cnf` client defaults, plus colima on the `personal`
 host) and none of the declared services. Install, enable, start and verify

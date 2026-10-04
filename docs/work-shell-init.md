@@ -11,7 +11,7 @@ all silently absent. `roles/fish/files/work-init.fish` (linked into
 target is sourced natively; anything else is replayed through `edc/bass`,
 since fish's own `source` cannot parse bash and bass cannot parse fish.
 
-Two ordering rules are load-bearing:
+These ordering rules are load-bearing:
 
 - **`GIT_DUET_GLOBAL false` is set after the source and outside the guard.**
   The sourced init sets it true, and `~/.gitconfig` resolves into this repo,

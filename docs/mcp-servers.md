@@ -26,7 +26,7 @@ land unnoticed.
 through a Slack MCP server, and nothing in this repo provisions it. That is a
 choice: the notification is a courtesy the skills are built to do without
 (a missing server means "say so once and carry on"), and automating a
-registration used by two skills on one machine would add another 1Password
+registration used by a few skills on one machine would add another 1Password
 item and CI-guarded task pair to maintain. If more than one machine ever wants
 it, mirror the GitHub layout above rather than copying the registration
 around.

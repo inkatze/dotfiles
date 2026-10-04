@@ -1,9 +1,9 @@
 # Machine-local files under `~/.config/dotfiles/`
 
 Rationale behind the machine-local table in the repo-root `CLAUDE.md`. None of
-these files is created by Ansible (the git role's derived `~/.gitconfig.*`
-files and the health check's generated credentials aside) and none lives in
-the repo, because this repo is public.
+these files is created by Ansible (the osx health role's generated
+`pushover-credentials` aside) and none lives in the repo, because this repo is
+public.
 
 ## Why each kind is untracked
 
@@ -40,9 +40,12 @@ the repo, because this repo is public.
   `scripts/claude-gemini-auth-sync.sh`, which addresses its item by id;
   `scripts/ssh-lan-config-sync.sh` addresses its item by name.
 - **Both scripts resolve the token through `scripts/op-token.sh`**, tested by
-  `scripts/op-token-test.sh`, so a fix to the checks lands in both. Its header
-  owns what it refuses and the precedence of an exported
-  `OP_SERVICE_ACCOUNT_TOKEN`.
+  `scripts/op-token-test.sh`, so a fix to the checks lands in both. Its
+  `resolve_op_token` refuses a file that is a symlink, is not regular, or is
+  not mode 0600 or 0400, and a value that is blank or holds anything outside
+  the token character set (NUL bytes included). An already-exported
+  `OP_SERVICE_ACCOUNT_TOKEN` takes precedence, so CI can supply one without
+  the file existing; an exported empty one is treated as absent.
 
 To rotate: `op service-account create <name> --vault 'Dotfiles Service
 Account':read_items`, write the returned token to the file with `umask 077`,
