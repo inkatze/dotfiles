@@ -11,10 +11,11 @@ declaration looks redundant, until a minbase chroot or a cloud image does not
 and `git commit` dies with "cannot run vi".
 
 `nv` is a call site, not a convenience: the `tm.fish` workspace functions type
-that literal string into the left pane of every session they build, so
+that literal string into the left pane of every project session they build
+(all but `tmdot`), so
 deleting the alias breaks them and no search for `nvim` finds the cause.
 
-The removal un-declared; it did not uninstall. Nothing removes what the old
+Removing the role dropped its declarations but uninstalled nothing. Nothing removes what the old
 role installed, so a Mac that ran it keeps `nvim`, its install tree, its
 plugin tree and the Brewfile packages, with `~/.config/nvim` dangling. `brew
 bundle install` never removes, `mise install` never prunes, and the

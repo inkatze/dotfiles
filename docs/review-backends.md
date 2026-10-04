@@ -1,8 +1,10 @@
 # Review backends: codex vs gemini
 
 Rationale behind the review-backend rules in the repo-root `CLAUDE.md`. The
-resolver itself, and the invocation each backend needs, are stated once in
-`roles/claude/files/skills/review-shared/backends.md`.
+resolver and the codex, gemini and copilot invocations are stated once in
+`roles/claude/files/skills/review-shared/backends.md`; the opt-in
+`reviewer:<name>` backend is in
+`roles/claude/files/skills/panel-review/reviewer-backend.md`.
 
 ## Which host defaults to which backend
 

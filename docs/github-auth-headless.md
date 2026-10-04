@@ -5,10 +5,11 @@ Two credentials, because ssh and the API do not share one.
 **`git push`** uses the on-disk ed25519 key `roles/git` generates for hosts in
 `git_unattended_auth_hosts`. Its public half is registered on GitHub as an
 **Authentication** key (a separate entry type from the signing key), and the
-remote must be `ssh://`, since `core.sshCommand` does nothing for an
-`https://` remote. That command sets `IdentitiesOnly=yes`, so ssh never offers
-the agent's keys: a 1Password agent with nobody at its screen blocks on an
-approval prompt rather than failing, which stalled fetches for minutes before
+remote must use SSH (`ssh://` or scp-style `git@github.com:owner/repo`),
+since `core.sshCommand` does nothing for an `https://` remote. That command
+sets `IdentitiesOnly=yes`, so ssh never offers the agent's keys: a 1Password
+agent with nobody at its screen blocks on an approval prompt rather than
+failing, which stalled fetches for minutes before
 the on-disk key was tried.
 
 **The gh CLI** needs a token, set once on the host with

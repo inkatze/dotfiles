@@ -13,7 +13,8 @@ went up with `force: true`, clobbering a real `~/.gitconfig` another tool had
 written.
 
 So the role ensures `~/.gitconfig` is a real, untracked file holding one
-marker-delimited block that includes the tracked config:
+marker-delimited block that includes the tracked config (unless the path is a
+symlink another tool owns; see the migration section below):
 
 ```
 # BEGIN dotfiles git role

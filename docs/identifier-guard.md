@@ -2,7 +2,8 @@
 
 `scripts/gitleaks-identifier-rules.sh` generates secret-scanner rules that
 would block private project identifiers from entering commits. It is not
-wired into anything, and it should not be: `specs/dev-services` withdrew the
+wired into any hook or CI job (only `scripts/gitleaks-rules-test.sh` runs it,
+by hand), and it should not be: `specs/dev-services` withdrew the
 enforcement requirements with no successor and marked their design decisions
 superseded. The prohibition itself still binds, but by review rather than by
 hook, and enforcement belongs to a successor hygiene bundle that would also

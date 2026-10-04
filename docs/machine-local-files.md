@@ -48,6 +48,16 @@ public.
   `OP_SERVICE_ACCOUNT_TOKEN` takes precedence, so CI can supply one without
   the file existing; an exported empty one is treated as absent.
 
-To rotate: `op service-account create <name> --vault 'Dotfiles Service
-Account':read_items`, write the returned token to the file with `umask 077`,
-and never let it reach a terminal; it is printed exactly once.
+To rotate, write the new token straight to a file so it never reaches a
+terminal (it is shown exactly once), then move it into place:
+
+```sh
+(umask 077; op service-account create <name> \
+  --vault 'Dotfiles Service Account':read_items --raw \
+  >~/.config/dotfiles/op-service-account-token.new) &&
+  mv ~/.config/dotfiles/op-service-account-token.new \
+    ~/.config/dotfiles/op-service-account-token
+```
+
+Re-run the syncs that use it; once they pass, revoke the old service account
+on 1Password.com, since the CLI cannot delete one.

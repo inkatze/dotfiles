@@ -13,7 +13,7 @@ appear at runtime:
 | Runtime path | Tracked source | Mechanism |
 |---|---|---|
 | `~/.claude/CLAUDE.md` | `roles/claude/files/CLAUDE.md` | Symlink |
-| `~/.claude/skills/<name>` | `roles/claude/files/skills/<name>/` | One symlink per tracked directory, `review-shared/` included (`roles/claude/tasks/skills.yml`); foreign entries are left alone |
+| `~/.claude/skills/<name>` | `roles/claude/files/skills/<name>/` | One symlink per tracked directory, `review-shared/` included (`roles/claude/tasks/skills.yml`); other entries are left alone, but one at a tracked name fails the run |
 | `~/.claude/scripts/` | `roles/claude/files/scripts/` | Directory symlink (hooks and the status line `settings.json` invokes) |
 | `~/.claude/output-styles/` | `roles/claude/files/output-styles/` | Directory symlink, resolved by name from `outputStyle` |
 | `~/.claude/settings.json` | `roles/claude/files/settings.json` | jq merge by `scripts/claude-settings-merge.sh`, not a symlink |
@@ -100,7 +100,7 @@ server the review skills DM through; register it by hand where wanted. See
 
 ## Review backends
 
-The resolver and every backend invocation are stated once, in
+The resolver and every prompt-driven backend invocation are stated once, in
 `roles/claude/files/skills/review-shared/backends.md`; change them there. An
 unresolved host alias must fall back to `work`, matching `scripts/playbook.sh`.
 The Gemini key sync addresses its 1Password item with an explicit `--vault`,
@@ -118,7 +118,7 @@ row names a writer. Keep machine-specific values here, never in tracked files.
 | `host` | `scripts/playbook.sh`, `roles/claude/files/skills/review-shared/backends.md` | This machine's inventory alias; empty or whitespace-only counts as absent |
 | `ssh-host` | the `sshc` function in `roles/fish/files/fish/config.fish` | `kitten ssh` target hostname |
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (`globinclude`) | Host-specific kitty `ssh.conf` sections |
-| `op-account` | `scripts/playbook.sh` | The 1Password account every `op` call uses, where more than one is signed in |
+| `op-account` | `scripts/playbook.sh` | The 1Password account a playbook run's `op` calls use, exported as `OP_ACCOUNT` (set that yourself for a direct script run), where more than one is signed in |
 | `op-service-account-token` | `scripts/op-token.sh`, for the 1Password syncs | Service-account token, a bearer credential (0600) |
 | `git-work-email` | `roles/git/defaults/main.yml` | The work identity written to `~/.gitconfig.work` |
 | `pushover-credentials` | `roles/osx/files/health/health-check.sh` | Health-check notification credentials (0600), written by `roles/osx/tasks/health-signal.yml` |
@@ -180,8 +180,8 @@ See [docs/ansible-roles.md](docs/ansible-roles.md).
 - Name the editor `vi`, keep `vim-tiny` in `linux_apt_packages`, and never
   delete the `nv` alias: the `tm.fish` workspace functions type it. See
   [docs/editor.md](docs/editor.md).
-- On a headless host, `git push` needs an `ssh://` remote and the generated
-  key registered as an Authentication key; `gh` needs
+- On a headless host, `git push` needs an SSH remote, not `https://`, and the
+  generated key registered as an Authentication key; `gh` needs
   `gh auth login --insecure-storage` once. Do not export `GH_TOKEN` from a
   file, fetch it from 1Password at shell start, or use a GitHub App; a host
   spanning owners needs a classic-scoped token. See
