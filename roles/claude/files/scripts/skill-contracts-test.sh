@@ -370,9 +370,21 @@ expect_fail state-redirect-rule-removed \
 expect_fail state-age-staleness \
   "perl -0pi -e 's/Staleness is the owner.s absence, never an age\\./Staleness is thirty minutes of age./' $SHARED/state.md" "shared block anchor missing"
 expect_fail state-redirect-into-evidence \
-  "printf '\\n    printf x > .claude/review-evidence/note\\n' >> $(md panel-review)" "writes review state with a shell redirect"
+  "printf '\\n    printf x > .claude/review-evidence/note\\n' >> $(md panel-review)" "writes review state around review-state.sh"
 expect_fail state-append-into-inbox \
-  "printf '\\n    cat findings.md >> ~/.config/dotfiles/review/inbox/x/y.md\\n' >> $(md bot-review)" "writes review state with a shell redirect"
+  "printf '\\n    cat findings.md >> ~/.config/dotfiles/review/inbox/x/y.md\\n' >> $(md bot-review)" "writes review state around review-state.sh"
+expect_fail state-redirect-in-shared-file \
+  "printf '\\n    echo done > .claude/review-evidence/marker\\n' >> $SHARED/workflow.md" "writes review state around review-state.sh"
+expect_fail state-stderr-redirect \
+  "printf '\\n    run 2> .claude/review-evidence/err\\n' >> $(md panel-review)" "writes review state around review-state.sh"
+expect_fail state-quoted-target \
+  "printf '\\n    echo x > \"~/.config/dotfiles/review/inbox/x/y.md\"\\n' >> $(md bot-review)" "writes review state around review-state.sh"
+expect_fail state-clobber-redirect \
+  "printf '\\n    echo x >| ~/.config/dotfiles/review\\n' >> $(md bot-review)" "writes review state around review-state.sh"
+expect_fail state-tee-into-evidence \
+  "printf '\\n    lint | tee -a .claude/review-evidence/lint.out\\n' >> $(md panel-review)" "writes review state around review-state.sh"
+expect_fail state-helper-path-removed \
+  "perl -0pi -e 's{~/\\.claude/scripts/review-state\\.sh}{review-state}g' $SHARED/state.md" "helper path"
 expect_pass state-path-mention-benign \
   "printf '\\nThe record lives at \`<worktree>/.claude/review-evidence/\`; probe with \`ls 2> /dev/null\`.\\n' >> $(md panel-review)"
 expect_fail state-inbox-poll-row-removed \

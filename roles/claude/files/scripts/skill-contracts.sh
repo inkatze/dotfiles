@@ -323,12 +323,14 @@ for f in ${matched[@]+"${matched[@]}"}; do
   err "$f carries a copied lens list; build it from the resolved discovery-rigor document"
 done
 
-# Review state is written only through its helper. A redirect into the
-# evidence record or the lock root is a write the helper never sees, and the
-# worktree-isolation guard refuses it besides.
-files_matching -E '(^|[[:space:]]|[0-9&])>>?[[:space:]]*["'"'"']?[^[:space:]|;&]*(review-evidence|dotfiles/review/)'
+# Review state is written only through its helper. A redirect, tee, cp, mv or
+# install into the evidence record or the lock root is a write the helper never
+# sees, and auto mode's permission check prompts on a redirect besides. A write
+# through a variable holding the path is out of this sweep's reach.
+state_target='[^[:space:]|;&]*(review-evidence|dotfiles/review([^A-Za-z0-9_.-]|$))'
+files_matching -E "((^|[[:space:]]|[0-9&])>[>|]?[[:space:]]*[\"']?$state_target)|((^|[[:space:]])(tee|cp|mv|install)[[:space:]][^|;&]*$state_target)"
 for f in ${matched[@]+"${matched[@]}"}; do
-  err "$f writes review state with a shell redirect; send it through review-state.sh (see $SHARED/state.md)"
+  err "$f writes review state around review-state.sh; send it through the helper (see $SHARED/state.md)"
 done
 # The literal tilde is the text the contract file carries, not a path to expand.
 # shellcheck disable=SC2088
