@@ -125,7 +125,7 @@ files_matching() {
   local flags="$1" pattern="$2" out status
   shift 2
   matched=()
-  [ "$#" -gt 0 ] || set -- "${tree_files[@]}"
+  [ "$#" -gt 0 ] || set -- ${tree_files[@]+"${tree_files[@]}"}
   [ "$#" -gt 0 ] || return 0
   set +e
   out="$(grep -l "$flags" -- "$pattern" "$@")"
@@ -254,7 +254,7 @@ shared_blocks=(
 for block in "${shared_blocks[@]}"; do
   file="${block%%|*}"; anchor="${block#*|}"
   owners=""
-  for i in "${!tree_files[@]}"; do
+  for i in ${tree_files[@]+"${!tree_files[@]}"}; do
     [[ "${tree_norm[$i]}" == *"$anchor"* ]] && owners="$owners ${tree_files[$i]}"
   done
   case "$owners" in
@@ -306,7 +306,7 @@ if [ -n "$stale_min" ] && [ -n "$poll_min" ]; then
 fi
 # Outside the shared directory, a threshold named beside a number is an
 # override, and an override line is followed by its Reason: line.
-for f in "${tree_files[@]}"; do
+for f in ${tree_files[@]+"${tree_files[@]}"}; do
   case "$f" in "$SHARED"/*|*.json) continue ;; esac
   found="$(awk -v f="$f" '
     pending { if ($0 !~ /^Reason:/) { print f ": \"" prev "\" has no Reason: line after it" } pending = 0 }
@@ -362,7 +362,7 @@ done
 # Parameter expansion rather than dirname: the fixture suite runs this per
 # case, and a fork per link dominated its runtime.
 skills_root="$(cd "$SKILLS" && pwd -P)"
-for f in "${tree_files[@]}"; do
+for f in ${tree_files[@]+"${tree_files[@]}"}; do
   case "$f" in *.md) ;; *) continue ;; esac
   dir="${f%/*}"
   links="$(grep -oE '\]\([^)]+\)' "$f")" && rc=0 || rc=$?
@@ -518,7 +518,18 @@ if [ -n "$global_ok" ]; then
     require_normalized "$GLOBAL_MD" "Slack mechanics pointer" "review-shared/slack.md\`"
   fi
   # Per sentence, so "optional" must describe the server the sentence names.
-  slack_sentences="$(awk 'BEGIN { RS = "" } { gsub(/\n/, " "); gsub(/\. /, ".\n"); print }' <<< "$global_raw" \
+  # A list item starts its own sentence; a sentence ends at . ? or !, bold or
+  # code markup closing it included.
+  slack_sentences="$(awk '
+    BEGIN { RS = "" }
+    {
+      n = split($0, l, "\n"); out = ""
+      for (i = 1; i <= n; i++) {
+        if (out != "") out = out (l[i] ~ /^ *([-*+]|[0-9]+[.)]) / ? "\n" : " ")
+        out = out l[i]
+      }
+      gsub(/[.?!](\*\*|\*|`)?[)"]? /, "&\n", out); print out
+    }' <<< "$global_raw" \
     | grep -iE 'slack[- ]*(.s )?mcp' || true)"
   while IFS= read -r sentence; do
     [ -n "$sentence" ] || continue
@@ -529,9 +540,13 @@ if [ -n "$global_ok" ]; then
 
   # Incident rules keep their constraint, not their story, and every listed
   # push spelling with the prohibition around it.
+  # A year-month needs a real month, so 2024-25 passes; a range ending 01-12
+  # still reads as a date.
   dates="$(grep -nE '(^|[^0-9])20[0-9]{2}-(0[1-9]|1[0-2])(-[0-9]{2})?([^0-9]|$)' <<< "$global_raw" || true)"
   [ -z "$dates" ] || err "$GLOBAL_MD carries a dated origin story: ${dates%%$'\n'*}"
-  ! grep -qE '^[[:space:]]*([-*][[:space:]]+)?(\*\*)?Origin:' <<< "$global_raw" \
+  # Origin: as a lead (line, quote, list item or new sentence), never the
+  # git remote in ordinary prose ("push to origin:").
+  ! grep -qiE '(^[[:space:]]*(>[[:space:]]*)?(([-*+]|[0-9]+[.)])[[:space:]]+)?|[.!?][[:space:]]+)(\*\*|_|\*)?Origin:' <<< "$global_raw" \
     || err "$GLOBAL_MD carries an origin story; keep the constraint, not its history"
   while IFS= read -r tok; do
     [ -n "$tok" ] && [ "$tok" != ed25519 ] || continue

@@ -640,9 +640,17 @@ expect_pass exceptions-other-marker \
   "perl -0pi -e 's/^- (An explicit go-ahead|Replies to automated)/* \$1/mg' $GLOBAL_MD"
 expect_fail slack-mcp-second-sentence \
   "perl -0pi -e 's/(The Slack MCP server is optional;)/A Slack MCP server must always run. \$1/' $GLOBAL_MD" "without calling it optional"
+expect_fail origin-numbered-item \
+  "printf '\\n1. Origin: a stale socket broke signing.\\n' >> $GLOBAL_MD" "carries an origin story"
+expect_fail origin-mid-line \
+  "printf '\\nKeep the socket stable. Origin: a stale socket broke signing.\\n' >> $GLOBAL_MD" "carries an origin story"
+expect_fail slack-mcp-bulleted \
+  "printf '\\n- A Slack MCP server must run\\n- Other servers are optional\\n' >> $GLOBAL_MD" "without calling it optional"
+expect_fail slack-mcp-bold-lead \
+  "printf '\\n**A Slack MCP server is required.** Others are optional.\\n' >> $GLOBAL_MD" "without calling it optional"
 expect_pass origin-in-prose \
   "printf '\\nWhen you push to origin: always name the branch.\\n' >> $GLOBAL_MD"
-expect_pass year-range-not-a-date \
+expect_pass year-range-past-twelve-not-a-date \
   "printf '\\nThe 2024-25 budget is not a date.\\n' >> $GLOBAL_MD"
 expect_fail ready-flip-up-to-date-hyphenated \
   "printf '\\nThe branch must be up-to-date with its base.\\n' >> $GLOBAL_MD" "currency condition"
