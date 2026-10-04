@@ -691,28 +691,34 @@ expect_fail slack-mcp-heading-joined \
 expect_fail missing-global-file-tree-still-scanned \
   "rm $GLOBAL_MD && printf '\\nNothing is sent unless I have seen it and said yes in this session.\\n' >> $(md peer-review)" "restates the outbound-message rule"
 # Not through expect_fail: its tree checksum cannot read a mode-000 file.
-if [ "$(id -u)" -ne 0 ]; then
+# unreadable_case <name> <path>: skipped where mode bits do not stop a read
+# (root, or a process holding CAP_DAC_OVERRIDE).
+unreadable_case() {
+  local out rc
   setup
-  chmod 000 "$tmp/$GLOBAL_MD"
-  out="$(run_checker 2>&1)" && rc=0 || rc=$?
-  if [ "$rc" -eq 0 ] || ! grep -qF "$GLOBAL_MD could not be read" <<< "$out" || ! grep -qF "invariant(s) broken" <<< "$out"; then
-    echo "FAIL unreadable-global-file: expected a read error and the summary (exit $rc): $out"
-    failures=$((failures + 1))
+  chmod 000 "$tmp/$2"
+  if [ -r "$tmp/$2" ]; then
+    echo "SKIP $1: this user can still read a mode-000 file"
+  else
+    out="$(run_checker 2>&1)" && rc=0 || rc=$?
+    if [ "$rc" -eq 0 ] || ! grep -qF "$2 could not be read" <<< "$out" || ! grep -qF "invariant(s) broken" <<< "$out"; then
+      echo "FAIL $1: expected a read error and the summary (exit $rc): $out"
+      failures=$((failures + 1))
+    fi
   fi
-  chmod 644 "$tmp/$GLOBAL_MD"
+  chmod 644 "$tmp/$2"
   teardown
-  setup
-  chmod 000 "$tmp/$(md copilot-review)"
-  out="$(run_checker 2>&1)" && rc=0 || rc=$?
-  if [ "$rc" -eq 0 ] || ! grep -qF "$(md copilot-review) could not be read" <<< "$out" || ! grep -qF "invariant(s) broken" <<< "$out"; then
-    echo "FAIL unreadable-skill-file: expected a read error and the summary (exit $rc): $out"
-    failures=$((failures + 1))
-  fi
-  chmod 644 "$tmp/$(md copilot-review)"
-  teardown
-else
-  echo "SKIP unreadable-global-file, unreadable-skill-file: root reads a mode-000 file"
-fi
+}
+unreadable_case unreadable-global-file "$GLOBAL_MD"
+unreadable_case unreadable-skill-file "$(md copilot-review)"
+expect_fail workflow-deeper-heading \
+  "perl -0pi -e 's/(### Review Workflows\\n\\n)/\$1#### Notes\\n\\nEach workflow has a slash command.\\n\\n/' $GLOBAL_MD" "not a one-line pointer bullet"
+expect_fail slack-mcp-not-optional-negated \
+  "printf '\\nThe Slack MCP server is not optional.\\n' >> $GLOBAL_MD" "without calling it optional"
+expect_fail commit-reference-uppercase \
+  "printf '\\nFixed in EE7A5F8.\\n' >> $GLOBAL_MD" "commit reference"
+expect_fail exceptions-moved-out \
+  "perl -0pi -e 's/(exactly two exceptions:\\n\\n)- An explicit go-ahead.*?human may read them\\.\\n/\$1- Anything I say.\\n/s; s/\\z/\\nAn explicit go-ahead I give for a specific message, or for a run, which covers only the recipients and message kinds I named when giving it. Replies to automated reviewers, which are addressed to a bot even when a human may read them.\\n/' $GLOBAL_MD" "does not hold both pinned exceptions"
 
 # --- File-missing guards ---
 expect_fail missing-skill \

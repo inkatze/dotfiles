@@ -63,10 +63,10 @@ Publish a rewrite only with `--force-with-lease --force-if-includes`, always
 paired, naming the SHA (`--force-with-lease=<branch>:<sha>`) only when it is
 the one your rewrite started from, never one read from the remote-tracking ref
 at push time, since an explicit SHA turns `--force-if-includes` off; plain
-`--force`, a `+` refspec and push-time force configuration are forbidden. A push either check rejects (`stale info`,
-`remote ref updated since checkout`) means someone else moved the branch:
-treat it as shared from then on, and never retry with a broader force or a
-refetched lease.
+`--force`, a `+` refspec and push-time force configuration are forbidden. If
+either check rejects a push (`stale info`, `remote ref updated since
+checkout`), someone else moved the branch: treat it as shared from then on,
+and never retry with a broader force or a refetched lease.
 
 Within scope, rewrite and force-push on your own whenever that is the most
 correct fix, and say which commits changed and that the branch was
@@ -108,9 +108,9 @@ the code.
 
 **Composability by default.** Small data-in, data-out units composed through
 the language's natural mechanism, idiomatic at the framework boundary;
-planwright's `composability` document holds the full rule (locate planwright
-as `~/.claude/skills/review-shared/doctrine.md` describes, then resolve it with
-`resolve-rule-doc.sh composability`).
+planwright's `composability` document holds the full rule (resolve it with
+`<root>/scripts/resolve-rule-doc.sh composability`, `<root>` being the install
+root `~/.claude/skills/review-shared/doctrine.md` locates).
 
 **Machine-local environment layer.** Every project gets a gitignored,
 per-machine env file in the stack's native convention (`mise.local.toml`, or
@@ -166,7 +166,7 @@ The rule has exactly two exceptions:
   human may read them.
 
 An automated reviewer is an account GitHub reports as a bot, a login ending in
-`[bot]`, or a login a configured bot-review pattern matches in full; a thread any
+`[bot]`, or a login that a configured bot-review pattern matches in full; a thread any
 human has replied in is a message to that human. The bodies of my own pull
 requests and issues, and review requests on them, are not messages.
 

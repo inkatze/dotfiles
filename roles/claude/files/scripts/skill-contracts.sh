@@ -449,7 +449,8 @@ if [ -n "$global_ok" ]; then
   forbid_normalized "$GLOBAL_MD" "copied lens list" "Correctness, logic, edge cases"
 
   # The workflow sections are one-line pointers.
-  wf="$(awk '/^### Review Workflows/ { on = 1; next } on && /^#/ { exit } on' <<< "$global_raw")"
+  # Ends at the next heading of its own level or above; a deeper one stays in.
+  wf="$(awk '/^### Review Workflows/ { on = 1; next } on && /^(#|##|###)[[:space:]]/ { exit } on' <<< "$global_raw")"
   grep -q '^- ' <<< "$wf" || err "$GLOBAL_MD has no Review Workflows pointer bullets"
   while IFS= read -r line; do
     [ -n "$line" ] || continue
@@ -497,7 +498,7 @@ if [ -n "$global_ok" ]; then
     "No message addressed to another person (a chat message, an email, a pull-request review, comment or reply, an issue comment) is sent unless I have seen its exact text and recipient $OUTBOUND_ANCHOR." \
     "A recipient that cannot be resolved is never guessed." \
     "$EXC1" "$EXC2" \
-    "An automated reviewer is an account GitHub reports as a bot, a login ending in \`[bot]\`, or a login a configured bot-review pattern matches in full" \
+    "An automated reviewer is an account GitHub reports as a bot, a login ending in \`[bot]\`, or a login that a configured bot-review pattern matches in full" \
     "a thread any human has replied in is a message to that human." \
     "The bodies of my own pull requests and issues, and review requests on them, are not messages." \
     "With no operator present, a message this rule would hold back is drafted, with its recipient, into the run's handoff and never sent."
@@ -520,6 +521,8 @@ if [ -n "$global_ok" ]; then
         markers='^(([-*+]|[0-9]+[.)]){2})?$'
         [[ "$rest" =~ $markers ]] \
           || err "$GLOBAL_MD's exceptions list holds something besides its two exceptions; the rule has exactly two"
+      else
+        err "$GLOBAL_MD's exceptions list does not hold both pinned exceptions"
       fi
       shopt -s nocasematch
       [[ "$section_tail" != *exception* ]] \
@@ -547,7 +550,8 @@ if [ -n "$global_ok" ]; then
     | grep -iE 'slack[- ]*(.s )?mcp' || true)"
   while IFS= read -r sentence; do
     [ -n "$sentence" ] || continue
-    grep -qi optional <<< "$sentence" \
+    ! grep -qiE '(^|[^[:alpha:]])not[[:space:]]+optional' <<< "$sentence" \
+      && grep -qiE '(^|[^[:alpha:]])optional([^[:alpha:]]|$)' <<< "$sentence" \
       || err "$GLOBAL_MD names a Slack MCP server without calling it optional: \"$sentence\""
   done <<< "$slack_sentences"
   forbid_normalized "$GLOBAL_MD" "phantom tool" "deepwiki"
@@ -565,7 +569,7 @@ if [ -n "$global_ok" ]; then
   while IFS= read -r tok; do
     [ -n "$tok" ] && [ "$tok" != ed25519 ] || continue
     [[ "$tok" == *[0-9]* && "$tok" == *[a-f]* ]] && err "$GLOBAL_MD carries a commit reference: $tok"
-  done <<< "$(grep -owE '[0-9a-f]{7,64}' <<< "$global_raw" || true)"
+  done <<< "$(grep -owiE '[0-9a-f]{7,64}' <<< "$global_raw" | tr '[:upper:]' '[:lower:]' || true)"
   require_normalized "$GLOBAL_MD" "push rule" \
     "Never push to \`main\` or any other protected branch, with or without force." \
     "A branch you cannot confirm is unprotected counts as protected." \
@@ -574,7 +578,7 @@ if [ -n "$global_ok" ]; then
     "Publish a rewrite only with \`--force-with-lease --force-if-includes\`, always paired" \
     "naming the SHA (\`--force-with-lease=<branch>:<sha>\`) only when it is the one your rewrite started from, never one read from the remote-tracking ref at push time, since an explicit SHA turns \`--force-if-includes\` off" \
     "plain \`--force\`, a \`+\` refspec and push-time force configuration are forbidden." \
-    "A push either check rejects (\`stale info\`, \`remote ref updated since checkout\`) means someone else moved the branch" \
+    "If either check rejects a push (\`stale info\`, \`remote ref updated since checkout\`), someone else moved the branch" \
     "never retry with a broader force or a refetched lease."
   require_normalized "$GLOBAL_MD" "rewrite scope" \
     "never a bare \`git push\`" \
