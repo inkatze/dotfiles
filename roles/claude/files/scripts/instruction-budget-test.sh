@@ -13,6 +13,7 @@ ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 SCRIPT=roles/claude/files/scripts/instruction-budget.sh
 failures=0
 tmp=""
+rtree=""
 
 setup() {
   tmp="$(mktemp -d -t instruction-budget-test.XXXXXX)"
@@ -24,7 +25,7 @@ setup() {
 }
 
 teardown() { rm -rf "$tmp" || true; tmp=""; }
-trap '[ -n "$tmp" ] && rm -rf "$tmp"' EXIT
+trap 'rm -rf "${tmp:-}" "${rtree:-}"' EXIT
 
 fail() { echo "FAIL $1: $2"; failures=$((failures + 1)); }
 
@@ -161,80 +162,145 @@ out="$(cd "$tmp" && GITHUB_ACTIONS=true bash "$SCRIPT" 2>/dev/null)" || true
 teardown
 
 # The root file's own limits: the line ceiling the claude-context bundle sets,
-# read from that bundle rather than copied, and every markdown link and
-# backticked repo path in the file resolving. A repo path is a backticked span
-# whose first segment is a top-level directory of the tree; placeholders,
-# globs and home-relative paths are not paths.
+# read from that bundle rather than copied, and every relative markdown link
+# (inline, titled or reference-style) and backticked repo path in the file
+# resolving. A repo path is a backticked span whose first segment is a
+# top-level directory of the tree or of HEAD, so a renamed directory still
+# flags the paths under it; placeholders, globs, `path:line` spans and
+# home-relative paths are not paths. Link anchors are not checked.
+top_dirs="$(git -C "$ROOT" ls-tree -d --name-only HEAD 2>/dev/null || true)"
+
+ceiling_of() {
+  sed -n 's/.*shall target [0-9][0-9]* lines and shall not exceed \([0-9][0-9]*\) lines.*/\1/p' \
+    "$1" 2>/dev/null | head -n 1 || true
+}
+
+root_links() {
+  perl -ne 'while (/\]\(<?([^)\s>]+)>?(?:\s+"[^"]*")?\)/g) { print "$1\n" }
+    print "$1\n" if /^\s*\[[^\]]+\]:\s*<?([^\s>]+)/' "$1" 2>/dev/null |
+    perl -ne 'chomp; next if m{^[a-z][a-z0-9+.-]*:}i || m{^//} || m{^#}; s/#.*//; print "$_\n"' |
+    sort -u
+}
+
+root_paths() {
+  perl -ne 'while (/`([^`\s]+\/[^`\s]*)`/g) { my $p = $1; next if $p =~ m{[<>*{}\$~:]} || $p =~ m{^/}; $p =~ s{/$}{}; print "$p\n" }' \
+    "$1" 2>/dev/null | sort -u
+}
+
+# root_file_problems <tree> <CLAUDE.md> <claude-context requirements.md>
 root_file_problems() {
-  local dir="$1" ceiling lines target
-  ceiling="$(sed -n 's/.*shall not exceed \([0-9][0-9]*\) lines.*/\1/p' \
-    "$dir/specs/claude-context/requirements.md" 2>/dev/null | head -n 1)"
+  local tree="$1" claude="$2" req="$3" ceiling lines target
+  ceiling="$(ceiling_of "$req")"
   if [ -z "$ceiling" ]; then
     echo "no line ceiling found in specs/claude-context/requirements.md"
+  elif [ ! -f "$claude" ]; then
+    echo "CLAUDE.md is missing"
   else
-    lines="$(wc -l <"$dir/CLAUDE.md" | tr -d ' ')"
+    lines="$(awk 'END { print NR }' "$claude")"
     [ "$lines" -le "$ceiling" ] || echo "CLAUDE.md has $lines lines, over the ceiling of $ceiling"
   fi
   while IFS= read -r target; do
-    [ -e "$dir/$target" ] || echo "CLAUDE.md links to $target, which does not exist"
-  done < <(perl -ne 'while (/\]\(([^)\s#]+)(?:#[^)]*)?\)/g) { print "$1\n" unless $1 =~ m{^[a-z]+:} }' "$dir/CLAUDE.md")
+    case "/$target/" in */../*)
+      echo "CLAUDE.md links to $target, outside the repository"
+      continue
+      ;;
+    esac
+    [ -e "$tree/$target" ] || echo "CLAUDE.md links to $target, which does not exist"
+  done < <(root_links "$claude")
   while IFS= read -r target; do
-    [ -d "$dir/${target%%/*}" ] || continue
-    [ -e "$dir/$target" ] || echo "CLAUDE.md names $target, which does not exist"
-  done < <(perl -ne 'while (/`([^`\s]+\/[^`\s]*)`/g) { my $p = $1; next if $p =~ m{[<>*{}\$~:]} || $p =~ m{^/}; $p =~ s{/$}{}; print "$p\n" }' "$dir/CLAUDE.md")
+    case "/$target/" in */../*)
+      echo "CLAUDE.md names $target, outside the repository"
+      continue
+      ;;
+    esac
+    [ -d "$tree/${target%%/*}" ] || grep -qxF -- "${target%%/*}" <<<"$top_dirs" || continue
+    [ -e "$tree/$target" ] || echo "CLAUDE.md names $target, which does not exist"
+  done < <(root_paths "$claude")
 }
 
-# Tracked and new-but-unignored files only, so a gitignored local directory
-# can never make a path resolve.
-copy_tree() {
-  rtree="$(mktemp -d -t instruction-budget-root.XXXXXX)"
-  (cd "$ROOT" && git ls-files -z --cached --others --exclude-standard |
-    while IFS= read -r -d '' f; do [ -e "$f" ] && printf '%s\0' "$f"; done |
-    tar --null -T - -cf -) | tar -xf - -C "$rtree"
+# One copy of the tracked and new-but-unignored files, so a gitignored local
+# directory can never make a path resolve. Fixtures edit copies of the two
+# files under test, and move a target aside and back rather than recopying.
+rtree="$(mktemp -d -t instruction-budget-root.XXXXXX)"
+(cd "$ROOT" && git ls-files -z --cached --others --exclude-standard |
+  while IFS= read -r -d '' f; do if [ -e "$f" ]; then printf '%s\0' "$f"; fi; done |
+  tar --null -T - -cf -) | tar -xf - -C "$rtree"
+fx_claude="$rtree/.fixture-CLAUDE.md"
+fx_req="$rtree/.fixture-requirements.md"
+reset_root_fixture() {
+  cp "$rtree/CLAUDE.md" "$fx_claude"
+  cp "$rtree/specs/claude-context/requirements.md" "$fx_req"
 }
 
-# expect_root_problem <name> <fragment>: the planted tree must report it.
-expect_root_problem() {
+# expect_root <name> [fragment]: no fragment means the fixture must be clean.
+expect_root() {
   local out
-  out="$(root_file_problems "$rtree")"
-  [[ "$out" == *"$2"* ]] || fail "$1" "no '$2' reported: ${out:-nothing}"
-  rm -rf "$rtree"
+  out="$(root_file_problems "$rtree" "$fx_claude" "$fx_req")"
+  if [ -z "${2:-}" ]; then
+    [ -z "$out" ] || fail "$1" "$out"
+  else
+    [[ "$out" == *"$2"* ]] || fail "$1" "no '$2' reported: ${out:-nothing}"
+  fi
 }
 
-copy_tree
-out="$(root_file_problems "$rtree")"
-[ -z "$out" ] || fail root-file "$out"
-rm -rf "$rtree"
+# expect_root_moved <name> <path> <fragment>: with <path> moved aside, the
+# fixture must report the fragment.
+expect_root_moved() {
+  if [ -z "$2" ] || [ ! -e "$rtree/$2" ]; then
+    fail "$1" "CLAUDE.md names no existing target to remove"
+    return
+  fi
+  mv "$rtree/$2" "$rtree/.fixture-moved"
+  expect_root "$1" "$3"
+  mv "$rtree/.fixture-moved" "$rtree/$2"
+}
 
-copy_tree
-ceiling="$(sed -n 's/.*shall not exceed \([0-9][0-9]*\) lines.*/\1/p' "$rtree/specs/claude-context/requirements.md" | head -n 1)"
-lines="$(wc -l <"$rtree/CLAUDE.md" | tr -d ' ')"
-for ((i = lines; i <= ceiling; i++)); do echo >>"$rtree/CLAUDE.md"; done
-expect_root_problem root-over-ceiling "over the ceiling of $ceiling"
+reset_root_fixture
+expect_root root-file
 
-copy_tree
-perl -pi -e 's/shall not exceed \d+ lines/shall stay short/' "$rtree/specs/claude-context/requirements.md"
-expect_root_problem root-ceiling-unreadable "no line ceiling found"
-
-copy_tree
-link="$(perl -ne 'if (/\]\(([^)\s#:]+)/) { print "$1\n"; exit }' "$rtree/CLAUDE.md")"
-if [ -z "$link" ]; then
-  fail root-link-missing "CLAUDE.md has no relative markdown link to remove"
-  rm -rf "$rtree"
+ceiling="$(ceiling_of "$fx_req")"
+if [ -z "$ceiling" ]; then
+  fail root-ceiling "no line ceiling found in specs/claude-context/requirements.md"
 else
-  rm -rf "${rtree:?}/$link"
-  expect_root_problem root-link-missing "links to $link"
+  lines="$(awk 'END { print NR }' "$fx_claude")"
+  for ((i = lines; i < ceiling; i++)); do echo >>"$fx_claude"; done
+  expect_root root-at-ceiling
+  echo >>"$fx_claude"
+  expect_root root-over-ceiling "over the ceiling of $ceiling"
+  reset_root_fixture
+  for ((i = lines; i < ceiling; i++)); do echo >>"$fx_claude"; done
+  printf 'no final newline' >>"$fx_claude"
+  expect_root root-over-ceiling-unterminated "over the ceiling of $ceiling"
 fi
 
-copy_tree
-path="$(perl -ne 'if (/`(scripts\/[^`\s<>*{}\$~:]+)`/) { print "$1\n"; exit }' "$rtree/CLAUDE.md")"
-if [ -z "$path" ]; then
-  fail root-path-missing "CLAUDE.md names no scripts/ path to remove"
-  rm -rf "$rtree"
-else
-  rm -rf "${rtree:?}/$path"
-  expect_root_problem root-path-missing "names $path"
-fi
+reset_root_fixture
+perl -pi -e 's/shall not exceed \d+ lines/shall stay short/' "$fx_req"
+expect_root root-ceiling-unreadable "no line ceiling found"
+
+reset_root_fixture
+link="$(root_links "$fx_claude" | grep -v '\.\.' | head -n 1 || true)"
+expect_root_moved root-link-missing "$link" "links to $link"
+
+reset_root_fixture
+path="$(root_paths "$fx_claude" | grep '^scripts/' | head -n 1 || true)"
+expect_root_moved root-path-missing "$path" "names $path"
+expect_root_moved root-top-dir-missing scripts "names $path"
+
+reset_root_fixture
+printf '\n[a](docs/no-such-note.md "title")\n' >>"$fx_claude"
+expect_root root-link-titled "links to docs/no-such-note.md"
+
+reset_root_fixture
+printf '\n[r]: docs/no-such-ref.md\n' >>"$fx_claude"
+expect_root root-link-reference "links to docs/no-such-ref.md"
+
+reset_root_fixture
+printf '\n[up](../outside.md)\n' >>"$fx_claude"
+expect_root root-link-escapes "links to ../outside.md, outside the repository"
+
+reset_root_fixture
+printf '\n[web](HTTPS://example.invalid/x)\n' >>"$fx_claude"
+expect_root root-link-url
 
 lefthook_run="$(awk '/^    instruction-budget:/{f=1;next} f&&/^    [a-z]/{f=0} f' "$ROOT/lefthook.yml")"
 [[ "$lefthook_run" == *"run: $SCRIPT"* ]] || fail lefthook-entry "no instruction-budget command running $SCRIPT"
