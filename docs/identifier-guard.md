@@ -14,8 +14,8 @@ the enforcement half alone leaves the files that already carry the
 identifiers permanently exempt: containment, not coverage.
 
 `roles/claude/files/scripts/identifier-check.sh` reads the same identifier
-file for a review-time report over the live instruction files and the
-`specs/claude-instructions` bundle. It runs by hand at task review and from
-the contract checker's fixture suite, prints file and line but never the
-matched name, warns when the identifier file is absent, and never blocks a
-commit.
+file for a review-time report over the live instruction files, these `docs/`
+notes and the `specs/claude-instructions` bundle. It runs by hand at task
+review and from the contract checker's fixture suite, prints file and line
+but never the matched name, warns when the identifier file is absent, and
+never blocks a commit.
