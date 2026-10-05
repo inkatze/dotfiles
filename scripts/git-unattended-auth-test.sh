@@ -133,6 +133,30 @@ for pair in 444:400 640:600 400:400 604:600 700:600; do
     expect_modes "$h" "$want" "0$before"
 done
 
+# 5. A ~/.gitconfig that is still the repo symlink an older role left becomes a
+# real 0600 file carrying the include, whatever mode the symlink reports.
+h="$(fresh_home)"
+mkdir -p "$work/clone/roles/git/files"
+: >"$work/clone/roles/git/files/gitconfig"
+ln -s "$work/clone/roles/git/files/gitconfig" "$h/.gitconfig"
+run_role "$h" personal
+if [ -L "$h/.gitconfig" ]; then
+    fail migrate-real-file "the home's .gitconfig is still a symlink"
+else
+    ok migrate-real-file "the repo symlink became a real file"
+fi
+got="$(mode_of "$h/.gitconfig")"
+if [ "$got" = 600 ]; then
+    ok migrate-mode "the migrated file is 0600"
+else
+    fail migrate-mode "the migrated file is 0$got, want 0600"
+fi
+if grep -q "path = $repo/roles/git/files/gitconfig" "$h/.gitconfig"; then
+    ok migrate-include "the migrated file includes the tracked config"
+else
+    fail migrate-include "no include of the tracked config"
+fi
+
 if [ "$fails" -eq 0 ]; then
     echo "git-unattended-auth-test: all assertions hold"
 else

@@ -36,9 +36,12 @@
     create: true
     insertbefore: BOF
     marker: "# {mark} dotfiles git role"
-    # Keeps only the owner's read and write bits; the overrides task below says why.
+    # Keeps only the owner's read and write bits; the overrides task below says
+    # why. A replaced repo symlink gets 0600: its own mode follows the umask on
+    # macOS, so deriving from it can leave the new file unwritable.
     mode: >-
-      {{ '%04o' | format((git_global_config_stat.stat.mode | default('0600')
+      {{ '0600' if git_global_config_link == 'repo' else
+      '%04o' | format((git_global_config_stat.stat.mode | default('0600')
       | int(base=8)) // 64 % 8 // 2 * 2 * 64) }}
     block: |
       [include]

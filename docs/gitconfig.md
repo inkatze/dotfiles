@@ -55,7 +55,9 @@ at 0600.
 
 The symlink is replaced only when its target ends in
 `/roles/git/files/gitconfig`, a suffix match because the link may name a
-different clone than the one running. Any other symlink belongs to another
+different clone than the one running. The replacement file is created 0600
+rather than taking its bits from the symlink, whose own mode follows the
+umask on macOS. Any other symlink belongs to another
 tool, so the role leaves it in place and reports it rather than writing
 through it; add the include there by hand. A pre-existing real file keeps
 every key and only gains the block.
