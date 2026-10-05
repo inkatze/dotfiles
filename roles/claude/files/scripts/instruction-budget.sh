@@ -40,7 +40,7 @@ roles/claude/files/skills/review-shared/egress.md          615    1000   1500
 roles/claude/files/skills/review-shared/github.md          1620   2000   2500
 roles/claude/files/skills/review-shared/limits.md          144    500    1000
 roles/claude/files/skills/review-shared/slack.md           704    1000   1500
-roles/claude/files/skills/review-shared/state.md           1548   2000   2500
+roles/claude/files/skills/review-shared/state.md           1781   2250   2750
 roles/claude/files/skills/review-shared/workflow.md        378    750    1250
 "
 

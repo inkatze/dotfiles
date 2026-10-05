@@ -5,9 +5,14 @@ the writer lock, the session registry, the inbox and the loop artifact. One
 helper writes all of it, `~/.claude/scripts/review-state.sh` (tracked at
 `roles/claude/files/scripts/review-state.sh`); its usage block lists every
 operation and its exit codes. Invoke it by that literal path with literal
-arguments, one call per command. Lock, registry and inbox operations must run
-from a Claude Code session, since the helper finds the session process in its
-own ancestry; anywhere else they exit 2.
+arguments, one call per command.
+
+Operations that act as a session (`register`, `unregister`, `lock acquire`,
+`lock release`, `lock handover`, `inbox read`) must run from the Claude Code
+session that owns the token: the helper finds that session process in its own
+ancestry and exits 2 anywhere else. `sessions`, `lock status` and `inbox send`
+run from anywhere. A session token identifies a session; it is printed to
+peers on purpose and is not a secret.
 
 **No skill writes any of this state with a shell redirect.** Content goes to
 the helper on stdin (`printf '%s\n' "$body" | ~/.claude/scripts/review-state.sh inbox send ...`)
@@ -30,35 +35,43 @@ later skill and iteration on that tree.
   directory carries its own `.gitignore` (`*`), so it stays out of `git status`
   in any repository. **The evidence record is never committed, pushed, or named
   by path in a PR body**: it is a cache that dies with the worktree. The helper
-  refuses to write there if anything under it is tracked, a symlink, or a
-  `.gitignore` other than its own, so a reviewed branch cannot redirect it.
+  refuses to write there if anything under it is tracked, if a directory or
+  file on its write path is a symlink, or if the `.gitignore` is not its own,
+  so a reviewed branch cannot redirect it.
 - **Key.** `review-state.sh key`: `git write-tree` over a scratch copy of the
   index after `git add -A`, so tracked, staged, and untracked-but-not-ignored
-  content all move it. The real index and the repository's object store are
-  never touched. No time-based staleness: a changed tree is a new key. Compute
-  it once per iteration and pass it as `--tree` to the calls that follow.
+  content all move it. The real index and object store are never written,
+  though `git add` still runs the repository's clean filters (Git LFS stores
+  what it cleans in its own directory). No time-based staleness: a changed
+  tree is a new key. Compute it after every write to the tree and pass it as
+  `--tree` to the calls before the next write.
 - **Entry.** One per command: `<id>.json` (`version`, `command`, `tree`, `exit`,
   `started`, `ended`, `source`, `output`) beside the captured output it names.
-  `<id>` is the command string's git blob hash; `source` is `local` or the CI
-  source below. Two runs that both miss on one tree both run; the first to
-  finish records and the later one is dropped.
+  `<id>` is the command string's git blob hash; `source` is `local`, the CI
+  source below, or whatever one line `evidence record --source` was given. Two
+  runs that both miss on one tree both run; the first to finish records and
+  the later one is dropped.
 - **Lookup before running.** `evidence lookup --command <key>` prints the entry
   (with `output_path`) and exits 0 on a hit, 1 on a miss. A finding's
   reproduction never reads the record: validation pass 1 reproduces.
-- **Running.** `evidence run --command <key> [--tree <hash>] -- <argv>` streams
-  the command's output, records it, and exits with the command's own status. A
-  command that changes the tree it ran on is not recorded.
+- **Running.** `evidence run --command <key> [--tree <hash>] -- <argv>` runs the
+  program (never a shell function), with stdin closed, stderr merged into the
+  captured output and the caller's locale, streams that output, records it,
+  and exits with the command's own status. It records nothing when the tree
+  afterwards differs from the key (a stale `--tree`, or a command that changed
+  the tree) or when its output stream was cut off, and a failure to record is
+  reported without changing that exit status.
 - **Full-suite key.** The repository's declared test task, as written in its
   task runner (for example `mise run test`). Local runs and CI evidence record
   under that same key, so either satisfies the other's lookup.
 - **CI as evidence.** `evidence ci --head <sha> --command <full-suite key>`,
-  with the head's check runs on stdin (`gh api --paginate --slurp
-  repos/<owner>/<repo>/commits/<sha>/check-runs`). Skipped and neutral runs are
-  ignored. It records for the head's tree, never the working tree, when every
-  remaining run concluded success and there is at least one. A failed run is no
-  evidence; a run not yet concluded, cancelled or timed out is no evidence yet;
-  a head with no run that counts is no evidence. Each of those exits 1. The
-  source reads `ci:check-runs:<sha>`.
+  with the head's check runs on stdin as one document (`gh api --paginate
+  --slurp repos/<owner>/<repo>/commits/<sha>/check-runs`). Skipped and neutral
+  runs are ignored. It records for the head's tree, never the working tree,
+  when every remaining run concluded success and there is at least one. A
+  failed run is no evidence; a run not yet concluded, cancelled or timed out
+  is no evidence yet; a head with no run that counts is no evidence. Each of
+  those exits 1. The source reads `ci:check-runs:<sha>`.
 
 **Mirrors upstream.** The record stands in for the tooling-output member of the
 handoff bundle planwright's review-effectiveness spec defines, so one can
@@ -90,14 +103,15 @@ immediately after. It replaces the per-skill same-PR lock in
   (`branch-<name>`). Owner, repo and branch are encoded to the plain-name
   charset `[A-Za-z0-9.-]` before any path use: `_` and two hex digits stand for
   every other byte, `_` included, and for a leading `.` or `-`. An encoded name
-  longer than 150 bytes is refused, so no segment can climb out of the root or
-  overflow a file name.
+  too long to leave room for the names the lock derives from it is refused, so
+  no segment can climb out of the root or overflow a file name.
 - **Primitive.** The lock is a symbolic link created atomically; its target is
-  the owner token `<pid>-<epoch>-<sequence>`, the sequence a random value per
-  hold. The pid is the Claude Code session process, found by the helper walking
-  its own ancestry, because every tool call is a fresh child that exits at
-  once. The holder record, written before the link, sits beside it in
-  `<lock>#holder#<token>`: the session token, name, skill and worktree.
+  the owner token `<pid>-<epoch>-<nonce>`, the nonce random per hold. The pid
+  is the Claude Code session process, found by the helper walking its own
+  ancestry, because every tool call is a fresh child that exits at once. The
+  holder record, written before the link, sits beside it in
+  `<lock>#holder#<token>` (`token`, `session`, `pid`, `name`, `skill`,
+  `worktree`, `acquired`).
 - **Staleness is the owner's absence, never an age.** A lock whose owner
   process is gone, or is running but started after the token was minted (a
   recycled pid), is reclaimed; a live owner's lock is kept however old it is.
@@ -111,8 +125,8 @@ immediately after. It replaces the per-skill same-PR lock in
   another session holds it, it exits 1 and prints the holder record, whose
   `session` field is the address for the inbox. `--wait` keeps trying for that
   many seconds and prints only the outcome. The registration that holds the
-  lock gets its own token back; any other registration is refused, even one in
-  the same Claude Code process.
+  lock gets its own token back; a different registration is refused, even one
+  in the same Claude Code process.
 - **Release.** `lock release --session <token> --token <lock token> ...`
   unlinks only while the link is still that token and the holder record names
   that session; anything else exits 1 and touches nothing.
@@ -120,18 +134,22 @@ immediately after. It replaces the per-skill same-PR lock in
   the PR lock before it releases the branch lock, so the key change leaves no
   window. If the PR lock is held, the branch lock stays and the holder is
   printed.
+- **Status.** `lock status --repo <owner>/<repo> (--pr <n> | --branch <b>)`
+  prints `{"state": "free"}`, or `held` or `stale` with the holder record.
 
 ## Session registry
 
 Every review skill registers for the length of its run, `register --name
 <session name> --skill <skill> --repo <owner>/<repo> (--pr <n> | --branch <b>)
 --worktree <dir>`, and keeps the printed session token: it is the session's
-identity for the lock and the inbox. Name, worktree, repo and branch must each
-be one printable line. `unregister --session <token>` on exit releases any lock
-the session still holds and drops its registration and inbox, unread files
-included. `sessions` lists the live registrations as JSON lines (`token`, `pid`,
-`name`, `skill`, `repo`, `pr` or `branch`, `worktree`, `started`); one whose
-owner process is gone reads as absent and is pruned.
+identity for the lock and the inbox. `--skill` is a skill name; name, worktree,
+repo and branch must each be one printable line, within the length the usage
+block states. `unregister --session <token>` on exit releases any lock the
+session still holds in that repository and drops its registration and inbox,
+unread files included. `sessions` lists the live registrations as JSON lines
+(`version`, `token`, `pid`, `name`, `skill`, `repo`, `pr` or `branch`,
+`worktree`, `started`); one whose owner process is gone reads as absent and is
+pruned, with a notice naming any inbox files removed with it.
 
 ## Inbox
 
@@ -141,7 +159,10 @@ findings on stdin. The file lands under `inbox/<session token>/` with `from:`
 and `sent:` header lines, and its path is printed; the sender then nudges the
 holder by session message naming that path, waits at most one inbox poll
 window ([limits.md](limits.md)) with `lock acquire --wait`, takes the lock if
-it frees, and otherwise hands off naming the path.
+it frees, and otherwise hands off naming the path. A send to a session whose
+process is gone exits 1 and delivers nothing, so the sender keeps its
+findings; a send to a token with no registration exits 2. Bodies past the
+helper's size cap are cut at it, on send and on read.
 
 `inbox read --session <own token>` moves each unread file aside and returns it
 framed by markers carrying a nonce minted for that read, so a body cannot

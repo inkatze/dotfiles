@@ -383,6 +383,16 @@ expect_fail state-clobber-redirect \
   "printf '\\n    echo x >| ~/.config/dotfiles/review\\n' >> $(md bot-review)" "writes review state around review-state.sh"
 expect_fail state-tee-into-evidence \
   "printf '\\n    lint | tee -a .claude/review-evidence/lint.out\\n' >> $(md panel-review)" "writes review state around review-state.sh"
+expect_fail state-pipe-tee-no-space \
+  "printf '\\n    lint |tee .claude/review-evidence/lint.out\\n' >> $(md panel-review)" "writes review state around review-state.sh"
+expect_fail state-semicolon-cp \
+  "printf '\\n    true;cp a ~/.config/dotfiles/review/inbox/x/y.md\\n' >> $(md bot-review)" "writes review state around review-state.sh"
+expect_fail state-ln-lock \
+  "printf '\\n    ln -s 1-2-3 ~/.config/dotfiles/review/locks/o/r/pr-1\\n' >> $(md bot-review)" "writes review state around review-state.sh"
+expect_fail state-rm-locks \
+  "printf '\\n    rm -rf ~/.config/dotfiles/review/locks\\n' >> $(md bot-review)" "writes review state around review-state.sh"
+expect_pass state-copy-out-benign \
+  "printf '\\n    cp .claude/review-evidence/x.out /tmp/y\\n' >> $(md panel-review)"
 expect_fail state-helper-path-removed \
   "perl -0pi -e 's{~/\\.claude/scripts/review-state\\.sh}{review-state}g' $SHARED/state.md" "helper path"
 expect_pass state-path-mention-benign \

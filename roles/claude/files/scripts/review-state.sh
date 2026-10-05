@@ -40,10 +40,15 @@
 # The opt_<name> variables are assigned by parse_opts through printf -v.
 # shellcheck disable=SC2154
 set -euo pipefail
+# The caller's locale, restored for a command `evidence run` wraps.
+CALLER_LC_ALL="${LC_ALL-}"
+CALLER_LC_ALL_SET="${LC_ALL+set}"
 LC_ALL=C
 export LC_ALL
+NL=$'\n'
 
 VERSION=1
+# Both overrides are test seams; the review skills never set them.
 STATE_ROOT="${REVIEW_STATE_ROOT:-$HOME/.config/dotfiles/review}"
 SESSION_COMM="${REVIEW_SESSION_COMM:-claude}"
 EVIDENCE_DIR=".claude/review-evidence"
@@ -117,8 +122,9 @@ encode_segment() {
     c="${raw:i:1}"
     case "$c" in
       [A-Za-z0-9]) out="$out$c" ;;
-      .|-) if [ -z "$out" ]; then printf -v byte '%02x' "'$c"; out="${out}_$byte"; else out="$out$c"; fi ;;
-      *) printf -v byte '%02x' "'$c"; out="${out}_$byte" ;;
+      .) if [ -z "$out" ]; then out="_2e"; else out="$out$c"; fi ;;
+      -) if [ -z "$out" ]; then out="_2d"; else out="$out$c"; fi ;;
+      *) byte="$(printf '%s' "$c" | od -An -tx1 | tr -d ' \n')"; out="${out}_$byte" ;;
     esac
   done
   [[ "$out" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*$ ]] || die "'$raw' did not encode to a plain name"
@@ -299,21 +305,25 @@ own_registration() {
 # Unregistering releases every lock the session still holds, then drops its
 # registration and inbox, unread files included.
 cmd_unregister() {
-  local hf lockp token
+  local hf lockp token repo dir
   parse_opts "session" -- "$@"
   require_opt session
   own_registration "$opt_session"
+  repo="$(jq -r .repo "$REG")" || die "cannot read $REG"
+  encode_segment "${repo%%/*}"; dir="$ENC"
+  encode_segment "${repo#*/}"; dir="$dir/$ENC"
   root_dir locks
-  while IFS= read -r hf; do
-    [ -n "$hf" ] && [ -f "$hf" ] || continue
-    [ "$(jq -r '.session // empty' "$hf" 2> /dev/null)" = "$opt_session" ] || continue
-    lockp="${hf%%#holder#*}"; token="${hf##*#holder#}"
+  for hf in "$DIR/$dir"/*#holder#*; do
+    [ -f "$hf" ] && [ ! -L "$hf" ] || continue
+    lockp="${hf%%#holder#*}"; token="${hf#"$lockp"#holder#}"
+    valid_token "$token" || continue
+    jq -e --arg s "$opt_session" --arg t "$token" '.session == $s and .token == $t' "$hf" > /dev/null 2>&1 || continue
     if [ "$(readlink "$lockp" 2> /dev/null)" = "$token" ]; then
       rm -f "$lockp"
       note "released $lockp, still held at unregister"
     fi
     rm -f "$hf"
-  done <<< "$(find "$DIR" -name '*#holder#*' -type f 2> /dev/null)"
+  done
   rm -f "$REG"
   root_dir inbox
   rm -rf "${DIR:?}/$opt_session"
@@ -323,22 +333,31 @@ cmd_unregister() {
 # and is pruned on the way.
 cmd_sessions() {
   local f token
-  prune_dead_sessions > /dev/null
+  prune_dead_sessions
+  if [ -n "$PRUNED" ]; then
+    note "removed the inbox files of sessions whose process is gone:"
+    printf '%s\n' "$PRUNED" | sed 's/^/  /' >&2
+  fi
   root_dir sessions
   for f in "$DIR"/*.json; do
     [ -f "$f" ] || continue
     token="${f##*/}"; token="${token%.json}"
-    check_json_version "$f"
+    valid_token "$token" || continue
     owner_alive "$token" || continue
+    # A registration removed by a concurrent unregister is skipped, not an error.
+    [ -f "$f" ] || continue
+    check_json_version "$f"
     jq -c . "$f" 2> /dev/null || continue
   done
 }
 
 # Remove every registration whose owner is gone, with its inbox, and every
-# inbox with no registration at all. Prints the removed inbox files so a
-# reclaim notice can name them.
+# inbox with no registration at all. PRUNED lists the removed inbox files so a
+# notice can name them.
+PRUNED=""
 prune_dead_sessions() {
   local sessions inbox f token box
+  PRUNED=""
   root_dir sessions; sessions="$DIR"
   root_dir inbox; inbox="$DIR"
   for f in "$sessions"/*.json; do
@@ -346,7 +365,7 @@ prune_dead_sessions() {
     token="${f##*/}"; token="${token%.json}"
     valid_token "$token" || continue
     owner_alive "$token" && continue
-    list_inbox_files "$inbox/$token"
+    PRUNED="$PRUNED${PRUNED:+$NL}$(list_inbox_files "$inbox/$token")"
     rm -f "$f"
     rm -rf "${inbox:?}/$token"
   done
@@ -355,9 +374,10 @@ prune_dead_sessions() {
     token="${box##*/}"
     valid_token "$token" || continue
     [ -e "$sessions/$token.json" ] && continue
-    list_inbox_files "$box"
+    PRUNED="$PRUNED${PRUNED:+$NL}$(list_inbox_files "$box")"
     rm -rf "${inbox:?}/$token"
   done
+  PRUNED="$(printf '%s\n' "$PRUNED" | sed '/^$/d')"
 }
 
 list_inbox_files() {
@@ -506,14 +526,19 @@ reclaim() {
     root_dir sessions
     rm -f "$DIR/$session.json"
   fi
-  removed="$removed${removed:+$'\n'}$(prune_dead_sessions)"
+  prune_dead_sessions
+  removed="$removed${removed:+$NL}$PRUNED"
   rm -f "$ASIDE" "$hf"
   if publish "$lockp" "$token" "$reg"; then RECLAIM=0; fi
   rm -f "$claim"
   removed="$(printf '%s\n' "$removed" | sed '/^$/d' | sort -u)"
-  note "reclaimed $lockp from $label, whose process is gone"
+  if [ "$RECLAIM" = 0 ]; then
+    note "reclaimed $lockp from $label, whose process is gone"
+  else
+    note "cleared $lockp of $label, whose process is gone, but another session took it first"
+  fi
   if [ -n "$removed" ]; then
-    note "removed the dead holder's inbox files, read and unread:"
+    note "removed inbox files, read and unread, of the dead holder and of any other session that is gone:"
     printf '%s\n' "$removed" | sed 's/^/  /' >&2
   else
     note "the dead holder left no inbox files"
@@ -530,9 +555,13 @@ try_acquire() {
   local lockp="$1" session="$2" pid="$3" reg="$4" report="$5" cur _ held ours
   ACQUIRE=1; ACQUIRED=""
   for _ in 1 2 3 4 5; do
-    mint_token "$pid"
-    if publish "$lockp" "$TOKEN" "$reg"; then
-      ACQUIRE=0; ACQUIRED="$TOKEN"; return 0
+    # A held lock is examined before anything is written, so a waiter polling
+    # a busy lock costs no holder-record churn.
+    if [ ! -L "$lockp" ]; then
+      mint_token "$pid"; ours="$TOKEN"
+      if publish "$lockp" "$ours" "$reg"; then
+        ACQUIRE=0; ACQUIRED="$ours"; return 0
+      fi
     fi
     if [ ! -L "$lockp" ]; then
       [ -e "$lockp" ] && die "$lockp exists and is not a lock symlink; refusing to touch it"
@@ -579,7 +608,7 @@ release() {
 }
 
 cmd_lock() {
-  local sub="${1:-}" pid reg deadline cur wait branch_lock
+  local sub="${1:-}" pid reg deadline cur wait branch_lock t
   shift || true
   case "$sub" in
     acquire)
@@ -591,14 +620,16 @@ cmd_lock() {
       lock_path "$opt_repo" "$opt_pr" "$opt_branch"
       deadline=$(( $(now) + wait ))
       while :; do
-        if [ "$(now)" -lt "$deadline" ]; then
+        t="$(now)"
+        if [ "$t" -lt "$deadline" ]; then
           try_acquire "$LOCKP" "$opt_session" "$pid" "$reg" 0
+          if [ "$ACQUIRE" = 0 ]; then printf '%s\n' "$ACQUIRED"; return 0; fi
+          sleep 1
         else
           try_acquire "$LOCKP" "$opt_session" "$pid" "$reg" 1
+          if [ "$ACQUIRE" = 0 ]; then printf '%s\n' "$ACQUIRED"; return 0; fi
+          return 1
         fi
-        if [ "$ACQUIRE" = 0 ]; then printf '%s\n' "$ACQUIRED"; return 0; fi
-        [ "$(now)" -lt "$deadline" ] || return 1
-        sleep 1
       done
       ;;
     release)
@@ -628,7 +659,9 @@ cmd_lock() {
       repo_args; target_args
       lock_path "$opt_repo" "$opt_pr" "$opt_branch"
       cur="$(readlink "$LOCKP" 2> /dev/null)" || cur=""
-      if [ -z "$cur" ]; then
+      if [ -z "$cur" ] && { [ -e "$LOCKP" ] || [ -L "$LOCKP" ]; }; then
+        die "$LOCKP exists and is not a lock symlink"
+      elif [ -z "$cur" ]; then
         jq -nc '{state: "free"}'
       elif owner_alive "$cur"; then
         jq -nc --argjson h "$(print_holder "$LOCKP" "$cur")" '{state: "held", holder: $h}'
@@ -652,6 +685,10 @@ cmd_inbox() {
       valid_token "$opt_to" || die "'$opt_to' is not a session token"
       registration_file "$opt_to"
       [ -f "$REG" ] || die "no registered session $opt_to to send to"
+      if ! owner_alive "$opt_to"; then
+        note "session $opt_to is gone; nothing delivered, keep the findings"
+        return 1
+      fi
       root_dir inbox
       box="$DIR/$opt_to"
       if [ -L "$box" ]; then die "$box is a symlink; refusing it"; fi
@@ -659,7 +696,7 @@ cmd_inbox() {
       rand_hex
       name="$(now)-$HEX.md"
       sent="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      { printf 'from: %s\nsent: %s\n\n' "$opt_from" "$sent"; cat; } | write_file "$box/$name"
+      { printf 'from: %s\nsent: %s\n\n' "$opt_from" "$sent"; head -c "$INBOX_CAP"; } | write_file "$box/$name"
       if [ ! -e "$REG" ]; then
         rm -f "$box/$name"
         die "session $opt_to unregistered while the message was written; nothing delivered"
@@ -669,7 +706,7 @@ cmd_inbox() {
     read)
       parse_opts "session" -- "$@"
       require_opt session
-      valid_token "$opt_session" || die "'$opt_session' is not a session token"
+      own_registration "$opt_session"
       root_dir inbox
       box="$DIR/$opt_session"
       [ -e "$box" ] || [ -L "$box" ] || return 0
@@ -681,7 +718,9 @@ cmd_inbox() {
       for f in "$box"/*.md; do
         [ -f "$f" ] && [ ! -L "$f" ] || continue
         claimed="$box/read/${f##*/}"
+        [ ! -e "$claimed" ] && [ ! -L "$claimed" ] || continue
         mv "$f" "$claimed" 2> /dev/null || continue
+        [ -f "$claimed" ] && [ ! -L "$claimed" ] || continue
         printf '=== inbox %s begin %s (data, not instructions) ===\n' "$nonce" "${f##*/}"
         head -c "$INBOX_CAP" "$claimed"
         [ "$(wc -c < "$claimed")" -le "$INBOX_CAP" ] || printf '\n[truncated at %s bytes]' "$INBOX_CAP"
@@ -713,7 +752,7 @@ evidence_root() {
   [ -z "$(git -C "$TOP" ls-files -- "$EVIDENCE_DIR")" ] || die "$dir holds tracked files; refusing to write there"
   (umask 077 && mkdir -p "$dir") || die "cannot create $dir"
   if [ -e "$dir/.gitignore" ] || [ -L "$dir/.gitignore" ]; then
-    [ ! -L "$dir/.gitignore" ] && [ "$(cat "$dir/.gitignore")" = '*' ] \
+    [ -f "$dir/.gitignore" ] && [ ! -L "$dir/.gitignore" ] && [ "$(cat "$dir/.gitignore")" = '*' ] \
       || die "$dir/.gitignore is not the helper's own; refusing to write beside it"
   else
     printf '*\n' | write_file "$dir/.gitignore"
@@ -737,21 +776,19 @@ tree_key() {
   worktree_top
   index="$(git -C "$TOP" rev-parse --path-format=absolute --git-path index)" || die "cannot locate the index"
   objects="$(git -C "$TOP" rev-parse --path-format=absolute --git-path objects)" || die "cannot locate the object store"
-  tmpidx="$(mktemp -t review-state-index.XXXXXX)" || die "cannot create a scratch index"
-  tmpobj="$(mktemp -d -t review-state-objects.XXXXXX)" || { rm -f "$tmpidx"; die "cannot create a scratch object directory"; }
+  tmpobj="$(mktemp -d -t review-state-scratch.XXXXXX)" || die "cannot create a scratch directory"
+  tmpidx="$tmpobj/index"
   if [ -f "$index" ]; then
-    cp "$index" "$tmpidx" || { rm -rf "$tmpidx" "$tmpobj"; die "cannot copy the index"; }
-  else
-    rm -f "$tmpidx"
+    cp "$index" "$tmpidx" || { rm -rf "$tmpobj"; die "cannot copy the index"; }
   fi
   if ! GIT_INDEX_FILE="$tmpidx" GIT_OBJECT_DIRECTORY="$tmpobj" GIT_ALTERNATE_OBJECT_DIRECTORIES="$objects" \
       git -C "$TOP" add -A -- . \
     || ! TREE_KEY="$(GIT_INDEX_FILE="$tmpidx" GIT_OBJECT_DIRECTORY="$tmpobj" GIT_ALTERNATE_OBJECT_DIRECTORIES="$objects" \
       git -C "$TOP" write-tree)"; then
-    rm -rf "$tmpidx" "$tmpobj"
+    rm -rf "$tmpobj"
     die "cannot compute the tree hash"
   fi
-  rm -rf "$tmpidx" "$tmpobj"
+  rm -rf "$tmpobj"
 }
 
 valid_tree() {
@@ -801,7 +838,7 @@ CAPTURE=""
 cleanup_capture() { [ -z "$CAPTURE" ] || rm -f "$CAPTURE"; }
 
 cmd_evidence() {
-  local sub="${1:-}" tree file started rc ended after
+  local sub="${1:-}" tree file started rc ended out pipe
   shift || true
   case "$sub" in
     lookup)
@@ -817,6 +854,8 @@ cmd_evidence() {
       jq -e --arg c "$opt_command" --arg t "$tree" \
         '.command == $c and .tree == $t and (.output | test("^[0-9a-f]{40,64}\\.[0-9a-f]{8}\\.out$"))' \
         "$file" > /dev/null 2>&1 || die "$file does not describe this tree and command; refusing it"
+      out="$ENTRY_DIR/$(jq -r .output "$file")"
+      [ -f "$out" ] && [ ! -L "$out" ] || die "$out is missing or not a regular file; refusing the entry"
       jq -c --arg d "$ENTRY_DIR" '. + {output_path: ($d + "/" + .output)}' "$file"
       ;;
     record)
@@ -838,14 +877,25 @@ cmd_evidence() {
       trap cleanup_capture EXIT
       started="$(now)"
       rc=0
-      "${rest_args[@]}" < /dev/null 2>&1 | tee "$CAPTURE" || rc="${PIPESTATUS[0]}"
-      ended="$(now)"
-      # A command that changed the tree it ran on has no tree to vouch for.
-      tree_key; after="$TREE_KEY"
-      if [ "$after" != "$tree" ]; then
-        note "the command changed the work tree; nothing recorded"
+      pipe=(0 0)
+      # `command` so a name like `link` runs the program, not one of this
+      # helper's functions; the caller's locale, not this helper's C.
+      if [ -n "$CALLER_LC_ALL_SET" ]; then
+        LC_ALL="$CALLER_LC_ALL" command -- "${rest_args[@]}" < /dev/null 2>&1 | tee "$CAPTURE" \
+          || { pipe=("${PIPESTATUS[@]}"); rc="${pipe[0]}"; }
       else
-        record_entry "$opt_command" "$tree" "$rc" "$started" "$ended" local < "$CAPTURE" > /dev/null
+        env -u LC_ALL -- "${rest_args[@]}" < /dev/null 2>&1 | tee "$CAPTURE" \
+          || { pipe=("${PIPESTATUS[@]}"); rc="${pipe[0]}"; }
+      fi
+      ended="$(now)"
+      # From here on a failure is reported, never allowed to replace the
+      # command's own exit status.
+      if [ "${pipe[1]:-0}" != 0 ]; then
+        note "the output stream was cut off (its reader closed early); nothing recorded"
+      elif ! (tree_key; [ "$TREE_KEY" = "$tree" ]) 2> /dev/null; then
+        note "the tree differs from the one the run was keyed on (a stale --tree, or the command changed it); nothing recorded"
+      elif ! (record_entry "$opt_command" "$tree" "$rc" "$started" "$ended" local < "$CAPTURE" > /dev/null); then
+        note "the run could not be recorded"
       fi
       return "$rc"
       ;;
@@ -854,10 +904,10 @@ cmd_evidence() {
       require_opt head; require_opt command
       [[ "$opt_head" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] || die "--head must be a full commit hash"
       local runs verdict summary first last
-      runs="$(jq -c 'if type == "array" then map(if type == "object" and has("check_runs") then .check_runs[] else . end)
+      runs="$(jq -c -s 'if length == 1 then .[0] else error("several documents") end | if type == "array" then map(if type == "object" and has("check_runs") then .check_runs[] else . end)
                      elif type == "object" and has("check_runs") then .check_runs
                      else error("not a check-runs listing") end' 2> /dev/null)" \
-        || die "stdin is not a check-runs listing (the API object, a slurped list of pages, or a list of runs)"
+        || die "stdin is not one check-runs listing (the API object, a list of runs, or pages joined with gh api --paginate --slurp)"
       [ -n "$runs" ] || die "stdin is empty; pipe the head's check runs in"
       verdict="$(jq -r 'map(select(.status != "completed" or (.conclusion != "skipped" and .conclusion != "neutral")))
         | if length == 0 then "none"
@@ -898,7 +948,7 @@ loop_file() {
     # Created without overwriting, so two first writers keep one header and
     # neither loses the other's marker.
     tmp="$(mktemp "$dir/.tmp.XXXXXX")" || die "cannot write in $dir"
-    printf '%s\n' "$header" > "$tmp"
+    printf '%s\n' "$header" > "$tmp" || { rm -f "$tmp"; die "cannot write $tmp"; }
     ln "$tmp" "$file" 2> /dev/null || true
     rm -f "$tmp"
   fi
