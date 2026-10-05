@@ -12,13 +12,15 @@ set -euo pipefail
 
 idfile="${IDENTIFIER_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/private-identifiers}"
 
-# Live instruction files, plus the bundle that audits them. Frozen bundles are
-# records and stay out of scope.
+# Live instruction files and the templates rendered beside them, plus the
+# bundles that audit them. Frozen bundles are records and stay out of scope.
 scope=(
   roles/claude/files/skills
+  roles/claude/files/planwright
   roles/claude/files/CLAUDE.md
   CLAUDE.md
   specs/claude-instructions
+  specs/review-skills
 )
 
 if [ ! -e "$idfile" ]; then

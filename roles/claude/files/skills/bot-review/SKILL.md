@@ -11,7 +11,7 @@ Resolve planwright's review doctrine first, per [doctrine.md](../review-shared/d
 
 ## Config
 
-Read `~/.config/dotfiles/bot-review.json` (mode 0600, read-only from this skill). Ansible renders it from a 1Password item through the committed template [bot-review.json.tpl](bot-review.json.tpl), whose every vendor value is an `op://` reference, and checks it against [config-schema.jq](config-schema.jq) before it lands; change the item, never the file. Its `version` must be `1`: on any other value, or none, stop naming the file and the version it carries.
+Read `~/.config/dotfiles/bot-review.json` (mode 0600, read-only from this skill). Ansible renders it from a 1Password item through the committed template [bot-review.json.tpl](bot-review.json.tpl), whose every vendor value is an `op://` reference, and checks it against [config-schema.jq](config-schema.jq) before it lands; change the item, never the file. Its `version` must be `1`: on any other value, or none, stop, naming the file and the version it carries.
 
 **Terminology**: a config **reviewer** entry configures one third-party **bot** shipped by some **vendor**; the three words name the same thing at different distances (the config key, the thing that posts comments, the company that makes it), never a fourth term for the same referent.
 

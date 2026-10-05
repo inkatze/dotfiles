@@ -22,7 +22,7 @@ tmp=""
 setup() {
   tmp="$(mktemp -d -t skill-contracts-test.XXXXXX)"
   mkdir -p "$tmp/roles/claude/files/scripts"
-  cp -R "$ROOT/roles/claude/files/skills" "$tmp/roles/claude/files/"
+  cp -R "$ROOT/roles/claude/files/skills" "$ROOT/roles/claude/files/planwright" "$tmp/roles/claude/files/"
   cp "$ROOT/roles/claude/files/CLAUDE.md" "$tmp/roles/claude/files/"
   cp "$ROOT/CLAUDE.md" "$tmp/"
   cp "$ROOT/roles/claude/files/scripts/skill-contracts.sh" "$tmp/roles/claude/files/scripts/"
@@ -298,7 +298,7 @@ reviewer_drift reviewer-backend-consent-release-on-failure-only \
 reviewer_drift reviewer-backend-nested-skips-preflight \
   'Run every "## Pre-flight" item above before entering the loop' 'Run "## Pre-flight" items 1-7 above before entering the loop'
 
-# --- JSON example configs ---
+# --- JSON files under the skills tree ---
 # A missing jq must be reported as missing, not as every config being invalid.
 setup
 nojq="$(mktemp -d)"
@@ -332,6 +332,31 @@ expect_fail review-template-unparseable \
   "echo '}' >> $SKILLS/bot-review/bot-review.json.tpl" "could not be checked"
 expect_fail review-template-missing \
   "rm $SKILLS/bot-review/bot-review.json.tpl" "bot-review.json.tpl does not exist"
+expect_fail review-template-no-copilot \
+  "jq 'del(.reviewers.copilot)' $SKILLS/bot-review/bot-review.json.tpl > x && mv x $SKILLS/bot-review/bot-review.json.tpl" \
+  "template: no copilot entry"
+expect_fail review-template-version \
+  "perl -pi -e 's/\"version\": 1/\"version\": 2/' $SKILLS/bot-review/bot-review.json.tpl" \
+  "template: version must be 1"
+expect_fail review-template-nested-literal \
+  "perl -pi -e 's|\\{\\{ op://__OP_VAULT__/__OP_ITEM__/cubic_rerequest_command \\}\\}|@bot review|' $SKILLS/bot-review/bot-review.json.tpl" \
+  "reviewers.cubic.rerequest.command: not an op:// reference"
+expect_fail review-template-no-method \
+  "perl -ni -e 'print unless /cubic_rerequest_method/' $SKILLS/bot-review/bot-review.json.tpl" \
+  "reviewers.cubic.rerequest: needs a method reference"
+expect_fail sibling-template-literal \
+  "jq '.repos = {\"o/a\": {\"o/b\": \"/src/b\"}}' $SHARED/sibling-repos.json.tpl > x && mv x $SHARED/sibling-repos.json.tpl" \
+  "repos: not an op:// reference"
+expect_fail overlay-template-literal \
+  "echo 'flight_pr_hosts: [github.com/someone]' >> roles/claude/files/planwright/planwright.yml.tpl" \
+  "is not a key: <op:// reference> line"
+expect_fail overlay-template-step-list \
+  "echo 'steps_convergence: {{ op://__OP_VAULT__/__OP_ITEM__/steps }}' >> roles/claude/files/planwright/planwright.yml.tpl" \
+  "sets a step list"
+expect_fail version-refusal-bot-review \
+  "perl -pi -e 's/or none, stop, naming the file/or none, carry on/' $(md bot-review)" "missing expected version refusal"
+expect_fail version-refusal-panel-review \
+  "perl -pi -e 's/or none, stop, naming the file/or none, carry on/' $(md panel-review)" "missing expected version refusal"
 
 # --- Slash-invoked only, names and flags kept (REQ-C1.11) ---
 expect_fail front-matter-model-invocation \
@@ -792,13 +817,15 @@ IDCHECK="$ROOT/roles/claude/files/scripts/identifier-check.sh"
 id_setup() {
   setup
   cp "$ROOT/CLAUDE.md" "$tmp/"
-  mkdir -p "$tmp/specs/claude-instructions" "$tmp/specs/pair-flow"
+  mkdir -p "$tmp/specs/claude-instructions" "$tmp/specs/review-skills" "$tmp/specs/pair-flow"
   cp "$ROOT/specs/claude-instructions/requirements.md" "$tmp/specs/claude-instructions/"
+  cp "$ROOT/specs/review-skills/requirements.md" "$tmp/specs/review-skills/"
   cp "$ROOT/specs/pair-flow/requirements.md" "$tmp/specs/pair-flow/"
   printf '# synthetic\nzqx-synthetic-project\n' > "$tmp/identifiers"
 }
 for planted in "$(md peer-review)" "$SHARED/github.md" "$GLOBAL_MD" CLAUDE.md \
-    specs/claude-instructions/requirements.md; do
+    specs/claude-instructions/requirements.md roles/claude/files/planwright/planwright.yml.tpl \
+    specs/review-skills/requirements.md; do
   id_setup
   printf 'Seen in the zqx-synthetic-project repo.\n' >> "$tmp/$planted"
   if out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" 2>&1)"; then
