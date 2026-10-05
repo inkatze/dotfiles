@@ -323,15 +323,16 @@ for f in ${matched[@]+"${matched[@]}"}; do
   err "$f carries a copied lens list; build it from the resolved discovery-rigor document"
 done
 
-# Review state is written only through its helper. A redirect, or a tee, cp,
-# mv, install, ln, rm, dd, rsync or touch whose last argument is in the
-# evidence record or the lock root, is a write the helper never sees, and auto
-# mode's permission check prompts on a redirect besides. Reading out of the
-# record is fine, and a write through a variable holding the path is out of
-# this sweep's reach.
-state_target='[^[:space:]|;&]*(review-evidence|dotfiles/review([^A-Za-z0-9_.-]|$))[^[:space:]|;&]*'
-state_end='[[:space:]]*([;|&)`]|$)'
-files_matching -E "((^|[[:space:]]|[0-9&])>[>|]?[[:space:]]*[\"']?$state_target)|((^|[[:space:];|&(\`])(tee|cp|mv|install|ln|rm|dd|rsync|touch)[[:space:]]([^|;&]*[[:space:]=])?$state_target$state_end)"
+# Review state is written only through its helper. A redirect, or a command
+# starting with tee, cp, mv, install, ln, rm, dd, rsync or touch whose target
+# (its last argument, or dd's of=) is in the evidence record or the lock root,
+# is a write the helper never sees, and auto mode's permission check prompts on
+# a redirect besides. Reading out of the record is fine; a write through a
+# variable holding the path, or whose target is not last, is out of reach.
+state_target='[^[:space:]|;&=]*(review-evidence|dotfiles/review([^A-Za-z0-9_.-]|$))[^[:space:]|;&]*'
+state_end='[[:space:]]*(([0-9&]?[<>][>&|]?[^[:space:]]*[[:space:]]*)*([;|&)`#]|$))'
+state_verb='(^|[;|&(`])[[:space:]]*(sudo[[:space:]]+)?(tee|cp|mv|install|ln|rm|dd|rsync|touch)[[:space:]]'
+files_matching -E "((^|[[:space:]]|[0-9&])>[>|]?[[:space:]]*[\"']?$state_target)|($state_verb([^|;&]*[[:space:]])?$state_target$state_end)|((^|[;|&(\`])[[:space:]]*(sudo[[:space:]]+)?dd[[:space:]][^|;&]*of=$state_target)"
 for f in ${matched[@]+"${matched[@]}"}; do
   err "$f writes review state around review-state.sh; send it through the helper (see $SHARED/state.md)"
 done

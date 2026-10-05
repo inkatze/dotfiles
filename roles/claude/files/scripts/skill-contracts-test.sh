@@ -393,6 +393,16 @@ expect_fail state-rm-locks \
   "printf '\\n    rm -rf ~/.config/dotfiles/review/locks\\n' >> $(md bot-review)" "writes review state around review-state.sh"
 expect_pass state-copy-out-benign \
   "printf '\\n    cp .claude/review-evidence/x.out /tmp/y\\n' >> $(md panel-review)"
+expect_fail state-tee-then-devnull \
+  "printf '\\n    cat x | tee ~/.config/dotfiles/review/x >/dev/null\\n' >> $(md bot-review)" "writes review state around review-state.sh"
+expect_fail state-cp-then-stderr \
+  "printf '\\n    cp src ~/.config/dotfiles/review/x 2>/dev/null\\n' >> $(md bot-review)" "writes review state around review-state.sh"
+expect_fail state-dd-of \
+  "printf '\\n    dd if=/dev/zero of=.claude/review-evidence/x count=1\\n' >> $(md panel-review)" "writes review state around review-state.sh"
+expect_fail state-backtick-touch \
+  "printf '\\nRun \\x60touch ~/.config/dotfiles/review/x\\x60 first.\\n' >> $(md bot-review)" "writes review state around review-state.sh"
+expect_pass state-prose-benign \
+  "printf '\\nNever touch anything under ~/.config/dotfiles/review by hand. Read with \\x60dd if=.claude/review-evidence/x.out\\x60.\\n' >> $(md panel-review)"
 expect_fail state-helper-path-removed \
   "perl -0pi -e 's{~/\\.claude/scripts/review-state\\.sh}{review-state}g' $SHARED/state.md" "helper path"
 expect_pass state-path-mention-benign \

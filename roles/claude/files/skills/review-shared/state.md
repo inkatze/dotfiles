@@ -7,10 +7,10 @@ helper writes all of it, `~/.claude/scripts/review-state.sh` (tracked at
 operation and its exit codes. Invoke it by that literal path with literal
 arguments, one call per command.
 
-Operations that act as a session (`register`, `unregister`, `lock acquire`,
-`lock release`, `lock handover`, `inbox read`) must run from the Claude Code
-session that owns the token: the helper finds that session process in its own
-ancestry and exits 2 anywhere else. `sessions`, `lock status` and `inbox send`
+Operations that act as a session (`session-pid`, `register`, `unregister`,
+`lock acquire`, `lock release`, `lock handover`, `inbox read`) must run from
+the Claude Code session they act for: the helper finds that session process in
+its own ancestry and exits 2 anywhere else. `sessions`, `lock status` and `inbox send`
 run from anywhere. A session token identifies a session; it is printed to
 peers on purpose and is not a secret.
 
@@ -23,7 +23,8 @@ or through `evidence run`, which captures a command's output itself.
 Every evidence entry, registry entry and loop artifact carries `version` (the
 loop artifact in its first line). The helper refuses a file whose version it
 does not know, or that has none, naming the file and the version, and so does
-any skill that reads one directly. Lock holder records and inbox files are the
+any skill that reads one directly. A dead session's registration is pruned
+without being read. Lock holder records and inbox files are the
 helper's own and short-lived, and carry none.
 
 ## Evidence record
@@ -55,12 +56,13 @@ later skill and iteration on that tree.
   (with `output_path`) and exits 0 on a hit, 1 on a miss. A finding's
   reproduction never reads the record: validation pass 1 reproduces.
 - **Running.** `evidence run --command <key> [--tree <hash>] -- <argv>` runs the
-  program (never a shell function), with stdin closed, stderr merged into the
-  captured output and the caller's locale, streams that output, records it,
+  program (never a shell function or builtin), with stdin from `/dev/null`,
+  stderr merged into the captured output and the caller's locale, streams that output, records it,
   and exits with the command's own status. It records nothing when the tree
   afterwards differs from the key (a stale `--tree`, or a command that changed
-  the tree) or when its output stream was cut off, and a failure to record is
-  reported without changing that exit status.
+  the tree) or when its output could not be captured, and a failure to record
+  is reported without changing that exit status. An entry whose output file
+  has gone is dropped on lookup and reads as a miss.
 - **Full-suite key.** The repository's declared test task, as written in its
   task runner (for example `mise run test`). Local runs and CI evidence record
   under that same key, so either satisfies the other's lookup.
@@ -116,15 +118,16 @@ immediately after. It replaces the per-skill same-PR lock in
   process is gone, or is running but started after the token was minted (a
   recycled pid), is reclaimed; a live owner's lock is kept however old it is.
   A permission error on the probe reads as alive.
-- **Reclaim.** The reclaimer prints a notice naming the dead holder and its
-  inbox files, read and unread, then removes them and the dead registration
-  with the lock. Every other registration whose owner is gone is pruned the
+- **Reclaim.** The reclaimer removes the dead holder's inbox files, read and
+  unread, and its registration with the lock, then prints a notice naming the
+  holder and those files. Every other registration whose owner is gone is pruned the
   same way, as is any inbox with no registration.
 - **Acquire.** `lock acquire --session <token> --repo <owner>/<repo> (--pr <n> |
   --branch <b>) [--wait <seconds>]` prints the lock token and exits 0. While
   another session holds it, it exits 1 and prints the holder record, whose
   `session` field is the address for the inbox. `--wait` keeps trying for that
-  many seconds and prints only the outcome. The registration that holds the
+  many seconds and prints only the outcome. A session takes locks only in the
+  repository it registered for. The registration that holds the
   lock gets its own token back; a different registration is refused, even one
   in the same Claude Code process.
 - **Release.** `lock release --session <token> --token <lock token> ...`
@@ -143,8 +146,8 @@ Every review skill registers for the length of its run, `register --name
 <session name> --skill <skill> --repo <owner>/<repo> (--pr <n> | --branch <b>)
 --worktree <dir>`, and keeps the printed session token: it is the session's
 identity for the lock and the inbox. `--skill` is a skill name; name, worktree,
-repo and branch must each be one printable line, within the length the usage
-block states. `unregister --session <token>` on exit releases any lock the
+repo and branch must each be one printable line, within the helper's length
+cap. `unregister --session <token>` on exit releases any lock the
 session still holds in that repository and drops its registration and inbox,
 unread files included. `sessions` lists the live registrations as JSON lines
 (`version`, `token`, `pid`, `name`, `skill`, `repo`, `pr` or `branch`,
@@ -161,8 +164,9 @@ holder by session message naming that path, waits at most one inbox poll
 window ([limits.md](limits.md)) with `lock acquire --wait`, takes the lock if
 it frees, and otherwise hands off naming the path. A send to a session whose
 process is gone exits 1 and delivers nothing, so the sender keeps its
-findings; a send to a token with no registration exits 2. Bodies past the
-helper's size cap are cut at it, on send and on read.
+findings; a send to a token with no registration exits 2. A body past the
+helper's size cap is cut at it and the sender is told; a file read back is cut
+at the cap plus room for its header and marked `[truncated]`.
 
 `inbox read --session <own token>` moves each unread file aside and returns it
 framed by markers carrying a nonce minted for that read, so a body cannot
@@ -178,6 +182,7 @@ beside the evidence record and ignored with it. The first line is
 `<!-- review-loop version=1 skill=<skill> -->`. `loop mark --skill <skill>
 --iteration <n> --phase start|end [--base <ref>]` writes an iteration marker on
 a line of its own, `<!-- iteration <n> <phase> at=<epoch> head=<sha>
-merge-base=<sha> -->`, with `-` for a head or merge-base that does not resolve,
+merge-base=<sha> -->`, with `-` for a head that does not resolve and for the
+merge-base when `--base` is absent or does not resolve,
 and `loop append --skill <skill>` adds the iteration's body (its lens table,
 findings, and evidence reuse) from stdin.

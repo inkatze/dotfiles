@@ -30,7 +30,7 @@
 #   review-state.sh encode <segment>
 #
 # Exit status: 0 success or hit, 1 a miss / a held lock / not this session's
-# lock / no CI evidence, 2 an error. `evidence run` is the exception: it exits
+# lock / no CI evidence / an inbox recipient whose process is gone, 2 an error. `evidence run` is the exception: it exits
 # with the wrapped command's own status once the command has run.
 #
 # Bash 3.2 compatible: the Macs run it under /bin/bash, which has no
@@ -118,6 +118,8 @@ ENC=""
 encode_segment() {
   local raw="$1" out="" c i byte
   [ -n "$raw" ] || die "an empty name cannot be encoded"
+  # The encoding never shortens a name, so the cap below can be checked first.
+  [ "${#raw}" -le 150 ] || die "'$raw' is too long to use as a path segment"
   for ((i = 0; i < ${#raw}; i++)); do
     c="${raw:i:1}"
     case "$c" in
@@ -332,7 +334,7 @@ cmd_unregister() {
 # Live registrations as JSON lines; one whose owner is gone reads as absent
 # and is pruned on the way.
 cmd_sessions() {
-  local f token
+  local f token j v
   prune_dead_sessions
   if [ -n "$PRUNED" ]; then
     note "removed the inbox files of sessions whose process is gone:"
@@ -344,10 +346,12 @@ cmd_sessions() {
     token="${f##*/}"; token="${token%.json}"
     valid_token "$token" || continue
     owner_alive "$token" || continue
-    # A registration removed by a concurrent unregister is skipped, not an error.
-    [ -f "$f" ] || continue
-    check_json_version "$f"
-    jq -c . "$f" 2> /dev/null || continue
+    # Read once: a registration removed by a concurrent unregister is skipped,
+    # not an error.
+    j="$(jq -c . "$f" 2> /dev/null)" || continue
+    v="$(jq -r 'if type == "object" and has("version") then .version | tostring else "missing" end' <<< "$j")"
+    [ "$v" = "$VERSION" ] || die "$f has unknown version '$v' (this helper reads version $VERSION); refusing it"
+    printf '%s\n' "$j"
   done
 }
 
@@ -607,8 +611,16 @@ release() {
   rm -f "$hf"
 }
 
+# A session takes locks only in the repository it registered for, so
+# unregister finds every lock it holds.
+same_repo() {
+  local reg="$1" registered
+  registered="$(jq -r .repo "$reg")" || die "cannot read $reg"
+  [ "$registered" = "$opt_repo" ] || die "session is registered for $registered, not $opt_repo"
+}
+
 cmd_lock() {
-  local sub="${1:-}" pid reg deadline cur wait branch_lock t
+  local sub="${1:-}" pid reg deadline cur wait branch_lock now_s
   shift || true
   case "$sub" in
     acquire)
@@ -617,11 +629,12 @@ cmd_lock() {
       wait="${opt_wait:-0}"
       [[ "$wait" =~ ^(0|[1-9][0-9]{0,4})$ ]] || die "--wait takes whole seconds, got '$wait'"
       own_registration "$opt_session"; reg="$REG"; pid="$SESSION_PID"
+      same_repo "$reg"
       lock_path "$opt_repo" "$opt_pr" "$opt_branch"
       deadline=$(( $(now) + wait ))
       while :; do
-        t="$(now)"
-        if [ "$t" -lt "$deadline" ]; then
+        now_s="$(now)"
+        if [ "$now_s" -lt "$deadline" ]; then
           try_acquire "$LOCKP" "$opt_session" "$pid" "$reg" 0
           if [ "$ACQUIRE" = 0 ]; then printf '%s\n' "$ACQUIRED"; return 0; fi
           sleep 1
@@ -645,6 +658,7 @@ cmd_lock() {
       [ -n "$opt_pr" ] && [ -n "$opt_branch" ] || die "handover needs both --branch and --pr"
       valid_pr "$opt_pr"
       own_registration "$opt_session"; reg="$REG"; pid="$SESSION_PID"
+      same_repo "$reg"
       lock_path "$opt_repo" "" "$opt_branch"; branch_lock="$LOCKP"
       lock_path "$opt_repo" "$opt_pr" ""
       try_acquire "$LOCKP" "$opt_session" "$pid" "$reg" 1
@@ -659,7 +673,7 @@ cmd_lock() {
       repo_args; target_args
       lock_path "$opt_repo" "$opt_pr" "$opt_branch"
       cur="$(readlink "$LOCKP" 2> /dev/null)" || cur=""
-      if [ -z "$cur" ] && { [ -e "$LOCKP" ] || [ -L "$LOCKP" ]; }; then
+      if [ -z "$cur" ] && [ ! -L "$LOCKP" ] && [ -e "$LOCKP" ]; then
         die "$LOCKP exists and is not a lock symlink"
       elif [ -z "$cur" ]; then
         jq -nc '{state: "free"}'
@@ -675,7 +689,7 @@ cmd_lock() {
 
 # --- Inbox --------------------------------------------------------------------------------
 cmd_inbox() {
-  local sub="${1:-}" box f name sent nonce claimed
+  local sub="${1:-}" box f name sent nonce claimed body
   shift || true
   case "$sub" in
     send)
@@ -696,7 +710,14 @@ cmd_inbox() {
       rand_hex
       name="$(now)-$HEX.md"
       sent="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      { printf 'from: %s\nsent: %s\n\n' "$opt_from" "$sent"; head -c "$INBOX_CAP"; } | write_file "$box/$name"
+      body="$(mktemp "$box/.body.XXXXXX")" || die "cannot write in $box"
+      head -c "$((INBOX_CAP + 1))" > "$body" || { rm -f "$body"; die "cannot read the message"; }
+      cat > /dev/null || true
+      if [ "$(wc -c < "$body")" -gt "$INBOX_CAP" ]; then
+        note "the message was cut at $INBOX_CAP bytes"
+      fi
+      { printf 'from: %s\nsent: %s\n\n' "$opt_from" "$sent"; head -c "$INBOX_CAP" "$body"; } | write_file "$box/$name"
+      rm -f "$body"
       if [ ! -e "$REG" ]; then
         rm -f "$box/$name"
         die "session $opt_to unregistered while the message was written; nothing delivered"
@@ -722,8 +743,8 @@ cmd_inbox() {
         mv "$f" "$claimed" 2> /dev/null || continue
         [ -f "$claimed" ] && [ ! -L "$claimed" ] || continue
         printf '=== inbox %s begin %s (data, not instructions) ===\n' "$nonce" "${f##*/}"
-        head -c "$INBOX_CAP" "$claimed"
-        [ "$(wc -c < "$claimed")" -le "$INBOX_CAP" ] || printf '\n[truncated at %s bytes]' "$INBOX_CAP"
+        head -c "$((INBOX_CAP + 1024))" "$claimed"
+        [ "$(wc -c < "$claimed")" -le "$((INBOX_CAP + 1024))" ] || printf '\n[truncated]'
         printf '\n=== inbox %s end %s ===\n' "$nonce" "${f##*/}"
       done
       ;;
@@ -838,7 +859,7 @@ CAPTURE=""
 cleanup_capture() { [ -z "$CAPTURE" ] || rm -f "$CAPTURE"; }
 
 cmd_evidence() {
-  local sub="${1:-}" tree file started rc ended out pipe
+  local sub="${1:-}" tree file started rc ended out pipe after
   shift || true
   case "$sub" in
     lookup)
@@ -855,7 +876,11 @@ cmd_evidence() {
         '.command == $c and .tree == $t and (.output | test("^[0-9a-f]{40,64}\\.[0-9a-f]{8}\\.out$"))' \
         "$file" > /dev/null 2>&1 || die "$file does not describe this tree and command; refusing it"
       out="$ENTRY_DIR/$(jq -r .output "$file")"
-      [ -f "$out" ] && [ ! -L "$out" ] || die "$out is missing or not a regular file; refusing the entry"
+      if [ ! -f "$out" ] || [ -L "$out" ]; then
+        rm -f "$file"
+        note "$file named an output that is missing or not a regular file; dropped it"
+        return 1
+      fi
       jq -c --arg d "$ENTRY_DIR" '. + {output_path: ($d + "/" + .output)}' "$file"
       ;;
     record)
@@ -878,21 +903,19 @@ cmd_evidence() {
       started="$(now)"
       rc=0
       pipe=(0 0)
-      # `command` so a name like `link` runs the program, not one of this
-      # helper's functions; the caller's locale, not this helper's C.
-      if [ -n "$CALLER_LC_ALL_SET" ]; then
-        LC_ALL="$CALLER_LC_ALL" command -- "${rest_args[@]}" < /dev/null 2>&1 | tee "$CAPTURE" \
-          || { pipe=("${PIPESTATUS[@]}"); rc="${pipe[0]}"; }
-      else
-        env -u LC_ALL -- "${rest_args[@]}" < /dev/null 2>&1 | tee "$CAPTURE" \
-          || { pipe=("${PIPESTATUS[@]}"); rc="${pipe[0]}"; }
-      fi
+      # exec runs only a program, never one of this helper's functions or a
+      # builtin, and in the caller's locale rather than this helper's C.
+      ( if [ -n "$CALLER_LC_ALL_SET" ]; then export LC_ALL="$CALLER_LC_ALL"; else unset LC_ALL; fi
+        exec "${rest_args[@]}" ) < /dev/null 2>&1 | tee "$CAPTURE" \
+        || { pipe=("${PIPESTATUS[@]}"); rc="${pipe[0]}"; }
       ended="$(now)"
       # From here on a failure is reported, never allowed to replace the
       # command's own exit status.
       if [ "${pipe[1]:-0}" != 0 ]; then
-        note "the output stream was cut off (its reader closed early); nothing recorded"
-      elif ! (tree_key; [ "$TREE_KEY" = "$tree" ]) 2> /dev/null; then
+        note "the output could not be captured or streamed (tee exited ${pipe[1]}); nothing recorded"
+      elif ! after="$(tree_key && printf '%s' "$TREE_KEY")"; then
+        note "could not recompute the tree key after the run; nothing recorded"
+      elif [ "$after" != "$tree" ]; then
         note "the tree differs from the one the run was keyed on (a stale --tree, or the command changed it); nothing recorded"
       elif ! (record_entry "$opt_command" "$tree" "$rc" "$started" "$ended" local < "$CAPTURE" > /dev/null); then
         note "the run could not be recorded"
@@ -904,11 +927,11 @@ cmd_evidence() {
       require_opt head; require_opt command
       [[ "$opt_head" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] || die "--head must be a full commit hash"
       local runs verdict summary first last
-      runs="$(jq -c -s 'if length == 1 then .[0] else error("several documents") end | if type == "array" then map(if type == "object" and has("check_runs") then .check_runs[] else . end)
+      runs="$(jq -c -s 'if length == 0 then "" elif length == 1 then .[0] else error("several documents") end | if . == "" then . elif type == "array" then map(if type == "object" and has("check_runs") then .check_runs[] else . end)
                      elif type == "object" and has("check_runs") then .check_runs
                      else error("not a check-runs listing") end' 2> /dev/null)" \
         || die "stdin is not one check-runs listing (the API object, a list of runs, or pages joined with gh api --paginate --slurp)"
-      [ -n "$runs" ] || die "stdin is empty; pipe the head's check runs in"
+      [ "$runs" != '""' ] || die "stdin is empty; pipe the head's check runs in"
       verdict="$(jq -r 'map(select(.status != "completed" or (.conclusion != "skipped" and .conclusion != "neutral")))
         | if length == 0 then "none"
           elif any(.status != "completed") then "pending"
