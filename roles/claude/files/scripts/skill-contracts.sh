@@ -173,13 +173,13 @@ for name in "${SKILL_NAMES[@]}"; do
   front="$(awk 'NR==1 { if ($0 != "---") exit; next } $0 == "---" { closed = 1; exit } { buf = buf $0 "\n" } END { if (closed) printf "%s", buf }' "$f")"
   [ -n "$front" ] || { err "$f has no front matter"; continue; }
   grep -qx "name: $name" <<< "$front" || err "$f front matter does not name the skill '$name'"
-  case "$name" in
-    bot-review|copilot-review|panel-review)
+  want="$(expected_hint "$name")"
+  case "$want" in
+    *--nested*)
       ! grep -q '^disable-model-invocation:' <<< "$front" \
         || err "$f front matter sets disable-model-invocation, but $name has a --nested mode that parent skills invoke through the Skill tool" ;;
     *) grep -qx 'disable-model-invocation: true' <<< "$front" || err "$f front matter lacks disable-model-invocation: true" ;;
   esac
-  want="$(expected_hint "$name")"
   hint_lines="$(grep -c '^argument-hint:' <<< "$front" || true)"
   if [ -z "$want" ]; then
     [ "$hint_lines" -eq 0 ] || err "$f has an argument-hint, but $name takes no arguments"
