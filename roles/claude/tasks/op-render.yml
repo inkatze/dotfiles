@@ -61,7 +61,7 @@
 - name: Fail on any 1Password render that failed
   ansible.builtin.fail:
     msg: >-
-      {% for r in claude_render_failed %}{{ r.stderr or r.msg | default('failed with no output') }}
+      {% for r in claude_render_failed %}{{ r.stderr | default('', true) or r.msg | default('failed with no output') }}
       {{- '' if loop.last else ' | ' }}{% endfor %}
   vars:
     claude_render_failed: >-
