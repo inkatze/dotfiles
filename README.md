@@ -39,7 +39,10 @@ This repo is public, so `specs/linux-migration` REQ-F1.1 keeps real
 hostnames and LAN addresses out of committed artifacts. The values that
 name a specific machine live in untracked files under
 `~/.config/dotfiles/` instead. Each is optional, and its absence degrades
-visibly rather than silently. The review config and the sibling-repository
+visibly rather than silently, with one exception: on a host with the
+1Password CLI, the rendered files need their items to exist before the first
+`mise run claude`, or that run fails (the items are listed in
+`docs/machine-local-files.md`). The review config and the sibling-repository
 map beside them are rendered from 1Password by the claude role; the repo
 `CLAUDE.md` lists every file there.
 

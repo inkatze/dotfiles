@@ -348,7 +348,10 @@ grep -q ops_teststubtoken123 "$OP_STUB_ARGV" && ko "token in argv" || ok "token 
 
 echo "18. empty fields drop their keys, and an entry left wholly empty drops out"
 new_sandbox
-mapfile -t empty_copilot < <(full_review_fields | grep '^copilot_' | sed 's/=.*/=/')
+# A while-read loop, not mapfile: the macOS CI leg runs bash 3.2.
+empty_copilot=()
+while IFS= read -r field; do empty_copilot+=("$field"); done \
+  < <(full_review_fields | grep '^copilot_' | sed 's/=.*/=/')
 full_review_item "${empty_copilot[@]}"
 run "$review_tpl" dotfiles-bot-review "$out"
 [ "$rc" -eq 0 ] && ok "renders with the copilot entry unset" || ko "renders with the copilot entry unset ($log)"
