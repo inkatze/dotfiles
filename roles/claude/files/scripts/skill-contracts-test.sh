@@ -236,6 +236,8 @@ reviewer_drift reviewer-backend-tree-change-not-fatal '[ -z "$tree_msg" ] || { e
 reviewer_drift reviewer-backend-findings-escape-output \
   'case "$(realpath "$src")" in "$(realpath "$out")"/*) ;;' 'case "$src" in *) ;;'
 
+expect_fail panel-egress-consent-dropped \
+  "perl -ni -e 'print unless /^7\\. \\*\\*Egress consent, once per repo \\(/' $(md panel-review)" "default-backend consent line"
 reviewer_drift reviewer-backend-no-egress-consent \
   '6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).**' '6. **Notes.**'
 reviewer_drift reviewer-backend-consent-diff-only \
@@ -384,13 +386,20 @@ expect_fail version-refusal-bot-review \
 expect_fail version-refusal-panel-review \
   "perl -pi -e 's/or none, stop, naming the file/or none, carry on/' $(md panel-review)" "missing expected version refusal"
 
-# --- Slash-invoked only, names and flags kept (REQ-C1.11) ---
+# --- Slash-only unless nested, names and flags kept (REQ-C1.12) ---
 expect_fail front-matter-model-invocation \
-  "perl -ni -e 'print unless /^disable-model-invocation: true\$/' $(md panel-review)" "lacks disable-model-invocation: true"
+  "perl -ni -e 'print unless /^disable-model-invocation: true\$/' $(md peer-review)" "lacks disable-model-invocation: true"
+expect_fail front-matter-nested-hidden \
+  "perl -pi -e 's/^(name: panel-review)\$/\$1\\ndisable-model-invocation: true/' $(md panel-review)" "has a --nested mode"
 expect_fail front-matter-flag-dropped \
   "perl -pi -e 's/ \\[--dry-run\\]//' $(md bot-review)" "argument-hint is"
 expect_fail front-matter-renamed \
   "perl -pi -e 's/^name: peer-review\$/name: peer-reviews/' $(md peer-review)" "does not name the skill"
+export SENTENCE='Runs only when the operator types `/copilot-review` or a parent skill calls it; never on the model'"'"'s own initiative, and a plain-language request is answered by naming the command to type.'
+expect_fail description-sentence-moved \
+  "perl -0pi -e 's/ \\Q\$ENV{SENTENCE}\\E\$//m; \$_ .= \"\\n\$ENV{SENTENCE}\\n\"' $(md copilot-review)" "description does not end with"
+expect_fail description-continued \
+  "perl -pi -e 's/^(description: .*)\$/\$1\\n  Also handles more./' $(md panel-review)" "description continues onto another line"
 
 # --- One source of review doctrine (REQ-B1.2, REQ-B1.3, REQ-B1.6) ---
 expect_fail doctrine-pointer-missing \

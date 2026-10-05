@@ -1,8 +1,7 @@
 ---
 name: copilot-review
-description: Review and address unresolved GitHub Copilot review threads on the current PR. Pass `--nested` to loop autonomously (address, push, re-request review, wait, repeat) until convergence or diminishing returns.
+description: Review and address unresolved GitHub Copilot review threads on the current PR. Pass `--nested` to loop autonomously (address, push, re-request review, wait, repeat) until convergence or diminishing returns. Runs only when the operator types `/copilot-review` or a parent skill calls it; never on the model's own initiative, and a plain-language request is answered by naming the command to type.
 argument-hint: "[--nested]"
-disable-model-invocation: true
 ---
 
 Review and address unresolved GitHub Copilot review threads on the current PR. Pass `--nested` to loop autonomously (address, push, re-request review, wait, repeat) until convergence or diminishing returns, instead of running one interactive pass.
@@ -77,7 +76,7 @@ Act-then-review: apply Auto-applicable and Agent-resolvable fixes, and each Need
 
 ### 7. Commit and push
 
-Commit and push before any reply describes the change. On a hook failure, follow the push-hook rule in [github.md](../review-shared/github.md).
+Commit, then ask before pushing (`y/N`): a model-chosen run reaches this step too, and nested mode is the one that pushes unasked. Push before any reply describes the change; on a no, stop before step 8. On a hook failure, follow the push-hook rule in [github.md](../review-shared/github.md).
 
 ### 8. Reply to and resolve each thread
 

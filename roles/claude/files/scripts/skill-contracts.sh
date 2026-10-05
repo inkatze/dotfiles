@@ -201,7 +201,7 @@ for name in "${SKILL_NAMES[@]}"; do
   [ -f "$(skill_md "$name")" ] || err "$(skill_md "$name") does not exist"
 done
 
-# --- Slash-invoked only, with fixed names and flags ---
+# --- Fixed names and flags; slash-only unless a --nested mode needs the Skill tool ---
 # Each skill's argument-hint. peer-review takes no arguments, so it has none.
 expected_hint() {
   case "$1" in
@@ -220,8 +220,23 @@ for name in "${SKILL_NAMES[@]}"; do
   front="$(awk 'NR==1 { if ($0 != "---") exit; next } $0 == "---" { closed = 1; exit } { buf = buf $0 "\n" } END { if (closed) printf "%s", buf }' "$f")"
   [ -n "$front" ] || { err "$f has no front matter"; continue; }
   grep -qx "name: $name" <<< "$front" || err "$f front matter does not name the skill '$name'"
-  grep -qx 'disable-model-invocation: true' <<< "$front" || err "$f front matter lacks disable-model-invocation: true"
   want="$(expected_hint "$name")"
+  case "$want" in
+    *--nested*)
+      ! grep -q '^disable-model-invocation:' <<< "$front" \
+        || err "$f front matter sets disable-model-invocation, but $name has a --nested mode that parent skills invoke through the Skill tool"
+      # The description is always in context, so it is what keeps the model
+      # from starting the skill unasked; a copy in the body does not count.
+      sentence="Runs only when the operator types \`/$name\` or a parent skill calls it; never on the model's own initiative, and a plain-language request is answered by naming the command to type."
+      desc="$(sed -n 's/^description: *//p' <<< "$front")"
+      desc="${desc#\"}"; desc="${desc%\"}"
+      [[ "$desc" == *" $sentence" ]] || err "$f front-matter description does not end with: \"$sentence\""
+      # The read above sees one line; an indented continuation would extend
+      # the YAML value past the sentence it matched.
+      ! awk '/^description:/ { d = 1; next } d && /^[^[:space:]]/ { exit } d && /[^[:space:]]/ { c = 1; exit } END { exit !c }' <<< "$front" \
+        || err "$f front-matter description continues onto another line; keep it on one line so its ending can be checked" ;;
+    *) grep -qx 'disable-model-invocation: true' <<< "$front" || err "$f front matter lacks disable-model-invocation: true" ;;
+  esac
   hint_lines="$(grep -c '^argument-hint:' <<< "$front" || true)"
   if [ -z "$want" ]; then
     [ "$hint_lines" -eq 0 ] || err "$f has an argument-hint, but $name takes no arguments"
@@ -815,6 +830,9 @@ egress_checks=(
 )
 require_phrases "$SKILLS/panel-review/reviewer-backend.md" "reviewer-backend containment line" "${reviewer_backend_checks[@]}"
 require_phrases "$(skill_md panel-review)" "reviewer-backend consent line" "${panel_consent_checks[@]}"
+require_phrases "$(skill_md panel-review)" "default-backend consent line" \
+  '7. **Egress consent, once per repo (`codex` and `gemini`).**' \
+  'so before its first upload it asks per [egress.md](../review-shared/egress.md), with key `<owner>/<repo>` and the backend as value'
 require_phrases "$SHARED/egress.md" "egress-consent line" "${egress_checks[@]}"
 # The consent lock is released after the write whether or not it succeeded,
 # so the rmdir sits after the failure branch's fi, not inside it.
