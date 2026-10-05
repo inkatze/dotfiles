@@ -88,7 +88,7 @@ test result calls for it.
 
 Who flips follows the repository's ownership, judged with the rewrite scope's
 owner test but applied to the whole repository, not one branch; a repo's own
-`CLAUDE.md` moving the rewrite scope does not move the flip.
+`CLAUDE.md` moving the rewrite scope or naming its kind does not move the flip.
 
 - A **solo repo** is one I own (not an employer or another organization) where
   no other person works; my own sessions, worktrees, dispatched agents and
@@ -101,14 +101,14 @@ owner test but applied to the whole repository, not one branch; a repo's own
 In a solo repo, the session that completes the last step of the review cadence
 the PR calls for marks it ready itself once every step of that cadence has run
 to completion, CI is green on the current head and the PR is mergeable,
-re-checking each condition immediately before the flip, and states the flip
-and the conditions it checked in its reply or handoff.
+re-checking each condition and the repo's kind immediately before the flip,
+and states the flip and the conditions it checked in its reply or handoff.
 
 In a work or collaborative repo, marking a PR ready is mine to request and
-yours to perform, and that repo's planwright config sets
-`ready_flip_policy: human`; where it does not, say so and leave the PR a draft
-rather than let a configured flip mark it ready. Once I have asked, do not hand
-the flip back to me as a manual step.
+yours to perform, and a planwright config there sets
+`ready_flip_policy: human`; where one exists without it, say so, keep
+configured flips from marking a PR ready and report one that already did. Once
+I have asked, do not hand the flip back to me as a manual step.
 
 planwright's configured flips count as you flipping and follow the same scope,
 except one kept in every repository: the spec PR after a signed-off kickoff,

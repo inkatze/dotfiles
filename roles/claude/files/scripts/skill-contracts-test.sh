@@ -508,10 +508,20 @@ PIN="evaluate the ready conditions against the current head" \
   expect_fail copilot-flip-conditions-dropped 'drop_pin "$PIN" "$(md copilot-review)"' "convergence-flip conditions"
 PIN="On an unmet or unconfirmable one, name it, do not ask, and leave the PR a draft." \
   expect_fail copilot-flip-unmet-dropped 'drop_pin "$PIN" "$(md copilot-review)"' "convergence-flip conditions"
-PIN="re-run the \`isDraft,state\` check, the thread recount and the ready conditions" \
+PIN="re-run the \`isDraft,state\` check, the head guard above" \
   expect_fail copilot-flip-recheck-dropped 'drop_pin "$PIN" "$(md copilot-review)"' "convergence-flip conditions"
 PIN="report the denial and leave it a draft: no sync to satisfy it, no bypass." \
   expect_fail copilot-ready-guard-denial-dropped 'drop_pin "$PIN" "$(md copilot-review)"' "convergence-flip conditions"
+PIN="(a moved head with a changed tree runs its request-and-poll branch), " \
+  expect_fail copilot-flip-head-guard-dropped 'drop_pin "$PIN" "$(md copilot-review)"' "convergence-flip conditions"
+PIN="a yes covers only the head it was given for, so a loop back asks again at the next convergence" \
+  expect_fail copilot-flip-yes-scope-dropped 'drop_pin "$PIN" "$(md copilot-review)"' "convergence-flip conditions"
+PIN="(this convergence completes the loop's own step)" \
+  expect_fail copilot-flip-own-step-dropped 'drop_pin "$PIN" "$(md copilot-review)"' "convergence-flip conditions"
+PIN="Leaving it a draft ends this loop's part only" \
+  expect_fail copilot-flip-handoff-scope-dropped 'drop_pin "$PIN" "$(md copilot-review)"' "convergence-flip conditions"
+expect_fail copilot-flip-ask-first \
+  'swap_fixed "**Only once the recheck confirms zero**, evaluate" "**Only once the recheck confirms zero**, ask; then evaluate" "$(md copilot-review)"' "convergence-flip conditions"
 expect_fail copilot-flip-ungated \
   'swap_fixed "With every check passing, run" "On yes, run" "$(md copilot-review)"' "convergence-flip conditions"
 expect_fail bot-review-safety-nested-apply \
@@ -581,7 +591,7 @@ expect_pass ready-flip-reflow \
 PIN="In a work or collaborative repo, marking a PR ready is mine to request" \
   expect_fail ready-flip-collaborative-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN="In a solo repo," expect_fail ready-flip-everywhere 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
-PIN=", re-checking each condition immediately before the flip" \
+PIN=", re-checking each condition and the repo's kind immediately before the flip" \
   expect_fail ready-flip-recheck-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN="a repository whose owner you cannot tell counts as one" \
   expect_fail ready-flip-unknown-owner-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
@@ -589,10 +599,12 @@ PIN="; one where you cannot tell whether another person works counts as one" \
   expect_fail ready-flip-unknown-collaborator-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN="automated accounts are not another person" \
   expect_fail ready-flip-own-agents-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
-PIN="moving the rewrite scope does not move the flip" \
+PIN="moving the rewrite scope or naming its kind does not move the flip" \
   expect_fail ready-flip-override-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
-PIN="; where it does not, say so and leave the PR a draft" \
+PIN="; where one exists without it, say so, keep configured flips from marking a PR ready" \
   expect_fail ready-flip-policy-missing-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN=" and the repo's kind" \
+  expect_fail ready-flip-kind-recheck-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 expect_fail ready-flip-scope-duplicated \
   "perl -0ne 'print \"\\n\$1\\n\" if /(In a solo repo, the session.*?in its reply or handoff\\.)/s' $GLOBAL_MD > solo.tmp && cat solo.tmp >> $GLOBAL_MD && rm solo.tmp" "states the solo ready flip 2 times"
 expect_fail ready-flip-never-rule-restored \

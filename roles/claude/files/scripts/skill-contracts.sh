@@ -549,14 +549,14 @@ if [ -n "$global_ok" ]; then
   # Who flips follows ownership: the agent in a solo repo, the operator's
   # request elsewhere. The solo clause is stated once, so a second copy cannot
   # drift from the first.
-  SOLO_FLIP="In a solo repo, the session that completes the last step of the review cadence the PR calls for marks it ready itself once every step of that cadence has run to completion, CI is green on the current head and the PR is mergeable, re-checking each condition immediately before the flip, and states the flip and the conditions it checked in its reply or handoff."
+  SOLO_FLIP="In a solo repo, the session that completes the last step of the review cadence the PR calls for marks it ready itself once every step of that cadence has run to completion, CI is green on the current head and the PR is mergeable, re-checking each condition and the repo's kind immediately before the flip, and states the flip and the conditions it checked in its reply or handoff."
   require_normalized "$GLOBAL_MD" "ready-flip scope" \
-    "a repo's own \`CLAUDE.md\` moving the rewrite scope does not move the flip." \
+    "a repo's own \`CLAUDE.md\` moving the rewrite scope or naming its kind does not move the flip." \
     "A **solo repo** is one I own (not an employer or another organization) where no other person works; my own sessions, worktrees, dispatched agents and automated accounts are not another person." \
     "A **work repo** is owned by an employer or another organization; a repository whose owner you cannot tell counts as one." \
     "A **collaborative repo** is one I own where another person works; one where you cannot tell whether another person works counts as one." \
     "$SOLO_FLIP" \
-    "In a work or collaborative repo, marking a PR ready is mine to request and yours to perform, and that repo's planwright config sets \`ready_flip_policy: human\`; where it does not, say so and leave the PR a draft rather than let a configured flip mark it ready."
+    "In a work or collaborative repo, marking a PR ready is mine to request and yours to perform, and a planwright config there sets \`ready_flip_policy: human\`; where one exists without it, say so, keep configured flips from marking a PR ready and report one that already did."
   occurrences "$global_norm" "the session that completes the last step of the review cadence" n
   [ "$n" -le 1 ] || err "$GLOBAL_MD states the solo ready flip $n times; state it once: \"$SOLO_FLIP\""
   forbid_normalized "$GLOBAL_MD" "never-flip rule" "Never flip a PR ready on your own initiative"
@@ -698,11 +698,11 @@ require_phrases "$(skill_md copilot-review)" "mark-ready safety sentence" \
 # The convergence flip checks the user-global ready conditions itself and
 # reports a ready-guard denial rather than working around it.
 require_normalized "$(skill_md copilot-review)" "convergence-flip conditions" \
-  "evaluate the ready conditions against the current head: GitHub reports \`mergeable: MERGEABLE\` (\`UNKNOWN\` after one re-query a few seconds later counts as unmet), CI is green, and every step of the review cadence the PR calls for has run." \
-  "On an unmet or unconfirmable one, name it, do not ask, and leave the PR a draft." \
-  "On yes, immediately before the flip, re-run the \`isDraft,state\` check, the thread recount and the ready conditions as above" \
-  "if planwright's ready-guard hook denies the flip, report the denial and leave it a draft: no sync to satisfy it, no bypass." \
-  "With every check passing, run \`gh pr ready <number>\`"
+  "**Only once the recheck confirms zero**, evaluate the ready conditions against the current head: GitHub reports \`mergeable: MERGEABLE\` (\`UNKNOWN\` after one re-query a few seconds later counts as unmet), CI is green, and every other step of the review cadence the PR calls for has run (this convergence completes the loop's own step)." \
+  "On an unmet or unconfirmable one, name it, do not ask, and leave the PR a draft. Otherwise, in an attended session, ask once" \
+  "On yes, immediately before the flip, re-run the \`isDraft,state\` check, the head guard above (a moved head with a changed tree runs its request-and-poll branch), the thread recount and the ready conditions, each failing as it does before the ask; a yes covers only the head it was given for, so a loop back asks again at the next convergence." \
+  "If planwright's ready-guard hook denies the flip, report the denial and leave it a draft: no sync to satisfy it, no bypass. With every check passing, run \`gh pr ready <number>\`" \
+  "Leaving it a draft ends this loop's part only; the user-global Pull Request Lifecycle rule decides any later flip."
 
 # The review config's readers refuse a version they do not know.
 require_normalized "$(skill_md bot-review)" "version refusal" \
