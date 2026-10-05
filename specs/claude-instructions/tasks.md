@@ -7,8 +7,9 @@
 
 Tasks 1 to 4, 8 and 9 land in this repository. Tasks 5, 6 and 7 land
 elsewhere (the project repo, the planwright repository, the work host) and are
-parked under Deferred with a free-text gate so the orchestrator never dispatches them from
-this checkout; the operator runs them by hand where they belong.
+parked under Deferred with a free-text gate so the orchestrator never
+dispatches them from this checkout; the operator runs them by hand where they
+belong.
 
 The materialized Claude links point at the checkout Ansible last ran from,
 the main checkout by convention, so a session never loads a task branch's
