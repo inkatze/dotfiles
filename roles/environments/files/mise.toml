@@ -41,5 +41,8 @@ usage = "5.0.0"
 # route to every platform; npm because the vendor's other route is an unpinned
 # install script. The package's postinstall pipes the git-ai installer (a
 # commit tagger that writes git notes) to bash unless opted out, which the
-# environments role does before `mise install` runs (tasks/main.yml).
+# environments role does before `mise install` runs (tasks/main.yml). The
+# package is proprietary (license field UNLICENSED, use on the vendor's
+# terms); scripts/cubic-postinstall-optout-test.sh fails on a version bump
+# until the new install scripts and license are re-read.
 "npm:@cubic-dev-ai/cli" = "1.14.2"

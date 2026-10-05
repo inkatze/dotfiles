@@ -35,7 +35,7 @@
         "timeout_seconds": 1200,
         "findings_output": "stdout-json",
         "findings_exit_codes": [1],
-        "findings_jq": "if type != \"object\" or (.error // null) != null or (.issues | type) != \"array\" then error(\"not a findings document\") else [.issues[] | {file: (.file | tostring), line: (.line | if type == \"number\" then . elif type == \"string\" and test(\"^[0-9]+$\") then tonumber else null end), finding: ([.title, .description] | map(select(type == \"string\" and . != \"\")) | join(\": \")), severity: (.priority | if type == \"string\" then . else null end), rule: null}] end",
+        "findings_jq": "if type != \"object\" or (.error // null) != null or (.issues | type) != \"array\" then error(\"not a findings document\") else [.issues[] | {file: (.file // \"\" | tostring), line: (.line | if type == \"number\" then . elif type == \"string\" and test(\"^[0-9]+$\") then tonumber else null end), finding: ([.title, .description] | map(select(type == \"string\" and . != \"\")) | join(\": \")), severity: (.priority | if type == \"string\" then . else null end), rule: null} | if .file == \"\" or .finding == \"\" then error(\"an issue without a file or text\") else . end] end",
         "env_allow": ["CUBIC_API_KEY"],
         "env_files": { "CUBIC_API_KEY": "~/.config/dotfiles/cubic-api-key" },
         "env": {

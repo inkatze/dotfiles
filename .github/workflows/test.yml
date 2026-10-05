@@ -154,8 +154,8 @@ jobs:
       - name: Run the 1Password renderer suite
         run: scripts/op-render-test.sh
 
-      # Stubs op, so bash, coreutils and diffutils are all it needs; lint runs
-      # it on macOS as well.
+      # Stubs op, so bash, coreutils and find are all it needs; lint runs it
+      # on macOS as well.
       - name: Run the API key sync suite
         run: scripts/op-key-sync-test.sh
 

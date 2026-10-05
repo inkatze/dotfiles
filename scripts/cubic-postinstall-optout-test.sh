@@ -12,11 +12,13 @@
 set -uo pipefail
 
 reviewed_version="1.14.2"
+reviewed_license="UNLICENSED"
 reviewed_integrity="sha512-it0WRlLhD5pEWRVek6zyuGKtxKisJXsWZNqxJYPn5hrWmZwcvsdBRlUYQTiN8ti4tAnijEPlPl3Tyuenkzlm5g=="
 
 repo="$(cd -- "$(dirname -- "$0")/.." && pwd -P)"
 pins="$repo/roles/environments/files/mise.toml"
 tasks="$repo/roles/environments/tasks/main.yml"
+defaults="$repo/roles/environments/defaults/main.yml"
 
 pass=0
 fail=0
@@ -37,29 +39,41 @@ else
 fi
 
 echo "2. the fetched tarball is the reviewed one"
-curl -fsSL --max-time 120 -o "$work/pkg.tgz" \
+curl -fsSL --connect-timeout 10 --max-time 60 -o "$work/pkg.tgz" \
   "https://registry.npmjs.org/@cubic-dev-ai/cli/-/cli-$reviewed_version.tgz" \
   || die "could not fetch the package tarball (offline?); nothing was checked"
 got="sha512-$(openssl dgst -sha512 -binary "$work/pkg.tgz" | openssl base64 -A)"
 if [ "$got" = "$reviewed_integrity" ]; then ok "integrity matches"; else ko "integrity $got is not the reviewed $reviewed_integrity"; fi
-tar -xzf "$work/pkg.tgz" -C "$work" package/postinstall.mjs package/package.json \
-  || die "the tarball has no package/postinstall.mjs"
+tar -xzf "$work/pkg.tgz" -C "$work" package/postinstall.mjs package/preinstall.mjs package/package.json \
+  || die "the tarball has no package/postinstall.mjs, preinstall.mjs or package.json"
 js="$work/package/postinstall.mjs"
 
 # body_of <function name>: the function's lines, from its declaration to the
-# next top-level declaration or statement.
+# closing brace at column 0.
 body_of() {
   awk -v fn="$1" '
     $0 ~ "^(async )?function " fn "\\(" { on = 1; print; next }
-    on && /^(async )?function |^(const|let|var|try|import) / { exit }
-    on { print }' "$js"
+    on { print }
+    on && /^}/ { exit }' "$js"
 }
 
-echo "3. the installer sits behind the opt-out check"
-if [ "$(jq -r '.scripts.postinstall' "$work/package/package.json")" = "bun ./postinstall.mjs || node ./postinstall.mjs" ]; then
-  ok "postinstall.mjs is the only install script"
+if [ "$(jq -r '.license' "$work/package/package.json")" = "$reviewed_license" ]; then
+  ok "license is the reviewed $reviewed_license"
 else
-  ko "package.json's postinstall changed: $(jq -c '.scripts' "$work/package/package.json")"
+  ko "license changed to $(jq -r '.license' "$work/package/package.json"); confirm the terms and update reviewed_license"
+fi
+
+echo "3. the installer sits behind the opt-out check"
+scripts_json="$(jq -c '.scripts' "$work/package/package.json")"
+if [ "$scripts_json" = '{"preinstall":"bun ./preinstall.mjs || node ./preinstall.mjs","postinstall":"bun ./postinstall.mjs || node ./postinstall.mjs"}' ]; then
+  ok "preinstall.mjs and postinstall.mjs are the only install scripts"
+else
+  ko "package.json's install scripts changed: $scripts_json"
+fi
+if grep -qE 'child_process|spawn|exec|fetch|https?:|require\(' "$work/package/preinstall.mjs"; then
+  ko "preinstall.mjs now runs or fetches something; read it"
+else
+  ok "preinstall.mjs runs and fetches nothing"
 fi
 installer_lines="$(grep -n 'git-ai-project/git-ai/releases/download' "$js" | cut -d: -f1)"
 [ -n "$installer_lines" ] || ko "no installer URL found; the script changed shape"
@@ -80,18 +94,28 @@ else
   ko "setupGitAi no longer opens with the opt-out return: $first_statement"
 fi
 for helper in runGitAi applyGitAiConfig; do
+  grep -qE "^(async )?function $helper\\(" "$js" || { ko "$helper no longer exists; read the new postinstall"; continue; }
+  # A call outside any function body is attributed to "top level".
   callers="$(awk -v h="$helper" '
     /^(async )?function [A-Za-z]+\(/ { match($0, /function [A-Za-z]+/); cur = substr($0, RSTART + 9, RLENGTH - 9) }
-    index($0, h "(") && $0 !~ "^(async )?function " h "\\(" { print cur }' "$js" | sort -u | tr '\n' ' ')"
+    /^}/ { cur = "top-level"; next }
+    index($0, h "(") && $0 !~ "^(async )?function " h "\\(" { print (cur == "" ? "top-level" : cur) }' "$js" | sort -u | tr '\n' ' ')"
   case "$callers" in
-    '' | 'setupGitAi ' | 'applyGitAiConfig ' | 'applyGitAiConfig setupGitAi ') ok "$helper is reached only through setupGitAi" ;;
-    *) ko "$helper is called from: $callers" ;;
+    'setupGitAi ' | 'applyGitAiConfig ' | 'applyGitAiConfig setupGitAi ') ok "$helper is reached only through setupGitAi" ;;
+    *) ko "$helper is called from: ${callers:-nowhere}" ;;
   esac
 done
-if [ "$(grep -c 'setupGitAi()' "$js")" = 2 ]; then
+setup_mentions="$(grep -c 'setupGitAi()' "$js")"
+if [ "$setup_mentions" = 2 ]; then
   ok "setupGitAi is declared once and called once"
 else
-  ko "setupGitAi is called from more than one place"
+  ko "setupGitAi() appears $setup_mentions times; expected one declaration and one call"
+fi
+wizard="$(body_of shouldRunInstallWizard | sed -n '2p' | tr -s '[:space:]' ' ')"
+if [ "$wizard" = ' if (process.env.CUBIC_DISABLE_INSTALL_WIZARD === "true") return false ' ]; then
+  ok "CUBIC_DISABLE_INSTALL_WIZARD=true skips the install-time setup wizard first thing"
+else
+  ko "the install wizard's opt-out changed: $wizard"
 fi
 
 echo "4. the opt-out condition matches what the role sets"
@@ -112,12 +136,24 @@ case "$opted" in
   *'return gitAiOptOutEnv() || fs.existsSync(gitAiDisabledFlag())'*) ok "either one opts out" ;;
   *) ko "the opt-out combination changed: $opted" ;;
 esac
-if grep -qF 'dest: "{{ environments_xdg_state_home }}/cubic/git-ai-disabled"' "$tasks" \
-  && grep -qF 'CUBIC_DISABLE_GIT_AI: "true"' "$tasks"; then
-  ok "the environments role writes that flag file and sets that variable"
+install_task="$(awk '/^- name: Install default tool versions$/ { on = 1; print; next } on && /^- name: / { exit } on { print }' "$tasks")"
+if grep -qF 'dest: "{{ environments_xdg_state_home }}/cubic/git-ai-disabled"' "$tasks"; then
+  ok "the environments role writes that flag file"
 else
-  ko "the environments role no longer writes the flag file or sets the variable"
+  ko "the environments role no longer writes the flag file"
 fi
+if grep -qF "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME ~ '/.local/state', true) }}" "$defaults"; then
+  ok "the role's state directory is \$XDG_STATE_HOME, default ~/.local/state, as the postinstall's"
+else
+  ko "environments_xdg_state_home no longer matches the postinstall's state directory"
+fi
+for v in CUBIC_DISABLE_GIT_AI CUBIC_DISABLE_INSTALL_WIZARD; do
+  if grep -qF "$v: \"true\"" <<<"$install_task"; then
+    ok "the install task sets $v"
+  else
+    ko "the install task no longer sets $v"
+  fi
+done
 link_line="$(grep -n '^- name: Link the mise global config' "$tasks" | cut -d: -f1)"
 flag_line="$(grep -n '^- name: Opt out of the cubic CLI' "$tasks" | cut -d: -f1)"
 if [ -n "$flag_line" ] && [ -n "$link_line" ] && [ "$flag_line" -lt "$link_line" ]; then

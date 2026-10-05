@@ -27,21 +27,33 @@ skills fall back to the copy `gh copilot` downloads on first use.
 The cubic.dev CLI, run as `--backends reviewer:cubic`, is pinned for every
 platform in `roles/environments/files/mise.toml` through mise's npm backend,
 with its key from `scripts/op-key-sync.sh`; its invocation is the cubic
-entry's `cli` block in the review config template.
+entry's `cli` block in the review config template. The package is
+proprietary (its license field is `UNLICENSED`, so use is on the vendor's
+terms), and its optional dependencies carry one native binary per platform
+variant, of which npm may fetch several on one host; `mise prune` reclaims
+an old version's directory after a bump.
 
-**Its install opts out of git-ai.** The package's postinstall pipes the git-ai
-installer, a commit tagger that writes git notes, to bash unless
-`CUBIC_DISABLE_GIT_AI` is set or `~/.local/state/cubic/git-ai-disabled`
-exists. Three layers keep it from running: mise's npm backend skips package
-lifecycle scripts by default (measured on mise 2026.7.13: no postinstall ran);
-the environments role writes the flag file before it links the mise config
-that declares the pin; and its install task sets the variable.
-`scripts/cubic-postinstall-optout-test.sh` reads the pinned version's
-postinstall and fails when that condition, or the version, changes. The gap is
-a host that pulls the pin before the role has run, on a mise set to run
-lifecycle scripts: there only the default is missing. The invocation sets the
-same variable plus the vendor's auto-update and language-server download
-opt-outs, so a review never fetches a newer binary mid-run.
+**Its install opts out of git-ai.** The package's postinstall pipes the
+git-ai installer, a commit tagger that writes git notes, to bash unless
+`CUBIC_DISABLE_GIT_AI` is set or `$XDG_STATE_HOME/cubic/git-ai-disabled`
+(default `~/.local/state`) exists. Several layers keep it from running:
+
+- mise's npm backend skips package lifecycle scripts by default (measured
+  on mise 2026.7.13: no postinstall ran);
+- the environments role writes the flag file before it links the mise
+  config that declares the pin;
+- its install task sets the variable, plus `CUBIC_DISABLE_INSTALL_WIZARD`
+  so an install never opens the vendor's interactive coding-agent setup.
+
+`scripts/cubic-postinstall-optout-test.sh` reads the pinned version's install
+scripts and fails when that condition, the license or the version changes.
+The gap is a host that pulls the pin before the role has run, on a mise set
+to run lifecycle scripts: none of the layers is in place there, and the
+postinstall would pipe the installer to bash. Such a host should check for
+`~/.git-ai/`, git hooks it did not install, and `git notes list` in its
+repositories. The invocation sets the same variable plus the vendor's
+auto-update and language-server download opt-outs, so a review never
+fetches a newer binary mid-run.
 
 ## Why the profile is the inventory alias
 

@@ -2,8 +2,8 @@
 
 Rationale behind the machine-local table in the repo-root `CLAUDE.md`. None
 lives in the repo, because this repo is public. Ansible writes only the osx
-health role's `pushover-credentials` and the files rendered from 1Password
-(below); the rest are written by hand or by the skill that reads them.
+health role's `pushover-credentials` and the files rendered or synced from
+1Password (below); the rest are written by hand or by the skill that reads them.
 
 ## Why each kind is untracked
 
@@ -50,27 +50,28 @@ drops its key, and a reviewer entry whose fields are all empty drops out, so a
 host that does not run Copilot leaves the `copilot_` fields blank. A JSON
 template's reference ending in `| json` takes the field's value as JSON (a
 list or a map) rather than a string. The review template's `cli` blocks are
-literal (they hold no reviewer mechanics, only how to run a local CLI), so a
-rendered config carries them exactly as committed.
+literal, since they describe how to run a local CLI rather than the hosted
+bot's mechanics, so a rendered config carries them as committed, except that
+an empty list or map in one drops like any other.
 
 `cubic-api-key` is synced by `scripts/op-key-sync.sh` from the `credential`
 field of the `dotfiles-cubic-api-key` item (category API Credential), through a
 task in the same file and behind the same guards. It is a raw key, not a
-rendered template, so it gets its own script: written at 0600, a blank or
-multi-line value refused, and an existing file that group or other can read
-refused rather than tightened, since the fix for a key that may have been read
-is a rotation. Nothing exports it into a shell; `/panel-review`'s
+rendered template, so it gets its own script: written at 0600, a blank value
+or one holding any whitespace refused, an existing file at any mode but 600
+or 400 refused rather than tightened (if others could read it, the fix is a
+rotation), and a directory someone else owns or can write refused. Nothing exports it into a shell; `/panel-review`'s
 `reviewer:cubic` backend reads it through the entry's `cli.env_files` and
 hands it to the CLI's `env -i` alone.
 
 ## The service account
 
 - **Service accounts cannot access the Personal or Private vault.** Every item
-  that needs the token (`dotfiles-lan-ssh`, the Gemini and cubic.dev API keys
-  and the three rendered items above) therefore lives in the `Dotfiles Service Account`
-  vault, which is every script's default. One file on the headless host
-  thereby reaches the LAN ssh topology, a billable API key and the private
-  review configuration; splitting the sensitive items onto their own service
+  that needs the token (`dotfiles-lan-ssh`, the Gemini and cubic.dev API
+  keys and the three rendered items above) therefore lives in the
+  `Dotfiles Service Account` vault, which is every script's default. One
+  file on the headless host thereby reaches the LAN ssh topology, two
+  billable API keys and the private review configuration; splitting the sensitive items onto their own service
   account is the move if that stops being an acceptable trade.
 - **Moving an item into that vault reassigns its id.** That only matters for
   `scripts/claude-gemini-auth-sync.sh`, which addresses its item by id;

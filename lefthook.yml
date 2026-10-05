@@ -110,7 +110,7 @@ pre-commit:
     cubic-postinstall-optout:
       # Needs the network: it fetches the pinned package to read its
       # postinstall. A version bump fails it until the new script is reviewed.
-      glob: "{roles/environments/files/mise.toml,roles/environments/tasks/main.yml,\
+      glob: "{roles/environments/files/mise.toml,roles/environments/{tasks,defaults}/main.yml,\
         scripts/cubic-postinstall-optout-test.sh}"
       run: scripts/cubic-postinstall-optout-test.sh
     fish-tower:

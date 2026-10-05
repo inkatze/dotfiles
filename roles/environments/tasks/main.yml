@@ -23,11 +23,13 @@
 # The cubic CLI's npm postinstall pipes the git-ai installer (a commit tagger
 # that writes git notes) to bash unless this flag file exists or
 # CUBIC_DISABLE_GIT_AI is set. mise's npm backend skips package lifecycle
-# scripts by default, so this is the second layer, for a host whose mise is set
-# to run them. The file is what every install path honours, a hand-run `mise
+# scripts by default, so this is a fallback for a host whose mise is set to run
+# them. The file is what every install path honours, a hand-run `mise
 # install` and mise's auto-install on first use included, so it is written
 # before the config link below can declare the pin; the variable on the install
-# task covers a state directory other than the one Ansible sees.
+# task covers a state directory other than the one Ansible sees, and
+# CUBIC_DISABLE_INSTALL_WIZARD there keeps an install from opening the
+# vendor's interactive coding-agent setup.
 # scripts/cubic-postinstall-optout-test.sh checks the postinstall's own
 # condition against both.
 - name: Ensure the cubic CLI's state directory exists
