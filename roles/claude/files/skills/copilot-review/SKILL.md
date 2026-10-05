@@ -19,7 +19,7 @@ Copilot reviews when it is **requested as a reviewer**, not because of a label, 
 
 1. **Has Copilot ever reviewed this PR?** Check `reviews(last: 20)` for a Copilot-authored review (the query in nested pre-flight step 3). If it did and left zero unresolved threads, that is a clean review, not an absence.
 2. **If not, offer to request one** (`y/N`, never silently; it is visible on the PR), using step (f)'s transport order.
-3. **If every transport fails** (**Re-review unavailable**), offer the local fallback, `/panel-review` with its default backend, naming that backend and saying it sends the diff to that vendor and produces findings with no threads to reply to or resolve. Nested mode offers it in the handoff and never runs it on its own.
+3. **If every transport fails** (**Re-review unavailable**), offer the local fallback, `/panel-review` with its default backend, naming that backend as [backends.md](../review-shared/backends.md) resolves it and saying it sends the diff and tooling output to that vendor and produces findings with no threads to reply to or resolve. Nested mode offers it in the handoff and never runs it on its own.
 
 ## Steps
 
