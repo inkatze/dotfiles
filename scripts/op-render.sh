@@ -13,8 +13,9 @@
 #
 # JSON templates (`*.json.tpl`): a reference is a whole string value. With
 # ` | json` before the closing braces the field's value is parsed and lands
-# typed (a list, a map); without, it lands as a string. A key left empty in the
-# item drops its key from the output, so one template serves entries that use
+# typed (a list, a map); without, it lands as a string. A field left empty in
+# the item drops its key from the output, and an object or list left with
+# nothing in it drops in turn, so one template serves entries that use
 # different optional fields. Text templates: references are substituted raw,
 # and a value holding a line break is refused.
 #
@@ -27,6 +28,9 @@
 # overwritten; a symlink or any other kind of path is refused.
 
 set -eu
+# Every file this writes holds private values, and a caller's umask that drops
+# the owner's read or write bit would otherwise break the scratch files too.
+umask 077
 
 fail() {
   echo "FAILED: $*" >&2
@@ -85,7 +89,7 @@ command -v jq >/dev/null 2>&1 || fail "jq not installed"
 
 mode_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
 
-work="$(umask 077 && mktemp -d)" || fail "could not create a scratch directory"
+work="$(mktemp -d)" || fail "could not create a scratch directory"
 tmp_out=""
 cleanup() {
   rm -rf "$work"
@@ -144,7 +148,7 @@ if [ "$format" = json ]; then
         error("unsubstituted template expression: \(.)")
       else . end;
     if length != 1 then error("the template must hold exactly one JSON document")
-    else $m[0] as $fields | .[0] | render($fields) end' \
+    else $m[0] as $fields | .[0] | render($fields) | if . == none then {} else . end end' \
     --slurp "$template" >"$work/rendered"
 else
   # The {{ check reads the template line, not the substituted one, so a value
@@ -229,12 +233,12 @@ if [ -f "$output" ] && [ ! -L "$output" ] && cmp -s "$work/rendered" "$output" \
 fi
 
 out_dir="$(dirname -- "$output")"
-(umask 077 && mkdir -p -- "$out_dir") || fail "could not create $out_dir"
+mkdir -p -- "$out_dir" || fail "could not create $out_dir"
 # Beside the output, so the rename is atomic: a reader sees the old file or the
-# new one, never a partial write. A mode-only fix goes this way too, so chmod
-# never follows a path that changed under it.
+# new one, never a partial write. A mode-only fix goes this way too, so no
+# chmod ever follows a path that changed under it.
 tmp_out="$(mktemp "$out_dir/.${output##*/}.XXXXXX")" || fail "could not create a temp file in $out_dir"
-# mktemp creates it 0600, the mode the output must have.
+# The umask above makes it 0600, the mode the output must have.
 cat "$work/rendered" >"$tmp_out" || fail "could not write $tmp_out"
 # Again, because the op call takes seconds: GNU mv would move the rendered file
 # into a directory that appeared at the output meanwhile.

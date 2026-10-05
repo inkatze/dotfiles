@@ -482,14 +482,20 @@ rm -f "$out"
 # Each shim fails only the renderer's own write step; the fake op uses cat too.
 for case in "mv:could not move the rendered file" "cat:could not write"; do
   tool="${case%%:*}"
-  rm -f "$out"
   printf '#!/bin/sh\ncase "$*" in *rendered*|*.bot-review.json.*) exit 1 ;; esac\nexec %s "$@"\n' \
     "$(command -v "$tool")" >"$sandbox/bin/$tool"
   chmod +x "$sandbox/bin/$tool"
   run "$review_tpl" dotfiles-bot-review "$out"
   rm "$sandbox/bin/$tool"
   expect_failed "a failing $tool" "${case#*:}"
+  if [ -e "$out" ] || find "$HOME/.config/dotfiles" -name '.bot-review.json.*' | grep -q .; then
+    ko "a failing $tool left a file behind"
+  else
+    ok "a failing $tool left nothing behind"
+  fi
 done
+(umask 0477 && "$subject" "$review_tpl" dotfiles-bot-review "$out" >/dev/null 2>&1) || true
+[ -f "$out" ] && [ "$(mode_of "$out")" = 600 ] && ok "mode 0600 under a restrictive umask" || ko "mode 0600 under a restrictive umask ($( [ -e "$out" ] && mode_of "$out"))"
 
 echo
 echo "op-render: $pass passed, $fail failed"
