@@ -1,7 +1,7 @@
 # Claude Instructions Audit — Test Spec
 
-**Status:** Ready
-**Last reviewed:** 2026-09-26
+**Status:** Draft
+**Last reviewed:** 2026-10-05
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -44,6 +44,8 @@ with its base") and expects a failure.
 The contract checker pins the exception clause and the operator-confirmed
 clause; the fixture suite plants a version of the never-flip rule without
 the exception and expects a failure.
+**Superseded-by: REQ-A1.6** (2026-10-05); the exception and the
+operator-confirmed clause are pinned under REQ-A1.6's entry.
 
 ### REQ-A1.4 — planwright items carried upstream [manual]
 
@@ -54,6 +56,23 @@ convergence-merge items; verified when Task 6's done-when is checked.
 
 The contract checker pins the hook-denial sentence in the user-global file;
 the fixture removes it and expects a failure.
+
+### REQ-A1.6 — Ready flip scoped by ownership [test + manual]
+
+The contract checker pins, in the user-global file, the solo-repository
+clause (the agent flips itself once every review step the pull request
+calls for has passed and CI is green on the current head, re-checked
+immediately before the flip), the collaborative clause (operator-requested,
+an unknown owner counts as collaborative), the kickoff exception and the
+operator-confirmed clause; fixtures plant a version that drops the
+collaborative clause, one that lets the agent flip everywhere, one that
+drops the re-check before the flip and one that drops the kickoff exception,
+and expect a failure for each. The checker also pins in `/copilot-review`
+that its convergence flip evaluates the same conditions and reports a
+ready-guard denial; a fixture drops that sentence. Manually, after merge: a
+fresh session in this repository, asked who marks its pull request ready,
+answers the agent, after the review order and CI; the same question in a
+repository with another contributor answers the operator.
 
 ## REQ-B — One source of review doctrine
 
@@ -185,6 +204,20 @@ a fixture deletes each group's anchor and expects a failure.
 The checker asserts every SKILL.md front-matter sets
 `disable-model-invocation: true` and that each skill's documented flags
 match the list the checker holds; fixtures drop the key and a flag.
+**Superseded-by: REQ-C1.12** (2026-10-05).
+
+### REQ-C1.12 — Model invocation scoped by caller, names and flags kept [test + manual]
+
+The checker derives each skill's mode from the argument-hint it holds: a
+hint without `--nested` requires `disable-model-invocation: true`, a hint
+with it forbids the key; each skill's documented flags still match the
+checker's list. Fixtures drop the key from a slash-only skill, add it back
+to a nested-mode skill, and drop a flag, expecting a failure for each. The
+checker pins in each nested-mode skill's description the sentence that it
+runs only when the operator types it or a parent skill calls it with
+`--nested`; a fixture drops it. Manually, after merge and an Ansible run: a
+parent skill's `--nested` invocation of one of the three is not blocked by
+Claude Code, and the two slash-only skills still are.
 
 ## REQ-D — Outbound messages to people
 

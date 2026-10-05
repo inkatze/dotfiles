@@ -1,7 +1,7 @@
 # Claude Instructions Audit — Design
 
-**Status:** Ready
-**Last reviewed:** 2026-09-26
+**Status:** Draft
+**Last reviewed:** 2026-10-05
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -99,9 +99,11 @@ the tracked skills directory, links an entry only when its destination is
 absent or already a link into this repository (failing otherwise), prunes its
 own links whose target is gone, and removes the commands path only when it is
 a link into this repository. Rollback is a revert plus a run of the Claude
-role on each host. Every converted skill is slash-invoked only
-(`disable-model-invocation: true`) and keeps its name and flags.
+role on each host. Every converted skill keeps its name and flags; whether
+it is slash-only or model-invocable follows its caller (D-16).
 *(Amended at kickoff 2026-09-25: per-entry links, link policy, invocation mode.)*
+*(Amended at extension 2026-10-05: the slash-only-for-all sentence replaced
+by the pointer to D-16.)*
 
 **Alternatives considered:**
 - Keep commands and add a tracked reference directory read by absolute path.
@@ -329,6 +331,72 @@ gets no separate task and no gate.
 a Maintenance section, restated validation, a distinct nested drain scope
 that stays as its own recorded override under REQ-B1.2).
 
+### D-16: Model invocation is scoped by caller, not disabled across the board  (N)
+
+**Decision:** `disable-model-invocation: true` protects the human-facing
+review skills, those with no `--nested` mode, from being invoked without
+anyone asking. A skill with a `--nested` mode (its argument-hint carries the
+flag) leaves the key unset, because a parent skill invokes that mode through
+the Skill tool and the flag blocks that call. The contract checker derives
+the set from each skill's argument-hint rather than from a list, and each
+nested-mode skill's description states that it runs only when the operator
+types it or a parent skill calls it with `--nested`.
+
+**Alternatives considered:**
+- Keep the flag on all five and have a parent skill ask the operator to type
+  the nested invocation. Rejected because: the nested mode exists so a
+  parent can run the loop unattended; a manual hop defeats it.
+- Drop the flag on all five. Rejected because: `/peer-review` and
+  `/code-review` post to humans and have no mode a parent calls; nothing is
+  gained by letting the model start them, and the description load is pure
+  cost.
+- A nested-only sibling skill per family, model-invocable, with the
+  interactive skill kept slash-only. Rejected because: the families were
+  folded into one skill with a mode on purpose (the observations log records
+  the fold), and two files per family re-creates the duplication Task 2
+  removed.
+
+**Chosen because:** The skills documentation is explicit that the flag
+stops Claude invoking the skill on its own and that Claude Code blocks the
+attempt, so a parent skill's nested call cannot survive it. Accepted risk: a
+model-invocable skill's description is always in context, so it could run
+without anyone asking. That matters most for `/panel-review`, which uploads
+code to external backends; the per-repository upload consent in the shared
+egress mechanics and the description wording limit it.
+
+### D-17: The ready flip is scoped by repository ownership, like a history rewrite  (N)
+
+**Decision:** The user-global Pull Request Lifecycle rule scopes who marks a
+pull request ready the way the Git Conventions scope a history rewrite. In a
+repository the operator owns that nobody else works from, the agent flips
+the pull request ready itself once every review step the pull request calls
+for has passed and CI is green on the current head, re-checking each
+condition of REQ-A1.1 immediately before the flip. In a work or
+collaborative repository, or one whose owner cannot be told, the flip stays
+the operator's to request. The kickoff spec pull request exception (D-12)
+and the operator-confirmed clause stay. A nested loop that flips at
+convergence evaluates the same conditions first.
+
+**Alternatives considered:**
+- Keep the flip operator-requested everywhere. Rejected because: in the
+  repositories the operator owns alone, the request is granted every time
+  the review order and CI have passed, so the rule only adds a manual
+  un-draft hop to every solo pull request.
+- Let the agent flip everywhere. Rejected because: in a collaborative
+  repository a draft is a signal to reviewers, and flipping it is a message
+  to them that the outbound rule reserves to the operator.
+- A per-repository setting that names the flip policy. Rejected because:
+  ownership is already how the rewrite scope is judged, so a second
+  declaration drifts from the first; and a per-repository key is one more
+  surface an audit has to find.
+
+**Chosen because:** The rewrite rule already encodes the judgement the flip
+needs (own repository nobody else works from; a repository whose owner
+cannot be told counts as work), so reusing its scope keeps one definition of
+"solo" and makes the two rules move together. The conditions do not change,
+only who evaluates them, and they are re-checked at the head immediately
+before the flip exactly as before.
+
 ## Cross-cutting concerns
 
 ### Decision-domains walk
@@ -339,7 +407,9 @@ rule: D-6, D-8, D-13); LLM output quality and evaluation gates (D-5, D-6,
 D-14); human comprehension and information UX (the every-turn load and the
 repo-root ceiling: D-2, D-7); existing-seam reuse (planwright's resolution
 script, its budget doctrine, the existing identifier file: D-2, D-5, D-8);
-API surface (skills are slash-invoked only, names and flags kept: D-4);
+API surface (names and flags kept, model invocation scoped by caller:
+D-4, D-16); human controls (the ready flip scoped by repository ownership:
+D-17, with the kickoff exception D-12);
 deploy and migration (the per-host link cutover and its rollback: D-4, and
 the kickoff brief's risk register); observability (halt on an unresolved
 doctrine document, visible budget warnings: D-2, D-5); dependency adoption
@@ -364,7 +434,8 @@ decisions rather than with the files.
 | The project repo | Contradicting skills fixed, stale state removed, routing guidance trimmed | REQ-H |
 | planwright-owned rules | Seed note | REQ-I |
 | Regrowth | Word-budget guard; re-check new instruction sources | REQ-G, REQ-K |
-| Safety gates through the conversion | Safety mechanics and checker pins kept; skills slash-invoked only | REQ-C1.2, REQ-C1.10, REQ-C1.11 |
+| Safety gates through the conversion | Safety mechanics and checker pins kept; model invocation scoped by caller (slash-only without a `--nested` mode) | REQ-C1.2, REQ-C1.10, REQ-C1.12 |
+| Ready-flip ownership | Agent flips in a repository the operator owns alone after the review order and CI; operator-requested elsewhere | REQ-A1.6 |
 | Name hygiene | Neutral labels; review-time check against the existing identifier file | REQ-C1.8, REQ-J1.2 |
 | The work repos | Same method, run on the work host | REQ-J |
 | Hooks (path-guard, worker-guard, bootstrap) | Keep as they are | no REQ; recorded here |

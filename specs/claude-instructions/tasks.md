@@ -1,13 +1,13 @@
 # Claude Instructions Audit — Tasks
 
-**Status:** Ready
-**Last reviewed:** 2026-09-26
+**Status:** Draft
+**Last reviewed:** 2026-10-05
 **Format-version:** 2
 **Execution:** derived — see the status render
 
-Tasks 1 to 4 land in this repository. Tasks 5, 6 and 7 land elsewhere (the
-project repo, the planwright repository, the work host) and are parked under
-Deferred with a free-text gate so the orchestrator never dispatches them from
+Tasks 1 to 4, 8 and 9 land in this repository. Tasks 5, 6 and 7 land
+elsewhere (the project repo, the planwright repository, the work host) and are
+parked under Deferred with a free-text gate so the orchestrator never dispatches them from
 this checkout; the operator runs them by hand where they belong.
 
 The materialized Claude links point at the checkout Ansible last ran from,
@@ -238,6 +238,70 @@ swept by the drain pass's manual inventory.
 - **Dependencies:** 2, 3
 - **Citations:** D-8, D-10 · REQ-J1.1, REQ-J1.2
 - **Estimated effort:** 1 day
+
+### Task 8 — Scope model invocation by caller
+
+- **Deliverables:**
+  - The `disable-model-invocation` key removed from the front matter of
+    every review skill whose argument-hint carries `--nested`; the two
+    skills without that mode keep it. Names and flags unchanged.
+  - The contract checker requires the key only on a skill without a
+    `--nested` mode and rejects it on one with that mode, deriving the set
+    from the argument-hint rather than a list; the
+    `front-matter-model-invocation` fixture points at a slash-only skill,
+    and a new fixture adds the key back to a nested-mode skill and expects
+    a failure. The checker pins the description sentence below; a fixture
+    drops it. Checker and fixtures change in one commit.
+  - Each nested-mode skill's description says the skill runs only when the
+    operator types it or a parent skill calls it with `--nested`.
+  - The repo-root `CLAUDE.md` skill-creation step says which skills take
+    the key; every surface whose word count moved has its budget row
+    re-derived per REQ-G1.3.
+  - The unmerged flight branch named in the Sources is the starting point:
+    its commits carry the key removal, the checker derivation, the two
+    fixtures and the repo-root sentence; this task adopts them, adds the
+    description rewording with its pin, and lands through one task pull
+    request.
+  - Provisioning: an Ansible run of the Claude role from the main checkout
+    after merge, so each host materializes the changed skills.
+- **Done when:** On the branch: the contract checker and its suite pass;
+  `grep -L 'disable-model-invocation' roles/claude/files/skills/*/SKILL.md`
+  lists exactly the skills whose argument-hint carries `--nested`, and
+  `grep -l` lists the rest; each nested-mode skill's description carries
+  the sentence; the budget guard passes with every declared threshold
+  matching the formula. After merge and an Ansible run: from the main
+  checkout, a session that runs a parent skill naming one nested-mode skill
+  reaches that skill's first step instead of a blocked call, and a session
+  asked to run `/peer-review` on its own initiative is blocked.
+- **Dependencies:** 2
+- **Citations:** D-4, D-16 · REQ-C1.10, REQ-C1.12, REQ-G1.4, REQ-K1.1
+- **Estimated effort:** 0.5 day
+
+### Task 9 — Scope the ready flip by repository ownership
+
+- **Deliverables:**
+  - The Pull Request Lifecycle section of the user-global `CLAUDE.md`
+    rewritten per REQ-A1.6: the solo clause, the collaborative clause with
+    the unknown-owner default, the kickoff exception and the
+    operator-confirmed clause kept, the re-check at the head immediately
+    before the flip kept, the hook-denial sentence kept.
+  - The contract checker's ready-flip and kickoff-exception pins retargeted
+    to the new sentences, with the fixtures REQ-A1.6's test-spec entry
+    names, in the same commit as the wording.
+  - `/copilot-review`'s convergence flip evaluates the REQ-A1.1 conditions
+    before `gh pr ready` and reports a ready-guard denial instead of
+    working around it; its existing confirmation-gated sentence stays, and
+    the new sentence is pinned.
+  - Every surface whose word count moved has its budget row re-derived per
+    REQ-G1.3.
+- **Done when:** On the branch: the contract checker and its suite pass,
+  including the new fixtures; the budget guard passes with every declared
+  threshold matching the formula; the global file states the flip scope
+  once. After merge and an Ansible run: the two fresh-session answers
+  REQ-A1.6's test-spec entry names.
+- **Dependencies:** 3, 8
+- **Citations:** D-3, D-12, D-17 · REQ-A1.1, REQ-A1.5, REQ-A1.6, REQ-G1.4
+- **Estimated effort:** 0.5 day
 
 ## Awaiting input
 
