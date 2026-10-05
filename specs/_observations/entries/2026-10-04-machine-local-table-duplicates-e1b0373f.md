@@ -1,0 +1,1 @@
+- 2026-10-04 [dotfiles] README.md keeps its own partial machine-local table (says none are created by Ansible, and calls the review skills commands) beside the complete one in the root CLAUDE.md; roles/osx/tasks/health-signal.yml comment also enumerates the hand-written files. Two lists of one directory drift; point both at the root table.

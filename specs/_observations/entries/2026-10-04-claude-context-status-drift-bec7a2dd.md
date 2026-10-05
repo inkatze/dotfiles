@@ -1,0 +1,1 @@
+- 2026-10-04 [dotfiles] specs/claude-context stores Status Ready with a cold-start line saying to write CLAUDE.md, while specs/README.md lists it Done; the bundle is implemented. A human status call (Done, or Ready with a corrected cold-start line) is pending.
