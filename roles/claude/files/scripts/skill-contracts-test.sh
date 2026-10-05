@@ -392,8 +392,8 @@ expect_fail threshold-shared-value-changed \
 # --- Stale references (REQ-C1.7) ---
 expect_fail stale-self-review-step \
   "echo 'Same as \`/self-review\` step 9.' >> $(md panel-review)" "cites a numbered /self-review step"
-expect_fail stale-gh-copilot-probe \
-  "echo 'Probe with gh copilot --help.' >> $(md panel-review)" "retired Copilot CLI backend"
+expect_fail retired-copilot-gh-extension \
+  "echo 'Probe with gh copilot --help.' >> $(md panel-review)" "names the retired Copilot CLI backend ('"
 expect_fail codex-without-git-check-flag \
   "perl -pi -e 's/ --skip-git-repo-check < \"\\\$prompt_file\"/ < \"\\\$prompt_file\"/' $SHARED/backends.md" "contained codex invocation"
 
@@ -427,13 +427,25 @@ expect_fail retired-backend-name \
 expect_fail retired-backend-name-global \
   "echo 'OLLAMA_BASE_URL' >> $GLOBAL_MD" "retired backend name"
 expect_fail retired-copilot-backend \
-  "echo 'Supported: \`codex\`, \`gemini\`, \`copilot\`.' >> $(md panel-review)" "retired Copilot CLI backend"
+  "echo 'Supported: \`codex\`, \`gemini\`, \`copilot\`.' >> $(md panel-review)" "names the retired Copilot CLI backend ('"
 expect_fail retired-copilot-backend-flag \
-  "echo 'Fall back to /panel-review --backends copilot.' >> $(md copilot-review)" "retired Copilot CLI backend"
+  "echo 'Fall back to /panel-review --backends copilot.' >> $(md copilot-review)" "names the retired Copilot CLI backend ('"
+expect_fail retired-copilot-backend-flag-equals \
+  "echo 'Run /panel-review --backends=copilot.' >> $(md copilot-review)" "names the retired Copilot CLI backend ('"
+expect_fail retired-copilot-backend-list \
+  "echo 'Run /panel-review --backends codex,copilot.' >> $(md copilot-review)" "names the retired Copilot CLI backend ('"
+expect_fail retired-copilot-backend-prose \
+  "echo 'The opt-in Copilot backend is never chosen.' >> $(md panel-review)" "names the retired Copilot CLI backend ('"
 expect_fail retired-copilot-backend-binary \
-  "echo 'copilot_bin=\"\$(command -v copilot)\"' >> $SHARED/backends.md" "retired Copilot CLI backend"
+  "echo 'copilot_bin=\"\$(command -v copilot)\"' >> $SHARED/backends.md" "names the retired Copilot CLI backend ('"
+expect_fail retired-copilot-backend-mise \
+  "echo \"Resolve it with mise which copilot.\" >> $SHARED/backends.md" "names the retired Copilot CLI backend ('"
+expect_fail retired-copilot-backend-gh-path \
+  "echo 'else ~/.local/share/gh/copilot/copilot' >> $SHARED/backends.md" "names the retired Copilot CLI backend ('"
 expect_fail retired-copilot-backend-global \
-  "echo 'Install the copilot-cli cask.' >> $GLOBAL_MD" "retired Copilot CLI backend"
+  "echo 'Install the copilot-cli cask.' >> $GLOBAL_MD" "names the retired Copilot CLI backend ('"
+expect_pass copilot-reviewer-login-allowed \
+  "echo \"-f 'reviewers[]=copilot-pull-request-reviewer'\" >> $(md bot-review)"
 expect_fail retired-copilot-stop-sentence \
   "perl -0pi -e 's/names the retired Copilot CLI\\s+backend/is unsupported/' $(md panel-review)" "retired-backend stop sentence"
 expect_pass copilot-review-name-allowed \

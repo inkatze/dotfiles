@@ -107,16 +107,17 @@ cwd.
 
 `/panel-review` had an opt-in `copilot` backend with a bespoke view-only
 sandbox. Copilot is now used only where a repository runs the hosted reviewer,
-so the backend, its cask, its Linux mise pin and its checker anchors are gone,
-and `--backends copilot` stops naming the replacement: a Copilot CLI, if
-wanted again, runs as a `reviewer:<name>` entry's `cli` block like any other
-vendor. The contract checker's retired-backend sweep keeps the name out of the
-skills.
+so the backend and its checker anchors are gone and nothing declares its cask
+or Linux mise pin any more (a host that already installed the CLI keeps it until
+it is removed by hand). A run given `--backends copilot` stops and names the
+replacement: a Copilot CLI, if wanted again, runs as a `reviewer:<name>`
+entry's `cli` block like any other vendor. The contract checker's
+retired-backend sweep keeps the name out of the skills.
 
 With the last consumer gone, the OAuth credential under
 `~/.config/github-copilot/` was left world-readable on every host that ever
 signed in. `roles/claude/tasks/copilot-credential.yml` deletes that directory
 and nothing else (the Copilot CLI's own `~/.copilot/` stays), and is temporary:
-once every host has run the role it can go. Deleting the file does not revoke
-the token, so also revoke the Copilot entry on GitHub, under Settings →
+once every host has run the role it can go. Deleting the directory does not
+revoke the token, so also revoke the Copilot entries on GitHub, under Settings →
 Applications → Authorized OAuth Apps.

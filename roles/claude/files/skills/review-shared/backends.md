@@ -139,11 +139,10 @@ included, as well as the payload.
 
 ## Contained invocations
 
-Every prompt-driven backend (codex, gemini) runs from that empty
-scratch directory, in a subshell, with the
-payload on stdin or in a file inside it, never from the repo under review and
-never from `/tmp` itself (world-writable, so pre-seedable with a `GEMINI.md` or
-`AGENTS.md`). The subshell is because this session keeps its cwd between calls.
+Every prompt-driven backend (codex, gemini) runs from that empty scratch
+directory, in a subshell, with the prompt on stdin, never from the repo under
+review and never from `/tmp` itself (world-writable, so pre-seedable with a
+`GEMINI.md` or `AGENTS.md`). The subshell is because this session keeps its cwd between calls.
 
 - **codex** runs only in the contained form: read-only sandbox, prompt on
   stdin, the empty scratch directory as its working directory. The flag that

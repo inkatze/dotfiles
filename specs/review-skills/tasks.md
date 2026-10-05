@@ -356,7 +356,9 @@ by that task. Blocks are listed in dependency order.
 - **Removing the Copilot credential cleanup.** The role task that deletes
   the stale credential directory is a one-off: once every host has run it,
   nothing this repository installs can bring the directory back, so the task,
-  its fixture and the fixture's lefthook and workflow wiring go. Confidence:
+  its fixture, the fixture's lefthook and workflow wiring, and the prose
+  naming the task in the repo-root `CLAUDE.md` and `docs/review-backends.md`
+  go. Confidence:
   high. **Gate:** when every host (work, personal, alt, server) has run the
   claude role after the cleanup merged. Citations: D-14.
 - **Replacing the evidence record with planwright's handoff bundle.**
