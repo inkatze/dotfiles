@@ -446,6 +446,7 @@ schema_says "unknown hosted field" '.reviewers.cubic.colour = "x"' "reviewers.cu
 schema_says "non-string value" '.reviewers.cubic.opt_out_label = 3' "reviewers.cubic.opt_out_label: not a string"
 schema_says "login pattern that does not compile" '.reviewers.cubic.login_pattern = "a(["' "reviewers.cubic.login_pattern: does not compile"
 schema_says "unknown rerequest field" '.reviewers.cubic.rerequest.when = "x"' "reviewers.cubic.rerequest: unknown field when"
+schema_says "a non-string rerequest value" '.reviewers.copilot.rerequest.login = 5' "reviewers.copilot.rerequest.login: not a string"
 schema_says "default not under reviewers" '.default = "nobody"' "config: default names nobody"
 schema_says "empty reviewers" '.reviewers = {}' "config: reviewers must be a non-empty object"
 schema_says "unknown top-level field" '.extra = 1' "config: unknown top-level field extra"

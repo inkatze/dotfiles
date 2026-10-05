@@ -38,6 +38,8 @@ def _rendered_value_errors($p):
         else
           ( (keys - ["method", "login", "command", "incremental_command"])[]
             | "\($p).rerequest: unknown field \(.)" ),
+          ( to_entries[] | select(.value | type != "string")
+            | "\($p).rerequest.\(.key): not a string" ),
           ( if has("method") | not then "\($p).rerequest: missing required field method"
             else
               (.method | _one_of("\($p).rerequest.method"; rerequest_methods)),
