@@ -542,7 +542,7 @@ if [ -n "$global_ok" ]; then
   # Ready flips: mergeable is the currency condition, and the rest stay.
   require_normalized "$GLOBAL_MD" "ready-flip sentence" \
     "Open pull requests as drafts." \
-    "flip it once it is mergeable (GitHub reports \`mergeable: MERGEABLE\`: no conflicts with its base), CI is green and the review cadence the PR calls for has actually run" \
+    "Mark one ready only once it is mergeable (GitHub reports \`mergeable: MERGEABLE\`: no conflicts with its base), CI is green and the review cadence the PR calls for has actually run" \
     "Evaluate every condition against the PR's current head immediately before the flip; a condition you cannot confirm, including a mergeability GitHub still reports as \`UNKNOWN\` after one re-query a few seconds later, counts as unmet."
   forbid_normalized "$GLOBAL_MD" "currency condition" \
     "current with its base" "up to date with its base" "up-to-date with its base" "sync, push and re-run"
@@ -551,17 +551,18 @@ if [ -n "$global_ok" ]; then
   # drift from the first.
   SOLO_FLIP="In a solo repo, the session that completes the last step of the review cadence the PR calls for marks it ready itself once every step of that cadence has run to completion, CI is green on the current head and the PR is mergeable, re-checking each condition immediately before the flip, and states the flip and the conditions it checked in its reply or handoff."
   require_normalized "$GLOBAL_MD" "ready-flip scope" \
+    "a repo's own \`CLAUDE.md\` moving the rewrite scope does not move the flip." \
     "A **solo repo** is one I own (not an employer or another organization) where no other person works; my own sessions, worktrees, dispatched agents and automated accounts are not another person." \
     "A **work repo** is owned by an employer or another organization; a repository whose owner you cannot tell counts as one." \
-    "A **collaborative repo** is one I own where another person works." \
+    "A **collaborative repo** is one I own where another person works; one where you cannot tell whether another person works counts as one." \
     "$SOLO_FLIP" \
-    "In a work or collaborative repo, marking a PR ready is mine to request and yours to perform, and that repo's planwright config sets \`ready_flip_policy: human\`."
+    "In a work or collaborative repo, marking a PR ready is mine to request and yours to perform, and that repo's planwright config sets \`ready_flip_policy: human\`; where it does not, say so and leave the PR a draft rather than let a configured flip mark it ready."
   occurrences "$global_norm" "the session that completes the last step of the review cadence" n
   [ "$n" -le 1 ] || err "$GLOBAL_MD states the solo ready flip $n times; state it once: \"$SOLO_FLIP\""
   forbid_normalized "$GLOBAL_MD" "never-flip rule" "Never flip a PR ready on your own initiative"
-  require_normalized "$GLOBAL_MD" "kickoff-flip exception" \
-    "with one kept in every repository: the spec PR after a signed-off kickoff, which planwright marks ready by configuration." \
-    "A flip I confirm when a run asks me is one I requested." \
+  require_normalized "$GLOBAL_MD" "kickoff and confirmed flips" \
+    "planwright's configured flips count as you flipping and follow the same scope, except one kept in every repository: the spec PR after a signed-off kickoff, which planwright marks ready by configuration." \
+    "A flip I confirm when a run asks me is one I requested, and a no I give when asked holds: do not then flip that PR as the solo flip." \
     "A nested review loop's own convergence flip (such as \`/copilot-review --nested\` asking at convergence) stays confirmation-gated in every repository, never counts as the solo flip, and evaluates these same conditions first."
   require_normalized "$GLOBAL_MD" "hook-denial sentence" \
     "If planwright's ready-guard hook denies a flip on a branch that meets these conditions, report the denial to me and never work around it: no sync to satisfy it, no bypass."
@@ -697,9 +698,11 @@ require_phrases "$(skill_md copilot-review)" "mark-ready safety sentence" \
 # The convergence flip checks the user-global ready conditions itself and
 # reports a ready-guard denial rather than working around it.
 require_normalized "$(skill_md copilot-review)" "convergence-flip conditions" \
-  "Before asking, and again on yes immediately before \`gh pr ready\`, evaluate the ready conditions against the current head: GitHub reports \`mergeable: MERGEABLE\` (\`UNKNOWN\` after one re-query a few seconds later counts as unmet), CI is green, and every step of the review cadence the PR calls for has run" \
+  "evaluate the ready conditions against the current head: GitHub reports \`mergeable: MERGEABLE\` (\`UNKNOWN\` after one re-query a few seconds later counts as unmet), CI is green, and every step of the review cadence the PR calls for has run." \
+  "On an unmet or unconfirmable one, name it, do not ask, and leave the PR a draft." \
+  "On yes, immediately before the flip, re-run the \`isDraft,state\` check, the thread recount and the ready conditions as above" \
   "if planwright's ready-guard hook denies the flip, report the denial and leave it a draft: no sync to satisfy it, no bypass." \
-  "On yes with every condition met, run \`gh pr ready <number>\`"
+  "With every check passing, run \`gh pr ready <number>\`"
 
 # The review config's readers refuse a version they do not know.
 require_normalized "$(skill_md bot-review)" "version refusal" \
