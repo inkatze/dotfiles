@@ -50,8 +50,13 @@ fi
 
 # The fixture below runs the task file directly, so this is what proves the
 # role still imports it.
-if (cd "$repo" && ansible-playbook main.yml --list-tasks --tags claude 2>/dev/null) \
-    | grep -qF 'claude : Remove the stale GitHub Copilot credential directory'; then
+# Captured first: piped straight into grep -q, an early grep exit could kill
+# ansible-playbook with SIGPIPE, which pipefail reports as a failure.
+listing="$(cd "$repo" && ansible-playbook main.yml --list-tasks --tags claude 2>&1)"
+rc=$?
+if [ "$rc" -ne 0 ]; then
+    fail wired "listing the claude role's tasks failed (exit $rc): $(tail -3 <<< "$listing" | tr '\n' ';')"
+elif grep -qF 'claude : Remove the stale GitHub Copilot credential directory' <<< "$listing"; then
     ok wired "the claude role imports the removal task"
 else
     fail wired "\`ansible-playbook main.yml --list-tasks --tags claude\` does not list the removal task"
