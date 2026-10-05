@@ -4,7 +4,7 @@
 # vault by scripts/op-render.sh, which validates each before it lands. Behind
 # the same `op` probe split as the Gemini key sync in main.yml: a host without
 # op is skipped with a notice, a host with op that still fails is an error.
-# Every host renders them; the work host drains a hosted reviewer too.
+# No host guard: every host, work included, runs the review skills.
 #
 # A hand-written file at an output path is overwritten. Before the first run on
 # a host, carry anything worth keeping from it into the item.
@@ -38,7 +38,7 @@
   tags: [claude]
 
 # planwright's adopter overlay root, the same path conf.d/planwright.fish
-# exports as PLANWRIGHT_ADOPTER_OVERLAY. The template sets no step list.
+# exports as PLANWRIGHT_ADOPTER_OVERLAY.
 - name: Render the planwright adopter overlay config from 1Password
   ansible.builtin.command:
     argv:

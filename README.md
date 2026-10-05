@@ -38,8 +38,10 @@ stabilization loop.
 This repo is public, so `specs/linux-migration` REQ-F1.1 keeps real
 hostnames and LAN addresses out of committed artifacts. The values that
 name a specific machine live in untracked files under
-`~/.config/dotfiles/` instead. None are created by Ansible; each is
-optional, and its absence degrades visibly rather than silently.
+`~/.config/dotfiles/` instead. Each is optional, and its absence degrades
+visibly rather than silently. The table lists the hand-written ones; the
+review config and the sibling-repository map beside them are rendered from
+1Password by the claude role (see the repo `CLAUDE.md`).
 
 | File | Read by | Holds |
 |---|---|---|

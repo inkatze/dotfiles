@@ -1,7 +1,8 @@
-# The review config's schema rule, in one place for both of its checks:
-# scripts/op-render.sh runs review_config_errors over the rendered file before
-# it lands, and skill-contracts.sh runs review_template_errors over the
-# committed template. Each emits one message per violation; none means valid.
+# The review config's schema rule, for both of its checks: scripts/op-render.sh
+# runs review_config_errors over the rendered file before it lands (after its
+# own version check, which every rendered JSON file shares), and
+# skill-contracts.sh runs review_template_errors over the committed template.
+# Each emits one message per violation; none means valid.
 
 def required_hosted:
   ["login_pattern", "rerequest", "reviewed_head_regex", "finding_key_regex",

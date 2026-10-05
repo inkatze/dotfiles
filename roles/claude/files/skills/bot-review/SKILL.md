@@ -15,7 +15,7 @@ Read `~/.config/dotfiles/bot-review.json` (mode 0600, read-only from this skill)
 
 **Terminology**: a config **reviewer** entry configures one third-party **bot** shipped by some **vendor**; the three words name the same thing at different distances (the config key, the thing that posts comments, the company that makes it), never a fourth term for the same referent.
 
-**Missing or unreadable config: stop and say so.** Name the expected path and point at the template. Do not guess a bot login, label name, check name, or marker format; a wrong guess either misses every finding or acts on someone else's.
+**Missing or unreadable config: stop and say so.** Name the expected path, point at the template, and say the file is rendered by the claude role's Ansible run from the 1Password item `dotfiles-bot-review`. Do not guess a bot login, label name, check name, or marker format; a wrong guess either misses every finding or acts on someone else's.
 
 Shape: a map of named reviewers plus a default, because one bot may not be installed on every repo, and a second reviewer (or a CLI-only fallback for the same one) needs to be reachable without editing this file:
 
@@ -46,7 +46,7 @@ Shape: a map of named reviewers plus a default, because one bot may not be insta
 }
 ```
 
-The hosted fields, one schema for every vendor: `login_pattern` matches the bot's login as a regex. `rerequest.method` is how a review is asked for: `request` (a reviewer request for `login`), `comment` (post `command`, or the cheaper `incremental_command` when one is set) or `push` (the bot reviews each push unasked). `reviewed_head_regex` captures, in its first group, the commit the bot's summary says it reviewed. `finding_key_regex` extracts a finding's stable key. `build_id_regex` matches the bot's summary marker and captures its build id. `draft_policy` says whether the bot reviews drafts, and when it skips them `draft_setting` names the repository-side setting that changes that. `opt_out_label` silences the bot on a PR. Optional: `feedback_reaction`, the reaction the bot reads as feedback on a finding, and `errored_review_regex`, matching a summary that reports an errored review rather than a finding-free one.
+The hosted fields, one schema for every vendor: `login_pattern` matches the bot's login as a regex. `rerequest.method` is how a review is asked for: `request` (a reviewer request for `login`), `comment` (post `command` on a run's first request, and the cheaper `incremental_command`, when one is set, on a re-request after a push) or `push` (the bot reviews each push unasked). `reviewed_head_regex` captures, in its first group, the commit the bot's summary says it reviewed. `finding_key_regex` extracts a finding's stable key. `build_id_regex` matches the bot's summary marker and captures its build id. `draft_policy` says whether the bot reviews drafts, and when it skips them `draft_setting` names the repository-side setting that changes that. `opt_out_label` silences the bot on a PR. `request` needs `login`, `comment` needs `command`, and only `comment` takes `incremental_command`; `skips-drafts` needs `draft_setting`. Every value is a string except `rerequest` and `gating_checks` (a list of check names), every `_regex` field and `login_pattern` must compile, and a field the schema does not name is refused. Optional: `feedback_reaction`, the reaction the bot reads as feedback on a finding, and `errored_review_regex`, matching a summary that reports an errored review rather than a finding-free one.
 
 The `cli` block is read by `/panel-review`'s `reviewer:<name>` backend, not here; its keys are documented there. `cli.invocation_notes` is optional free text for you; nothing reads it. `reply_suffix` is optional: a vendor-specified tag appended as the last line of every inline reply (step 10), for bots that ask agent replies to carry one.
 
@@ -236,6 +236,6 @@ The reviewer's local CLI is a `/panel-review` backend: `--local` is an alias for
 
 ## Naming
 
-`bot-review` names the workflow, not a product. Vendors are config, not content, so before pointing this skill at a newly added reviewer, check that reviewer's `cli.binary` and any skill its install docs mention against `bot-review`, and rename this skill if either collides.
+`bot-review` names the workflow, not a product. Vendor mechanics are config, not content, so before pointing this skill at a newly added reviewer, check that reviewer's `cli.binary` and any skill its install docs mention against `bot-review`, and rename this skill if either collides.
 
 $ARGUMENTS

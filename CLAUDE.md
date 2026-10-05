@@ -115,7 +115,8 @@ there by hand, in the same commit.
 Hook logic lives in `roles/claude/files/scripts/` and is wired from
 `settings.json`. Adding a new tracked directory under `roles/claude/files/`
 requires a matching symlink task in `roles/claude/tasks/main.yml`; a skill
-directory needs none, since `skills.yml` links each one.
+directory needs none, since `skills.yml` links each one, and neither does
+`planwright/`, whose templates the role renders from in place.
 
 ## Adding a new hook
 
@@ -604,11 +605,11 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 | `host` | `scripts/playbook.sh`, the shared backend resolver in `roles/claude/files/skills/review-shared/backends.md` | This machine's inventory alias (`work`/`personal`/`alt`/`server`). An empty or whitespace-only file counts as absent |
 | `ssh-host` | the `sshc` function in `roles/fish/files/fish/config.fish` | `kitten ssh` target hostname |
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
-| `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh`, both through `scripts/op-token.sh` | 1Password service-account token (bearer credential, mode 0600) |
+| `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh`, `scripts/op-render.sh`, all through `scripts/op-token.sh` | 1Password service-account token (bearer credential, mode 0600) |
 | `slack-users.json` | the `/code-review` and `/peer-review` skills, through `review-shared/slack.md` | GitHub login → Slack user ID, so review notifications can find a person |
 | `code-review-egress.json` | `review-shared/egress.md`, for the `/code-review` skill and `/panel-review`'s `reviewer:<name>` backend | Repos approved for backend egress (`owner/repo` → backend; the reviewer backend's entries are keyed `reviewer:<name>:owner/repo` → the real path of the file that binary runs, through symlinks and mise shims), so the upload consent is asked once per repo, and once per repo and reviewer for that backend, again if that binary changes (mode 0600) |
 | `bot-review.json` | the `/bot-review` skill, and `/panel-review`'s `reviewer:<name>` backend (the `cli` block) | Map of named third-party PR-review reviewers, each with its own hosted-bot mechanics in one schema and/or local pre-push CLI invocation, plus a default and a `version`. **Rendered** from the 1Password item `dotfiles-bot-review` through `roles/claude/files/skills/bot-review/bot-review.json.tpl`, checked against `config-schema.jq` beside it (mode 0600, read-only from both skills) |
-| `sibling-repos.json` | `/code-review` and `/panel-review`, as validation context | Consuming repository → its producers' clone paths, plus a `version`. **Rendered** from the item `dotfiles-sibling-repos` through `roles/claude/files/skills/review-shared/sibling-repos.json.tpl` (mode 0600) |
+| `sibling-repos.json` | nothing yet; `/code-review` and `/panel-review` gain the reader, as validation context | Consuming repository → its producers' clone paths, plus a `version`. **Rendered** from the item `dotfiles-sibling-repos` through `roles/claude/files/skills/review-shared/sibling-repos.json.tpl` (mode 0600) |
 | `work-shell-init` | `roles/fish/files/work-init.fish` | Absolute path of a shell init to source from fish, for anything a second config manager wires only into bash/zsh |
 
 None live in the repo (`~/.config/kitty` is a symlink into it, which is why
@@ -617,16 +618,24 @@ visibly rather than silently.
 
 The **rendered** ones are written by `scripts/op-render.sh` from the claude
 role (`roles/claude/tasks/op-render.yml`), behind the same `op` probe and CI
-guard as the Gemini key sync; the rest are created by hand. A third file
-renders the same way outside this directory: planwright's adopter overlay
-config, `~/.claude/plugins/data/planwright-planwright/overlay/planwright.yml`,
-from the item `dotfiles-planwright-overlay` through
-`roles/claude/files/planwright/planwright.yml.tpl`, which sets no step list.
+guard as the Gemini key sync, so on a host with `op` a missing item fails its
+task rather than degrading; the rest are written by hand or by the skill that
+reads them. planwright's adopter overlay config renders the same way outside
+this directory, to
+`~/.claude/plugins/data/planwright-planwright/overlay/planwright.yml`, from
+the item `dotfiles-planwright-overlay` through
+`roles/claude/files/planwright/planwright.yml.tpl`; the renderer refuses a
+`steps_` key there, since a step list is a per-repository decision.
+
 The renderer overwrites a hand-written file at its output, so carry anything
 worth keeping into the item first; edit the item, never the rendered file.
-Each item lives in the `Dotfiles Service Account` vault, and a JSON
-template's reference ending in `| json` takes the field's value as JSON
-(a list or a map) rather than a string.
+Each item lives in the `Dotfiles Service Account` vault and must hold every
+field its template references. A field left empty drops its key, and a
+reviewer entry whose fields are all empty drops out, so a host that does not
+run Copilot leaves the `copilot_` fields blank. A JSON template's reference
+ending in `| json` takes the field's value as JSON (a list or a map) rather
+than a string. The review template carries no `cli` block, so a rendered
+config has none until one is added to the template.
 
 `~/.gitconfig` and `~/.gitconfig.local` are machine-local in the same sense
 but are not listed here, because git only looks for them in `$HOME`. See
@@ -684,21 +693,22 @@ authenticates non-interactively instead.
 Three consequences worth knowing before moving items around:
 
 - **Service accounts cannot access the Personal or Private vault.** 1Password
-  refuses the grant outright, which is why both items that need this token
-  (`dotfiles-lan-ssh` and the Gemini API key) live in the
-  `Dotfiles Service Account` vault rather than `Private`, and why that is both
-  scripts' default vault. Note the blast radius that creates: one machine-local
-  file on the headless host now reaches the LAN ssh topology *and* a billable
-  Google API key. Splitting them across two service accounts is the move if
+  refuses the grant outright, which is why every item that needs this token
+  (`dotfiles-lan-ssh`, the Gemini API key and the three rendered review and
+  overlay items) lives in the `Dotfiles Service Account` vault rather than
+  `Private`, and why that is every script's default vault. Note the blast
+  radius that creates: one machine-local file on the headless host now reaches
+  the LAN ssh topology *and* a billable Google API key. Splitting them across two service accounts is the move if
   that ever stops being an acceptable trade.
 - Moving an item into that vault **reassigns its id**. That is only a problem
   for `claude-gemini-auth-sync.sh`, which addresses its item by id, so a move
   there is also an edit to the script. `ssh-lan-config-sync.sh` addresses its
   item by name (`dotfiles-lan-ssh`, via the `op://` references in its
   template), which survives a move untouched.
-- Both scripts resolve the token through one sourced helper,
-  `scripts/op-token.sh`, tested by `scripts/op-token-test.sh`, so a fix to
-  the checks lands in both at once. The helper refuses a file that is a
+- Every script that reads 1Password with it resolves the token through one
+  sourced helper, `scripts/op-token.sh`, tested by `scripts/op-token-test.sh`
+  through the two older syncs, so a fix to the checks lands everywhere at
+  once. The helper refuses a file that is a
   symlink, is not regular, or is not mode 0600 or 0400, and a value that is
   blank or holds anything outside the token character set (NUL bytes
   included). An already-exported `OP_SERVICE_ACCOUNT_TOKEN` takes precedence,
