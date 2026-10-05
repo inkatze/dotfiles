@@ -358,6 +358,24 @@ item_from 'repos={"acme/web":{"acme/api":""}}'
 run "$sibling_tpl" dotfiles-sibling-repos "$sib"
 expect_failed "an empty string inside a json value is kept for the rule" "repos.acme/web.acme/api: clone path must be absolute"
 
+echo "19. text templates: empty values drop their line, values are not template"
+new_sandbox
+ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
+item_from 'flight_pr_hosts='
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && ok "renders with the value unset" || ko "renders with the value unset ($output)"
+if grep -q '^flight_pr_hosts' "$ov" 2>/dev/null; then ko "the empty key's line is dropped"; else ok "the empty key's line is dropped"; fi
+item_from 'flight_pr_hosts=[a {{ b }}]'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+grep -qxF 'flight_pr_hosts: [a {{ b }}]' "$ov" 2>/dev/null && ok "a value holding {{ lands as data" || ko "a value holding {{ lands as data ($output)"
+item_from 'flight_pr_hosts=x'
+jq '.fields[0].value = "a\rb"' "$OP_STUB_ITEM" >"$sandbox/i" && mv "$sandbox/i" "$OP_STUB_ITEM"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "carriage return in a text value" "flight_pr_hosts holds a line break"
+printf '{"id":"stub"}\n' >"$OP_STUB_ITEM"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "op output with no fields" "holds no fields"
+
 echo
 echo "op-render: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

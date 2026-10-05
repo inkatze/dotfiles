@@ -107,7 +107,8 @@ fi
 jq_or_fail "could not read item '$item'" -c '
   [.fields[]? | select((.label // "") != "")] as $f
   | ($f | group_by(.label) | map(select(length > 1) | .[0].label)) as $dup
-  | if ($dup | length) > 0
+  | if ($f | length) == 0 then error("op returned an item that holds no fields")
+    elif ($dup | length) > 0
     then error("the item holds more than one field labelled \($dup[0])")
     else $f | map({key: .label, value: (.value // "")}) | from_entries end' \
   "$work/item.json" >"$work/fields.json"
@@ -141,17 +142,25 @@ if [ "$mode" = json ]; then
     $m[0] as $fields | render($fields) | if . == none then {} else . end' \
     "$template" >"$work/rendered"
 else
-  jq_or_fail "could not render $template" -R -r --slurpfile m "$work/fields.json" '
+  # The {{ check reads the template line, not the substituted one, so a value
+  # that holds {{ is data. A `key: <reference>` line whose value is empty is
+  # dropped, as an empty JSON field drops its key.
+  jq_or_fail "could not render $template" -R -r -L "$schema_dir" --slurpfile m "$work/fields.json" '
+    include "config-schema";
     $m[0] as $fields
     | input_line_number as $n
-    | gsub("\\{\\{ op://__OP_VAULT__/__OP_ITEM__/(?<f>[A-Za-z0-9_.-]+) \\}\\}";
+    | if gsub(op_reference_inline; "") | contains("{{")
+      then error("unsubstituted template expression on template line \($n)") else . end
+    | if test("^[a-z][a-z0-9_]*: " + op_reference_inline + "$")
+        and $fields[capture(op_reference_inline).f] == ""
+      then empty
+      else gsub(op_reference_inline;
         .f as $f
         | if ($fields | has($f) | not) then error("the item has no field \($f)")
           elif $fields[$f] | test("[\r\n]")
           then error("item field \($f) holds a line break, which a text template cannot carry")
           else $fields[$f] end)
-    | if contains("{{")
-      then error("unsubstituted template expression on template line \($n)") else . end' \
+      end' \
     "$template" >"$work/rendered"
 fi
 
