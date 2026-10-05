@@ -208,6 +208,11 @@ done
 if "$H" evidence lookup --command 'cut-off' > /dev/null 2>&1; then
   fail evidence-run-cut-off "a run whose output was cut off was recorded"
 fi
+"$H" evidence run --command 'missing' -- no-such-program-review-state > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" -eq 2 ] || fail evidence-run-missing "a program that is not on PATH was not an error (exit $rc)"
+if "$H" evidence lookup --command 'missing' > /dev/null 2>&1; then fail evidence-run-missing-recorded "a missing program was recorded as a result"; fi
+printf 'x\n' | "$H" evidence record --command bad-exit --exit 300 --started 1 --ended 1 > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" -eq 2 ] || fail evidence-record-exit "an impossible exit status was recorded (exit $rc)"
 porcelain="$(git status --porcelain --untracked-files=all)"
 case "$porcelain" in *.claude*) fail evidence-ignored "git status shows the evidence record: $porcelain" ;; esac
 [ "$("$H" key)" = "$k1" ] || fail evidence-key-stable "recording evidence moved the key"
@@ -276,15 +281,15 @@ ci_case() {
     fi
   fi
 }
-run() { printf '{"name":"%s","status":"%s","conclusion":%s}' "$1" "$2" "$3"; }
-ci_case success hit "{\"check_runs\":[$(run a completed '"success"')]}"
-ci_case skipped-beside-success hit "{\"check_runs\":[$(run a completed '"success"'),$(run b completed '"skipped"'),$(run c completed '"neutral"')]}"
-ci_case slurped-pages hit "[{\"check_runs\":[$(run a completed '"success"')]},{\"check_runs\":[$(run b completed '"skipped"')]}]"
-ci_case failed miss "{\"check_runs\":[$(run a completed '"success"'),$(run b completed '"failure"')]}"
-ci_case pending miss "{\"check_runs\":[$(run a completed '"success"'),$(run b in_progress null)]}"
-ci_case cancelled miss "{\"check_runs\":[$(run a completed '"success"'),$(run b completed '"cancelled"')]}"
-ci_case timed-out miss "{\"check_runs\":[$(run a completed '"success"'),$(run b completed '"timed_out"')]}"
-ci_case only-skipped miss "{\"check_runs\":[$(run a completed '"skipped"')]}"
+check_run_json() { printf '{"name":"%s","status":"%s","conclusion":%s}' "$1" "$2" "$3"; }
+ci_case success hit "{\"check_runs\":[$(check_run_json a completed '"success"')]}"
+ci_case skipped-beside-success hit "{\"check_runs\":[$(check_run_json a completed '"success"'),$(check_run_json b completed '"skipped"'),$(check_run_json c completed '"neutral"')]}"
+ci_case slurped-pages hit "[{\"check_runs\":[$(check_run_json a completed '"success"')]},{\"check_runs\":[$(check_run_json b completed '"skipped"')]}]"
+ci_case failed miss "{\"check_runs\":[$(check_run_json a completed '"success"'),$(check_run_json b completed '"failure"')]}"
+ci_case pending miss "{\"check_runs\":[$(check_run_json a completed '"success"'),$(check_run_json b in_progress null)]}"
+ci_case cancelled miss "{\"check_runs\":[$(check_run_json a completed '"success"'),$(check_run_json b completed '"cancelled"')]}"
+ci_case timed-out miss "{\"check_runs\":[$(check_run_json a completed '"success"'),$(check_run_json b completed '"timed_out"')]}"
+ci_case only-skipped miss "{\"check_runs\":[$(check_run_json a completed '"skipped"')]}"
 ci_case none miss '{"check_runs":[]}'
 out="$("$H" evidence ci --head "$head" --command 'mise run test' < /dev/null 2>&1)" && rc=0 || rc=$?
 [ "$rc" -eq 2 ] && [[ "$out" == *"stdin is empty"* ]] || fail ci-empty-stdin "empty stdin was not named as the error (exit $rc): $out"
@@ -293,7 +298,7 @@ out="$(printf '{"check_runs":[]}\n{"check_runs":[]}\n' | "$H" evidence ci --head
 # The record lands under the head's tree, not the working tree's.
 rm -rf "$repo/.claude/review-evidence/$k1"
 printf 'u\n' > untracked.txt
-printf '{"check_runs":[%s]}' "$(run a completed '"success"')" \
+printf '{"check_runs":[%s]}' "$(check_run_json a completed '"success"')" \
   | "$H" evidence ci --head "$head" --command 'mise run test' > /dev/null 2>&1 || fail ci-record "the CI record failed"
 "$H" evidence lookup --command 'mise run test' --tree "$k1" > /dev/null 2>&1 \
   || fail ci-head-tree "the CI record is not under the head's tree"
@@ -308,7 +313,7 @@ printf '{"check_runs":[{"name":"a","status":"completed","conclusion":"success","
   || fail ci-timestamps "the CI record does not carry the check runs' start and end"
 printf '{"check_runs":[]}' | "$H" evidence ci --head nothex --command c > /dev/null 2>&1 && rc=0 || rc=$?
 [ "$rc" -eq 2 ] || fail ci-head-shape "a malformed head was not an error (exit $rc)"
-printf '{"check_runs":[%s]}' "$(run a completed '"success"')" \
+printf '{"check_runs":[%s]}' "$(check_run_json a completed '"success"')" \
   | "$H" evidence ci --head 0000000000000000000000000000000000000001 --command c > /dev/null 2>&1 && rc=0 || rc=$?
 [ "$rc" -eq 2 ] || fail ci-head-unknown "a head that is not a commit here was not an error (exit $rc)"
 src="$("$H" evidence lookup --command 'mise run test' | jq -r .source)"
@@ -350,6 +355,8 @@ in_session "\"\$H\" register --name \$'evil\\nreview-state: forged' --skill x --
 [ "$(cat "$tmp/ctl.rc")" = 2 ] || fail registry-control-chars "a session name carrying a newline was accepted"
 in_session "\"\$H\" register --name n --skill x --repo o/r --pr 1 --worktree \$'/w\\n/x' > /dev/null 2>&1; echo \$? > '$tmp/ctl.rc'"
 [ "$(cat "$tmp/ctl.rc")" = 2 ] || fail registry-control-chars-worktree "a worktree carrying a newline was accepted"
+in_session "\"\$H\" register --name \$'abc\\xe2\\x80\\xaedef' --skill x --repo o/r --pr 1 --worktree /w > /dev/null 2>&1; echo \$? > '$tmp/ctl.rc'"
+[ "$(cat "$tmp/ctl.rc")" = 2 ] || fail registry-bidi "a session name carrying a text-direction override was accepted"
 
 # --- Writer lock -----------------------------------------------------------------
 live alpha "\"\$H\" lock acquire --session $alpha --repo o/r --pr 7"
@@ -413,6 +420,16 @@ ln -s "$(cat "$tmp/alpha.pid")-1000-0000cafe" "$REVIEW_STATE_ROOT/locks/o/r/pr-9
 beta 'lock acquire --repo o/r --pr 9'
 [ "$(cat "$tmp/beta.rc")" = 0 ] || fail lock-recycled-pid "a lock naming a recycled pid was not reclaimed"
 
+# A zombie (exited, unreaped) is not a live owner.
+sh -c 'sleep 0 & echo $! > "$1"; exec sleep 30' _ "$tmp/zombie.pid" &
+zparent=$!
+bg_pids+=("$zparent")
+sleep 1
+ln -s "$(cat "$tmp/zombie.pid")-$(date +%s)-0000dead" "$REVIEW_STATE_ROOT/locks/o/r/pr-14"
+beta 'lock acquire --repo o/r --pr 14'
+[ "$(cat "$tmp/beta.rc")" = 0 ] || fail lock-zombie-owner "a lock held by an exited, unreaped process was kept"
+kill "$zparent" 2>/dev/null || true
+
 # --wait takes a lock that frees within the window, and prints only the token.
 start_session gamma
 live gamma '"$H" register --name gamma --skill peer-review --repo o/r --pr 12 --worktree /w/g'
@@ -425,12 +442,15 @@ sleep 0.5
 beta 'lock acquire --repo o/r --pr 12 --wait 20'
 wait "$releaser"
 [ "$(cat "$tmp/beta.rc")" = 0 ] || fail lock-wait "a lock freed within the wait was not taken: $(cat "$tmp/beta.err")"
-[ "$(wc -l < "$tmp/beta.out" | tr -d ' ')" = 1 ] && valid="$(head -1 "$tmp/beta.out")" \
-  && [ "$(readlink "$REVIEW_STATE_ROOT/locks/o/r/pr-12")" = "$valid" ] \
+[ "$(wc -l < "$tmp/beta.out" | tr -d ' ')" = 1 ] && wtok="$(head -1 "$tmp/beta.out")" \
+  && [ "$(readlink "$REVIEW_STATE_ROOT/locks/o/r/pr-12")" = "$wtok" ] \
   || fail lock-wait-stdout "a successful wait printed more than its token: $(cat "$tmp/beta.out")"
 
 live gamma "\"\$H\" lock acquire --session $gamma --repo o/r --pr 13"
+[ "$("$H" lock status --repo O/R --pr 13 | jq -r .state)" = held ] || fail lock-repo-case "O/R and o/r do not share a lock"
+t0="$(date +%s)"
 beta 'lock acquire --repo o/r --pr 13 --wait 2'
+[ "$(( $(date +%s) - t0 ))" -le 6 ] || fail lock-wait-window "a 2-second wait took $(( $(date +%s) - t0 ))s to give up"
 [ "$(cat "$tmp/beta.rc")" = 1 ] && [ "$(wc -l < "$tmp/beta.out" | tr -d ' ')" = 1 ] \
   && jq -e --arg s "$gamma" '.session == $s' "$tmp/beta.out" > /dev/null 2>&1 \
   || fail lock-wait-timeout "a wait that ran out did not exit 1 with the holder: $(cat "$tmp/beta.out")"
@@ -477,6 +497,8 @@ notice="$("$H" sessions 2>&1 > /dev/null)"
 start_session eps
 live eps '"$H" register --name eps --skill panel-review --repo o/r --branch feat/x --worktree /w/e'
 eps="$(out_of eps)"
+"$H" sessions | jq -e -s --arg t "$eps" 'map(select(.token == $t)) | length == 1 and (.[0] | .branch == "feat/x" and (has("pr") | not))' > /dev/null \
+  || fail registry-branch-fields "a branch registration does not list its branch"
 live eps "\"\$H\" lock acquire --session $eps --repo o/r --branch feat/x"
 brtok="$(out_of eps)"
 live eps "\"\$H\" lock handover --session $eps --token $brtok --repo o/r --branch feat/x --pr abc"
@@ -540,8 +562,16 @@ err="$(printf '%s' "$big" | "$H" inbox send --to "$gamma" --from eta 2>&1 > "$tm
 [[ "$err" == *"cut at"* ]] || fail inbox-cap-note "an oversized send was cut without telling the sender: $err"
 [ "$(wc -c < "$(cat "$tmp/bigpath")" | tr -d ' ')" -lt 263000 ] || fail inbox-cap "an oversized body was stored whole"
 # An endless writer is cut at the cap rather than drained.
-timeout 60 sh -c 'yes | "$H" inbox send --to "$1" --from eta > /dev/null 2>&1' _ "$gamma" && rc=0 || rc=$?
-[ "$rc" -ne 124 ] || fail inbox-endless-send "a send fed by an endless writer never returned"
+sh -c 'yes | "$H" inbox send --to "$1" --from eta > /dev/null 2>&1' _ "$gamma" &
+sender=$!
+n=0; while kill -0 "$sender" 2>/dev/null && [ "$n" -lt 600 ]; do sleep 0.1; n=$((n + 1)); done
+if kill -0 "$sender" 2>/dev/null; then
+  pkill -P "$sender" 2>/dev/null || true; kill "$sender" 2>/dev/null || true
+  fail inbox-endless-send "a send fed by an endless writer never returned"
+fi
+wait "$sender" 2>/dev/null || true
+printf '' | "$H" inbox send --to "$gamma" --from eta > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" -eq 2 ] || fail inbox-empty-send "an empty message was delivered (exit $rc)"
 if printf 'x\n' | "$H" inbox send --to "$gamma" --from $'eta\nsent: forged' > /dev/null 2>&1; then
   fail inbox-from-shape "a sender name carrying a newline was accepted"
 fi

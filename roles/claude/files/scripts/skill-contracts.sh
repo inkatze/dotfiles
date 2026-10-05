@@ -380,6 +380,12 @@ files_matching -E "((^|[[:space:]]|[0-9&])>[>|]?[[:space:]]*[\"']?$state_target)
 for f in ${matched[@]+"${matched[@]}"}; do
   err "$f writes review state around review-state.sh; send it through the helper (see $SHARED/state.md)"
 done
+# The record is never committed: a forced add is the only way past its own
+# .gitignore, so that is what the sweep looks for.
+files_matching -E 'git[[:space:]]+add[[:space:]][^|;&]*(-f|--force)[^|;&]*review-evidence|git[[:space:]]+add[[:space:]][^|;&]*review-evidence[^|;&]*[[:space:]](-f|--force)'
+for f in ${matched[@]+"${matched[@]}"}; do
+  err "$f commits the evidence record; it stays out of every commit (see $SHARED/state.md)"
+done
 # The literal tilde is the text the contract file carries, not a path to expand.
 # shellcheck disable=SC2088
 require_phrases "$SHARED/state.md" "helper path" "~/.claude/scripts/review-state.sh"

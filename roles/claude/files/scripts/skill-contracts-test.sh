@@ -374,7 +374,7 @@ expect_fail state-writes-serialized-removed \
   "perl -0pi -e 's/Every write to the branch, the PR\\s+or the decision ledger happens under the writer lock/Writes take the lock when convenient/' $SHARED/state.md" "shared block anchor missing"
 expect_fail state-redirect-rule-removed \
   "perl -0pi -e 's/No skill writes any of this state with a shell redirect/Write state however is easiest/' $SHARED/state.md" "shared block anchor missing"
-expect_fail state-age-staleness \
+expect_fail state-staleness-sentence-removed \
   "perl -0pi -e 's/Staleness is the owner.s absence, never an age\\./Staleness is thirty minutes of age./' $SHARED/state.md" "shared block anchor missing"
 expect_fail state-redirect-into-evidence \
   "printf '\\n    printf x > .claude/review-evidence/note\\n' >> $(md panel-review)" "writes review state around review-state.sh"
@@ -410,6 +410,8 @@ expect_fail state-backtick-touch \
   "printf '\\nRun \\x60touch ~/.config/dotfiles/review/x\\x60 first.\\n' >> $(md bot-review)" "writes review state around review-state.sh"
 expect_pass state-prose-benign \
   "printf '\\nNever touch anything under ~/.config/dotfiles/review by hand. Read with \\x60dd if=.claude/review-evidence/x.out\\x60.\\n' >> $(md panel-review)"
+expect_fail state-force-add-evidence \
+  "printf '\\n    git add -f .claude/review-evidence\\n' >> $(md panel-review)" "commits the evidence record"
 expect_fail state-helper-path-removed \
   "perl -0pi -e 's{~/\\.claude/scripts/review-state\\.sh}{review-state}g' $SHARED/state.md" "helper path"
 expect_pass state-path-mention-benign \

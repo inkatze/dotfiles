@@ -129,7 +129,7 @@ row names a writer. Keep machine-specific values here, never in tracked files.
 | `bot-review.json` | the `/bot-review` skill, `/panel-review`'s `reviewer:<name>` backend | Named third-party reviewers; example at `roles/claude/files/skills/bot-review/bot-review.config.example.json` (0600) |
 | `private-identifiers` | `scripts/gitleaks-identifier-rules.sh`, `roles/claude/files/scripts/identifier-check.sh` | Names that must never reach a committed file |
 | `claude-instructions-inventory/` | the `specs/claude-instructions` tasks, by hand | Dated instruction-surface audit (directory 0700, files 0600) |
-| `review/` | `roles/claude/files/scripts/review-state.sh` (`review-shared/state.md`) | Lock root for the review skills: writer locks, session registry, inboxes (directory 0700, created by the helper) |
+| `review/` | `roles/claude/files/scripts/review-state.sh`, through `roles/claude/files/skills/review-shared/state.md` | Lock root for the review skills: writer locks, session registry, inboxes (directory 0700, created by the helper) |
 
 Service-account items live in the `Dotfiles Service Account` vault (service
 accounts cannot read Personal or Private); moving an item there reassigns its
