@@ -299,7 +299,9 @@ the declared binary and fall back to the copy `gh copilot` downloads on first
 use (into `~/.local/share/gh/copilot`, outside the dotfiles). `/copilot-review`
 offers the backend as a fallback when the hosted review can't run. The other opt-in,
 `reviewer:<name>`, runs a third-party vendor's local reviewer CLI from the
-machine-local `bot-review.json`, so no vendor name is committed here.
+machine-local `bot-review.json`, so no vendor mechanics are committed here:
+the template names its entries, and every login, marker and command in them
+is a 1Password reference.
 
 | Alias | Backend | CLI comes from | Key comes from |
 |---|---|---|---|
@@ -605,12 +607,26 @@ matched that way until the REQ-F1.1 cleanup and must now name itself.
 | `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh`, both through `scripts/op-token.sh` | 1Password service-account token (bearer credential, mode 0600) |
 | `slack-users.json` | the `/code-review` and `/peer-review` skills, through `review-shared/slack.md` | GitHub login → Slack user ID, so review notifications can find a person |
 | `code-review-egress.json` | `review-shared/egress.md`, for the `/code-review` skill and `/panel-review`'s `reviewer:<name>` backend | Repos approved for backend egress (`owner/repo` → backend; the reviewer backend's entries are keyed `reviewer:<name>:owner/repo` → the real path of the file that binary runs, through symlinks and mise shims), so the upload consent is asked once per repo, and once per repo and reviewer for that backend, again if that binary changes (mode 0600) |
-| `bot-review.json` | the `/bot-review` skill, and `/panel-review`'s `reviewer:<name>` backend (the `cli` block) | Map of named third-party PR-review reviewers, each with its own hosted-bot mechanics (login pattern, opt-in/opt-out labels, gating checks, marker formats) and/or local pre-push CLI invocation, plus a default; example with placeholders at `roles/claude/files/skills/bot-review/bot-review.config.example.json` (mode 0600, read-only from both skills) |
+| `bot-review.json` | the `/bot-review` skill, and `/panel-review`'s `reviewer:<name>` backend (the `cli` block) | Map of named third-party PR-review reviewers, each with its own hosted-bot mechanics in one schema and/or local pre-push CLI invocation, plus a default and a `version`. **Rendered** from the 1Password item `dotfiles-bot-review` through `roles/claude/files/skills/bot-review/bot-review.json.tpl`, checked against `config-schema.jq` beside it (mode 0600, read-only from both skills) |
+| `sibling-repos.json` | `/code-review` and `/panel-review`, as validation context | Consuming repository → its producers' clone paths, plus a `version`. **Rendered** from the item `dotfiles-sibling-repos` through `roles/claude/files/skills/review-shared/sibling-repos.json.tpl` (mode 0600) |
 | `work-shell-init` | `roles/fish/files/work-init.fish` | Absolute path of a shell init to source from fish, for anything a second config manager wires only into bash/zsh |
 
-None are created by Ansible and none live in the repo (`~/.config/kitty` is
-a symlink into it, which is why the kitty companion sits here instead).
-Each is optional; absence degrades visibly rather than silently.
+None live in the repo (`~/.config/kitty` is a symlink into it, which is why
+the kitty companion sits here instead). Each is optional; absence degrades
+visibly rather than silently.
+
+The **rendered** ones are written by `scripts/op-render.sh` from the claude
+role (`roles/claude/tasks/op-render.yml`), behind the same `op` probe and CI
+guard as the Gemini key sync; the rest are created by hand. A third file
+renders the same way outside this directory: planwright's adopter overlay
+config, `~/.claude/plugins/data/planwright-planwright/overlay/planwright.yml`,
+from the item `dotfiles-planwright-overlay` through
+`roles/claude/files/planwright/planwright.yml.tpl`, which sets no step list.
+The renderer overwrites a hand-written file at its output, so carry anything
+worth keeping into the item first; edit the item, never the rendered file.
+Each item lives in the `Dotfiles Service Account` vault, and a JSON
+template's reference ending in `| json` takes the field's value as JSON
+(a list or a map) rather than a string.
 
 `~/.gitconfig` and `~/.gitconfig.local` are machine-local in the same sense
 but are not listed here, because git only looks for them in `$HOME`. See

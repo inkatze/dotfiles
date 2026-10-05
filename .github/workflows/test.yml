@@ -102,6 +102,11 @@ jobs:
       - name: Run the service-account token suite (macOS)
         run: scripts/op-token-test.sh
 
+      # Also runs on Ubuntu below: BSD stat, mktemp and paste are what this leg
+      # adds.
+      - name: Run the 1Password renderer suite (macOS)
+        run: scripts/op-render-test.sh
+
       # Also runs on Ubuntu below: the word count must match under BSD tr/grep.
       - name: Run the instruction word-budget fixture suite (macOS)
         run: roles/claude/files/scripts/instruction-budget-test.sh
@@ -139,6 +144,11 @@ jobs:
       # own `ssh -G`) are all it needs; lint runs it on macOS as well.
       - name: Run the service-account token suite
         run: scripts/op-token-test.sh
+
+      # Stubs op, so bash, coreutils and jq are all it needs; lint runs it on
+      # macOS as well.
+      - name: Run the 1Password renderer suite
+        run: scripts/op-render-test.sh
 
       # Warnings surface as annotations.
       - name: Run the instruction word-budget checker

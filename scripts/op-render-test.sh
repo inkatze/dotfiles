@@ -1,0 +1,342 @@
+#!/usr/bin/env bash
+# Tests for scripts/op-render.sh.
+#
+# 1Password is stubbed with a fake `op` on PATH that prints a canned item, so
+# this runs anywhere: no vault, no network, no session. Each case gets a
+# throwaway HOME and PATH shim directory.
+
+set -eu
+
+script_dir="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
+repo="$(CDPATH='' cd -- "$script_dir/.." && pwd)"
+subject="$script_dir/op-render.sh"
+review_tpl="$repo/roles/claude/files/skills/bot-review/bot-review.json.tpl"
+sibling_tpl="$repo/roles/claude/files/skills/review-shared/sibling-repos.json.tpl"
+overlay_tpl="$repo/roles/claude/files/planwright/planwright.yml.tpl"
+
+pass=0
+fail=0
+ok() { echo "  ok: $1"; pass=$((pass + 1)); }
+ko() { echo "  FAIL: $1"; fail=$((fail + 1)); }
+
+ORIG_PATH="$PATH"
+unset OP_SERVICE_ACCOUNT_TOKEN DOTFILES_OP_TOKEN_FILE DOTFILES_OP_VAULT
+
+new_sandbox() {
+  sandbox="$(mktemp -d)"
+  mkdir -p "$sandbox/home/.config/dotfiles" "$sandbox/bin" "$sandbox/tpl"
+  export HOME="$sandbox/home"
+  export PATH="$sandbox/bin:$ORIG_PATH"
+  export OP_STUB_ITEM="$sandbox/item.json"
+  export OP_STUB_ARGV="$sandbox/argv"
+  export OP_STUB_ENV="$sandbox/env"
+  unset OP_STUB_FAIL
+  out="$HOME/.config/dotfiles/bot-review.json"
+  install_fake_op
+}
+
+# `op item get <item> --vault <v> --format json --reveal` prints the canned
+# item; argv and the token it was handed are recorded for the leak checks.
+install_fake_op() {
+  cat >"$sandbox/bin/op" <<'FAKE'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$OP_STUB_ARGV"
+printf '%s\n' "${OP_SERVICE_ACCOUNT_TOKEN:-}" >>"$OP_STUB_ENV"
+if [ -n "${OP_STUB_FAIL:-}" ]; then
+  echo "[ERROR] stubbed op failure" >&2
+  exit 1
+fi
+[ "$1 $2" = "item get" ] || exit 2
+cat "$OP_STUB_ITEM"
+FAKE
+  chmod +x "$sandbox/bin/op"
+}
+
+# label=value lines on stdin -> the canned item, in op's JSON shape.
+to_item() {
+  jq -R -s '
+    split("\n") | map(select(length > 0) | capture("^(?<label>[^=]+)=(?<value>.*)$"))
+    | {id: "stub", title: "stub", fields: map({id: .label, type: "STRING", label, value})}' \
+    >"$OP_STUB_ITEM"
+}
+item_from() { printf '%s\n' "$@" | to_item; }
+
+# A complete review item for the tracked template: cubic comments, copilot
+# requests by login. The backslashes are the point of the regex values: they
+# must land in the JSON verbatim, with no hand-escaping in the item.
+full_review_fields() {
+  local v
+  for v in cubic copilot; do
+    printf '%s\n' \
+      "${v}_login_pattern=${v}-bot\\[bot\\]" \
+      "${v}_reviewed_head_regex=Reviewed commit ([0-9a-f]{7,40})" \
+      "${v}_finding_key_regex=<!-- key:([A-Za-z0-9]+) -->" \
+      "${v}_build_id_regex=Review ID: (\\w+)" \
+      "${v}_draft_policy=skips-drafts" \
+      "${v}_draft_setting=the reviewer's draft toggle" \
+      "${v}_opt_out_label=no-${v}" \
+      "${v}_addressed_marker_format=<!-- ack:{key} -->" \
+      "${v}_opt_in_label=" \
+      "${v}_gating_checks=[\"${v}/review\"]" \
+      "${v}_requirement_level_hint=" \
+      "${v}_repo_config_path=" \
+      "${v}_reply_suffix=" \
+      "${v}_feedback_reaction=" \
+      "${v}_errored_review_regex="
+  done
+  printf '%s\n' \
+    "cubic_rerequest_method=comment" \
+    "cubic_rerequest_login=" \
+    "cubic_rerequest_command=@reviewer review this" \
+    "cubic_rerequest_incremental_command=@reviewer incremental" \
+    "copilot_rerequest_method=request" \
+    "copilot_rerequest_login=copilot" \
+    "copilot_rerequest_command=" \
+    "copilot_rerequest_incremental_command="
+}
+
+# full_review_item [<label=value> overrides...]
+full_review_item() {
+  local fields pair
+  fields="$(full_review_fields)"
+  for pair in "$@"; do
+    fields="$(printf '%s\n' "$fields" | grep -v "^${pair%%=*}=")"$'\n'"$pair"
+  done
+  printf '%s\n' "$fields" | to_item
+}
+
+run() { # run <template> <item> <output>; sets rc and output
+  set +e
+  output="$("$subject" "$@" 2>&1)"
+  rc=$?
+  set -e
+}
+
+expect_failed() { # expect_failed <label> <needle>
+  if [ "$rc" -eq 0 ]; then ko "$1: exited 0 ($output)"
+  elif ! grep -qF "FAILED:" <<<"$output"; then ko "$1: no FAILED: line ($output)"
+  elif ! grep -qF -- "$2" <<<"$output"; then ko "$1: expected \"$2\", got: $output"
+  else ok "$1"; fi
+}
+
+mode_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
+
+echo "1. tracked review template renders, at 0600, regexes verbatim"
+new_sandbox
+full_review_item
+run "$review_tpl" dotfiles-bot-review "$out"
+if [ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$output"; then ok "prints CHANGED"; else ko "prints CHANGED ($output)"; fi
+[ -f "$out" ] && [ "$(mode_of "$out")" = 600 ] && ok "mode 0600" || ko "mode 0600"
+if [ "$(jq -r '.reviewers.cubic.login_pattern' "$out" 2>/dev/null)" = 'cubic-bot\[bot\]' ]; then
+  ok "regex value carried verbatim"
+else
+  ko "regex value carried verbatim ($(jq -c '.reviewers.cubic.login_pattern' "$out" 2>&1))"
+fi
+[ "$(jq -r '.default' "$out")" = cubic ] && ok "default is the cubic entry" || ko "default is the cubic entry"
+[ "$(jq -c '.reviewers.cubic.gating_checks' "$out")" = '["cubic/review"]' ] && ok "a json reference lands typed" || ko "a json reference lands typed"
+if jq -e '.reviewers.cubic | has("opt_in_label") or (.rerequest | has("login"))' "$out" >/dev/null; then
+  ko "an empty field is dropped"
+else
+  ok "an empty field is dropped"
+fi
+grep -q -- '--vault Dotfiles Service Account' "$OP_STUB_ARGV" && ok "default vault passed to op" || ko "default vault passed to op ($(cat "$OP_STUB_ARGV"))"
+
+echo "2. an unchanged output prints OK"
+run "$review_tpl" dotfiles-bot-review "$out"
+[ "$rc" -eq 0 ] && grep -q '^OK:' <<<"$output" && ok "prints OK" || ko "prints OK ($output)"
+
+echo "3. same content at a looser mode is tightened and reported"
+chmod 644 "$out"
+run "$review_tpl" dotfiles-bot-review "$out"
+[ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$output" && ok "prints CHANGED" || ko "prints CHANGED ($output)"
+[ "$(mode_of "$out")" = 600 ] && ok "mode back to 0600" || ko "mode back to 0600"
+
+echo "4. a hand-written regular file is overwritten"
+printf '{"default":"x","reviewers":{"x":{}}}\n' >"$out"
+run "$review_tpl" dotfiles-bot-review "$out"
+[ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$output" && ok "prints CHANGED" || ko "prints CHANGED ($output)"
+[ "$(jq -r .version "$out")" = 1 ] && ok "rendered content replaced it" || ko "rendered content replaced it"
+
+echo "5. a template with an unsubstituted expression fails, nothing written"
+new_sandbox
+full_review_item
+jq '.reviewers.cubic.opt_in_label = "{{ some_other_thing }}"' "$review_tpl" >"$sandbox/tpl/bot-review.json.tpl"
+run "$sandbox/tpl/bot-review.json.tpl" dotfiles-bot-review "$out"
+expect_failed "unsubstituted expression" "unsubstituted template expression"
+[ -e "$out" ] && ko "output written" || ok "output not written"
+
+echo "6. an unsubstituted expression in a text template fails"
+item_from "flight_pr_hosts=[github.com]"
+printf 'flight_pr_hosts: {{ op://__OP_VAULT__/__OP_ITEM__/flight_pr_hosts }}\nother: {{ nope }}\n' >"$sandbox/tpl/planwright.yml.tpl"
+run "$sandbox/tpl/planwright.yml.tpl" item "$sandbox/home/overlay/planwright.yml"
+expect_failed "unsubstituted text expression" "unsubstituted template expression"
+
+echo "7. a reference to a field the item lacks fails naming it"
+new_sandbox
+full_review_item
+jq 'del(.fields[] | select(.label == "cubic_opt_out_label"))' "$OP_STUB_ITEM" >"$sandbox/i" && mv "$sandbox/i" "$OP_STUB_ITEM"
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "missing item field" "cubic_opt_out_label"
+
+echo "8. a reference outside the rendered item fails"
+jq '.reviewers.cubic.opt_in_label = "{{ op://Private/other/field }}"' "$review_tpl" >"$sandbox/tpl/bot-review.json.tpl"
+full_review_item
+run "$sandbox/tpl/bot-review.json.tpl" dotfiles-bot-review "$out"
+expect_failed "foreign reference" "unsubstituted template expression"
+
+echo "9. a rendered config missing each required field fails naming it"
+for field in login_pattern reviewed_head_regex finding_key_regex build_id_regex \
+  draft_policy opt_out_label addressed_marker_format; do
+  new_sandbox
+  full_review_item "cubic_$field="
+  run "$review_tpl" dotfiles-bot-review "$out"
+  expect_failed "missing $field" "reviewers.cubic: missing required field $field"
+  [ -e "$out" ] && ko "missing $field: output written" || true
+done
+new_sandbox
+full_review_item "copilot_rerequest_method="
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "missing rerequest method" "reviewers.copilot.rerequest: missing required field method"
+
+echo "10. the schema's value rules"
+new_sandbox
+full_review_item "cubic_rerequest_method=carrier-pigeon"
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "unknown re-request method" "reviewers.cubic.rerequest.method: must be one of"
+full_review_item "copilot_rerequest_login="
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "request without login" "method request needs login"
+full_review_item "cubic_rerequest_command="
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "comment without command" "method comment needs command"
+full_review_item "copilot_rerequest_incremental_command=@x again"
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "incremental form on a non-comment method" "incremental_command applies only to method comment"
+full_review_item "cubic_draft_setting="
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "skips-drafts without the setting" "needs draft_setting"
+full_review_item "cubic_draft_policy=sometimes"
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "unknown draft policy" "reviewers.cubic.draft_policy: must be one of"
+full_review_item "cubic_addressed_marker_format=<!-- ack -->"
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "constant marker" "must contain {key}"
+full_review_item "cubic_finding_key_regex=key:(["
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "regex that does not compile" "reviewers.cubic.finding_key_regex: does not compile"
+full_review_item "cubic_gating_checks={\"a\":1}"
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "gating checks not a list" "gating_checks: must be an array of strings"
+full_review_item "cubic_gating_checks=[not json"
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "json reference that does not parse" "cubic_gating_checks does not hold valid JSON"
+[ -e "$out" ] && ko "a failing render wrote output" || ok "no failing render wrote output"
+
+echo "11. unknown or missing version refused, naming the file and the version"
+new_sandbox
+full_review_item
+jq '.version = 2' "$review_tpl" >"$sandbox/tpl/bot-review.json.tpl"
+run "$sandbox/tpl/bot-review.json.tpl" dotfiles-bot-review "$out"
+expect_failed "unknown version" "$out: unknown version 2"
+jq 'del(.version)' "$review_tpl" >"$sandbox/tpl/bot-review.json.tpl"
+run "$sandbox/tpl/bot-review.json.tpl" dotfiles-bot-review "$out"
+expect_failed "no version key" "$out: no version key"
+item_from 'repos={}'
+printf '{"version": "1", "repos": "{{ op://__OP_VAULT__/__OP_ITEM__/repos | json }}"}\n' >"$sandbox/tpl/sibling-repos.json.tpl"
+run "$sandbox/tpl/sibling-repos.json.tpl" item "$HOME/.config/dotfiles/sibling-repos.json"
+expect_failed "sibling map with an unknown version" "sibling-repos.json: unknown version \"1\""
+
+echo "12. output path guards"
+new_sandbox
+full_review_item
+ln -s "$sandbox/elsewhere" "$out"
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "symlinked output" "is a symlink"
+[ -e "$sandbox/elsewhere" ] && ko "wrote through the symlink" || ok "did not write through the symlink"
+rm "$out" && mkdir "$out"
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "directory at the output" "not a regular file"
+
+echo "13. tracked sibling map template renders and is checked"
+new_sandbox
+sib="$HOME/.config/dotfiles/sibling-repos.json"
+item_from 'repos={"acme/web":{"acme/api":"~/src/api","acme/schema":"/srv/schema"}}'
+run "$sibling_tpl" dotfiles-sibling-repos "$sib"
+[ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$output" && ok "renders" || ko "renders ($output)"
+# shellcheck disable=SC2088 # the literal tilde is the value under test
+[ "$(jq -r '.repos["acme/web"]["acme/api"]' "$sib" 2>/dev/null)" = '~/src/api' ] && ok "map content typed" || ko "map content typed"
+[ -f "$sib" ] && [ "$(mode_of "$sib")" = 600 ] && ok "mode 0600" || ko "mode 0600"
+rm -f "$sib"
+item_from 'repos={"acme/web":{"acme/api":"relative/path"}}'
+run "$sibling_tpl" dotfiles-sibling-repos "$sib"
+expect_failed "relative clone path" "repos.acme/web.acme/api: clone path must be absolute or start with ~/"
+item_from 'repos=["acme/api"]'
+run "$sibling_tpl" dotfiles-sibling-repos "$sib"
+expect_failed "repos not a map" "repos: must be an object"
+
+echo "14. overlay template: no step list, renders, refuses a steps_ key"
+if grep -Eq '^[[:space:]]*steps_' "$overlay_tpl"; then ko "tracked overlay template sets a steps_ key"; else ok "tracked overlay template sets no steps_ key"; fi
+new_sandbox
+ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
+item_from 'flight_pr_hosts=[github.com/acme]'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$output" && ok "renders, creating the directory" || ko "renders ($output)"
+grep -qx 'flight_pr_hosts: \[github.com/acme\]' "$ov" 2>/dev/null && ok "value substituted raw" || ko "value substituted raw"
+[ -f "$ov" ] && [ "$(mode_of "$ov")" = 600 ] && ok "mode 0600" || ko "mode 0600"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+grep -q '^OK:' <<<"$output" && ok "second run prints OK" || ko "second run prints OK ($output)"
+printf 'steps_convergence: {{ op://__OP_VAULT__/__OP_ITEM__/flight_pr_hosts }}\n' >"$sandbox/tpl/planwright.yml.tpl"
+run "$sandbox/tpl/planwright.yml.tpl" item "$sandbox/ov.yml"
+expect_failed "steps_ key in the overlay" "sets steps_convergence"
+printf 'nested:\n  key: {{ op://__OP_VAULT__/__OP_ITEM__/flight_pr_hosts }}\n' >"$sandbox/tpl/planwright.yml.tpl"
+run "$sandbox/tpl/planwright.yml.tpl" item "$sandbox/ov.yml"
+expect_failed "non-flat overlay" "not a flat key: value line"
+item_from 'flight_pr_hosts=x'
+jq '.fields[0].value = "a\nsteps_x: b"' "$OP_STUB_ITEM" >"$sandbox/i" && mv "$sandbox/i" "$OP_STUB_ITEM"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "multi-line value in a text template" "flight_pr_hosts holds a line break"
+
+echo "15. preconditions"
+new_sandbox
+full_review_item
+run "$sandbox/tpl/unknown.json.tpl" item "$out"
+expect_failed "unreadable template" "template not readable"
+printf '{}\n' >"$sandbox/tpl/mystery.json.tpl"
+run "$sandbox/tpl/mystery.json.tpl" item "$out"
+expect_failed "template with no validation rule" "no validation rule for mystery.json.tpl"
+run "$review_tpl" 'bad;item' "$out"
+expect_failed "item name outside the charset" "item name"
+run "$review_tpl"
+expect_failed "wrong argument count" "usage"
+export OP_STUB_FAIL=1
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "op failure" "op item get failed"
+[ -e "$out" ] && ko "op failure wrote output" || ok "op failure wrote nothing"
+unset OP_STUB_FAIL
+item_from 'cubic_login_pattern=a' 'cubic_login_pattern=b'
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "duplicate field label" "more than one field labelled cubic_login_pattern"
+
+echo "16. op missing"
+new_sandbox
+rm "$sandbox/bin/op"
+for tool in bash dirname jq mktemp; do ln -s "$(command -v "$tool")" "$sandbox/bin/$tool"; done
+set +e
+output="$(PATH="$sandbox/bin" "$subject" "$review_tpl" dotfiles-bot-review "$out" 2>&1)"
+rc=$?
+set -e
+expect_failed "op not installed" "1Password CLI (op) not installed"
+
+echo "17. the token reaches op through its environment, never argv"
+new_sandbox
+full_review_item
+export OP_SERVICE_ACCOUNT_TOKEN="ops_teststubtoken123"
+run "$review_tpl" dotfiles-bot-review "$out"
+unset OP_SERVICE_ACCOUNT_TOKEN
+grep -q ops_teststubtoken123 "$OP_STUB_ENV" && ok "token in op's environment" || ko "token in op's environment"
+grep -q ops_teststubtoken123 "$OP_STUB_ARGV" && ko "token in argv" || ok "token not in argv"
+[ "$rc" -eq 0 ] && ok "renders with a token" || ko "renders with a token ($output)"
+
+echo
+echo "op-render: $pass passed, $fail failed"
+[ "$fail" -eq 0 ]

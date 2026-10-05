@@ -160,6 +160,9 @@
     - inventory_hostname != 'work'
   tags: [claude, osx, linux]
 
+- name: Render machine-local files from 1Password
+  ansible.builtin.import_tasks: op-render.yml
+
 - name: Remove dangling pair-flow.yml symlink (repo-class retirement cleanup)
   ansible.builtin.file:
     path: "{{ ansible_facts.env.HOME }}/.claude/pair-flow.yml"

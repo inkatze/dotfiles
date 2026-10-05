@@ -146,6 +146,20 @@ if command -v jq >/dev/null 2>&1; then
     [ -e "$f" ] || continue
     jq empty "$f" >/dev/null 2>&1 || err "$f is not valid JSON"
   done
+  # The schema rule the renderer applies to the rendered review config, here
+  # over its template: every required key present, every vendor value an
+  # op:// reference, cubic the default and a copilot entry beside it.
+  review_tpl="$SKILLS/bot-review/bot-review.json.tpl"
+  if [ ! -f "$review_tpl" ]; then
+    err "$review_tpl does not exist"
+  elif ! tpl_errors="$(jq -r -L "$SKILLS/bot-review" \
+      'include "config-schema"; review_template_errors' "$review_tpl" 2>&1)"; then
+    err "$review_tpl could not be checked: $tpl_errors"
+  else
+    while IFS= read -r line; do
+      [ -z "$line" ] || err "$review_tpl: $line"
+    done <<< "$tpl_errors"
+  fi
 else
   err "jq is required to validate $SKILLS/*/*.json but is not on PATH"
 fi

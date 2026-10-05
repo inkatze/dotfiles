@@ -316,7 +316,22 @@ rm -rf "$nojq"
 teardown
 
 expect_fail example-config-json \
-  "echo 'not json' >> $SKILLS/bot-review/bot-review.config.example.json" "is not valid JSON"
+  "echo 'not json' > $SKILLS/bot-review/planted.json" "is not valid JSON"
+
+# --- The review config template (REQ-A1.2, REQ-A1.3) ---
+expect_fail review-template-required-key \
+  "perl -ni -e 'print unless /cubic_opt_out_label/' $SKILLS/bot-review/bot-review.json.tpl" \
+  "reviewers.cubic: missing required field opt_out_label"
+expect_fail review-template-literal-value \
+  "perl -pi -e 's|\\{\\{ op://__OP_VAULT__/__OP_ITEM__/copilot_login_pattern \\}\\}|some-bot|' $SKILLS/bot-review/bot-review.json.tpl" \
+  "reviewers.copilot.login_pattern: not an op:// reference"
+expect_fail review-template-default \
+  "perl -pi -e 's/\"default\": \"cubic\"/\"default\": \"copilot\"/' $SKILLS/bot-review/bot-review.json.tpl" \
+  "template: default must name the cubic entry"
+expect_fail review-template-unparseable \
+  "echo '}' >> $SKILLS/bot-review/bot-review.json.tpl" "could not be checked"
+expect_fail review-template-missing \
+  "rm $SKILLS/bot-review/bot-review.json.tpl" "bot-review.json.tpl does not exist"
 
 # --- Slash-invoked only, names and flags kept (REQ-C1.11) ---
 expect_fail front-matter-model-invocation \
