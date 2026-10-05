@@ -76,7 +76,7 @@ Act-then-review: apply Auto-applicable and Agent-resolvable fixes, and each Need
 
 ### 7. Commit and push
 
-Commit and push before any reply describes the change. On a hook failure, follow the push-hook rule in [github.md](../review-shared/github.md).
+Commit, then ask before pushing (`y/N`): a model-chosen run reaches this step too, and nested mode is the one that pushes unasked. Push before any reply describes the change; on a no, stop before step 8. On a hook failure, follow the push-hook rule in [github.md](../review-shared/github.md).
 
 ### 8. Reply to and resolve each thread
 
