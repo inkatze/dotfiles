@@ -49,14 +49,25 @@ An item must hold every field its template references. A field left empty
 drops its key, and a reviewer entry whose fields are all empty drops out, so a
 host that does not run Copilot leaves the `copilot_` fields blank. A JSON
 template's reference ending in `| json` takes the field's value as JSON (a
-list or a map) rather than a string. The review template carries no `cli`
-block, so a rendered config has none until one is added to the template.
+list or a map) rather than a string. The review template's `cli` blocks are
+literal (they hold no reviewer mechanics, only how to run a local CLI), so a
+rendered config carries them exactly as committed.
+
+`cubic-api-key` is synced by `scripts/op-key-sync.sh` from the `credential`
+field of the `dotfiles-cubic-api-key` item (category API Credential), through a
+task in the same file and behind the same guards. It is a raw key, not a
+rendered template, so it gets its own script: written at 0600, a blank or
+multi-line value refused, and an existing file that group or other can read
+refused rather than tightened, since the fix for a key that may have been read
+is a rotation. Nothing exports it into a shell; `/panel-review`'s
+`reviewer:cubic` backend reads it through the entry's `cli.env_files` and
+hands it to the CLI's `env -i` alone.
 
 ## The service account
 
 - **Service accounts cannot access the Personal or Private vault.** Every item
-  that needs the token (`dotfiles-lan-ssh`, the Gemini API key and the three
-  rendered items above) therefore lives in the `Dotfiles Service Account`
+  that needs the token (`dotfiles-lan-ssh`, the Gemini and cubic.dev API keys
+  and the three rendered items above) therefore lives in the `Dotfiles Service Account`
   vault, which is every script's default. One file on the headless host
   thereby reaches the LAN ssh topology, a billable API key and the private
   review configuration; splitting the sensitive items onto their own service

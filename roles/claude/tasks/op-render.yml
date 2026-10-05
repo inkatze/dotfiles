@@ -1,7 +1,8 @@
 ---
 
 # Machine-local files rendered from 1Password items in the service-account
-# vault by scripts/op-render.sh, which validates each before it lands. Behind
+# vault by scripts/op-render.sh, which validates each before it lands, plus one
+# API key synced by scripts/op-key-sync.sh. Behind
 # the same `op` probe split as the Gemini key sync in main.yml: a host without
 # op is skipped with a notice, a host with op that still fails is an error.
 # No host guard: every host, work included, runs the review skills.
@@ -56,6 +57,23 @@
     - lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [claude]
 
+# The cubic.dev CLI's API key, which /panel-review's reviewer:cubic backend
+# reads from this file and hands the CLI at invocation only (the template's
+# cli.env_files), so no shell ever exports it.
+- name: Sync the cubic.dev CLI's API key from 1Password
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_facts.env.PWD }}/scripts/op-key-sync.sh"
+      - dotfiles-cubic-api-key
+      - "{{ ansible_facts.env.HOME }}/.config/dotfiles/cubic-api-key"
+  register: claude_sync_cubic_key
+  changed_when: "'CHANGED' in claude_sync_cubic_key.stdout"
+  failed_when: false
+  when:
+    - claude_op_probe.rc == 0
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
+  tags: [claude]
+
 # Each render above runs whatever happened to the one before it; this is where
 # a failure stops the play, naming every render that failed.
 - name: Fail on any 1Password render that failed
@@ -65,7 +83,8 @@
       {{- '' if loop.last else ' | ' }}{% endfor %}
   vars:
     claude_render_failed: >-
-      {{ [claude_render_review_config, claude_render_sibling_map, claude_render_overlay_config]
+      {{ [claude_render_review_config, claude_render_sibling_map, claude_render_overlay_config,
+          claude_sync_cubic_key]
          | selectattr('rc', 'defined') | rejectattr('rc', 'equalto', 0) | list }}
   when:
     - claude_op_probe.rc == 0
@@ -76,10 +95,12 @@
 - name: Report skipped 1Password renders
   ansible.builtin.debug:
     msg: >-
-      1Password CLI not found; the review config, the sibling-repository map
-      and the planwright adopter overlay config were left as they are. Until
-      `op` is installed and either signed in or given a service-account token,
-      /bot-review stops with its missing-config message on a host without one.
+      1Password CLI not found; the review config, the sibling-repository map,
+      the planwright adopter overlay config and the cubic.dev API key were left
+      as they are. Until `op` is installed and either signed in or given a
+      service-account token, /bot-review stops with its missing-config message
+      on a host without one, and /panel-review's reviewer:cubic backend stops
+      naming the missing key file.
   when:
     - claude_op_probe.rc != 0
     - lookup('ansible.builtin.env', 'CI', default='') == ''

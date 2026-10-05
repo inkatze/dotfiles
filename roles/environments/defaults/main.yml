@@ -26,3 +26,7 @@ environments_mise_tools:
   - {name: usage}
   - {name: act}
   - {name: actionlint}
+  - {name: "npm:@cubic-dev-ai/cli"}
+
+environments_xdg_state_home: >-
+  {{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME ~ '/.local/state', true) }}

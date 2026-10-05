@@ -95,6 +95,24 @@ pre-commit:
       glob: "{scripts/op-render.sh,scripts/op-render-test.sh,scripts/op-token.sh,\
         roles/claude/files/skills/*/*.{tpl,jq},roles/claude/files/planwright/*.tpl}"
       run: scripts/op-render-test.sh
+    op-key-sync:
+      # The suite is what notices a mode or blank-value guard being dropped;
+      # the script alone still writes a key file, just one nothing checked.
+      glob: "{scripts/op-key-sync.sh,scripts/op-key-sync-test.sh,scripts/op-token.sh}"
+      run: scripts/op-key-sync-test.sh
+    reviewer-backend:
+      # The template is in the glob because the suite runs the cubic entry's
+      # own cli block through the snippet.
+      glob: "{roles/claude/files/skills/panel-review/reviewer-backend.md,\
+        roles/claude/files/skills/bot-review/bot-review.json.tpl,\
+        roles/claude/files/scripts/reviewer-backend-test.sh}"
+      run: roles/claude/files/scripts/reviewer-backend-test.sh
+    cubic-postinstall-optout:
+      # Needs the network: it fetches the pinned package to read its
+      # postinstall. A version bump fails it until the new script is reviewed.
+      glob: "{roles/environments/files/mise.toml,roles/environments/tasks/main.yml,\
+        scripts/cubic-postinstall-optout-test.sh}"
+      run: scripts/cubic-postinstall-optout-test.sh
     fish-tower:
       # The suite is what notices the launcher losing its fail-closed refusal;
       # the function alone still starts a tower, just without its deny floor.

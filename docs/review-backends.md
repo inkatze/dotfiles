@@ -24,6 +24,25 @@ The `copilot` backend is declared the same way (`cask "copilot-cli"` in the
 `Brewfile`, `copilot` in `linux.toml` through mise's registry default), and the
 skills fall back to the copy `gh copilot` downloads on first use.
 
+The cubic.dev CLI, run as `--backends reviewer:cubic`, is pinned for every
+platform in `roles/environments/files/mise.toml` through mise's npm backend,
+with its key from `scripts/op-key-sync.sh`; its invocation is the cubic
+entry's `cli` block in the review config template.
+
+**Its install opts out of git-ai.** The package's postinstall pipes the git-ai
+installer, a commit tagger that writes git notes, to bash unless
+`CUBIC_DISABLE_GIT_AI` is set or `~/.local/state/cubic/git-ai-disabled`
+exists. Three layers keep it from running: mise's npm backend skips package
+lifecycle scripts by default (measured on mise 2026.7.13: no postinstall ran);
+the environments role writes the flag file before it links the mise config
+that declares the pin; and its install task sets the variable.
+`scripts/cubic-postinstall-optout-test.sh` reads the pinned version's
+postinstall and fails when that condition, or the version, changes. The gap is
+a host that pulls the pin before the role has run, on a mise set to run
+lifecycle scripts: there only the default is missing. The invocation sets the
+same variable plus the vendor's auto-update and language-server download
+opt-outs, so a review never fetches a newer binary mid-run.
+
 ## Why the profile is the inventory alias
 
 It used to be only `PANEL_REVIEW_PROFILE`, defaulting to `personal`. Nothing

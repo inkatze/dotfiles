@@ -160,6 +160,13 @@ if command -v jq >/dev/null 2>&1; then
       [ -z "$line" ] || err "$review_tpl: $line"
     done <<< "$tpl_errors"
   fi
+  # The cubic CLI never updates itself or downloads tooling mid-review, and
+  # never installs its commit tagger, which writes git notes.
+  if [ -f "$review_tpl" ] && ! jq -e '.reviewers.cubic.cli.env | type == "object"
+      and .CUBIC_DISABLE_AUTOUPDATE == "1" and .CUBIC_DISABLE_GIT_AI == "true"
+      and .CUBIC_DISABLE_LSP_DOWNLOAD == "1"' "$review_tpl" >/dev/null 2>&1; then
+    err "$review_tpl: the cubic entry's cli.env must carry the vendor's opt-outs (CUBIC_DISABLE_AUTOUPDATE=1, CUBIC_DISABLE_GIT_AI=true, CUBIC_DISABLE_LSP_DOWNLOAD=1)"
+  fi
   # The other two templates commit no values either: a literal there would
   # publish a private repository name or push destination.
   sibling_tpl="$SHARED/sibling-repos.json.tpl"
@@ -660,6 +667,21 @@ for retired_name in qwen-coder gpt-oss OLLAMA_BASE_URL; do
   done
 done
 
+# Claude Code substitutes numbered positionals into skill text, so no skill or
+# shared markdown file reads one in any form: a snippet helper takes a named
+# local, and an awk field is written $(1). Helper scripts on disk are not
+# substituted, so this scans markdown only.
+md_files=()
+for f in ${tree_files[@]+"${tree_files[@]}"}; do
+  case "$f" in *.md) md_files+=("$f") ;; esac
+done
+if [ "${#md_files[@]}" -gt 0 ]; then
+  files_matching -E '\$([1-9]|\{#?[1-9])' "${md_files[@]}"
+  for path in ${matched[@]+"${matched[@]}"}; do
+    err "$path reads a bare positional parameter (line $(grep -nE '\$([1-9]|\{#?[1-9])' "$path" | head -n 1 | cut -d: -f1)), which Claude Code substitutes into skill text; take a named local, or \$(1) in awk"
+  done
+fi
+
 # copilot-review's nested loop may flip a PR ready only at convergence and only
 # after an explicit per-run confirmation.
 require_phrases "$(skill_md copilot-review)" "mark-ready safety sentence" \
@@ -692,52 +714,24 @@ require_phrases "$(skill_md bot-review)" "metering sentence" \
 reviewer_backend_checks=(
   '"$tbin" -k 30 "$secs" "${argv[@]}" < /dev/null'
   "IFS=\$' \\t' read -r -a words <<< \"\$tpl\""
-  'argv[0]="$bin_exec"'
   "trap 'rm -rf \"\$work\"' EXIT"
-  '[ -f "$src" ] && [ -s "$src" ] || { echo "reviewer CLI exited 0 but left no findings'
   "jq -e -s 'length == 1' \"\$src\""
   'cli.findings_jq must yield one array of {file, line, finding, severity, rule}'
   '/usr/bin/env -i "${env_kept[@]}" "$tbin"'
-  '[ "$v" != PATH ] && val="$(printenv "$v")" && env_kept+=("$v=$val")'
   'and test("^[A-Za-z_][A-Za-z0-9_]*$")) then .[] else error("") end'
   '|| { echo "cli.env_allow must be a list of variable names" >&2; exit 1; }'
-  'x="$(cd "$1" 2>/dev/null && pwd -P)" || return 2'
   'while [ -n "$x" ]; do [ "$x" -ef "$top" ] && return 0; x="${x%/*}"; done'
   'in_repo "$dir"; [ "$?" -eq 1 ] || continue'$'\n''    safe_path="${safe_path:+$safe_path:}$dir"'
-  'in_repo "$dir"; [ "$?" -eq 1 ] || continue'$'\n''      cli_path="${cli_path:+$cli_path:}$dir"'
   'command -v realpath > /dev/null ||'
   '  PATH="$safe_path"'
   'env_kept=("PATH=$safe_path")'
   'bin_real="$(realpath "$bin_abs")" ||'
   'in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] || { echo "cli.binary resolves inside the repo'
-  'bin_real="$(realpath "$bin_abs")" || { echo "cannot resolve cli.binary ($bin_abs) to a real path" >&2; exit 1; }'$'\n''  in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] || { echo "cli.binary is a link into the repo under review'
-  'in_repo "${next%/*}/"; [ "$?" -eq 1 ] || { echo "cli.binary'"'"'s link chain passes through the repo'
   '[ "$bin_real" = "$approved" ] ||'
-  'if is_mise "$bin_real"; then'
-  'bin_exec="$(cd "$HOME" && /usr/bin/env -i "${home_env[@]}" "$mise_exe" which "$shim")"'
-  'tool_dirs="$(cd "$HOME" && /usr/bin/env -i "${home_env[@]}" "$mise_exe" bin-paths)"'
-  '[ "$dir" -ef "$shims_dir" ] || cli_path='
-  'bin_real="$(realpath "$bin_exec")" ||'
   'env_kept[0]="PATH=$cli_path"'
-  'mise_guard=(MISE_OVERRIDE_CONFIG_FILENAMES=none MISE_OVERRIDE_TOOL_VERSIONS_FILENAMES=none MISE_IDIOMATIC_VERSION_FILE_ENABLE_TOOLS= MISE_ENV= MISE_AUTO_ENV=false)'
-  '  export "${mise_guard[@]}"'
-  '  done'$'\n''  home_env=("${env_kept[@]}")'
-  '[ -n "$mise_bin" ] && [ "$1" -ef "$mise_bin" ]'
-  '{ [ "${next##*/}" = mise ] || { [ ! -L "$next" ] && [ "$next" -ef "$bin_real" ]; }; } && break'
-  'is_mise() { [ "${1##*/}" = mise ] ||'
   'mise_bin="$(type -P mise)" || mise_bin=""'
-  '[ "${bin_real##*/}" != "$shim" ] || bin_exec="$bin_real"'
-  '  home_env=("${env_kept[@]}")'$'\n''  env_kept+=("${mise_guard[@]}")'
-  'case " ${mise_guard[*]} " in *" $v="*) continue ;; esac'
-  '**mise shims ignore the repo'"'"'s config.**'
-  'shims_dir="$(cd "${hop%/*}" && pwd -P)"'
-  'mise_exe="$bin_real"; [ "${bin_real##*/}" = mise ] || mise_exe="$mise_bin"'
-  '[ "$shim" != mise ] || { echo'
   'in_repo "$HOME"; [ "$?" -eq 1 ] || { echo'
-  '|| { echo "mise could not resolve $shim from HOME'
-  'case "$bin_exec" in /*) ;; *) echo "mise which'
   'case "$dir" in *:*|[!/]*) continue ;; esac'
-  '! is_mise "$bin_real" || { echo'
   'tbin_real="$(realpath "$tbin")" ||'
   'in_repo "${tbin_real%/*}/"; [ "$?" -eq 1 ] ||'
   'case "$tbin" in *=*|[!/]*)'
@@ -775,12 +769,41 @@ reviewer_backend_checks=(
   'case "$base" in '"''"'|-*|*[!A-Za-z0-9._/-]*)'
   'jq -e '"'"'type == "object" and (.reviewers | type == "object")'"'"' "$cfg"'
   '<<< "$rows" > /dev/null \'
-  'if [ "$backend_status" -ne 0 ]; then'
   'select(type == "number" and . == floor and . > 0 and . <= 86400)'
   'case "$src" in */..|*/../*) echo'
   'if ! setup_after="$(git_setup_sum)" || [ "$setup_after" != "$setup_before" ]; then'
   '**This containment is an accident guard, not a sandbox.**'
   'the CLI itself still runs with your full filesystem and network access'
+  'argv[0]="$bin_abs"'
+  '[ -f "$src" ] && [ -s "$src" ] || { echo "reviewer CLI exited $backend_status but left no findings'
+  'if [ "$backend_status" -ne 0 ] && [ "$findings_status" -eq 0 ]; then'
+  'for code in $findings_codes; do [ "$backend_status" -ne "$code" ] || findings_status="$code"; done'
+  'and . > 0 and . < 124) then .[] else error("") end'
+  '[ "$findings_status" -eq 0 ] || [ "$(jq length <<< "$rows")" -gt 0 ] \'
+  '[ "$v" != PATH ] || continue'
+  'val="$(printenv "$v")" && env_kept+=("$v=$val")'
+  'x="$(cd "$probe" 2>/dev/null && pwd -P)" || return 2'
+  'local probe="$*" x'
+  'mise_shims="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/shims"'
+  'case "${probe%/}" in */mise/shims) return 0 ;; esac'
+  '[ -d "$mise_shims" ] && [ "$probe" -ef "$mise_shims" ]'
+  '! is_shims "$dir" || continue'
+  'in_repo "$dir"; [ "$?" -eq 1 ] || continue'$'\n''    cli_path="${cli_path:+$cli_path:}$dir"'
+  'cli_path="${cli_path:+$cli_path:}$safe_path"'
+  'mise_env=("PATH=$safe_path" "HOME=$HOME")'
+  'case "$v" in MISE_*) val="$(printenv "$v")" && mise_env+=("$v=$val") ;; esac'
+  'tool_dirs="$(cd "$HOME" && /usr/bin/env -i "${mise_env[@]}" "$mise_bin" bin-paths)"'
+  '|| { echo "mise bin-paths failed from HOME'
+  'in_repo "${bin_abs%/*}/"; [ "$?" -eq 1 ] ||'
+  'bin_real="$(realpath "$bin_abs")" || { echo "cannot resolve cli.binary ($bin_abs) to a real path" >&2; exit 1; }'$'\n''  in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] || { echo "cli.binary resolves inside the repo'
+  'if [ "${bin_real##*/}" = mise ] || { [ -n "$mise_bin" ] && [ "$bin_real" -ef "$mise_bin" ]; }; then'
+  '[ ! -L "$key_file" ] && [ -f "$key_file" ] ||'
+  'case "$(stat -c %a "$key_file" 2>/dev/null || stat -f %Lp "$key_file" 2>/dev/null)" in'$'\n''      600|400) ;;'
+  'val="$(cat "$key_file")" && [ -n "$val" ] ||'
+  '- $allow - ["PATH", "HOME"] | length == 0)'
+  '| keys) - ["PATH", "HOME"] | length == (($c.env_files // {}) | length))'
+  '- ["PATH", "HOME"] - $allow | length == (($c.env // {}) | length))'
+  '**mise shims are stripped, not steered.**'
 )
 panel_consent_checks=(
   'where `<approved-binary-path>` is item 5'"'"'s `bin_real`'

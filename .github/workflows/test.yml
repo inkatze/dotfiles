@@ -107,6 +107,10 @@ jobs:
       - name: Run the 1Password renderer suite (macOS)
         run: scripts/op-render-test.sh
 
+      # Also runs on Ubuntu below: BSD stat and mktemp are what this leg adds.
+      - name: Run the API key sync suite (macOS)
+        run: scripts/op-key-sync-test.sh
+
       # Also runs on Ubuntu below: the word count must match under BSD tr/grep.
       - name: Run the instruction word-budget fixture suite (macOS)
         run: roles/claude/files/scripts/instruction-budget-test.sh
@@ -149,6 +153,21 @@ jobs:
       # macOS as well.
       - name: Run the 1Password renderer suite
         run: scripts/op-render-test.sh
+
+      # Stubs op, so bash, coreutils and diffutils are all it needs; lint runs
+      # it on macOS as well.
+      - name: Run the API key sync suite
+        run: scripts/op-key-sync-test.sh
+
+      # Runs the reviewer:<name> snippet against a fake mise and CLI. Ubuntu
+      # only: macOS runners ship no timeout, which the snippet requires.
+      - name: Run the reviewer backend suite
+        run: roles/claude/files/scripts/reviewer-backend-test.sh
+
+      # Fetches the pinned cubic package from the npm registry and reads its
+      # postinstall; curl, openssl, tar and jq are all it needs.
+      - name: Run the cubic postinstall opt-out suite
+        run: scripts/cubic-postinstall-optout-test.sh
 
       # Warnings surface as annotations.
       - name: Run the instruction word-budget checker

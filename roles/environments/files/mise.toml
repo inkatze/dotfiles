@@ -35,3 +35,11 @@ actionlint = "1.7.9"
 # no Brewfile declares usage, so their mise completions are equally dead. apt has
 # no usage package either, so mise is the route on both.
 usage = "5.0.0"
+
+# The cubic.dev reviewer CLI, /panel-review's `reviewer:cubic` backend. Here
+# rather than in roles/linux because no Brewfile carries it, so this is the one
+# route to every platform; npm because the vendor's other route is an unpinned
+# install script. The package's postinstall pipes the git-ai installer (a
+# commit tagger that writes git notes) to bash unless opted out, which the
+# environments role does before `mise install` runs (tasks/main.yml).
+"npm:@cubic-dev-ai/cli" = "1.14.2"

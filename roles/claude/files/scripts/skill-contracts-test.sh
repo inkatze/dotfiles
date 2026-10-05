@@ -138,7 +138,7 @@ expect_fail reviewer-backend-no-kill-after \
 expect_fail reviewer-backend-glob-split \
   "perl -pi -e 's/IFS=\\\$. \\\\t. read -r -a words <<< \"\\\$tpl\"/words=(\\\$tpl)/' $RB" "reviewer-backend containment line"
 expect_fail reviewer-backend-bare-binary \
-  "perl -pi -e 's/^  argv\\[0\\]=\"\\\$bin_exec\"\n//' $RB" "reviewer-backend containment line"
+  "perl -pi -e 's/^  argv\\[0\\]=\"\\\$bin_abs\"\n//' $RB" "reviewer-backend containment line"
 expect_fail reviewer-backend-no-cleanup \
   "perl -pi -e 's/trap .rm -rf \"\\\$work\". EXIT//' $RB" "reviewer-backend containment line"
 expect_fail reviewer-backend-combined-trap \
@@ -159,51 +159,39 @@ reviewer_drift reviewer-backend-env-allow-no-stop \
 reviewer_drift reviewer-backend-in-repo-textual '[ "$x" -ef "$top" ] && return 0' '[ "$x" = "$top" ] && return 0'
 reviewer_drift reviewer-backend-in-repo-no-walk 'x="${x%/*}"; done' 'x=""; done'
 reviewer_drift reviewer-backend-in-repo-unresolved \
-  'x="$(cd "$1" 2>/dev/null && pwd -P)" || return 2' 'x="$1"'
+  'x="$(cd "$probe" 2>/dev/null && pwd -P)" || return 2' 'x="$probe"'
 reviewer_drift reviewer-backend-path-keeps-repo-dirs \
   'in_repo "$dir"; [ "$?" -eq 1 ] || continue' ':'
 reviewer_drift reviewer-backend-tool-dirs-keep-repo-dirs \
-  $'in_repo "$dir"; [ "$?" -eq 1 ] || continue\n      cli_path=' $':\n      cli_path='
+  $'in_repo "$dir"; [ "$?" -eq 1 ] || continue\n    cli_path=' $':\n    cli_path='
 reviewer_drift reviewer-backend-snippet-path-unfiltered '  PATH="$safe_path"' '  :'
 reviewer_drift reviewer-backend-cli-path-unfiltered 'env_kept=("PATH=$safe_path")' 'env_kept=("PATH=$PATH")'
 reviewer_drift reviewer-backend-no-realpath-probe 'command -v realpath > /dev/null ||' 'true ||'
 reviewer_drift reviewer-backend-binary-unresolved 'bin_real="$(realpath "$bin_abs")" ||' 'bin_real="$bin_abs" ||'
 reviewer_drift reviewer-backend-binary-in-repo 'in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] || { echo "cli.binary resolves inside' 'true || { echo "cli.binary resolves inside'
 reviewer_drift reviewer-backend-binary-not-approved '[ "$bin_real" = "$approved" ] ||' 'true ||'
-reviewer_drift reviewer-backend-shim-not-detected 'if is_mise "$bin_real"; then' 'if false; then'
-reviewer_drift reviewer-backend-shim-resolved-in-repo 'bin_exec="$(cd "$HOME" && ' 'bin_exec="$(cd "$top" && '
 reviewer_drift reviewer-backend-shim-bin-paths-in-repo 'tool_dirs="$(cd "$HOME" && ' 'tool_dirs="$(cd "$top" && '
-reviewer_drift reviewer-backend-shims-kept-on-path '[ "$dir" -ef "$shims_dir" ] || cli_path=' 'cli_path='
-reviewer_drift reviewer-backend-shim-target-unchecked 'bin_real="$(realpath "$bin_exec")" ||' 'true ||'
+reviewer_drift reviewer-backend-shims-kept-on-path '! is_shims "$dir" || continue' ':'
+reviewer_drift reviewer-backend-shims-by-name-missed 'case "${probe%/}" in */mise/shims) return 0 ;; esac' ':'
+reviewer_drift reviewer-backend-shims-data-dir-missed '[ -d "$mise_shims" ] && [ "$probe" -ef "$mise_shims" ]' 'false'
+reviewer_drift reviewer-backend-home-tools-not-first 'cli_path="${cli_path:+$cli_path:}$safe_path"' 'cli_path="$safe_path${cli_path:+:$cli_path}"'
+reviewer_drift reviewer-backend-mise-sees-key 'mise_env=("PATH=$safe_path" "HOME=$HOME")' 'mise_env=("${env_kept[@]}")'
+reviewer_drift reviewer-backend-shim-binary-runs 'if [ "${bin_real##*/}" = mise ] || { [ -n "$mise_bin" ] && [ "$bin_real" -ef "$mise_bin" ]; }; then' 'if false; then'
+reviewer_drift reviewer-backend-binary-found-in-repo 'in_repo "${bin_abs%/*}/"; [ "$?" -eq 1 ] ||' 'true ||'
+reviewer_drift reviewer-backend-key-file-symlink '[ ! -L "$key_file" ] && [ -f "$key_file" ] ||' 'true ||'
+reviewer_drift reviewer-backend-key-file-loose-mode $'      600|400) ;;\n' $'      *) ;;\n'
+reviewer_drift reviewer-backend-key-file-empty 'val="$(cat "$key_file")" && [ -n "$val" ] ||' 'val="$(cat "$key_file")" ||'
+reviewer_drift reviewer-backend-key-file-bypasses-allow '- $allow - ["PATH", "HOME"] | length == 0)' '| length >= 0)'
+reviewer_drift reviewer-backend-fixed-env-replaces-path '- ["PATH", "HOME"] - $allow | length == (($c.env // {}) | length))' '| length >= 0)'
+reviewer_drift reviewer-backend-findings-exit-any-code 'for code in $findings_codes; do [ "$backend_status" -ne "$code" ] || findings_status="$code"; done' 'findings_status="$backend_status"'
+reviewer_drift reviewer-backend-findings-exit-allows-timeout 'and . > 0 and . < 124) then' 'and . > 0) then'
+reviewer_drift reviewer-backend-findings-exit-empty-ok '[ "$findings_status" -eq 0 ] || [ "$(jq length <<< "$rows")" -gt 0 ] \' 'true || [ "$(jq length <<< "$rows")" -gt 0 ] \'
+reviewer_drift reviewer-backend-shim-strip-undocumented '**mise shims are stripped, not steered.**' '**mise.**'
 reviewer_drift reviewer-backend-sandbox-claim 'an accident guard, not a sandbox' 'a sandbox'
 reviewer_drift reviewer-backend-trust-unstated 'the CLI itself still runs with your full filesystem and network access' 'the CLI is contained'
-reviewer_drift reviewer-backend-mise-guard-weakened 'MISE_OVERRIDE_TOOL_VERSIONS_FILENAMES=none ' ''
-reviewer_drift reviewer-backend-mise-guard-not-exported '  export "${mise_guard[@]}"' '  :'
-reviewer_drift reviewer-backend-mise-guard-not-in-cli-env '  env_kept+=("${mise_guard[@]}")' '  :'
-reviewer_drift reviewer-backend-mise-guard-before-env-allow \
-  $'  done\n  home_env=("${env_kept[@]}")\n  env_kept+=("${mise_guard[@]}")' $'  home_env=("${env_kept[@]}")\n  env_kept+=("${mise_guard[@]}")\n  done'
-reviewer_drift reviewer-backend-shim-hardlink-missed '[ -n "$mise_bin" ] && [ "$1" -ef "$mise_bin" ]' 'false'
-reviewer_drift reviewer-backend-shim-link-chain '{ [ "${next##*/}" = mise ] ||' '{ true ||'
-reviewer_drift reviewer-backend-mise-guard-keeps-env ' MISE_ENV= ' ' '
-reviewer_drift reviewer-backend-mise-guard-keeps-auto-env ' MISE_AUTO_ENV=false)' ')'
-reviewer_drift reviewer-backend-shim-by-name-missed 'is_mise() { [ "${1##*/}" = mise ] ||' 'is_mise() { false ||'
 reviewer_drift reviewer-backend-mise-bin-relative 'mise_bin="$(type -P mise)"' 'mise_bin="$(command -v mise)"'
-reviewer_drift reviewer-backend-shim-execs-link '[ "${bin_real##*/}" != "$shim" ] || bin_exec="$bin_real"' ':'
-reviewer_drift reviewer-backend-home-resolve-guarded '  home_env=("${env_kept[@]}")'$'\n''  env_kept+=("${mise_guard[@]}")' '  env_kept+=("${mise_guard[@]}")'$'\n''  home_env=("${env_kept[@]}")'
-reviewer_drift reviewer-backend-env-allow-overrides-guard 'case " ${mise_guard[*]} " in *" $v="*) continue ;; esac' ':'
-reviewer_drift reviewer-backend-mise-guard-undocumented '**mise shims ignore the repo'"'"'s config.**' '**mise.**'
-reviewer_drift reviewer-backend-shims-dir-from-configured 'shims_dir="$(cd "${hop%/*}" && pwd -P)"' 'shims_dir="$(cd "${bin_abs%/*}" && pwd -P)"'
-reviewer_drift reviewer-backend-mise-exe-by-link-name '[ "${bin_real##*/}" = mise ] || mise_exe="$mise_bin"' ':'
-reviewer_drift reviewer-backend-shim-is-mise '[ "$shim" != mise ] || { echo' 'true || { echo'
 reviewer_drift reviewer-backend-home-in-repo 'in_repo "$HOME"; [ "$?" -eq 1 ] || { echo' 'true || { echo'
-reviewer_drift reviewer-backend-mise-resolve-no-stop '|| { echo "mise could not resolve $shim from HOME' '|| true; { echo "mise could not resolve $shim from HOME'
-reviewer_drift reviewer-backend-shim-exec-relative 'case "$bin_exec" in /*) ;; *) echo "mise which' 'case "$bin_exec" in *) ;; /*) echo "mise which'
 reviewer_drift reviewer-backend-tool-dirs-colon 'case "$dir" in *:*|[!/]*) continue ;; esac' 'case "$dir" in [!/]*) continue ;; esac'
-reviewer_drift reviewer-backend-shim-to-shim '! is_mise "$bin_real" || { echo' 'true || { echo'
-reviewer_drift reviewer-backend-binary-in-repo-after-mise \
-  '  in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] || { echo "cli.binary is a link into the repo under review' '  true || { echo "cli.binary is a link into the repo under review'
-reviewer_drift reviewer-backend-link-chain-through-repo \
-  'in_repo "${next%/*}/"; [ "$?" -eq 1 ] || { echo' 'true || { echo'
 reviewer_drift reviewer-backend-consent-not-real-path 'is item 5'"'"'s `bin_real`' 'is item 5'"'"'s `bin_abs`'
 reviewer_drift reviewer-backend-preflight-range 'up to, not including, its `[ "$bin_real" = "$approved" ]` check' 'through its approved check'
 reviewer_drift reviewer-backend-cli-path-unused '  env_kept[0]="PATH=$cli_path"' '  :'
@@ -235,6 +223,28 @@ reviewer_drift reviewer-backend-tree-not-compared 'elif [ "$tree_after" != "$tre
 reviewer_drift reviewer-backend-tree-change-not-fatal '[ -z "$tree_msg" ] || { echo "$tree_msg" >&2; exit 1; }' ':'
 reviewer_drift reviewer-backend-findings-escape-output \
   'case "$(realpath "$src")" in "$(realpath "$out")"/*) ;;' 'case "$src" in *) ;;'
+
+# --- No bare positional parameter in skill or shared markdown ---
+plant() { printf '\n```bash\n%s\n```\n' "$LINE" >> "$FILE"; }
+LINE='get() { echo "$1"; }' FILE="$(md panel-review)" \
+  expect_fail positional-bare-in-skill 'plant' "reads a bare positional parameter"
+LINE="awk '{print \$2}' \"\$f\"" FILE="$SHARED/limits.md" \
+  expect_fail positional-awk-field 'plant' "reads a bare positional parameter"
+LINE='x="${1:-none}"' FILE="$SHARED/limits.md" \
+  expect_fail positional-braced 'plant' "reads a bare positional parameter"
+LINE='n="${#3}"' FILE="$SHARED/limits.md" \
+  expect_fail positional-length 'plant' "reads a bare positional parameter"
+LINE="awk '{print \$(1)}' \"\$f\"" FILE="$SHARED/limits.md" \
+  expect_pass positional-awk-paren-form 'plant'
+expect_pass positional-helper-script-outside-sweep \
+  "printf '#!/bin/sh\necho \"\$1\"\n' > $SHARED/helper.sh"
+
+# --- The cubic CLI's opt-outs in the review config template ---
+for optout in CUBIC_DISABLE_AUTOUPDATE CUBIC_DISABLE_GIT_AI CUBIC_DISABLE_LSP_DOWNLOAD; do
+  V="$optout" F="$SKILLS/bot-review/bot-review.json.tpl" expect_fail "template-optout-missing-$optout" \
+    'jq --arg v "$V" "del(.reviewers.cubic.cli.env[\$v])" "$F" > "$F.new" && mv "$F.new" "$F"' \
+    "the cubic entry's cli.env must carry the vendor's opt-outs"
+done
 
 reviewer_drift reviewer-backend-no-egress-consent \
   '6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).**' '6. **Notes.**'
