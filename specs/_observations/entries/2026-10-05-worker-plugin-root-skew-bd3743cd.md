@@ -1,0 +1,1 @@
+- 2026-10-05 [dotfiles] A dispatched worker ran planwright 0.51.0 skills while its environment pinned CLAUDE_PLUGIN_ROOT and PLANWRIGHT_ROOT to the 0.50.0 cache, so resolve-rule-doc.sh served 0.50.0 doctrine to 0.51.0 procedure; the launcher should export the root of the version whose skills it loads, or the resolver should flag the mismatch.

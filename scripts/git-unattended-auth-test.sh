@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Fixture suite for the sshCommand roles/git writes into ~/.gitconfig.local.
+# Fixture suite for the sshCommand roles/git writes into ~/.gitconfig.local,
+# and for the modes it leaves on that file and on ~/.gitconfig.
 #
 # A host on git_unattended_auth_hosts must get an sshCommand that offers its
 # on-disk key and nothing from an agent (IdentitiesOnly), and a host off the
 # list must get no sshCommand at all, since that would change how a host with a
-# working agent authenticates.
+# working agent authenticates. Both files can hold a credential, so neither may
+# end up readable by anyone but its owner.
 #
 # Driven through ansible-playbook against a scratch HOME rather than by reading
 # the template, because the result depends on the inventory alias resolving
@@ -98,6 +100,61 @@ if cmd="$(git config --file "$h/.gitconfig.local" --get core.sshCommand)"; then
     fail unlisted-untouched "sshCommand is '$cmd'"
 else
     ok unlisted-untouched "no sshCommand written"
+fi
+
+mode_of() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }
+
+# $1: home, $2: expected mode, $3: label for the starting state.
+expect_modes() {
+    for f in .gitconfig .gitconfig.local; do
+        got="$(mode_of "$1/$f")"
+        if [ "$got" = "$2" ]; then
+            ok "mode-$3-$f" "$3 becomes 0$2"
+        else
+            fail "mode-$3-$f" "$3 became 0$got, want 0$2"
+        fi
+    done
+}
+
+# 3. Neither file existed in the home above, so both were created 0600.
+expect_modes "$h" 600 absent
+
+# 4. Both files can hold a credential, so a re-run keeps only the owner's read
+# and write bits: a numerically lower mode such as 0444 still lets others read.
+# A mode its owner tightened (0400) stays, and the execute bit goes.
+for pair in 444:400 640:600 400:400 604:600 700:600; do
+    before="${pair%%:*}" want="${pair##*:}"
+    h="$(fresh_home)"
+    for f in .gitconfig .gitconfig.local; do
+        : >"$h/$f"
+        chmod "$before" "$h/$f"
+    done
+    run_role "$h" personal
+    expect_modes "$h" "$want" "0$before"
+done
+
+# 5. A ~/.gitconfig that is still the repo symlink an older role left becomes a
+# real 0600 file carrying the include, whatever mode the symlink reports.
+h="$(fresh_home)"
+mkdir -p "$work/clone/roles/git/files"
+: >"$work/clone/roles/git/files/gitconfig"
+ln -s "$work/clone/roles/git/files/gitconfig" "$h/.gitconfig"
+run_role "$h" personal
+if [ -L "$h/.gitconfig" ]; then
+    fail migrate-real-file "the home's .gitconfig is still a symlink"
+else
+    ok migrate-real-file "the repo symlink became a real file"
+fi
+got="$(mode_of "$h/.gitconfig")"
+if [ "$got" = 600 ]; then
+    ok migrate-mode "the migrated file is 0600"
+else
+    fail migrate-mode "the migrated file is 0$got, want 0600"
+fi
+if grep -q "path = $repo/roles/git/files/gitconfig" "$h/.gitconfig"; then
+    ok migrate-include "the migrated file includes the tracked config"
+else
+    fail migrate-include "no include of the tracked config"
 fi
 
 if [ "$fails" -eq 0 ]; then

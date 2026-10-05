@@ -45,14 +45,19 @@ value, it adds a second helper that also receives every credential.
 | `~/.gitconfig` | you, and every other tool on the machine | whatever `git config --global` writes |
 
 `~/.gitconfig` and `~/.gitconfig.local` are asserted 0600, since a tool
-writing `--global` can put a credential in either; a re-run takes the tighter
-of 0600 and the current mode. `~/.gitconfig.work` is rewritten at 0600.
+writing `--global` can put a credential in either; a re-run keeps only the
+owner's read and write bits of the current mode, so a file you tightened to
+0400 stays that way and group or other bits never survive (0444 is
+numerically lower than 0600, not tighter). `~/.gitconfig.work` is rewritten
+at 0600.
 
 ## Migration from the old symlink
 
 The symlink is replaced only when its target ends in
 `/roles/git/files/gitconfig`, a suffix match because the link may name a
-different clone than the one running. Any other symlink belongs to another
+different clone than the one running. The replacement file is created 0600
+rather than taking its bits from the symlink, whose own mode follows the
+umask on macOS. Any other symlink belongs to another
 tool, so the role leaves it in place and reports it rather than writing
 through it; add the include there by hand. A pre-existing real file keeps
 every key and only gains the block.

@@ -146,8 +146,55 @@ if command -v jq >/dev/null 2>&1; then
     [ -e "$f" ] || continue
     jq empty "$f" >/dev/null 2>&1 || err "$f is not valid JSON"
   done
+  # The schema's template mode (review_template_errors); see config-schema.jq
+  # for what it requires.
+  review_tpl="$SKILLS/bot-review/bot-review.json.tpl"
+  if [ ! -f "$review_tpl" ]; then
+    err "$review_tpl does not exist"
+  elif ! tpl_errors="$(jq -r -s -L "$SKILLS/bot-review" 'include "config-schema";
+      if length != 1 then "template: must hold exactly one JSON document"
+      else .[0] | review_template_errors end' "$review_tpl" 2>&1)"; then
+    err "$review_tpl could not be checked: $tpl_errors"
+  else
+    while IFS= read -r line; do
+      [ -z "$line" ] || err "$review_tpl: $line"
+    done <<< "$tpl_errors"
+  fi
+  # The other two templates commit no values either: a literal there would
+  # publish a private repository name or push destination.
+  sibling_tpl="$SHARED/sibling-repos.json.tpl"
+  if [ ! -f "$sibling_tpl" ]; then
+    err "$sibling_tpl does not exist"
+  elif ! tpl_errors="$(jq -r -s -L "$SKILLS/bot-review" 'include "config-schema";
+      if length != 1 then "must hold exactly one JSON document" else .[0] |
+      (if .version == 1 then empty else "version must be 1" end),
+      ((keys - ["version", "repos"])[] | "unknown top-level field \(.)"),
+      (if (.repos | type) == "string" and (.repos | test(op_reference))
+          and (.repos | capture(op_reference).j != null) then empty
+       else "repos: not a | json op:// reference" end) end' "$sibling_tpl" 2>&1)"; then
+    err "$sibling_tpl could not be checked: $tpl_errors"
+  else
+    while IFS= read -r line; do
+      [ -z "$line" ] || err "$sibling_tpl: $line"
+    done <<< "$tpl_errors"
+  fi
+  overlay_tpl="roles/claude/files/planwright/planwright.yml.tpl"
+  if [ ! -f "$overlay_tpl" ]; then
+    err "$overlay_tpl does not exist"
+  elif ! tpl_errors="$(jq -R -r -L "$SKILLS/bot-review" 'include "config-schema";
+      input_line_number as $n
+      | select(test("^(#.*|---)?$") | not)
+      | if test("^steps_") then "line \($n) sets a step list"
+        elif test("^[a-z][a-z0-9_]*: " + op_reference_inline + "$") then empty
+        else "line \($n) is not a key: <op:// reference> line" end' "$overlay_tpl" 2>&1)"; then
+    err "$overlay_tpl could not be checked: $tpl_errors"
+  else
+    while IFS= read -r line; do
+      [ -z "$line" ] || err "$overlay_tpl: $line"
+    done <<< "$tpl_errors"
+  fi
 else
-  err "jq is required to validate $SKILLS/*/*.json but is not on PATH"
+  err "jq is required to validate $SKILLS/*/*.json and the templates but is not on PATH"
 fi
 
 for name in "${SKILL_NAMES[@]}"; do
@@ -635,6 +682,12 @@ for i in ${tree_files[@]+"${!tree_files[@]}"}; do copilot_sweep "${tree_files[$i
 require_phrases "$(skill_md copilot-review)" "mark-ready safety sentence" \
   "This confirmation-gated ready-flip is the only PR-lifecycle action this loop takes, and only on this exit path." \
   "Never automatically, never on a diminishing-returns/stop-condition/iteration-cap exit, and never for create or merge"
+
+# The review config's readers refuse a version they do not know.
+require_normalized "$(skill_md bot-review)" "version refusal" \
+  "Its \`version\` must be \`1\`: on any other value, or none, stop, naming the file and the version it carries."
+require_normalized "$(skill_md panel-review)" "version refusal" \
+  "on another version, or none, stop, naming the file and the version it carries."
 
 # bot-review permits one confirmation-gated label add and forbids the rest.
 require_phrases "$(skill_md bot-review)" "safety sentence" \

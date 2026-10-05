@@ -419,3 +419,168 @@ flag lefthook 2 provides.
 Class: expression-only
 Anchor: `a315f6995bde7691c2465b220aa2e34b1b701f4b` — computed as
 `spec-anchor.sh specs/claude-instructions`
+
+### 2026-10-05 — Extension: model invocation by caller, ready flip by ownership
+
+Written by `/spec-kickoff` as a reopened-bundle delta kickoff (the bundle
+derived Done over stored Ready; `/spec-draft --extend` reopened it to
+Draft). Scope: the extension delta on `planwright/claude-instructions/spec`
+(commits from `752a6c4` on), walked in the delta re-walkthrough shape.
+Validator at walk start: 0 errors, 0 warnings. Config at planwright
+defaults (no local override file). Decision/transcript log: no
+harness-provided path; the mirror is skipped. The operator was not present
+for the walk; every wording decision below is recorded as taken by the
+delta walk and is confirmed or reverted at the sign-off that follows.
+
+**Goal.** Unchanged. The delta adds two rules at the same local-value
+altitude D-1 set: who may start a review skill, and who marks a pull request
+ready. No altitude trigger fired; the altitude record (D-1, cited from the
+goal) stands.
+
+**Requirements walkthrough (delta).**
+- REQ-A: REQ-A1.3 superseded by REQ-A1.6. The second invocation reached the
+  session cut off after naming the work-or-collaborative case; the walk
+  takes the remainder as "the flip stays the operator's to request there".
+  The lens review found the borrowed rewrite scope is a branch test, so
+  REQ-A1.6 now defines solo, work and collaborative repositories itself and
+  names the flipping session; it folds planwright's `ready_flip_policy`
+  (default `unit-owner`, which flips task pull requests everywhere) into
+  the same scope by setting it to `human` in work and collaborative
+  repositories; a nested loop's convergence flip stays confirmation-gated
+  everywhere and never counts as the solo flip (obs:062cccca folded).
+- REQ-C: REQ-C1.11 superseded by REQ-C1.12. The sentence each
+  model-invocable description must end with is fixed verbatim; a parent
+  skill is defined (the `--nested` mode, or a documented handoff such as
+  `/bot-review --local`, which the first wording would have forbidden); the
+  key is forbidden outright, not its value.
+- Every other group: untouched by the delta.
+
+**Design walkthrough (delta).** D-1 to D-3, D-5 to D-11, D-13 to D-15
+confirmed, rationale intact. D-4 amended in place: its slash-only sentence
+points at D-16. D-12 amended in place: the kickoff flip is the single
+configured flip kept in a work or collaborative repository. D-16 new: the
+egress-consent claim the invocation carried was false for `/panel-review`'s
+default backends (consent today covers only the `reviewer:<name>` backend),
+so D-16 states the fact and Task 8 extends the shared consent to those
+backends; enforcement by a Skill-tool permission deny is rejected because it
+would block the parent call too. D-17 new: the per-repository-setting
+alternative now names planwright's own `ready_flip_policy` seam rather than
+rejecting a knob in the abstract; a `gh pr ready` ask-rule is rejected
+because it would prompt during the configured kickoff flip.
+
+**Verification approach (delta).** Both new REQs are `[test + manual]`:
+the contract checker and its fixture suite (lefthook and the CI workflow)
+carry the pins, each fixture now named by id; the manual halves run after
+merge from a fast-forwarded main checkout and cite the global file, not a
+memory entry (the dotfiles auto-memory already states the solo-flip rule,
+so an answer citing memory proves nothing). Dead paths closed: the budget
+clause now compares each changed surface's declared count with
+`--count`, since the guard never does; the description pin reads the
+front-matter value, since whole-file pins pass on a body copy.
+
+**Task graph (delta).** Task 8 depends on 2 (merged); Task 9 on 3 (merged)
+and 8 (both edit the checker, its suite and `copilot-review`'s budget row).
+Critical path 8 then 9, one day in total. Dispatchable from this checkout:
+Tasks 1 to 4, 8 and 9. Task 7 gained one deliverable (`ready_flip_policy:
+human` in each work repo) and stays parked. Deliberate non-edge: Task 8 and
+Task 9 do not depend on each other's post-merge checks.
+
+**Risk register (appended rows).**
+
+| # | Risk | Mitigation / early signal |
+| --- | --- | --- |
+| 14 | A model-invocable review skill's description is always in context, so a session starts one with no typed invocation and no parent call; `/panel-review` would then upload the diff to an external backend. | REQ-C1.12's description sentence; Task 8's egress consent for the default backends before the first upload, the work host's override confirmation kept; the negative manual check ("review this branch" starts no review skill). Early signal: a review skill in a transcript with no typed invocation and no parent call. |
+| 15 | An unasked `/copilot-review` or `/bot-review` run pushes commits, posts replies and spends a metered vendor quota. | The same sentence; the outbound rule's bot exception bounds what it may post; the same-PR lock; each loop's own flip is confirmation-gated or forbidden. Early signal: a bot thread drained with no operator request. |
+| 16 | planwright's `ready_flip_policy` default flips task pull requests in work repositories until each sets it to `human`. | Task 7's new deliverable; until then the operator's existing never-flip reading holds on the work host, which has not received Task 9's file. Early signal: a task PR flipped in a work repo. |
+| 17 | The solo flip is taken by "the session that completes the last step of the cadence", which a dispatched worker may be; a worker that does not know the cadence's full list could flip early. | The cadence is "every step the pull request calls for", recorded on the pull request; the flip must state the conditions checked. Early signal: a flip stated with a step missing. |
+| 18 | Between the merge of Task 8 or 9 and the fast-forward plus Claude-role run on a host, that host runs the old rule. | Accepted (D-4's rollback shape); the window closes at the next pull. Early signal: a host still asking for a flip it should take. |
+| 19 | The auto-memory entry stating the solo-flip rule survives Task 9 and shadows the global file. | The operator retires it once Task 9 merges (memory is out of scope for the bundle; recorded here as the owner's step). Early signal: a session citing memory for the flip rule. |
+
+**Decision-domains gap check (delta).** Walked the merged catalog against
+the two changes. Fires and decided: api-surface (D-4, D-16, REQ-C1.12),
+secrets-config and ip-posture (D-16, Task 8's consent), concurrency
+(REQ-A1.6's re-check and the same-PR lock), observability (the stated flip,
+rows 14 and 15), deploy-migration (Task 8's provisioning, row 18),
+org-design (D-17, Task 7), llm-output-quality (the negative manual check;
+D-14's no-eval-suite stance re-affirmed), human-comprehension (REQ-C1.12's
+sentence, the global file states the scope once), existing-seam-reuse
+(D-17 names `ready_flip_policy`). auth: the enforcement point is prose plus
+each skill's own gates, decided in D-16 and D-17 with the permission-rule
+alternatives rejected. Does not fire: data-storage, caching, queues-async,
+dependency-adoption, versioning-scheme, product-strategy,
+packaging-pricing, knowledge-engineering.
+
+### Lens review (delta, spec artifact class)
+
+Fan-out: one read-only sub-agent per lens of the spec set, over the delta
+diff with the full bundle and the grounding surfaces (the global file, the
+checker and its suite, the skills, the flight branch, planwright's config)
+as context; the rendered-content-safety lens walked inline. Altitude check:
+not triggered (above). Ship-gate check: every out-of-band step the delta
+names carries a task deliverable (the flight branch, provisioning, the
+consent step, the work-repo policy); the memory retirement in row 19 is the
+operator's own step outside the bundle. Validation: each finding re-read as
+the executing agent and the human reviewer, then checked against the file it
+cites (the egress consent scope in `panel-review`'s pre-flight, planwright's
+`ready_flip_policy` and human-gates table, the budget guard's checks, the
+copilot flip text, the bot-review `--local` handoff); the adversarial sweep
+refuted none of the kept set and resurrected none of the declined set.
+
+| Lens | Findings | Notes |
+| --- | --- | --- |
+| Contract correctness and internal consistency | 8 | borrowed scope mismatch; description sentence vs `--local` handoff; solo flip vs copilot gate; D-12 unamended; risk named `/panel-review` only; outbound-rule misattribution; stale ledger row; REQ-K1.1 cited without a deliverable |
+| Ambiguity and interpretation forks | 11 | which session flips; "passed" vs "run"; solo definition; CLAUDE.md override; "the one flip"; "SHALL NOT set it"; the sentence's text and prose requests; derivation wording; non-review skills; unnamed parent; "own initiative" |
+| Citation and coverage integrity | 3 | ledger row citing REQ-A1.3; two Sources entries uncited by name |
+| Dead verification paths | 6 | manual check true before the change; unnamed parent; "own initiative"; description pin location; unanchored grep; "states once" unpinned |
+| Decision-domain gaps | 2 premises, 9 domains | egress consent does not cover default backends; `ready_flip_policy: unit-owner` flips everywhere; per-domain rows above |
+| Testability | 12 | budget clause cannot detect a stale row; post-merge checks; fixture ids; "kept"; one-commit rule; post-merge setup; dependency reason |
+| Cross-file consistency | 5 | D-12; fixture labels (two); derivation wording; copilot's stricter gate unstated |
+| Documentation and glossary drift | 13 | four names for one condition; solo, work and collaborative undefined; "message"; "parent skill"; "slash-only"; enumerations; D-12; ledger; the brief's dispatchable set |
+| Rendered-content safety | n/a | Markdown rendered by GitHub only; gitleaks clean over the bundle |
+
+### Merged findings and dispositions
+
+Deduplicated across lenses (a finding under several lenses is one row).
+
+| # | Finding | Lenses | Disposition |
+| --- | --- | --- | --- |
+| X-1 | D-16's claim that per-repository upload consent limits an unasked `/panel-review` is false: consent covers only `reviewer:<name>`; the default backends upload unconsented. | gaps, contract | Applied: D-16 states the fact; Task 8 extends the shared `<owner>/<repo>` consent to the default backends with a pin and fixture; REQ-C1.12's manual check covers it. Carried to sign-off as decision 1. |
+| X-2 | planwright's `ready_flip_policy` defaults to `unit-owner`, so `/execute-task` already flips task PRs in every repository; REQ-A1.6's collaborative clause and D-17's rejected "per-repository setting" ignored the seam. | gaps, ambiguity | Applied: REQ-A1.6 and D-17 name the knob and set it to `human` in work and collaborative repositories; Task 7 carries it for the work repos. Carried to sign-off as decision 2. |
+| X-3 | The borrowed rewrite scope is a branch test; "nobody else works from" counts dispatched agents, so this repository would never be solo. | contract, ambiguity, drift | Applied: REQ-A1.6 defines solo, work and collaborative repositories; D-17's rationale says the tests are borrowed and applied at repository level. |
+| X-4 | Solo self-flip vs `/copilot-review --nested`'s confirmation gate and unattended leave-draft. | contract, ambiguity, cross-file | Applied: a nested loop's convergence flip stays confirmation-gated everywhere and never counts as the solo flip; the last session of the cadence flips. |
+| X-5 | "Review step", "review order", "passed" vs the fixed "review cadence the pull request calls for has actually run"; the expected answer omitted mergeability. | drift, ambiguity | Applied: cadence vocabulary throughout; "run to completion", CI green, mergeable. |
+| X-6 | The description sentence: `/bot-review --local` hands off to `/panel-review` without `--nested`; the text was unfixed; a plain-language request was undecided. | contract, ambiguity, dead paths, testability | Applied: sentence fixed verbatim in REQ-C1.12, parent skill defined, prose requests answered by naming the command; the pin reads the front-matter value. |
+| X-7 | D-12 "single exception" falsified; no amendment marker. | contract, cross-file, drift, citation | Applied: amendment annotation on D-12. |
+| X-8 | Ledger row still citing REQ-A1.3. | citation, contract, drift | Applied. |
+| X-9 | D-17 called the flip a message the outbound rule reserves. | contract, drift | Applied: "a signal to reviewers the operator controls". |
+| X-10 | D-16's risk named only `/panel-review`; push, post and quota of the other two unbounded. | contract, gaps | Applied: D-16 and risk row 15. |
+| X-11 | "SHALL NOT set it" admits `false`. | ambiguity | Applied: "SHALL NOT carry the key". |
+| X-12 | Derivation "rather than from a list" misdescribes the flight checker. | ambiguity, cross-file | Applied: from `expected_hint`, not a separate list. |
+| X-13 | Task 8 cites REQ-K1.1 with no inventory deliverable. | contract | Applied: deliverable added. |
+| X-14 | Budget clause cannot detect a stale row (the guard never compares declared n with `--count`); the flight branch already has three stale rows. | testability | Applied: both Done-whens compare declared n with `--count` per changed surface. |
+| X-15 | Post-merge manual checks: unnamed parent; "own initiative" self-contradicting; memory makes the flip answer true before the change; collaborative half names no repository; Ansible does not pull. | dead paths, testability, drift | Applied: skill-listing and Skill-tool observables; answer cites the global file; a repository whose log shows a second human author; fast-forward named. |
+| X-16 | "States the flip scope once" unpinned; fixtures unnamed; "kept" ambiguous against the pin; one-commit rule vs adopted commits; fixture labels; grep unanchored. | testability, dead paths, cross-file | Applied: `occurrences` pin and `ready-flip-scope-duplicated`; fixture ids; "restated, wording free"; per-behaviour-change fixture rule; labels; anchored grep. |
+| X-17 | Task 9 after Task 8: reason unstated. | testability | Applied in Task 9's deliverables. |
+| X-18 | Two Sources entries uncited by name. | citation | Applied: Task 8 cites the flight branch; D-16 names the legacy line. |
+| X-19 | Enumerations in normative text ("the three", "all five", "the two"). | drift | Applied: rules; dated records left. |
+| X-20 | "Parent skill" and "slash-only" undefined. | drift | Applied in D-16 and REQ-C1.12. |
+| X-21 | Walk filed the flip under "human controls", not a catalog id. | gaps | Applied: org-design. |
+| X-22 | Repo-root CLAUDE.md step leaves non-review skills undetermined. | ambiguity | Declined: the rule covers review skills; non-review skills are outside this bundle's scope (Scope section). |
+| X-23 | Unknown owner filed as collaborative in the test-spec. | drift | Applied: work repository. |
+| X-24 | The brief's task graph and dispatchable set are stale. | drift | Applied: restated in this entry. |
+| X-25 | The auto-memory entry duplicating the rule. | dead paths, cross-file | Carried as risk row 19 (out of scope; operator's step). |
+
+**Open for the operator at sign-off.** Two decisions the walk took in the
+operator's absence and that change scope: (1) Task 8 extends egress consent
+to `/panel-review`'s default backends, because the limiter the invocation
+named does not exist today; (2) work and collaborative repositories set
+planwright's `ready_flip_policy: human`, carried by Task 7, because the
+default already flips task pull requests there. Plus the truncated-message
+assumption (the work-or-collaborative case stays operator-requested).
+
+**Sign-off record.** Signed off: 2026-10-05, by the operator, after the approval summary (decisions 1 and 2 kept; the work-or-collaborative case stays operator-requested). Validator at Ready: `spec-validate.sh specs/claude-instructions`, 0 errors, 0 warnings. Pre-flip checks: gitleaks and the memory-link check clean over the bundle; recorded claims re-derived mechanically (25 merged findings, 23 applied, 1 declined, 1 carried); the stale-reference sweep found no live citation of a superseded ID.
+
+Class: meaning
+Lens-pass: the lens review, merged findings and dispositions recorded above in this entry
+Anchor: `20eab7f49fdd9f845f56e90b206b393fae05e4dc` — computed as
+`spec-anchor.sh specs/claude-instructions`

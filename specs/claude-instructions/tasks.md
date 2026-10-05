@@ -1,14 +1,15 @@
 # Claude Instructions Audit — Tasks
 
 **Status:** Ready
-**Last reviewed:** 2026-09-26
+**Last reviewed:** 2026-10-05
 **Format-version:** 2
 **Execution:** derived — see the status render
 
-Tasks 1 to 4 land in this repository. Tasks 5, 6 and 7 land elsewhere (the
-project repo, the planwright repository, the work host) and are parked under
-Deferred with a free-text gate so the orchestrator never dispatches them from
-this checkout; the operator runs them by hand where they belong.
+Tasks 1 to 4, 8 and 9 land in this repository. Tasks 5, 6 and 7 land
+elsewhere (the project repo, the planwright repository, the work host) and are
+parked under Deferred with a free-text gate so the orchestrator never
+dispatches them from this checkout; the operator runs them by hand where they
+belong.
 
 The materialized Claude links point at the checkout Ansible last ran from,
 the main checkout by convention, so a session never loads a task branch's
@@ -229,15 +230,109 @@ swept by the drain pass's manual inventory.
   machine-locally) run over each work repo's instruction files; cluster
   verdicts taken with the operator; each verdict proposed in its repository
   through that repository's own review flow, since shared instruction files
-  follow their owners' review.
+  follow their owners' review; and each work repo's planwright config sets
+  `ready_flip_policy: human`, proposed through the same flow (REQ-A1.6).
 - **Done when:** the work host's inventory directory holds an index naming
   the work repos audited, with one dated table per repo; every verdict has
   either a pull request link in its repository or a "declined" entry in its
   table; the identifier check over this repository, with the work-repo names
   in the identifier file, reports zero hits.
 - **Dependencies:** 2, 3
-- **Citations:** D-8, D-10 · REQ-J1.1, REQ-J1.2
+- **Citations:** D-8, D-10, D-17 · REQ-A1.6, REQ-J1.1, REQ-J1.2
 - **Estimated effort:** 1 day
+
+### Task 8 — Scope model invocation by caller
+
+- **Deliverables:**
+  - The `disable-model-invocation` key removed from the front matter of
+    every review skill whose pinned argument-hint carries `--nested`; every
+    other review skill keeps it. Names and flags unchanged.
+  - The contract checker requires the key on a review skill whose pinned
+    argument-hint lacks `--nested` and rejects any `disable-model-invocation`
+    line on one whose hint carries it, deriving the set from `expected_hint`
+    rather than a separate list; the `front-matter-model-invocation` fixture
+    points at a slash-only skill, and a new `front-matter-nested-hidden`
+    fixture adds the key back to a nested-mode skill and expects a failure.
+    The checker reads each model-invocable skill's front-matter
+    `description:` value and requires it to end with REQ-C1.12's sentence;
+    a `description-sentence-moved` fixture moves the sentence into the body
+    and expects a failure. Every commit that changes a check's behaviour
+    also changes the fixture that proves it; the fixture section label names
+    REQ-C1.12.
+  - Each model-invocable review skill's `description:` value ends with
+    REQ-C1.12's sentence, its name substituted.
+  - `/panel-review`'s pre-flight asks the shared egress consent for its
+    default backends with the `<owner>/<repo>` key and the backend as value,
+    exactly as `/code-review` does, before the first upload; the
+    `reviewer:<name>` consent stays as it is; the checker pins the consent
+    step and a fixture drops it.
+  - The repo-root `CLAUDE.md` skill-creation step says the key is set for a
+    review skill without a `--nested` mode and left out for one with it.
+  - Every surface the branch changes has its budget row re-derived per
+    REQ-G1.3, the nested-mode skills' rows included.
+  - The three descriptions, now always loaded, inventoried per REQ-K1.1 on
+    the host holding the machine-local inventory, as a pre-merge step
+    recorded on the task pull request (Task 2's departure note names the
+    same split).
+  - The unmerged flight branch named in the Sources is the starting point:
+    its commits carry the key removal, the checker derivation, the two
+    front-matter fixtures and the repo-root sentence; this task adopts them,
+    adds the rest of this list, and lands through one task pull request.
+  - Provisioning: after merge, the main checkout fast-forwarded and the
+    Claude role run from it on each host.
+- **Done when:** On the branch: the contract checker and its suite pass;
+  `grep -L '^disable-model-invocation:' roles/claude/files/skills/*/SKILL.md`
+  prints the same paths as
+  `grep -l -- '^argument-hint:.*--nested' roles/claude/files/skills/*/SKILL.md`,
+  and `grep -l '^disable-model-invocation: true$'` over the same glob prints
+  every other review skill; for every surface the branch changes
+  (`git diff --name-only main...HEAD`), its declared count in
+  `instruction-budget.sh` equals `instruction-budget.sh --count <path>` and
+  the guard exits 0. After merge, the main checkout fast-forwarded and the
+  Claude role run: a fresh session's skill listing names every nested-mode
+  review skill and no slash-only one; a prose request in that session to
+  invoke a slash-only review skill through the Skill tool is refused by
+  Claude Code; a prose request to invoke a nested-mode review skill with
+  `--nested` through the Skill tool returns the skill body; and a session
+  asked only to "review this branch" does not start a review skill.
+- **Dependencies:** 2
+- **Citations:** D-4, D-16 · REQ-C1.10, REQ-C1.12, REQ-G1.4, REQ-K1.1, the
+  unmerged flight branch (Sources)
+- **Estimated effort:** 0.5 day
+
+### Task 9 — Scope the ready flip by repository ownership
+
+- **Deliverables:**
+  - The Pull Request Lifecycle section of the user-global `CLAUDE.md`
+    rewritten per REQ-A1.6: the three repository kinds defined once, the
+    solo clause (the last session of the cadence flips, after the cadence
+    has run, CI green and mergeable at the current head, re-checked
+    immediately before the flip, and stated in the handoff), the work and
+    collaborative clause with `ready_flip_policy: human`, the kickoff
+    exception and the operator-confirmed clause restated (substance kept,
+    wording free) and the old never-on-your-own-initiative sentence
+    removed, the hook-denial sentence kept.
+  - The contract checker's ready-flip and kickoff-exception pins retargeted
+    to the new sentences, an `occurrences` pin holding the solo clause to
+    exactly one statement, and the fixtures REQ-A1.6's test-spec entry names
+    by id, in the same commit as the wording; fixture labels name REQ-A1.6
+    in place of REQ-A1.3.
+  - `/copilot-review`'s convergence flip evaluates the REQ-A1.1 conditions
+    before `gh pr ready` and reports a ready-guard denial instead of
+    working around it; its confirmation-gated sentence stays, and the new
+    sentence is pinned with its fixture. Lands after Task 8 because both
+    edit the checker, its suite and `copilot-review`'s budget row.
+  - Every surface the branch changes has its budget row re-derived per
+    REQ-G1.3.
+- **Done when:** On the branch: the contract checker and its suite pass,
+  including the fixtures named in REQ-A1.6's test-spec entry; for every
+  surface the branch changes, its declared count in `instruction-budget.sh`
+  equals `instruction-budget.sh --count <path>` and the guard exits 0. After
+  merge and the main checkout fast-forwarded: the two fresh-session answers
+  REQ-A1.6's test-spec entry names.
+- **Dependencies:** 3, 8
+- **Citations:** D-3, D-12, D-17 · REQ-A1.1, REQ-A1.5, REQ-A1.6, REQ-G1.4
+- **Estimated effort:** 0.5 day
 
 ## Awaiting input
 

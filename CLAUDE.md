@@ -54,14 +54,14 @@ near-empty. See [docs/claude-config.md](docs/claude-config.md).
    checkout: the links point into whichever checkout Ansible ran from. Verify
    in a fresh session.
 
-A new tracked directory under `roles/claude/files/` other than a skill needs
-a matching symlink task in `roles/claude/tasks/main.yml`.
+Any new tracked directory under `roles/claude/files/` except a skill or
+`planwright/` needs a symlink task in `roles/claude/tasks/main.yml`.
 
 ## Contract and budget guards
 
 - `roles/claude/files/scripts/skill-contracts.sh` literal-matches
-  load-bearing sentences in the review skills and the global `CLAUDE.md`, and
-  re-runs when it is edited. A reword that trips it means the contract moved:
+  load-bearing sentences in the review skills and the global `CLAUDE.md`,
+  holds the rendered-file templates to their rules, and re-runs when edited. A reword that trips it means the contract moved:
   update the checker and the fixture that plants that drift, in one commit.
 - `roles/claude/files/scripts/instruction-budget.sh` holds per-surface word
   budgets. A change that grows or adds a surface re-derives its row there, in
@@ -104,10 +104,9 @@ The resolver and every prompt-driven backend invocation are stated once, in
 `roles/claude/files/skills/review-shared/backends.md`; change them there. An
 unresolved host alias must fall back to `work`, matching `scripts/playbook.sh`.
 The Gemini key sync addresses its 1Password item with an explicit `--vault`,
-and the item id in that script is the id in that vault. Ollama is retired
-([docs/ollama.md](docs/ollama.md)), as is the Copilot CLI backend: once the
-role deletes `~/.config/github-copilot/`, revoke Copilot under GitHub's
-Authorized OAuth Apps. See [docs/review-backends.md](docs/review-backends.md).
+and the item id in that script is the id in that vault. Ollama and the Copilot
+CLI backend are retired ([docs/ollama.md](docs/ollama.md)); revoke Copilot's
+GitHub OAuth app by hand. See [docs/review-backends.md](docs/review-backends.md).
 
 ## Machine-local files under `~/.config/dotfiles/`
 
@@ -127,14 +126,15 @@ row names a writer. Keep machine-specific values here, never in tracked files.
 | `work-shell-init` | `roles/fish/files/work-init.fish` | Path of a second config manager's shell init to source |
 | `slack-users.json` | `roles/claude/files/skills/review-shared/slack.md` | GitHub login to Slack user ID (0600), written by the skills |
 | `code-review-egress.json` | `roles/claude/files/skills/review-shared/egress.md` | Per-repo (and per-reviewer) upload consents (0600), written by the skills |
-| `bot-review.json` | the `/bot-review` skill, `/panel-review`'s `reviewer:<name>` backend | Named third-party reviewers; example at `roles/claude/files/skills/bot-review/bot-review.config.example.json` (0600) |
+| `bot-review.json` | the `/bot-review` skill, `/panel-review`'s `reviewer:<name>` backend | Named third-party reviewers, one schema (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/bot-review/bot-review.json.tpl` |
+| `sibling-repos.json` | nothing yet; `/code-review` and `/panel-review` gain the reader | Consuming repository to its producers' clone paths (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/review-shared/sibling-repos.json.tpl` |
 | `private-identifiers` | `scripts/gitleaks-identifier-rules.sh`, `roles/claude/files/scripts/identifier-check.sh` | Names that must never reach a committed file |
 | `claude-instructions-inventory/` | the `specs/claude-instructions` tasks, by hand | Dated instruction-surface audit (directory 0700, files 0600) |
 
 Service-account items live in the `Dotfiles Service Account` vault (service
 accounts cannot read Personal or Private); moving an item there reassigns its
-id. See [docs/machine-local-files.md](docs/machine-local-files.md) for the why
-and the rotation procedure.
+id. See [docs/machine-local-files.md](docs/machine-local-files.md) for the why,
+the rendering rules and the rotation procedure.
 
 ## Identifier check
 

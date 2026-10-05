@@ -1,1 +1,2 @@
 - 2026-10-04 [dotfiles] The global ready-flip rule (mergeable, CI green, review cadence run, all at the current head, UNKNOWN after one re-query counts as unmet) now names the /copilot-review --nested convergence confirmation as a flip the operator requested, but that skill runs gh pr ready after the confirmation checking only isDraft, state and the thread count. Make the skill evaluate the same conditions (and report a ready-guard denial instead of working around it) before flipping, and pin it in skill-contracts.sh.
+Consumed-by: specs/claude-instructions (2026-10-05)

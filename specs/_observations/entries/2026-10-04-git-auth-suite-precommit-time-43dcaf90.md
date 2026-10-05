@@ -1,0 +1,1 @@
+- 2026-10-04 [dotfiles] scripts/git-unattended-auth-test.sh runs in about 1m45s alone but took 7 to 9 minutes as a lefthook pre-commit command, contending with the other parallel hooks; each case is a full ansible-playbook run, so commits touching roles/git/tasks/main.yml, roles/git/defaults/main.yml, or the suite pay that wall-clock.
