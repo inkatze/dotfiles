@@ -7,8 +7,10 @@ enumerates repos this machine has approved for upload).
 
 ## Keys and values
 
-- `/code-review`'s backend pass: key `<owner>/<repo>`, value the backend
-  (`codex` or `gemini`). A different backend for an approved repo asks again.
+- `/code-review`'s backend pass and `/panel-review`'s `codex` and `gemini`
+  backends: key `<owner>/<repo>`, value the backend (`codex` or `gemini`).
+  One approval serves both skills; a different backend for an approved repo
+  asks again.
 - `/panel-review`'s `reviewer:<name>` backend: key
   `reviewer:<name>:<owner>/<repo>`, value the real path of the file that will
   run. A bare `<owner>/<repo>` lookup never matches it, so the two kinds of
