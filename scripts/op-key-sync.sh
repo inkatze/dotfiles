@@ -10,9 +10,11 @@
 # value, CHANGED when it is (re)written, and exits non-zero with a FAILED: line
 # otherwise; Ansible gates changed_when on CHANGED.
 #
-# An existing key file that group or other can read is refused rather than
-# tightened: the key may already have been read, so the fix is a rotation,
-# which a chmod would hide.
+# An existing key file at any mode but 600 or 400 is refused rather than
+# tightened: if group or other could read it, the key may already have been
+# read, and the fix is a rotation, which a chmod would hide. So is a directory
+# for it that someone else owns or could write, where the file could be
+# swapped under the reader.
 
 set -eu
 umask 077
@@ -46,7 +48,7 @@ check_output() {
     case "$perms" in
       600 | 400) ;;
       '') fail "could not stat $output" ;;
-      *) fail "$output is mode $perms, readable beyond its owner; rotate the key, remove the file, then re-run" ;;
+      *) fail "$output is mode $perms, not 600 or 400; if others could read it, rotate the key; then remove the file and re-run" ;;
     esac
   fi
   return 0
@@ -81,21 +83,26 @@ case "$value" in
   *[[:space:]]*) fail "item '$item' holds a credential with a line break or space; an API key has none" ;;
 esac
 
+# Re-checked: the output can be replaced or loosened during the seconds op takes.
+check_output
 if [ -f "$output" ] && [ "$(cat "$output")" = "$value" ]; then
   echo "OK: $output already matches 1Password"
   exit 0
 fi
 
 out_dir="$(dirname -- "$output")"
+# The umask above makes any directory created here 0700.
 mkdir -p -- "$out_dir" || fail "could not create $out_dir"
-chmod 700 "$out_dir" 2>/dev/null || true
+[ -O "$out_dir" ] || fail "$out_dir is not owned by this user; refusing to write a key there"
+case "$(mode_of "$out_dir")" in
+  ?[2367]? | ??[2367]) fail "$out_dir is writable by group or other; tighten it (chmod go-w) and re-run" ;;
+esac
 
 tmp_out=""
 trap '[ -z "$tmp_out" ] || rm -f "$tmp_out"' EXIT
 # Beside the output, so the rename is atomic; the umask above makes it 0600.
 tmp_out="$(mktemp "$out_dir/.${output##*/}.XXXXXX")" || fail "could not create a temp file in $out_dir"
 printf '%s' "$value" >"$tmp_out" || fail "could not write $tmp_out"
-# Again, because the op call takes seconds.
 check_output
 mv -f -- "$tmp_out" "$output" || fail "could not move the key into $output"
 tmp_out=""

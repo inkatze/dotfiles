@@ -667,18 +667,19 @@ for retired_name in qwen-coder gpt-oss OLLAMA_BASE_URL; do
   done
 done
 
-# Claude Code substitutes numbered positionals into skill text, so no skill or
-# shared markdown file reads one in any form: a snippet helper takes a named
-# local, and an awk field is written $(1). Helper scripts on disk are not
-# substituted, so this scans markdown only.
+# Claude Code substitutes numbered positionals, $0 included, into skill text,
+# so no skill or shared markdown file reads one in any form: a snippet helper
+# takes a named local, and an awk field is written $(1). Helper scripts on
+# disk are not substituted, so this scans markdown only.
 md_files=()
 for f in ${tree_files[@]+"${tree_files[@]}"}; do
   case "$f" in *.md) md_files+=("$f") ;; esac
 done
 if [ "${#md_files[@]}" -gt 0 ]; then
-  files_matching -E '\$([1-9]|\{#?[1-9])' "${md_files[@]}"
+  positional_re='\$([0-9]|\{#?[0-9])'
+  files_matching -E "$positional_re" "${md_files[@]}"
   for path in ${matched[@]+"${matched[@]}"}; do
-    err "$path reads a bare positional parameter (line $(grep -nE '\$([1-9]|\{#?[1-9])' "$path" | head -n 1 | cut -d: -f1)), which Claude Code substitutes into skill text; take a named local, or \$(1) in awk"
+    err "$path reads a bare positional parameter (line $(grep -nE "$positional_re" "$path" | head -n 1 | cut -d: -f1)), which Claude Code substitutes into skill text; take a named local, or \$(1) in awk"
   done
 fi
 
@@ -687,6 +688,11 @@ fi
 require_phrases "$(skill_md copilot-review)" "mark-ready safety sentence" \
   "This confirmation-gated ready-flip is the only PR-lifecycle action this loop takes, and only on this exit path." \
   "Never automatically, never on a diminishing-returns/stop-condition/iteration-cap exit, and never for create or merge"
+
+# panel-review's backend set: a vendor CLI joins through reviewer:<name>, never
+# as a backend kind of its own.
+require_phrases "$(skill_md panel-review)" "backend-set sentence" \
+  'Supported: `codex`, `gemini`, `copilot`, and `reviewer:<name>`.'
 
 # The review config's readers refuse a version they do not know.
 require_normalized "$(skill_md bot-review)" "version refusal" \
@@ -717,12 +723,19 @@ reviewer_backend_checks=(
   "trap 'rm -rf \"\$work\"' EXIT"
   "jq -e -s 'length == 1' \"\$src\""
   'cli.findings_jq must yield one array of {file, line, finding, severity, rule}'
-  '/usr/bin/env -i "${env_kept[@]}" "$tbin"'
+  '/usr/bin/env -i "${env_kept[@]}" /bin/sh -c "$loader" sh ${file_pairs[@]+"${file_pairs[@]}"} --'
+  'IFS= read -r val < "${kv#*=}" || [ -n "$val" ] || exit 125; export "${kv%%=*}=$val"; done; exec "$@"'
+  'file_pairs+=("$v=$value_file")'
   'and test("^[A-Za-z_][A-Za-z0-9_]*$")) then .[] else error("") end'
   '|| { echo "cli.env_allow must be a list of variable names" >&2; exit 1; }'
   'while [ -n "$x" ]; do [ "$x" -ef "$top" ] && return 0; x="${x%/*}"; done'
   'in_repo "$dir"; [ "$?" -eq 1 ] || continue'$'\n''    safe_path="${safe_path:+$safe_path:}$dir"'
-  'command -v realpath > /dev/null ||'
+  'for tool in realpath jq printenv git; do'
+  '! is_mise_link "$tool_abs" || { echo'
+  '! is_mise_link "$tbin_real" || { echo'
+  '[ "${probe##*/}" = mise ] || { [ -n "$mise_bin" ] && [ "$probe" -ef "$mise_bin" ]; }'
+  '! is_shims "$dir" || continue'$'\n''    no_shims="${no_shims:+$no_shims:}$dir"'
+  '  PATH="$no_shims"'$'\n''  top="$(git rev-parse --show-toplevel)"'
   '  PATH="$safe_path"'
   'env_kept=("PATH=$safe_path")'
   'bin_real="$(realpath "$bin_abs")" ||'
@@ -730,7 +743,7 @@ reviewer_backend_checks=(
   '[ "$bin_real" = "$approved" ] ||'
   'env_kept[0]="PATH=$cli_path"'
   'mise_bin="$(type -P mise)" || mise_bin=""'
-  'in_repo "$HOME"; [ "$?" -eq 1 ] || { echo'
+  '0) echo "HOME is inside the repo under review'
   'case "$dir" in *:*|[!/]*) continue ;; esac'
   'tbin_real="$(realpath "$tbin")" ||'
   'in_repo "${tbin_real%/*}/"; [ "$?" -eq 1 ] ||'
@@ -744,7 +757,7 @@ reviewer_backend_checks=(
   'if [ -L "./$p" ]; then printf'
   'git_isolated rev-parse HEAD || exit 1'
   'git_isolated symbolic-ref -q HEAD || echo detached'
-  '/usr/bin/env -i "${env_kept[@]}" GIT_CONFIG_NOSYSTEM=1'
+  '/usr/bin/env -i "PATH=$cli_path" "HOME=$HOME" GIT_CONFIG_NOSYSTEM=1'
   'git -c core.fsmonitor=false -c core.untrackedCache=false -c core.hooksPath=/dev/null -C "$top" "$@"'
   '"$git_dir/commondir" "$git_dir/gitdir" "$top/.git"'
   'if [ -f "$path" ]; then printf '"'"'%s %s %s\n'"'"' "$path" "$([ -x "$path" ] && echo exec)"'
@@ -753,8 +766,6 @@ reviewer_backend_checks=(
   '"$git_common/info/exclude" "$git_common/info/attributes"'
   '"$(readlink "$path")"; fi'
   'elif [ ! -f "./$p" ] || [ ! -r "./$p" ]; then printf'
-  'command -v jq > /dev/null || { echo "jq is not on the filtered PATH"'
-  'command -v printenv > /dev/null || { echo "printenv is not on the filtered PATH"'
   'elif [ "$tree_after" != "$tree_before" ]; then'
   '[ -z "$tree_msg" ] || { echo "$tree_msg" >&2; exit 1; }'
   'case "$(realpath "$src")" in "$(realpath "$out")"/*) ;;'
@@ -775,10 +786,11 @@ reviewer_backend_checks=(
   '**This containment is an accident guard, not a sandbox.**'
   'the CLI itself still runs with your full filesystem and network access'
   'argv[0]="$bin_abs"'
-  '[ -f "$src" ] && [ -s "$src" ] || { echo "reviewer CLI exited $backend_status but left no findings'
+  '[ -f "$src" ] && [ -s "$src" ] || run_failed "reviewer CLI exited $backend_status but left no findings'
+  '[ "$backend_status" -eq 0 ] || tail -n 50 "$work/stderr"'
   'if [ "$backend_status" -ne 0 ] && [ "$findings_status" -eq 0 ]; then'
   'for code in $findings_codes; do [ "$backend_status" -ne "$code" ] || findings_status="$code"; done'
-  'and . > 0 and . < 124) then .[] else error("") end'
+  'and . > 0 and . < 124) then .[] | floor else error("") end'
   '[ "$findings_status" -eq 0 ] || [ "$(jq length <<< "$rows")" -gt 0 ] \'
   '[ "$v" != PATH ] || continue'
   'val="$(printenv "$v")" && env_kept+=("$v=$val")'
@@ -791,18 +803,19 @@ reviewer_backend_checks=(
   'in_repo "$dir"; [ "$?" -eq 1 ] || continue'$'\n''    cli_path="${cli_path:+$cli_path:}$dir"'
   'cli_path="${cli_path:+$cli_path:}$safe_path"'
   'mise_env=("PATH=$safe_path" "HOME=$HOME")'
-  'case "$v" in MISE_*) val="$(printenv "$v")" && mise_env+=("$v=$val") ;; esac'
+  'case "$v" in MISE_*|XDG_*) val="$(printenv "$v")" && mise_env+=("$v=$val") ;; esac'
   'tool_dirs="$(cd "$HOME" && /usr/bin/env -i "${mise_env[@]}" "$mise_bin" bin-paths)"'
   '|| { echo "mise bin-paths failed from HOME'
   'in_repo "${bin_abs%/*}/"; [ "$?" -eq 1 ] ||'
   'bin_real="$(realpath "$bin_abs")" || { echo "cannot resolve cli.binary ($bin_abs) to a real path" >&2; exit 1; }'$'\n''  in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] || { echo "cli.binary resolves inside the repo'
-  'if [ "${bin_real##*/}" = mise ] || { [ -n "$mise_bin" ] && [ "$bin_real" -ef "$mise_bin" ]; }; then'
-  '[ ! -L "$key_file" ] && [ -f "$key_file" ] ||'
-  'case "$(stat -c %a "$key_file" 2>/dev/null || stat -f %Lp "$key_file" 2>/dev/null)" in'$'\n''      600|400) ;;'
-  'val="$(cat "$key_file")" && [ -n "$val" ] ||'
-  '- $allow - ["PATH", "HOME"] | length == 0)'
-  '| keys) - ["PATH", "HOME"] | length == (($c.env_files // {}) | length))'
-  '- ["PATH", "HOME"] - $allow | length == (($c.env // {}) | length))'
+  'if is_mise_link "$bin_real"; then'
+  '[ ! -L "$value_file" ] && [ -f "$value_file" ] && [ -O "$value_file" ] \'
+  'case "$value_mode" in'$'\n''      600|400) ;;'
+  'val="$(cat "$value_file")" && [ -n "$val" ] ||'
+  'case "$val" in *[[:space:]]*) echo'
+  'and ($files - $allow | length == 0) and ($fixed - $allow == $fixed)'
+  'and ($files + $fixed | all(.[]; . != "PATH" and . != "HOME"))'
+  'and ($files + $fixed + $allow | all(.[]; startswith("GIT_") | not))'
   '**mise shims are stripped, not steered.**'
 )
 panel_consent_checks=(

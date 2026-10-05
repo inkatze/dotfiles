@@ -45,16 +45,19 @@ FAKE
   chmod +x "$sandbox/bin/op"
 }
 
-run() { # run <args...>; sets rc and log
+run() { # run <args...>; sets rc, stdout, stderr and log (both)
   set +e
-  log="$("$subject" "$@" 2>&1)"
+  "$subject" "$@" >"$sandbox/stdout" 2>"$sandbox/stderr"
   rc=$?
   set -e
+  stdout="$(cat "$sandbox/stdout")"
+  stderr="$(cat "$sandbox/stderr")"
+  log="$stdout$stderr"
 }
 
 expect_failed() { # expect_failed <label> <needle>
   if [ "$rc" -eq 0 ]; then ko "$1: exited 0 ($log)"
-  elif ! grep -qF "FAILED:" <<<"$log"; then ko "$1: no FAILED: line ($log)"
+  elif ! grep -qF "FAILED:" <<<"$stderr"; then ko "$1: no FAILED: line on stderr ($log)"
   elif ! grep -qF -- "$2" <<<"$log"; then ko "$1: expected \"$2\", got: $log"
   else ok "$1"; fi
 }
@@ -64,7 +67,7 @@ mode_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
 echo "1. a fresh host gets the key at 0600, byte for byte"
 new_sandbox
 run test-item "$out"
-if [ "$rc" -eq 0 ] && grep -q '^CHANGED' <<<"$log"; then ok "prints CHANGED"; else ko "prints CHANGED ($log)"; fi
+if [ "$rc" -eq 0 ] && grep -q '^CHANGED' <<<"$stdout"; then ok "prints CHANGED on stdout"; else ko "prints CHANGED on stdout ($log)"; fi
 [ "$(mode_of "$out" 2>/dev/null)" = 600 ] && ok "mode 0600" || ko "mode 0600"
 [ "$(mode_of "$(dirname "$out")" 2>/dev/null)" = 700 ] && ok "directory 0700" || ko "directory 0700"
 if [ "$(cat "$out")" = placeholder-key-0001 ] && [ "$(wc -c <"$out" | tr -d ' ')" = 20 ]; then
@@ -72,7 +75,8 @@ if [ "$(cat "$out")" = placeholder-key-0001 ] && [ "$(wc -c <"$out" | tr -d ' ')
 else
   ko "value written with no trailing newline"
 fi
-if grep -q -- '--vault Dotfiles Service Account' "$OP_STUB_ARGV" && grep -q -- '--fields credential' "$OP_STUB_ARGV"; then
+if grep -q -- '--vault Dotfiles Service Account' "$OP_STUB_ARGV" && grep -q -- '--fields credential' "$OP_STUB_ARGV" \
+  && grep -q -- '--reveal' "$OP_STUB_ARGV"; then
   ok "reads the credential field from the service-account vault"
 else
   ko "reads the credential field from the service-account vault ($(cat "$OP_STUB_ARGV"))"
@@ -82,7 +86,7 @@ if [ -n "$(find "$(dirname "$out")" -name '.*' -type f)" ]; then ko "a temp file
 
 echo "2. a second run is a no-op"
 run test-item "$out"
-if [ "$rc" -eq 0 ] && grep -q '^OK' <<<"$log"; then ok "prints OK"; else ko "prints OK ($log)"; fi
+if [ "$rc" -eq 0 ] && grep -q '^OK' <<<"$stdout"; then ok "prints OK on stdout"; else ko "prints OK on stdout ($log)"; fi
 
 echo "3. a changed key in 1Password rewrites the file"
 printf '%s' 'placeholder-key-0002' >"$OP_STUB_VALUE"
@@ -158,6 +162,20 @@ expect_failed "flag-like item name" "outside"
 run test-item relative/path
 expect_failed "relative output" "absolute"
 [ -e "$OP_STUB_ARGV" ] && ko "op ran on a refused argument" || ok "op never ran"
+
+echo "11. the key's directory must be the user's and closed to writers"
+new_sandbox
+mkdir -p "$(dirname "$out")"
+chmod 777 "$(dirname "$out")"
+run test-item "$out"
+expect_failed "group/other-writable directory refused" "writable by group or other"
+[ -e "$out" ] && ko "a key was written there" || ok "no key written there"
+chmod 755 "$(dirname "$out")"
+run test-item "$out"
+if [ "$rc" -eq 0 ] && [ "$(mode_of "$(dirname "$out")")" = 755 ]; then ok "an existing directory is left at its own mode"; else ko "an existing directory is left at its own mode ($log)"; fi
+
+echo "12. no shell config exports the key"
+if grep -rq CUBIC "$script_dir/../roles/fish"; then ko "roles/fish mentions CUBIC"; else ok "roles/fish never mentions CUBIC"; fi
 
 echo
 echo "op-key-sync-test: $pass passed, $fail failed"
