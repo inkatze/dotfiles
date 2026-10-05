@@ -49,10 +49,11 @@ public.
   the file existing; an exported empty one is treated as absent.
 
 To rotate, write the new token straight to a file so it never reaches a
-terminal (it is shown exactly once), then move it into place:
+terminal (it is shown exactly once), then move it into place. Replace
+`NEW_ACCOUNT_NAME` with the new service account's name:
 
 ```sh
-(umask 077; op service-account create <name> \
+(umask 077; op service-account create NEW_ACCOUNT_NAME \
   --vault 'Dotfiles Service Account':read_items --raw \
   >~/.config/dotfiles/op-service-account-token.new) &&
   mv ~/.config/dotfiles/op-service-account-token.new \
