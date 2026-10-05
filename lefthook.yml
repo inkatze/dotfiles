@@ -72,6 +72,13 @@ pre-commit:
       glob: "{roles/git/tasks/main.yml,roles/git/defaults/main.yml,\
         scripts/git-unattended-auth-test.sh}"
       run: scripts/git-unattended-auth-test.sh
+    copilot-retirement:
+      # The suite is what notices the credential removal reaching past its one
+      # directory, or a host declaration bringing the Copilot CLI back.
+      glob: "{Brewfile*,mise.toml,roles/environments/files/mise.toml,\
+        roles/linux/files/mise/linux.toml,roles/linux/defaults/main.yml,\
+        roles/claude/tasks/{main,copilot-credential}.yml,scripts/copilot-retirement-test.sh}"
+      run: scripts/copilot-retirement-test.sh
     planwright-marketplace:
       # The suite is what notices the stale-source removal being dropped or
       # loosened; the role alone still converges on a host already migrated.

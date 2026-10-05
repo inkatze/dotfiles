@@ -14,13 +14,13 @@ Read the literal flag `--nested` from `$ARGUMENTS` at the start of the run.
 - **Standalone** (no flag): run "## Steps" once: fetch threads, validate, record, act and walk (step 6), commit and push (step 7), reply and resolve (step 8).
 - **Nested** (`--nested`): run "## Nested loop (--nested)". It repeats the cycle autonomously, re-requesting Copilot's review each iteration and waiting for it, until the unresolved-thread queue converges to zero, diminishing returns set in, or a stop condition fires. It is **not** local-only: Copilot needs a pushed commit to review, so it pushes on every iteration that applies a fix (a resolve-only iteration has no new head to push). It never creates or merges the PR; at convergence it asks whether to mark the PR ready, and does so only on that run's explicit yes.
 
-## When Copilot hasn't reviewed, and the CLI fallback
+## When Copilot hasn't reviewed, and the local fallback
 
 Copilot reviews when it is **requested as a reviewer**, not because of a label, so "no review" has causes a label-driven bot does not: nobody requested it, auto-review on push did not fire, the org has Copilot code review disabled, or the App is not installed there. Say which applies instead of reporting "nothing to address":
 
 1. **Has Copilot ever reviewed this PR?** Check `reviews(last: 20)` for a Copilot-authored review (the query in nested pre-flight step 3). If it did and left zero unresolved threads, that is a clean review, not an absence.
 2. **If not, offer to request one** (`y/N`, never silently; it is visible on the PR), using step (f)'s transport order.
-3. **If every transport fails** (**Re-review unavailable**), offer the CLI fallback, `/panel-review --backends copilot`, saying it produces local findings with no threads to reply to or resolve. Nested mode offers it in the handoff and never runs it on its own.
+3. **If every transport fails** (**Re-review unavailable**), offer the local fallback, `/panel-review` with its default backend, saying it produces local findings from a non-Copilot model with no threads to reply to or resolve. Nested mode offers it in the handoff and never runs it on its own.
 
 ## Steps
 
@@ -329,7 +329,7 @@ Stop, print the latest iteration table, name the condition, and wait: no push, n
 | **Cannot reproduce** | Not reproducible, and the proposed fix is non-trivial. |
 | **No response** | The review-poll window expired with no new Copilot review. |
 | **Poll failure** | Every poll in (g) failed to read the reviews (`POLL_ERROR`), so no silence was observed. |
-| **Re-review unavailable** | No transport can request a review: the gh route failed or is unavailable, and in app mode REST genuinely 422'd with no MCP fallback available, or in collaborator mode both login forms 422'd. Offer the CLI fallback in the handoff; never run it unasked. |
+| **Re-review unavailable** | No transport can request a review: the gh route failed or is unavailable, and in app mode REST genuinely 422'd with no MCP fallback available, or in collaborator mode both login forms 422'd. Offer the local fallback in the handoff; never run it unasked. |
 | **Pending reply unsubmittable** | A viewer-owned pending review cannot be submitted, so replies would stay invisible. |
 | **Conflicting signals** | A later Copilot review contradicts an earlier one already addressed. |
 

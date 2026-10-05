@@ -1,7 +1,7 @@
 # Review backends: codex vs gemini
 
 Rationale behind the review-backend rules in the repo-root `CLAUDE.md`. The
-resolver and the codex, gemini and copilot invocations are stated once in
+resolver and the codex and gemini invocations are stated once in
 `roles/claude/files/skills/review-shared/backends.md`; the opt-in
 `reviewer:<name>` backend is in
 `roles/claude/files/skills/panel-review/reviewer-backend.md`.
@@ -11,18 +11,14 @@ resolver and the codex, gemini and copilot invocations are stated once in
 `/panel-review` and `/code-review` run their discovery pass through a
 non-Anthropic CLI. The machine picks the default; a run can override it with
 `--backends` (one backend for `/code-review`, a list for `/panel-review`) or
-`PANEL_REVIEW_PROFILE`. The opt-in `copilot` and `reviewer:<name>` backends
-are never chosen automatically.
+`PANEL_REVIEW_PROFILE`. The opt-in `reviewer:<name>` backend is never
+chosen automatically.
 
 | Alias | Backend | CLI comes from | Key comes from |
 |---|---|---|---|
 | `work` | `codex` | `Brewfile` (`cask "codex"`) | `codex login`, interactive |
 | `personal`, `alt` | `gemini` | `Brewfile` (`brew "gemini-cli"`) | `scripts/claude-gemini-auth-sync.sh` |
 | `server` | `gemini` | mise, pinned in `roles/linux/files/mise/linux.toml` | same script, service-account path |
-
-The `copilot` backend is declared the same way (`cask "copilot-cli"` in the
-`Brewfile`, `copilot` in `linux.toml` through mise's registry default), and the
-skills fall back to the copy `gh copilot` downloads on first use.
 
 ## Why the profile is the inventory alias
 
@@ -106,3 +102,21 @@ stdin. Not `/tmp` itself, which is world-writable and so pre-seedable with a
 `GEMINI.md`; a subshell because the Bash tool keeps its cwd between calls.
 None of this covers user-level `~/.gemini/` config, which loads regardless of
 cwd.
+
+## The Copilot CLI backend is retired
+
+`/panel-review` had an opt-in `copilot` backend with a bespoke view-only
+sandbox. Copilot is now used only where a repository runs the hosted reviewer,
+so the backend, its cask, its Linux mise pin and its checker anchors are gone,
+and `--backends copilot` stops naming the replacement: a Copilot CLI, if
+wanted again, runs as a `reviewer:<name>` entry's `cli` block like any other
+vendor. The contract checker's retired-backend sweep keeps the name out of the
+skills.
+
+With the last consumer gone, the OAuth credential under
+`~/.config/github-copilot/` was left world-readable on every host that ever
+signed in. `roles/claude/tasks/copilot-credential.yml` deletes that directory
+and nothing else (the Copilot CLI's own `~/.copilot/` stays), and is temporary:
+once every host has run the role it can go. Deleting the file does not revoke
+the token, so also revoke the Copilot entry on GitHub, under Settings →
+Applications → Authorized OAuth Apps.

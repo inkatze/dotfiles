@@ -72,9 +72,6 @@ brew "postgresql@18"
 # AI tools (panel review / pairing backends)
 brew "gemini-cli"
 cask "codex"
-# The opt-in `copilot` backend. Declared so it does not depend on the
-# interactive `gh copilot` first-run download.
-cask "copilot-cli"
 # The outbound secret scan those backends run before any egress. Global so the
 # scan runs in any repo, not only one that pins it through mise.
 brew "gitleaks"

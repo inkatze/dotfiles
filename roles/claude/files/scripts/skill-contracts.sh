@@ -327,10 +327,6 @@ files_matching -E '/self-review`? step [0-9]'
 for f in ${matched[@]+"${matched[@]}"}; do
   err "$f cites a numbered /self-review step; /self-review is a planwright skill without numbered steps"
 done
-files_matching -F 'gh copilot --help'
-for f in ${matched[@]+"${matched[@]}"}; do
-  err "$f names 'gh copilot --help'; its help output proves nothing about the CLI"
-done
 CODEX_CONTAINED='( cd "$scratch" && "$codex_bin" exec --sandbox read-only --skip-git-repo-check < "$prompt_file" )'
 require_phrases "$SHARED/backends.md" "contained codex invocation" "$CODEX_CONTAINED"
 
@@ -612,6 +608,21 @@ for retired_name in qwen-coder gpt-oss OLLAMA_BASE_URL; do
     err "$path references the retired backend name '$retired_name'; nothing provisions Ollama any more"
   done
 done
+
+# Retired Copilot CLI backend: a Copilot CLI, if wanted again, is a
+# reviewer:<name> entry's cli block, so the old backend's name, binary, cask and
+# gh extension appear nowhere but the sentence that stops a run naming it.
+COPILOT_STOP="\`--backends copilot\` names the retired Copilot CLI backend: stop and say a Copilot CLI, if wanted again, runs as a \`reviewer:<name>\` entry's \`cli\` block."
+require_normalized "$(skill_md panel-review)" "retired-backend stop sentence" "$COPILOT_STOP"
+copilot_sweep() {
+  local rest="${2//"$COPILOT_STOP"/}" tok
+  for tok in '`copilot`' 'backends copilot' copilot_bin copilot-cli 'gh copilot' 'mise which copilot'; do
+    [[ "$rest" != *"$tok"* ]] \
+      || { err "$1 names the retired Copilot CLI backend ('$tok'); a Copilot CLI runs as a reviewer:<name> entry's cli block"; return; }
+  done
+}
+for i in ${tree_files[@]+"${!tree_files[@]}"}; do copilot_sweep "${tree_files[$i]}" "${tree_norm[$i]}"; done
+[ -z "$global_ok" ] || copilot_sweep "$GLOBAL_MD" "$global_norm"
 
 # copilot-review's nested loop may flip a PR ready only at convergence and only
 # after an explicit per-run confirmation.
