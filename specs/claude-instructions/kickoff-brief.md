@@ -577,3 +577,10 @@ named does not exist today; (2) work and collaborative repositories set
 planwright's `ready_flip_policy: human`, carried by Task 7, because the
 default already flips task pull requests there. Plus the truncated-message
 assumption (the work-or-collaborative case stays operator-requested).
+
+**Sign-off record.** Signed off: 2026-10-05, by the operator, after the approval summary (decisions 1 and 2 kept; the work-or-collaborative case stays operator-requested). Validator at Ready: `spec-validate.sh specs/claude-instructions`, 0 errors, 0 warnings. Pre-flip checks: gitleaks and the memory-link check clean over the bundle; recorded claims re-derived mechanically (25 merged findings, 23 applied, 1 declined, 1 carried); the stale-reference sweep found no live citation of a superseded ID.
+
+Class: meaning
+Lens-pass: the lens review, merged findings and dispositions recorded above in this entry
+Anchor: `20eab7f49fdd9f845f56e90b206b393fae05e4dc` — computed as
+`spec-anchor.sh specs/claude-instructions`
