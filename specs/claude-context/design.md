@@ -1,5 +1,9 @@
 # Dotfiles Repo-Root CLAUDE.md Design Decisions
 
+**Status:** Ready
+**Last reviewed:** 2026-10-04
+**Format-version:** 1
+
 Decisions specific to introducing a tracked `CLAUDE.md` at the root of the dotfiles repo
 so that Claude Code sessions launched with cwd at the dotfiles repo root have the
 minimum non-obvious context they need to act correctly in this repo.

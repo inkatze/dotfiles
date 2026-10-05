@@ -22,7 +22,7 @@
 # from a LaunchAgent every 15 minutes would prompt forever and the check would
 # never fire unattended. This is the same limitation that forced the on-disk
 # commit-signing key, and the same shape as the op-service-account-token file
-# already documented in CLAUDE.md.
+# already documented in docs/machine-local-files.md.
 #
 # Detection is split from the read for the reason roles/ssh uses: a host without
 # `op` genuinely cannot do this and is skipped, whereas a host that HAS op and

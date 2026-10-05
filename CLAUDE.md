@@ -1,804 +1,200 @@
 # Dotfiles
 
-Personal dotfiles managed by Ansible. This repo is the source of truth for
-`~/.claude/` config, `~/.config/fish/`, tmux, mise, and related surfaces.
-Edit files here, then run Ansible to propagate. Never edit materialized files
-directly. See `specs/README.md` for planned improvements.
+Personal dotfiles managed by Ansible: the source of truth for `~/.claude/`,
+`~/.config/fish/`, tmux, mise and related surfaces. Edit files here, then run
+Ansible to propagate; never edit a materialized file directly. Rationale for
+the rules below lives in [docs/](docs/); planned work in `specs/README.md`.
 
 ## How Claude config is materialized
 
-Tracked Claude sources live under the Ansible role, not where they appear at
-runtime:
+The tracked Claude sources live under `roles/claude/files/`, not where they
+appear at runtime:
 
 | Runtime path | Tracked source | Mechanism |
 |---|---|---|
 | `~/.claude/CLAUDE.md` | `roles/claude/files/CLAUDE.md` | Symlink |
-| `~/.claude/skills/<name>` | `roles/claude/files/skills/<name>/` | One symlink per tracked directory, `review-shared/` included (`skills.yml`); other entries there are left alone, and only this repo's dangling links and its retired `~/.claude/commands` link are removed |
-| `~/.claude/scripts/*` | `roles/claude/files/scripts/` | Symlink (scripts `settings.json` invokes: hooks, the status line) |
-| `~/.claude/output-styles/*` | `roles/claude/files/output-styles/` | Symlink (resolved by name from `outputStyle`) |
-| `~/.claude/settings.json` | `roles/claude/files/settings.json` | jq merge (not symlink) |
+| `~/.claude/skills/<name>` | `roles/claude/files/skills/<name>/` | One symlink per tracked directory, `review-shared/` included (`roles/claude/tasks/skills.yml`); other entries are left alone, but one at a tracked name fails the run |
+| `~/.claude/scripts/` | `roles/claude/files/scripts/` | Directory symlink (hooks and the status line `settings.json` invokes) |
+| `~/.claude/output-styles/` | `roles/claude/files/output-styles/` | Directory symlink, resolved by name from `outputStyle` |
+| `~/.claude/settings.json` | `roles/claude/files/settings.json` | jq merge by `scripts/claude-settings-merge.sh`, not a symlink |
 
-Always edit the tracked source. The materialized file in `~/.claude/` is
-overwritten on the next Ansible run. Run `readlink` on any `~/.claude/` file
-before editing to confirm whether it is symlinked.
+- Always edit the tracked source; `readlink` a `~/.claude/` file first if in
+  doubt.
+- Keep `keep-coding-instructions: true` in
+  `roles/claude/files/output-styles/compact.md`: without it the custom style
+  replaces Claude Code's built-in coding instructions. A style change needs
+  `/clear` or a new session.
+- To remove a hook, drop its entry from the tracked event; for its last
+  entry, declare the event `[]` (deleting the key leaves our entries live).
+  Removing `statusLine` means editing each live `settings.json`.
+- Declare any Claude Code behaviour meant to be shared in the tracked
+  `settings.json` (including `permissions.defaultMode`), never by toggling it
+  in the app: an undeclared key silently differs per machine. Audit by diffing
+  a live `~/.claude/settings.json` against the tracked file.
 
-**The `compact` output style is ours, not a built-in.** Claude Code ships
-`Default`, `Proactive`, `Explanatory` and `Learning`; `outputStyle: compact`
-in the tracked `settings.json` resolves against
-`roles/claude/files/output-styles/compact.md` and silently falls back to the
-default if that symlink is missing. The file sets
-`keep-coding-instructions: true`, which is load-bearing: a custom style
-*replaces* Claude Code's built-in software engineering instructions unless
-that field is set, so dropping it would trade verbosity for every default
-about scoping changes, writing comments, and verifying work. Output style is
-part of the system prompt and is read once per session, so a change needs
-`/clear` or a new session to take effect.
+See [docs/claude-config.md](docs/claude-config.md).
 
-One override worth knowing: picking a style through `/config` writes
-`outputStyle` to the project-level `.claude/settings.local.json`, which wins
-over this repo's global value for that project.
+## Permissions
 
-**The status line is ours too, and it supplements rather than replaces.**
-`statusLine` in the tracked `settings.json` runs
-`roles/claude/files/scripts/statusline.sh`, which prints the directory, git
-branch, model and context usage on its own row at the bottom. Claude Code's
-own "context left until auto-compact" warning still appears at the bottom
-right near compaction; it cannot be moved or turned off from here. The line
-stays blank in a folder whose trust dialog has not been accepted, and when
-`disableAllHooks` is true. A hook is removed by declaring its event as `[]`
-in the tracked file; `statusLine` has no such handle, since the merge treats
-it as an ordinary key that it only adds or overwrites and never removes, so
-dropping the key from the tracked file leaves it live on every host.
-Removing the status line means editing each live `~/.claude/settings.json`.
-
-## Permissions three-layer model
-
-| Layer | File | Scope | Persistence |
-|---|---|---|---|
-| Global tracked | `~/.claude/settings.json` (via this repo) | Cross-project allows + deny list | Durable, committed |
-| Per-repo tracked | `<repo>/.claude/settings.json` | Project-specific durable allows | Durable, committed |
-| Per-repo local | `<repo>/.claude/settings.local.json` | Ephemeral, short rules | Nukeable, gitignored |
-
-For this dotfiles repo, the tracked `.claude/settings.json` holds
-dotfiles-specific durable rules. Keep `.claude/settings.local.json`
-near-empty.
-
-The default permission mode is part of the global tracked layer:
-`permissions.defaultMode` in `roles/claude/files/settings.json`.
-
-**The jq merge is a one-way mirror, and that hides drift.** It asserts the
-keys this repo declares and deliberately leaves everything else alone, so
-Claude Code keeps ownership of what it writes itself (theme, onboarding
-state, per-project trust). The cost is that a key set by hand on one
-machine, or persisted there by the app when you toggle something, works
-perfectly on that machine and is invisible to every other one. Nothing
-reports the difference.
-
-`defaultMode` was exactly that for months: set on the Macs, absent from
-this repo, so the Linux host never got it. The repo's own observations log
-even recorded behaviour caused by it
-(`specs/_observations/entries/2026-07-22-fleet-guard-seam-cb14c90f.md`
-refers to "user settings pin defaultMode auto") without anyone noticing it
-was undeclared. Moving the Claude role cross-platform did not fix this,
-because that only propagates keys the repo already carries.
-
-So when a Claude Code behaviour is meant to be shared, declare it here
-rather than setting it in the app. To audit: diff `~/.claude/settings.json`
-on a Mac against `roles/claude/files/settings.json` and look for keys the
-repo does not mention.
+Three valid layers, chosen by scope: global tracked
+`roles/claude/files/settings.json` for cross-project allows and the deny list;
+per-repo tracked `<repo>/.claude/settings.json` for project-specific durable
+rules; per-repo local `.claude/settings.local.json` for ephemeral rules, kept
+near-empty. See [docs/claude-config.md](docs/claude-config.md).
 
 ## Adding a new Claude skill
 
 1. Create `roles/claude/files/skills/<name>/SKILL.md` with front matter
    (`name`, `description`, and `disable-model-invocation: true` for a
    slash-invoked review skill). Mechanics more than one skill uses go in
-   `skills/review-shared/`, linked by relative path.
+   `roles/claude/files/skills/review-shared/`, linked by relative path.
 2. A review skill also joins `SKILL_NAMES` and `expected_hint` in
-   `skill-contracts.sh`, with a fixture, or the checker never sees it.
-3. Commit and run Ansible: the link task adds `~/.claude/skills/<name>`,
-   refusing an existing entry that is not already this repo's link.
-4. Run Ansible from the main checkout, then verify in a fresh session: the
-   links point into whichever checkout Ansible ran from.
-
-Edits to the review skills, to `roles/claude/files/CLAUDE.md`, and to
-the checker itself are gated by `roles/claude/files/scripts/skill-contracts.sh`
-(pre-commit via lefthook, and in CI with its fixture suite
-`skill-contracts-test.sh`). It literal-matches load-bearing sentences, so a
-reword that trips it means the contract text moved: update the checker (and
-the fixture that plants a drift in that sentence) in the same commit.
-
-Instruction surfaces carry word budgets in
-`roles/claude/files/scripts/instruction-budget.sh`. It enforces thresholds,
-not exact counts, so a change that grows or adds a surface re-derives its row
-there by hand, in the same commit.
-
-Hook logic lives in `roles/claude/files/scripts/` and is wired from
-`settings.json`. Adding a new tracked directory under `roles/claude/files/`
-requires a matching symlink task in `roles/claude/tasks/main.yml`; a skill
-directory needs none, since `skills.yml` links each one, and neither does
-`planwright/`, whose templates the role renders from in place.
-
-## Adding a new hook
-
-1. Write the script under `roles/claude/files/scripts/` and `chmod +x` it.
-2. Reference it from `roles/claude/files/settings.json` under `hooks.<Event>`
-   via `$HOME/.claude/scripts/<name>.sh`.
-3. To remove a hook this repo installed, drop it from the tracked
-   `settings.json` (or set the event's array to `[]`). Only entries invoking
-   `$HOME/.claude/scripts/` are rebuilt from the tracked file; anything else
-   on that event is left in place.
-
-### Per-repo worktree bootstrap hook
-
-`roles/claude/files/scripts/worktree-bootstrap.sh` runs on `SessionStart`.
-In a git worktree it trusts mise, then kicks off lockfile+project-file-detected
-dep installs in the background (both a lockfile and its matching project file
-must sit at the worktree root; a stray root-level lockfile in a monorepo will
-not trigger an install).
-Each repo may ship an executable `.claude/worktree-bootstrap` script for
-project-specific extra steps (codegen, DB setup, etc.). Marker:
-`claude-bootstrap-done` inside the per-worktree gitdir (resolve with
-`git rev-parse --git-dir`; in a worktree `.git` is a pointer file, so the
-marker is not under `<worktree>/.git/`). Empty while running, `ok <ts>` on
-success; removed on failure so the next session retries. Log:
-`~/.claude/cache/worktree-bootstrap.log` (truncated when it exceeds ~256KB).
-In a primary checkout (`.git` is a directory, not a pointer file) the hook
-is a silent no-op by design.
-
-**Trust caveat:** the hook runs `.claude/worktree-bootstrap` from the repo
-with no sandboxing, so opening Claude in an untrusted checkout executes
-whatever that script contains. Same trust model as `mise trust`: inspect the
-script before opening a repo you did not author.
-
-### Tool-discovery hook
-
-The SessionStart `tool-discovery` hook is supplied by the planwright plugin,
-not this repo. planwright installs as a Claude Code plugin (marketplace flow,
-see `roles/claude/tasks/planwright.yml`), and the plugin
-wires its own hooks via its `hooks/hooks.json` resolved against
-`CLAUDE_PLUGIN_ROOT`: `tool-discovery` on SessionStart and `tasks-pr-sync` on
-PostToolUse(Bash). The tracked `settings.json` therefore no longer wires
-either; doing so would double-fire them. The hook runs alongside the worktree
-bootstrap, scans the cwd for known config files (linters, formatters, type
-checkers, hook managers, CI workflows), and emits a markdown summary as
-`additionalContext` so the agent sees what the project ships without grepping.
-Silent no-op (exit 0, no output) when any of: nothing is detected, the cwd is
-outside a git work tree, or `jq` is unavailable; a missing summary therefore
-does not necessarily mean "no tooling found". Discovery feeds the `Discovery
-Rigor` and `Refactor Instinct` rules in the user-global `CLAUDE.md`, both of
-which prefer tool-grounded findings over judgment. Behavior and extension live
-in the planwright repo; this repo only installs the plugin.
-
-### Worker guard gate hook
-
-`roles/claude/files/scripts/worker-guard-gate.sh` runs on `PreToolUse(Bash)`
-and delegates to planwright's `worker-command-guard.sh`, which auto-approves
-the routine commands a dispatched fleet worker runs. It resolves the plugin
-root at exec time (newest version in the marketplace cache), so plugin updates
-need no regeneration here.
-
-**It is user-scope on purpose, and the env gate is what makes that safe.** The
-script exits 0 immediately unless `PLANWRIGHT_WORKER_HANDLE` is set, the env
-contract planwright's launcher and liveness hooks already key on, so an
-interactive or tower session gets no widened permissions. The blast radius is
-enforced by that variable, not by where the file sits.
-
-It used to sit in a per-project `.claude/settings.local.json`, which is
-gitignored machine-local config, so every freshly created planwright worktree
-started without it and escalated every routine worker command to the operator.
-The scope was the mismatch: a per-machine lifetime placed per-project has to be
-recreated forever. Note that the SessionStart `worktree-bootstrap` hook cannot
-fix this from its side — settings are read at process startup, so anything it
-writes lands too late for the session that just started, and a dispatched
-worker runs once.
-
-**Both `PreToolUse` entries have to stay in the tracked `settings.json`.**
-`scripts/claude-settings-merge.sh` rebuilds the entries this repo owns from the
-tracked file on every run, so dropping the `Read|Edit|Write` entry there
-silently unwires `path-guard`. Hooks *other* tools install on the same event
-are preserved — that is the merge's whole point — but ours exist only as long
-as the tracked file declares them.
-
-## MCP server registration
-
-User-scope MCP servers live in `~/.claude.json` under `.mcpServers.<name>`.
-Any server that needs a secret is registered through a sync script under
-`scripts/` so the secret stays in 1Password and never lands in this repo.
-
-`scripts/claude-mcp-sync-github.sh` reads the GitHub PAT from 1Password
-item `co7bb5b6pfej3lhfni4skvonki` (tries `token` then `credential`; the
-LOGIN-category `password` field is intentionally skipped because it
-resolves to the account password). Idempotent: `OK` when the configured
-entry matches the desired `type`/`url`/`Authorization` AND `claude mcp
-get` confirms it is loadable, `CHANGED` on (re-)register, non-zero with
-a `FAILED:` line on any precondition failure. Ansible gates
-`changed_when` on `CHANGED` so PAT rotations surface as a single
-changed step.
-
-Writes happen via `jq` (atomic temp + rename) with `GITHUB_PAT` scoped only
-to the two jq invocations that need it. Argv is world-readable via `ps -A
--o args=`; env vars are not in argv, but same-user processes can still
-inspect them (`/proc/<pid>/environ` on Linux, `ps eww <pid>` on macOS), so
-the per-jq scoping shrinks the same-user window to those two jq calls.
-Pre-validation rejects unreadable, malformed, non-object, symlinked, or
-non-regular paths with `FAILED:` rather than leaking raw `jq` errors. The
-post-rename `claude mcp get` sanity check restores the backup on failure
-when a previous file existed; first-time registrations have nothing to
-roll back to, so the partial write is removed and the script exits with
-a "no prior config to restore" `FAILED:` message.
-
-It runs from `homebrew.yml` (under `mise run install` (`--skip-tags
-shell,upgrade`) and `mise run osx` (`-t osx`); both reach `homebrew.yml`
-because it carries the `osx` tag) and `upgrade.yml` (under `mise run
-upgrade`). Both invocations are guarded with
-`when: lookup('ansible.builtin.env', 'CI', default='') == ''` so the CI
-matrix skips them. Both also assume an authenticated `op` session on
-non-CI machines — sign in via `op signin` (or unlock the desktop app
-with the CLI integration enabled) before running, otherwise the script
-exits `FAILED: could not read GitHub PAT …`. The strict-fail on a
-locked vault is deliberate: a silent skip would let stale PATs land
-unnoticed. To add another secret-bearing MCP server, mirror this
-layout: new script under `scripts/`, new task in both files, same CI
-guard.
-
-### Slack: a deliberate manual prerequisite
-
-The `/code-review` and `/peer-review` commands DM the person on the other
-end of a PR through a Slack MCP server. **Nothing in this repo provisions
-it.** There is no sync script, no Ansible task, and no `mcpServers.slack`
-entry; a fresh machine has the commands but not the transport.
-
-That is a choice, not an oversight. The notification is a courtesy the
-commands are explicitly built to do without: the shared `Slack
-Notifications (review workflows)` rule in the user-global `CLAUDE.md`
-says a missing server means "say so once in the terminal and carry on",
-so the review, which is the actual deliverable, is unaffected. Automating
-a registration for a server used by two commands on one machine buys
-little and adds another 1Password item and CI-guarded task pair to keep
-working.
-
-Register it by hand when you want it, on the machine that wants it. If
-that ever becomes more than one machine, promote it: mirror the layout
-above rather than copying the registration around.
-
-## Ollama is no longer provisioned
-
-Nothing in this repo installs, serves or routes Ollama. The `work` host used to
-run the daemon bound to `0.0.0.0:11434` for `personal`/`alt` to reach over the
-LAN; that was dropped rather than moved, so there is no daemon host now. Removed
-together: the daemon/model tasks in `roles/osx/tasks/homebrew.yml`, `brew
-"ollama"`, and `roles/fish/files/ollama.fish` (whose symlink task is now an
-`absent` task, since `conf.d` is a symlink farm and a retired drop-in would
-otherwise dangle).
-
-The `qwen-coder` and `gpt-oss` backends `/panel-review` used to route to that
-daemon were removed with it, since without a daemon they could only fail with
-connection-refused. Restoring any of it means digging up the git history of
-this section and of `panel-review.md`, plus re-reading the LAN-exposure caveat
-that was here: Ollama has no auth, so binding `0.0.0.0` exposes it to the
-whole network. The contract checker also refuses those two names (and
-`OLLAMA_BASE_URL`) in the skills tree and the tracked global `CLAUDE.md`, so
-restoring them means updating its retired-backend sweep in the same change.
-
-## Review backends: codex vs gemini
-
-`/panel-review` and `/code-review` run their discovery pass through a
-non-Anthropic CLI. The machine picks the *default*; a run can still override it
-(`--backends` on either command, where `/code-review` accepts exactly one
-backend and `/panel-review` a comma-separated list, plus
-`PANEL_REVIEW_PROFILE` for the profile
-itself). `/panel-review` also accepts an opt-in `copilot` via `--backends`;
-only the two below are ever chosen automatically. That backend is the Copilot
-CLI allowed only its file viewer, confined to a scratch directory holding the
-diff (see `roles/claude/files/skills/review-shared/backends.md` for why each flag matters). It is declared like
-the other two: `cask "copilot-cli"` in the `Brewfile`, and `copilot` in
-`linux.toml` through mise's registry default, `aqua:github/copilot-cli`, which
-unpacks the same GitHub release tarball the cask does. Of the other Linux
-channels GitHub documents, Homebrew is not on that host, npm would need node
-22, and the install script leaves its pin recorded nowhere. The commands prefer
-the declared binary and fall back to the copy `gh copilot` downloads on first
-use (into `~/.local/share/gh/copilot`, outside the dotfiles). `/copilot-review`
-offers the backend as a fallback when the hosted review can't run. The other opt-in,
-`reviewer:<name>`, runs a third-party vendor's local reviewer CLI from the
-machine-local `bot-review.json`, so no vendor mechanics are committed here:
-the template names its entries, and every login, marker and command in them
-is a 1Password reference.
-
-| Alias | Backend | CLI comes from | Key comes from |
-|---|---|---|---|
-| `work` | `codex` | `Brewfile` (`cask "codex"`) | `codex login`, interactive |
-| `personal`, `alt` | `gemini` | `Brewfile` (`brew "gemini-cli"`) | `scripts/claude-gemini-auth-sync.sh` |
-| `server` | `gemini` | mise, pinned in `roles/linux/files/mise/linux.toml` | same script, service-account path |
-
-**The profile is the inventory alias**, resolved in `scripts/playbook.sh`'s
-order: `DOTFILES_HOST`, else `~/.config/dotfiles/host` (honouring
-`DOTFILES_HOST_FILE`), else the residual `alt` hostname match, else `work`.
-`PANEL_REVIEW_PROFILE` is honoured ahead of all of it as a per-run override.
-
-Both the commands and `playbook.sh` take the alias file only when it has
-non-whitespace content; an empty or whitespace-only file falls through to the
-`alt` hostname match and then `work`, as if it were absent (`playbook.sh` also
-says on stderr that the file names no alias). For `playbook.sh` that is a
-safety property, not a nicety: an empty alias would become
-`ansible-playbook -l ""`, which Ansible reads as *no limit* and runs every
-inventory host against this machine. `playbook.sh` alone goes one step
-further than the commands: a resolved value, from the file or from
-`DOTFILES_HOST`, that is not a single plain ASCII name (letters, digits, `_`,
-`-`) or is not a host entry in `hosts` is refused outright with exit 1. That
-is what catches `,`, a non-breaking space, a leading `-` or `!`, and the
-group names `all`, `ungrouped` and `secrets`, each of which Ansible would
-widen to several hosts. The commands pass such a value through as a profile,
-which merely selects gemini. `scripts/playbook-alias-test.sh` pins the
-`playbook.sh` side of all of it.
-
-Three of those clauses are easy to drop, and the first cut of this change
-dropped all three. Without the `alt` hostname branch, an `alt` Mac (which
-legitimately has no alias file, see the machine-local files section below)
-resolves to `work` and reaches for codex, which it never logs into. Without the
-non-whitespace test, a `touch`ed alias file yields an empty profile, which is
-not `work` and therefore selects gemini on the work host — the very bug this
-change exists to fix, re-entered through a different door. And without
-`DOTFILES_HOST_FILE`, a host that relocates its alias file has `playbook.sh`
-and the review commands disagreeing about which machine it is.
-
-It used to be *only* that env var, defaulting to `personal`, and the default
-was a live bug rather than a latent one: nothing in this repo ever sets
-`PANEL_REVIEW_PROFILE`, so the work Mac resolved to `personal` and reached for
-gemini on every review, which is the exact opposite of the table. Keying on
-the alias the rest of the repo already uses means the work host is right with
-nothing to remember, and a new host is wrong only if it has not declared
-itself, which is the same failure every other alias consumer has.
-
-The fourth clause is the fallback direction: an unresolved alias must resolve
-to `work`, matching `playbook.sh`, because `work` is the host that does not
-write an alias file. Resolving it to nothing, or to any other alias, sends the
-work host to a backend it never logs into.
-
-**On Linux the CLI comes from mise**, because apt has no gemini package and
-mise's registry offers exactly one backend for it (`npm:@google/gemini-cli`).
-It is pinned in `linux.toml` and installed from `linux_mise_tools` like every
-other entry there.
-
-The npm backend looks like it should need a node the `linux` role installs
-nothing of, since `roles/environments` owns the node pin and runs later. It
-does not: with a throwaway `MISE_DATA_DIR` and node both uninstalled and absent
-from PATH, `mise install npm:<pkg>` still succeeds, because mise bootstraps a
-node for the backend rather than borrowing the host's. Worth recording because
-the first cut of this change split the pin from its install across two roles to
-route around an ordering problem that measurement showed does not exist.
-
-The key sync is cross-platform and lives in `roles/claude`, not in either
-platform role. It was in the Darwin-guarded `roles/osx` until this change,
-which is why the Linux host had fish `conf.d/gemini.fish` exporting
-`GEMINI_API_KEY` from a file nothing ever wrote. It carries `osx` *and* `linux`
-tags, so both `mise run osx` and `mise run linux` sync the key on their
-respective hosts. Those tags are the only place in the repo where a platform
-tag names tasks outside its platform role, which is a wart: on a Mac,
-`mise run linux` will now run the four Claude tasks that carry them (behind its
-sudo prompt), and on the Linux host `mise run osx` will run them too. Both are
-harmless, and the alternative is a `mise run claude` task that does not exist
-yet.
-
-Because that role is unguarded, the sync is preceded by an `op --version`
-probe, the same split `roles/ssh` uses: a host without the 1Password CLI is
-skipped with a notice, while a host that has `op` and still fails is a real
-error. Without the probe, a not-yet-provisioned host aborts the last role in
-`main.yml` partway through, taking the planwright plugin install with it.
-
-**On a headless host the key comes from the service account, and that
-constrains the vault.** There is no 1Password desktop app to authorize
-against, so `claude-gemini-auth-sync.sh` falls back to
-`~/.config/dotfiles/op-service-account-token` through the same
-`scripts/op-token.sh` helper `ssh-lan-config-sync.sh` sources. A service
-account cannot be granted the Personal or Private vault, so the key item has
-to live in `Dotfiles Service Account`, and it must be addressed with an
-explicit `--vault`: without one, `op` refuses every field with "a vault query
-must be provided when this command is called by a service account", which
-reads like a missing item and is not. Moving the item between vaults also
-reassigns its id, so `ITEM_UUID` in that script is the id *in that vault*, not
-the one it had in Private.
-
-**Gemini CLI needs `--skip-trust` for any headless run** (measured on
-gemini-cli 0.54.4). Without it the CLI downgrades `--approval-mode plan` to
-`default` and *then* aborts with "not running in a trusted directory". Keep
-`--approval-mode plan` on every invocation: it is what holds the run read-only,
-and the downgrade-before-abort ordering means a future version that stops
-aborting would otherwise run with that guard already stripped.
-
-What `--skip-trust` costs is worth stating precisely rather than either
-hand-waving or overstating it, because the content under review is untrusted
-and for `/code-review` it is *someone else's* PR (fetched into a detached
-worktree; the CLI itself always runs from an empty scratch directory, never
-from any working tree).
-Folder trust is what gates the CLI loading project-supplied configuration from
-the current directory. A direct test on 0.54.4 (a `.gemini/settings.json`
-declaring an MCP server whose command writes a marker file, run under
-`--skip-trust --approval-mode plan`) did **not** execute it, so this is not the
-drive-by code execution it might look like. It is still a gate being switched
-off over untrusted content, so both commands now **require** the CLI to be run
-from a freshly `mktemp -d`'d empty directory, in a subshell, with the diff and
-tooling output going in on stdin. Not `/tmp` itself, which is world-writable
-and therefore pre-seedable with a `GEMINI.md`; and a subshell because this
-shell keeps its cwd between tool calls. From an empty directory the trust gate
-has nothing to act on. It does not cover user-level `~/.gemini/` config, which
-loads regardless of cwd.
-
-## `~/.gitconfig` is a real file, not a symlink
-
-The git role used to symlink `~/.gitconfig` at the tracked
-`roles/git/files/gitconfig`. `git config --global` follows that symlink and
-writes the *target* (measured, not assumed), so every `--global` write on the
-machine landed in this public repo: an external provisioner setting an author
-email, `gh auth setup-git`, `url.<host>.insteadOf`, `http.<url>.extraheader`
-(which carries a base64 credential), and `git maintenance start`, which records
-the absolute path of every repository it maintains. Inward it was just as bad:
-the link went up with `force: true`, clobbering a real `~/.gitconfig` another
-tool had written, with no warning.
-
-So the role now ensures `~/.gitconfig` is a real, untracked file holding one
-marker-delimited block:
-
-```
-# BEGIN dotfiles git role
-[include]
-    path = <clone>/roles/git/files/gitconfig
-# END dotfiles git role
-```
-
-`blockinfile`, because the marker is what makes the edit idempotent while
-keeping the role from owning anything else in the file. `git config --file`
-would need `--replace-all` not to duplicate the key on every run, and appends
-at the wrong end. **The position is the override order**: git takes a key's
-last-seen value, so the block goes at the top of the file and everything below
-it wins, including whatever `git config --global` appends later.
-
-Per-key declaration cannot replace any of this. `git config --global` writes
-unconditionally rather than consulting includes first, and multi-valued keys
-*accumulate*: declaring `credential.helper` does not override an external
-value, it adds a second helper that also receives every credential.
-
-Resolution chain, lowest precedence first:
-
-| File | Owner | Holds |
-|---|---|---|
-| `roles/git/files/gitconfig` | tracked | identity, aliases, shared defaults |
-| `~/.gitconfig.local` | the git role, rewritten on every run | host-resolved values: signer path, unattended key paths, credential helper |
-| `~/.gitconfig` | you, and every other tool on the machine | whatever `git config --global` writes |
-
-The last two are machine-local and untracked like the files under
-`~/.config/dotfiles/` below, but they sit in `$HOME` because git looks for them
-there. Both are asserted 0600, since a tool writing `--global` can put a
-credential in either; a re-run takes the tighter of 0600 and the current mode,
-so a file you tightened further stays that way.
-
-**Migration, on a host that ran the old role.** The symlink is replaced only
-when its target ends in `/roles/git/files/gitconfig` — a suffix match, because
-the link may name a different clone than the one running. Any other symlink
-belongs to another tool, so the role leaves it in place and reports it rather
-than writing through it into whatever it points at; add the include there by
-hand. A pre-existing real file keeps every key and only gains the block.
-
-## A second config manager's shell init
-
-A managed host may carry its own provisioning system that wires only
-`~/.bash_profile` and `~/.zshrc`. Since `roles/fish` makes fish the login
-shell, none of it loads: mise shims, fork-safety exports and tool completions
-all silently absent. `conf.d/work-init.fish` sources an init named by the
-machine-local `work-shell-init` pointer, so no real path enters this public
-repo. The pointer target dictates how it loads: a `.fish` target is sourced
-natively, anything else is treated as bash/zsh and replayed through
-`edc/bass`, since fish's own `source` cannot parse bash and bass cannot parse
-fish. `edc/bass` is declared as a fish plugin for the non-fish case.
-
-Two ordering rules that are load-bearing:
-
-**`GIT_DUET_GLOBAL false` is set after the source and outside the guard.** The
-sourced init sets it true, and `~/.gitconfig` resolves into this repo, so
-git-duet would publish colleagues' names and emails. Setting it before the
-source is overwritten; setting it inside the guard makes the protection depend
-on an unrelated file existing.
-
-**`config.fish` skips its own `mise activate` when the shims directory is
-already on `PATH`.** Hook mode and shims mode together put the install
-directories ahead of the shims, which defeats tooling that asserts a shim
-path. The check is on `PATH` itself rather than a sentinel variable, because
-"the init was sourced" is a weaker fact than "mise is active in shims mode".
-Relatedly, the login block appends rather than prepends runtime bins: a
-prepend there outranks the shims whenever something activates them first.
-
-## planwright from the shell
-
-`conf.d/planwright.fish` exports `PLANWRIGHT_ADOPTER_OVERLAY` and
-`PLANWRIGHT_FLEET_STATE_DIR` under planwright's plugin-data dir for every
-shell and worker, since Claude Code hands `CLAUDE_PLUGIN_DATA` only to the
-plugin's own hooks. A non-empty value the caller already set is kept.
-
-`tower` launches `/planwright:tower` under planwright's tower permission
-profile (`config/tower-settings.json`) from the newest live install
-(version-named, not marked `.orphaned_at`), exporting `CLAUDE_PLUGIN_ROOT` for
-that process only: the profile's hook needs it and Claude Code does not inject
-it for a `--settings` file. Extra arguments pass through, except
-`--settings`, `--permission-*`, `--bare` and `--dangerously-*`, which could
-replace or disable the profile.
-
-**It fails closed.** No live install, no profile, or a profile without a
-non-empty `permissions.deny` (checked with `jq`; no `jq`, no launch) refuses
-the launch, since a tower without that deny block starts anyway, minus its
-security floor. The profile is tower-scoped by design: never merge it into the
-tracked `settings.json`. `scripts/fish-tower-test.sh` pins all of it.
-
-## Ansible role layout
-
-The repo is split by platform via `os_family` guards in `main.yml`:
-
-| Role | Guard | Covers |
-|---|---|---|
-| `roles/osx/` | `ansible_os_family == "Darwin"` | Homebrew, macOS defaults, MCP plumbing |
-| `roles/linux/` | `ansible_os_family == "Debian"` | apt baseline (fish, tmux, core CLI, `openssh-server`), mise, sshd hardening drop-in, Tailscale, 1Password CLI (`op`) |
-
-Only one platform baseline runs on a given host; the other role is skipped
-whole by its `when:` guard, so adding `roles/linux/` left the Mac hosts'
-runs unchanged. The remaining roles (`kitty`, `fish`, `environments`,
-`tmux`, `ssh`, `git`, `claude`) are cross-platform config and run on every
-host; driving their first Linux run clean is the `specs/linux-migration`
-Task 7 stabilization loop, not the platform split itself.
-
-`roles/services/` is the exception to those. It runs on every host and
-carries no `when:` in `main.yml`, but it is not the same role on both
-platforms: its two task files guard themselves. On Debian it provisions the
-declared dev-services layer (`specs/dev-services`); on Darwin it applies the
-role's older macOS-only content (the `~/.my.cnf` client defaults, plus the
-colima steps on the `personal` host, which carry their own
-`inventory_hostname` guard) and provisions none of the declared services.
-The declaration is
-`roles/services/defaults/main.yml`, one entry per service carrying the
-package, the systemd unit, and the address and port the lifecycle verifies it
-on. Install, enable, start and verify are driven from that list and name no
-service, so adding one is an entry there rather than an edit to a task file.
-A service needing more than that shared lifecycle names its own setup file in
-a `setup:` field, which is the only route into it; PostgreSQL's database role
-for the invoking account is today's only such case.
-
-**`~/.my.cnf` and `~/.npmrc` are applied to, not owned.** Their canonical
-content is credentials (a client password; registry `_authToken` lines), and
-writers resolve a symlink and write through to its target, so owning either
-path would make a public checkout the write target for a credentials file.
-Both roles instead insert this repo's defaults as a marked `blockinfile`
-block. A symlink an earlier run of the role left behind is replaced with a
-real file first, matched on the repo-relative target so a symlink pointing
-anywhere else is never removed.
-
-The block lands at EOF, so on a key both sides set, ours wins over whatever
-the user already had. `npm config set` rewrites the whole file without
-preserving comments, stripping the markers; the next run re-appends the
-block once and is idempotent again after that. `mode: "0600"` is asserted
-unconditionally, so a looser pre-existing file gets tightened.
-
-Claude-related files live under `roles/claude/files/`; the tasks are in
-`roles/claude/tasks/`. That role is **cross-platform and unguarded**: Claude
-Code runs on macOS and Linux alike, and keeping this config inside the
-Darwin-guarded `osx` role meant the Linux host silently had no global
-`CLAUDE.md`, no managed `settings.json`, and no commands or hook scripts. The `linux` role's sshd hardening lives at
-`roles/linux/files/sshd/60-hardening.conf` (a role-owned `sshd_config.d/`
-drop-in, REQ-E1.1: key-only auth, no root login).
-
-**Inventory and host aliases.** `hosts` lists `work`, `personal`, `alt`
-(macOS) and `server` (the migrated Linux host); all run the playbook
-locally (`ansible_connection=local`), so no LAN IP or real hostname is
-committed (REQ-F1.1). `scripts/playbook.sh` maps the running machine to an
-alias through a machine-local indirection — the `DOTFILES_HOST` env var, or
-an untracked `~/.config/dotfiles/host` file naming the alias — so no real
-hostname is committed. `work` stays the fallback when nothing resolves (CI
-depends on it), but the fallback now warns on stderr so a machine that
-should have declared itself does not silently install another host's
-profile. An empty or whitespace-only alias file counts as absent, and a
-resolved value that is not a plain ASCII name listed as a host in `hosts`
-(a group name like `all`, a pattern, an option-shaped `-v`) makes the script
-refuse to run rather than hand Ansible a limit that means more than one
-host. One residual hostname pattern remains for `alt`; `personal` was
-matched that way until the REQ-F1.1 cleanup and must now name itself.
-
-### Machine-local files under `~/.config/dotfiles/`
+   `roles/claude/files/scripts/skill-contracts.sh`, with a fixture.
+3. Declare its word budget (below), commit, and run Ansible from the main
+   checkout: the links point into whichever checkout Ansible ran from. Verify
+   in a fresh session.
+
+A new tracked directory under `roles/claude/files/`, other than a skill or a
+template directory, needs a symlink task in `roles/claude/tasks/main.yml`.
+
+## Contract and budget guards
+
+- `roles/claude/files/scripts/skill-contracts.sh` literal-matches
+  load-bearing sentences in the review skills and the global `CLAUDE.md`, and
+  re-runs when it is edited. A reword that trips it means the contract moved:
+  update the checker and the fixture that plants that drift, in one commit.
+- `roles/claude/files/scripts/instruction-budget.sh` holds per-surface word
+  budgets. A change that grows or adds a surface re-derives its row there, in
+  the same commit. Its suite also holds this file to the line ceiling
+  `specs/claude-context` sets and checks that every relative link and
+  repo-rooted path here resolves.
+
+## Hooks
+
+- Write the script under `roles/claude/files/scripts/`, `chmod +x` it, and
+  reference it from the tracked `settings.json` under `hooks.<Event>` as
+  `$HOME/.claude/scripts/<name>.sh`. Only entries invoking that path are
+  rebuilt from the tracked file; other tools' entries on the event are kept.
+- Keep both `PreToolUse` entries in the tracked `settings.json`: dropping the
+  `Read|Edit|Write` one silently unwires `path-guard`, and the `Bash` one runs
+  `worker-guard-gate.sh`, user-scope by design and gated on
+  `PLANWRIGHT_WORKER_HANDLE`. Do not move it to per-project settings.
+- Never wire planwright's hooks (`tool-discovery`, `tasks-pr-sync`, and the
+  rest of its `hooks/hooks.json`) in the tracked `settings.json`; the plugin
+  wires them and a second entry double-fires.
+- `worktree-bootstrap.sh` runs a repo's `.claude/worktree-bootstrap`
+  unsandboxed: inspect it before opening a checkout you did not author. Its
+  header documents the marker and how to force a re-run.
+
+See [docs/claude-hooks.md](docs/claude-hooks.md).
+
+## MCP servers
+
+Register any secret-bearing MCP server through a sync script under `scripts/`,
+so the secret stays in 1Password: mirror `scripts/claude-mcp-sync-github.sh`,
+with a task in both `roles/osx/tasks/homebrew.yml` and
+`roles/osx/tasks/upgrade.yml` behind the same `CI` guard. Sign in to `op`
+before running them on a non-CI machine. Nothing provisions the Slack MCP
+server the review skills DM through; register it by hand where wanted. See
+[docs/mcp-servers.md](docs/mcp-servers.md).
+
+## Review backends
+
+The resolver and every prompt-driven backend invocation are stated once, in
+`roles/claude/files/skills/review-shared/backends.md`; change them there. An
+unresolved host alias must fall back to `work`, matching `scripts/playbook.sh`.
+The Gemini key sync addresses its 1Password item with an explicit `--vault`,
+and the item id in that script is the id in that vault. Ollama and its
+backends are retired; restoring them is in [docs/ollama.md](docs/ollama.md).
+See [docs/review-backends.md](docs/review-backends.md).
+
+## Machine-local files under `~/.config/dotfiles/`
+
+Untracked and optional; absence degrades visibly. Written by hand unless the
+row names a writer. Keep machine-specific values here, never in tracked files.
 
 | File | Read by | Holds |
 |---|---|---|
-| `host` | `scripts/playbook.sh`, the shared backend resolver in `roles/claude/files/skills/review-shared/backends.md` | This machine's inventory alias (`work`/`personal`/`alt`/`server`). An empty or whitespace-only file counts as absent |
+| `host` | `scripts/playbook.sh`, `roles/claude/files/skills/review-shared/backends.md` | This machine's inventory alias; empty or whitespace-only counts as absent |
 | `ssh-host` | the `sshc` function in `roles/fish/files/fish/config.fish` | `kitten ssh` target hostname |
-| `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (via `globinclude`) | Host-specific kitty `ssh.conf` sections |
-| `op-service-account-token` | `scripts/ssh-lan-config-sync.sh`, `scripts/claude-gemini-auth-sync.sh`, `scripts/op-render.sh`, all through `scripts/op-token.sh` | 1Password service-account token (bearer credential, mode 0600) |
-| `slack-users.json` | the `/code-review` and `/peer-review` skills, through `review-shared/slack.md` | GitHub login → Slack user ID, so review notifications can find a person |
-| `code-review-egress.json` | `review-shared/egress.md`, for the `/code-review` skill and `/panel-review`'s `reviewer:<name>` backend | Repos approved for backend egress (`owner/repo` → backend; the reviewer backend's entries are keyed `reviewer:<name>:owner/repo` → the real path of the file that binary runs, through symlinks and mise shims), so the upload consent is asked once per repo, and once per repo and reviewer for that backend, again if that binary changes (mode 0600) |
-| `bot-review.json` | the `/bot-review` skill, and `/panel-review`'s `reviewer:<name>` backend (the `cli` block) | Map of named third-party PR-review reviewers, each with its own hosted-bot mechanics in one schema and/or local pre-push CLI invocation, plus a default and a `version`. **Rendered** from the 1Password item `dotfiles-bot-review` through `roles/claude/files/skills/bot-review/bot-review.json.tpl`, checked against `config-schema.jq` beside it (mode 0600, read-only from both skills) |
-| `sibling-repos.json` | nothing yet; `/code-review` and `/panel-review` gain the reader, as validation context | Consuming repository → its producers' clone paths, plus a `version`. **Rendered** from the item `dotfiles-sibling-repos` through `roles/claude/files/skills/review-shared/sibling-repos.json.tpl` (mode 0600) |
-| `work-shell-init` | `roles/fish/files/work-init.fish` | Absolute path of a shell init to source from fish, for anything a second config manager wires only into bash/zsh |
+| `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (`globinclude`) | Host-specific kitty `ssh.conf` sections |
+| `op-account` | `scripts/playbook.sh` | The 1Password account a playbook run's `op` calls use, exported as `OP_ACCOUNT` (set that yourself for a direct script run), where more than one is signed in |
+| `op-service-account-token` | `scripts/op-token.sh`, for the 1Password syncs | Service-account token, a bearer credential (0600) |
+| `git-work-email` | `roles/git/defaults/main.yml` | The work identity written to `~/.gitconfig.work` |
+| `pushover-credentials` | `roles/osx/files/health/health-check.sh` | Health-check notification credentials (0600), written by `roles/osx/tasks/health-signal.yml` |
+| `health-target` | `roles/osx/files/health/health-check.sh` | The host the health check polls; absent means nothing is polled |
+| `work-shell-init` | `roles/fish/files/work-init.fish` | Path of a second config manager's shell init to source |
+| `slack-users.json` | `roles/claude/files/skills/review-shared/slack.md` | GitHub login to Slack user ID (0600), written by the skills |
+| `code-review-egress.json` | `roles/claude/files/skills/review-shared/egress.md` | Per-repo (and per-reviewer) upload consents (0600), written by the skills |
+| `bot-review.json` | the `/bot-review` skill, `/panel-review`'s `reviewer:<name>` backend | Named third-party reviewers, one schema (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/bot-review/bot-review.json.tpl` |
+| `sibling-repos.json` | nothing yet; `/code-review` and `/panel-review` gain the reader | Consuming repository to its producers' clone paths (0600), rendered from `roles/claude/files/skills/review-shared/sibling-repos.json.tpl` |
+| `private-identifiers` | `scripts/gitleaks-identifier-rules.sh`, `roles/claude/files/scripts/identifier-check.sh` | Names that must never reach a committed file |
+| `claude-instructions-inventory/` | the `specs/claude-instructions` tasks, by hand | Dated instruction-surface audit (directory 0700, files 0600) |
 
-None live in the repo (`~/.config/kitty` is a symlink into it, which is why
-the kitty companion sits here instead). Each is optional; absence degrades
-visibly rather than silently.
+Service-account items live in the `Dotfiles Service Account` vault (service
+accounts cannot read Personal or Private); moving an item there reassigns its
+id. See [docs/machine-local-files.md](docs/machine-local-files.md) for the why,
+the rendering rules and the rotation procedure.
 
-The **rendered** ones are written by `scripts/op-render.sh` from the claude
-role (`roles/claude/tasks/op-render.yml`), behind the same `op` probe and CI
-guard as the Gemini key sync, so on a host with `op` a missing item fails the
-play rather than degrading; the rest are written by hand or by the skill that
-reads them. planwright's adopter overlay config renders the same way outside
-this directory, to
-`~/.claude/plugins/data/planwright-planwright/overlay/planwright.yml`, from
-the item `dotfiles-planwright-overlay` through
-`roles/claude/files/planwright/planwright.yml.tpl`; the renderer refuses a
-`steps_` key there, since a step list is a per-repository decision.
+## Identifier check
 
-The renderer overwrites a hand-written file at its output, so carry anything
-worth keeping into the item first; edit the item, never the rendered file.
-Each item lives in the `Dotfiles Service Account` vault and must hold every
-field its template references. A field left empty drops its key, and a
-reviewer entry whose fields are all empty drops out, so a host that does not
-run Copilot leaves the `copilot_` fields blank. A JSON template's reference
-ending in `| json` takes the field's value as JSON (a list or a map) rather
-than a string. The review template carries no `cli` block, so a rendered
-config has none until one is added to the template.
+Do not wire `scripts/gitleaks-identifier-rules.sh` into a hook or CI without
+first amending `specs/dev-services`, which retired that guard. The review-time
+check is `roles/claude/files/scripts/identifier-check.sh`, run by hand at task
+review; it never blocks a commit. See
+[docs/identifier-guard.md](docs/identifier-guard.md).
 
-`~/.gitconfig` and `~/.gitconfig.local` are machine-local in the same sense
-but are not listed here, because git only looks for them in `$HOME`. See
-`~/.gitconfig` is a real file, not a symlink above.
+## Ansible role layout
 
-### The identifier guard is retired, and its tooling is still here
+`main.yml` runs one platform baseline per host by `os_family` guard
+(`roles/osx/` on Darwin, `roles/linux/` on Debian); the cross-platform config
+roles (`kitty`, `fish`, `environments`, `tmux`, `ssh`, `git`, `claude`) run
+everywhere, and Claude config belongs only in `roles/claude/`.
 
-`scripts/gitleaks-identifier-rules.sh` generates secret-scanner rules that
-would block private project identifiers from entering commits. It is not
-wired into anything, and it should not be: `specs/dev-services` retired
-REQ-D1.2 through REQ-D1.5 on 2026-08-07, "withdrawn with no successor", and
-marked D-8 and D-9 superseded the same day. REQ-D1.1 — the prohibition itself
-— still binds, but by review rather than by hook, and enforcement belongs to
-the successor hygiene bundle that would also handle the identifiers already
-published here.
+`roles/services/` runs everywhere but guards itself: on Debian (Linux) it
+provisions the services declared in `roles/services/defaults/main.yml`, on
+Darwin (macOS) only the older `~/.my.cnf` and colima content. Add a dev
+service as an entry there, not a task edit; one needing more names its own
+file in a `setup:` field.
 
-The script survives the retirement, so it reads as live machinery waiting to
-be connected. It is not. Wiring it up without first amending that spec
-reverses a recorded decision, and doing the enforcement half alone leaves the
-files that already carry the identifiers permanently exempt — containment, not
-coverage, which is the half the successor bundle exists to avoid doing in
-isolation. `roles/claude/files/scripts/identifier-check.sh` reads the same file
-for a review-time report over the live instruction files and the templates
-rendered beside them, run by hand and by the contract fixture suite; it warns
-and never blocks a commit.
+- Never make `~/.my.cnf` or `~/.npmrc` a symlink into this repo: their
+  content is credentials, so the roles insert a marked `blockinfile` block.
+- Never commit a real hostname or LAN IP. A host declares itself through
+  `DOTFILES_HOST` or the `host` file; `scripts/playbook.sh` refuses any value
+  that is not a single host listed in `hosts`.
 
-`code-review-egress.json` is untracked for the same class of reason as
-`slack-users.json` below: it enumerates repos (employer and third-party
-names) this machine has approved for upload to an external model provider or
-review vendor, which is a per-machine consent record, not repo content.
-`/code-review` and `/panel-review`'s `reviewer:<name>` backend (which
-uploads the whole repo tree rather than a diff) both create it at 0600 and
-write it read-modify-write under the same lock directory; the backend's
-approvals live under `reviewer:<name>:owner/repo` keys. Revoking an approval
-is deleting its key while no review is running, so stopping all uploads of a
-repo means deleting the bare `owner/repo` key and every
-`reviewer:<name>:owner/repo` key for it. Absent file means every repo, or
-for that backend every repo-and-reviewer pair, asks once, which degrades
-visibly. When nothing can be recorded, and when a bad consent file or a
-missing `jq` stops the run instead, is spelled out in
-`roles/claude/files/skills/review-shared/egress.md`.
+See [docs/ansible-roles.md](docs/ansible-roles.md).
 
-`slack-users.json` is untracked for a different reason than the others: it is
-not a secret, but it holds *other people's* email-derived identities. This repo
-is public, and colleagues' Slack IDs are not mine to publish. It is built up as
-review workflows resolve people (email lookup first, asking me second), so a
-missing entry costs one question rather than a failure.
+## Git, fish and the editor
 
-`op-service-account-token` is the only one that is a *secret*. It exists
-because the 1Password desktop-app integration authorizes per calling process
-and re-prompts for each new one — fine in a long-lived terminal, useless under
-Ansible (a fresh process per task), and impossible during a headless boot where
-no desktop app is running to approve anything. A service-account token
-authenticates non-interactively instead.
+- Never symlink `~/.gitconfig` at the tracked config: `git config --global`
+  writes through a symlink into this public repo. The role keeps one marked
+  include block at the top of a real file; leave it at the top, since later
+  keys win. Declaring a multi-valued key such as `credential.helper` adds a
+  value rather than overriding one. When the role reports a foreign symlink,
+  add the include there by hand. See [docs/gitconfig.md](docs/gitconfig.md).
+- In `roles/fish/files/work-init.fish`, keep `GIT_DUET_GLOBAL false` after the
+  source and outside the guard; keep `config.fish` skipping `mise activate`
+  when the shims are already on `PATH`, and its login block appending, not
+  prepending, runtime bins. See
+  [docs/work-shell-init.md](docs/work-shell-init.md).
+- Name the editor `vi`, keep `vim-tiny` in `linux_apt_packages`, and never
+  delete the `nv` alias: the `tm.fish` workspace functions type it. See
+  [docs/editor.md](docs/editor.md).
+- On a headless host, `git push` needs an SSH remote, not `https://`, and the
+  generated key registered as an Authentication key; `gh` needs
+  `gh auth login --insecure-storage` once. Do not export `GH_TOKEN` from a
+  file, fetch it from 1Password at shell start, or use a GitHub App; a host
+  spanning owners needs a classic-scoped token. See
+  [docs/github-auth-headless.md](docs/github-auth-headless.md).
 
-Three consequences worth knowing before moving items around:
+## planwright from the shell
 
-- **Service accounts cannot access the Personal or Private vault.** 1Password
-  refuses the grant outright, which is why every item that needs this token
-  (`dotfiles-lan-ssh`, the Gemini API key and the three rendered review and
-  overlay items) lives in the `Dotfiles Service Account` vault rather than
-  `Private`, and why that is every script's default vault. Note the blast
-  radius that creates: one machine-local file on the headless host now reaches
-  the LAN ssh topology, a billable Google API key, and the private review
-  configuration. Splitting the sensitive items onto their own service account
-  is the move if that ever stops being an acceptable trade.
-- Moving an item into that vault **reassigns its id**. That is only a problem
-  for `claude-gemini-auth-sync.sh`, which addresses its item by id, so a move
-  there is also an edit to the script. `ssh-lan-config-sync.sh` addresses its
-  item by name (`dotfiles-lan-ssh`, via the `op://` references in its
-  template), which survives a move untouched.
-- Every script that reads 1Password with it resolves the token through one
-  sourced helper, `scripts/op-token.sh`, tested by `scripts/op-token-test.sh`
-  through `ssh-lan-config-sync.sh` and `claude-gemini-auth-sync.sh`, so a fix
-  to the checks lands everywhere at once. The helper refuses a file that is a
-  symlink, is not regular, or is not mode 0600 or 0400, and a value that is
-  blank or holds anything outside the token character set (NUL bytes
-  included). An already-exported `OP_SERVICE_ACCOUNT_TOKEN` takes precedence,
-  so CI can supply one without the file existing; an exported empty one is
-  treated as absent.
-
-To rotate: `op service-account create <name> --vault 'Dotfiles Service
-Account':read_items`, write the returned token to the file with `umask 077`,
-and never let it reach a terminal — it is printed exactly once.
-
-## The editor is not provisioned by a role any more
-
-`roles/neovim/` is gone and a replacement has not been chosen. In the
-meantime `EDITOR`, git's `core.editor`, and the `v` / `vim` / `nv` fish
-aliases all name **`vi`**, not `vim`: the Linux host carries only `vim.tiny`
-(exposed as `/usr/bin/vi` through `update-alternatives`), and macOS ships
-`/usr/bin/vi` as well, so `vi` is the one name that resolves on both.
-
-`vim-tiny` is declared in `linux_apt_packages` for that reason. It is
-priority:important, so the base system usually supplies it and the
-declaration looks redundant — until a minbase chroot or a cloud image does
-not, at which point the playbook reports success and `git commit` dies with
-"cannot run vi". The editor used to be guaranteed by the playbook that
-installed it; naming a binary nothing provisions gave that guarantee up.
-
-`nv` is a call site, not a convenience: the `tm.fish` workspace functions
-type that literal string into the left pane of every session they build, so
-deleting the alias breaks seven of them and no search for `nvim` finds the
-cause.
-
-**The removal un-declared; it did not uninstall.** Nothing in the repo
-removes what the old role installed, so a Mac that ran it keeps `nvim` on
-PATH, its install tree under `~/.local`, its plugin tree, and the four
-Brewfile packages — with `~/.config/nvim` now dangling, since the symlink
-target went with the role. `brew bundle install` never removes, `mise
-install` never prunes, and the `default-*` package lists only apply when a
-runtime is newly installed. Only this Linux host was cleaned, and that was
-done by hand.
-
-The language servers the old config drove are still declared (`ruby-lsp`,
-`basedpyright`, `terraform-ls`, and about ten npm servers). That is a
-deliberate hold for whatever editor lands next, not an oversight.
-
-## GitHub auth on a headless host
-
-Two different credentials, because ssh and the API do not share one.
-
-**`git push`** uses the on-disk ed25519 key `roles/git` generates for hosts in
-`git_unattended_auth_hosts`. Register its public half on GitHub as an
-**Authentication** key (a separate entry type from the signing key), and make
-sure the remote is `ssh://`, since `core.sshCommand` does nothing for an `https://`
-remote. That sshCommand sets `IdentitiesOnly=yes`, so ssh never offers the
-agent's keys: a 1Password agent with nobody at its screen blocks on an approval
-prompt rather than failing, which stalled fetches for minutes before the
-on-disk key was tried.
-
-**The gh CLI** needs a token, and there is no repo artifact for it: run
-
-```sh
-gh auth login --insecure-storage
-```
-
-on the host, once. That writes the token to `~/.config/gh/hosts.yml` (0600)
-instead of the system keyring, and gh's resolution order is `GH_TOKEN` →
-`GITHUB_TOKEN` → that file → keyring **last**. Verified on this host against
-gh 2.96.0 with a scratch `GH_CONFIG_DIR`: a token in the file is returned and
-the keyring is never consulted.
-
-**Why this matters.** The keyring is unlocked by an interactive PAM or
-graphical login and stays locked through an unattended boot, so a
-keyring-stored token leaves `gh auth token` returning EMPTY after every
-headless reboot. gh then reports "the token in default is invalid", which
-reads like a revoked credential and is not: every API call and every HTTPS
-push fails until a human logs in.
-
-**Rejected alternatives, so they are not re-litigated.** Exporting `GH_TOKEN`
-from a machine-local file works, but puts a live bearer token in the
-environment of every process the shell spawns, which on a host running
-autonomous agents is a real accident surface (`env` in a log, a bug report, an
-MCP subprocess). It is also unnecessary, since gh's own file tier already sits
-above the keyring. Fetching the token from 1Password at shell start presents a
-broad credential (read over a whole vault) to retrieve a narrow one, per the
-same reasoning `roles/git/defaults/main.yml` records for the signing key. A
-GitHub App with short-lived installation tokens is the textbook machine-auth
-answer and the wrong one here: gh has no native App auth, and App tokens act as
-the app rather than as you, which would misattribute PR comments and review
-replies.
-
-**Caveat on fine-grained PATs.** One is bound to a single resource owner, so it
-cannot reach repos under a second owner. If this host ever works across owners,
-use a classic-scoped token from `gh auth login` instead.
+`roles/fish/files/planwright.fish` exports `PLANWRIGHT_ADOPTER_OVERLAY` and
+`PLANWRIGHT_FLEET_STATE_DIR` for every shell, keeping a non-empty value
+already set. `tower` launches `/planwright:tower` under planwright's tower
+permission profile, fails closed without a live install, the profile, `jq`
+or a non-empty `permissions.deny`, and refuses flags that would replace or
+disable it. Never merge that profile into the tracked `settings.json`. The
+rationale is in `roles/fish/files/fish/functions/tower.fish`, and
+`scripts/fish-tower-test.sh` pins it.

@@ -92,9 +92,9 @@ each finding before posting:
    tests, project conventions. If the pattern is intentional and consistent
    elsewhere, it is probably not a bug.
 3. **Outside-in check.** Consult `git log` / `git blame` for context on why
-   the code is shaped the way it is. Check `CLAUDE.md`, `specs/README.md`,
-   and per-directory docs for documented conventions before flagging a
-   "violation."
+   the code is shaped the way it is. Check `CLAUDE.md`, the `docs/` notes it
+   links, `specs/README.md`, and per-directory docs for documented
+   conventions before flagging a "violation."
 
 Findings that fail any of these three should be dropped, not softened.
 

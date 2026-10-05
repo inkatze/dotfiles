@@ -1,5 +1,9 @@
 # Dotfiles Repo-Root CLAUDE.md Implementation Status
 
+**Status:** Ready
+**Last reviewed:** 2026-10-04
+**Format-version:** 1
+
 ## Task order
 
 Tasks are ordered by dependency.
@@ -14,29 +18,33 @@ Target 120 lines (hard ceiling 200). Sections, in order:
    `settings.json`, `commands/`), `~/.config/fish/*`, tmux, mise. Mental model:
    edits land here, Ansible run propagates.
 2. **How Claude config is materialized** — tracked Claude sources live in the
-   Ansible role: `roles/osx/files/claude/commands/` is symlinked into
-   `~/.claude/commands/`, `roles/osx/files/claude/scripts/` is symlinked into
+   Ansible role: `roles/claude/files/commands/` is symlinked into
+   `~/.claude/commands/`, `roles/claude/files/scripts/` is symlinked into
    `~/.claude/scripts/` (hook scripts invoked from `settings.json`),
-   `~/.claude/CLAUDE.md` is symlinked from `roles/osx/files/CLAUDE.md`
-   (outside the `claude/` directory), and `settings.json` is produced by a jq
+   `~/.claude/CLAUDE.md` is symlinked from `roles/claude/files/CLAUDE.md`,
+   and `settings.json` is produced by a jq
    merge/write task rather than symlinked. Edit the tracked source, not the
-   materialized file in `~/.claude/`.
+   materialized file in `~/.claude/`. **Superseded-by: specs/claude-instructions
+   REQ-C1.1** (2026-10-04), for the commands clause.
 3. **Permissions three-layer model** — compact restatement of #8's resolved model
    (global tracked, per-repo tracked, per-repo local). Note that the dotfiles
    `.claude/settings.json` (tracked, created in #8) holds dotfiles-specific durable
    rules; `.claude/settings.local.json` should stay near-empty.
+   **Superseded-by: specs/claude-instructions REQ-F1.3** (2026-10-04): this
+   repo tracks no per-repo settings file.
 4. **Adding a new Claude command** — drop the file under
-   `roles/osx/files/claude/commands/`, commit, run Ansible (or let the symlink
+   `roles/claude/files/commands/`, commit, run Ansible (or let the symlink
    task pick it up on its next run), verify in a fresh session. Command
    front-matter required for discovery. Hook scripts live under
-   `roles/osx/files/claude/scripts/` and are symlinked by a matching task in
-   `roles/osx/tasks/osx.yml`; they are wired from `settings.json`. Skills are
+   `roles/claude/files/scripts/` and are symlinked by a matching task in
+   `roles/claude/tasks/main.yml`; they are wired from `settings.json`. Skills are
    not yet managed by Ansible; adding them would require a new tracked
    directory plus a matching symlink task and is out of scope here.
+   **Superseded-by: specs/claude-instructions REQ-C1.1** (2026-10-04).
 5. **Things to NOT edit directly in `~/.claude/`** — anything symlinked from this
    repo. If in doubt, `readlink` first.
-6. **Ansible role layout pointer** — one line: `roles/osx/` is the Mac role; most
-   Claude-related files live under `roles/osx/files/claude/` and `roles/osx/tasks/`
+6. **Ansible role layout pointer** — one line: `roles/claude/` is the Claude
+   role; its files live under `roles/claude/files/` and `roles/claude/tasks/`
    has the symlink tasks. Not a full tree dump.
 7. **Git conventions specific to this repo** — only if any actually differ from
    global. Likely none, in which case omit the section rather than pad.
