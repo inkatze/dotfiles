@@ -69,8 +69,11 @@ expect_fail() {
   if out="$(run_checker 2>&1)"; then
     echo "FAIL $name: checker passed after mutation"
     failures=$((failures + 1))
-  elif ! printf '%s' "$out" | grep -qF -- "$fragment"; then
+  elif ! grep -qF -- "$fragment" <<< "$out"; then
     echo "FAIL $name: expected message containing \"$fragment\", got: $out"
+    failures=$((failures + 1))
+  elif ! grep -qF -- "invariant(s) broken" <<< "$out"; then
+    echo "FAIL $name: the checker stopped before its summary: $out"
     failures=$((failures + 1))
   fi
   teardown
@@ -99,11 +102,15 @@ expect_pass() {
 
 SKILLS="roles/claude/files/skills"
 SHARED="$SKILLS/review-shared"
+GLOBAL_MD=roles/claude/files/CLAUDE.md
 SKILL_NAMES=(bot-review code-review copilot-review panel-review peer-review)
 md() { printf '%s/%s/SKILL.md' "$SKILLS" "$1"; }
 
 # Swaps literal text, for anchors dense with shell and regex metacharacters.
 swap_fixed() { OLD="$1" NEW="$2" perl -0pi -e 's/\Q$ENV{OLD}\E/$ENV{NEW}/' "$3"; }
+
+# drop_pin <phrase> <file>: removes a pinned phrase however the file wraps it.
+drop_pin() { PIN="$1" perl -0pi -e 'my $p = quotemeta $ENV{PIN}; $p =~ s/\\ /\\s+/g; s/$p/REMOVED/' "$2"; }
 
 baseline
 
@@ -300,9 +307,9 @@ for t in bash grep tr cat sort cksum find xargs basename dirname awk sed perl mk
 done
 if out="$(cd "$tmp" && PATH="$nojq" bash roles/claude/files/scripts/skill-contracts.sh 2>&1)"; then
   echo "FAIL missing-jq: checker passed without jq"; failures=$((failures + 1))
-elif ! printf '%s' "$out" | grep -qF "jq is required"; then
+elif ! grep -qF "jq is required" <<< "$out"; then
   echo "FAIL missing-jq: expected \"jq is required\", got: $out"; failures=$((failures + 1))
-elif printf '%s' "$out" | grep -qF "is not valid JSON"; then
+elif grep -qF "is not valid JSON" <<< "$out"; then
   echo "FAIL missing-jq: still blamed the config"; failures=$((failures + 1))
 fi
 rm -rf "$nojq"
@@ -418,7 +425,7 @@ expect_fail retired-file \
 expect_fail retired-backend-name \
   "echo 'qwen-coder' >> $(md panel-review)" "retired backend name"
 expect_fail retired-backend-name-global \
-  "echo 'OLLAMA_BASE_URL' >> roles/claude/files/CLAUDE.md" "retired backend name"
+  "echo 'OLLAMA_BASE_URL' >> $GLOBAL_MD" "retired backend name"
 expect_fail mark-ready \
   "perl -pi -e 's/This confirmation-gated ready-flip is the only PR-lifecycle action this loop takes, and only on this exit path\\.//' $(md copilot-review)" "mark-ready safety sentence"
 expect_fail bot-review-safety-nested-apply \
@@ -438,7 +445,7 @@ expect_fail severity-order \
 expect_fail no-bucket-sentence \
   "perl -pi -e 's/does \\*\\*not\\*\\* use the bucket categorization/uses the bucket categorization/' $(md code-review)" "missing expected severity tier"
 expect_fail option-set \
-  "perl -pi -e 's{Post inline / Post as PR-level / Defer to follow-up / Dismiss}{Post / Defer}g' roles/claude/files/CLAUDE.md" "missing expected /code-review option-set literal"
+  "perl -pi -e 's{Post inline / Post as PR-level / Defer to follow-up / Dismiss}{Post / Defer}g' $(md code-review)" "missing expected option-set literal"
 expect_fail option-set-code-review \
   "perl -pi -e 's{Post all inline / Post all as PR-level / Defer all to follow-up / Dismiss all / Pick individually}{Post all / Skip all}g' $(md code-review)" "missing expected option-set literal"
 expect_fail resolver-line \
@@ -466,11 +473,264 @@ expect_fail signoff-missing \
 expect_fail signoff-shared-missing \
   "perl -0pi -e 's/– clanky/- clanky/g' $SHARED/slack.md" "missing expected sign-off"
 
+# --- The user-global file ---
+
+# Ready flips (REQ-A1.1, REQ-A1.2, REQ-A1.3, REQ-A1.5)
+expect_fail ready-flip-base-current \
+  "perl -0pi -e 's/CI is green and the review/the branch current with its base, CI is green and the review/' $GLOBAL_MD" "forbidden currency condition"
+expect_fail ready-flip-sync-ritual \
+  "printf '\\nBefore the flip, bring the branch current with its base.\\n' >> $GLOBAL_MD" "forbidden currency condition"
+expect_fail ready-flip-cadence-dropped \
+  "perl -0pi -e 's/ and the review\\s+cadence the PR calls for has actually run//' $GLOBAL_MD" "ready-flip sentence"
+expect_fail ready-flip-unknown-dropped \
+  "perl -0pi -e 's/, including a mergeability GitHub still\\s+reports as \`UNKNOWN\` after one re-query a few seconds later//' $GLOBAL_MD" "ready-flip sentence"
+expect_pass ready-flip-reflow \
+  "perl -0pi -e 's/once it is mergeable/once it is\\nmergeable/' $GLOBAL_MD"
+expect_fail kickoff-exception-dropped \
+  "perl -0pi -e 's/, with one exception: the spec PR\\s+after a signed-off kickoff, which planwright marks ready by configuration\\././' $GLOBAL_MD" "kickoff-flip exception"
+expect_fail operator-confirmed-clause-dropped \
+  "perl -0pi -e 's/is one I requested, not an exception/is fine/' $GLOBAL_MD" "kickoff-flip exception"
+expect_fail hook-denial-dropped \
+  "perl -0pi -e 's/report the denial to me and never work around it/sync and retry/' $GLOBAL_MD" "hook-denial sentence"
+
+# One source of review doctrine (REQ-B1.1, REQ-B1.3, REQ-B1.4, REQ-B1.5)
+expect_fail global-doctrine-section \
+  "printf '\\n### Discovery Rigor (Issue Identification)\\n\\nWalk every lens.\\n' >> $GLOBAL_MD" "heading for a planwright doctrine document"
+expect_fail global-doctrine-named-twice \
+  "printf '\\nFollow discovery-rigor here as well.\\n' >> $GLOBAL_MD" "names discovery-rigor in 2 places"
+expect_fail global-doctrine-pointer-missing \
+  "perl -0pi -e 's{\\\`~/\\.claude/skills/review-shared/doctrine\\.md\\\`}{the shared notes}g' $GLOBAL_MD" "outside a pointer bullet naming review-shared/doctrine.md"
+expect_fail global-lens-list \
+  "printf '\\n1. Correctness, logic, edge cases (null, empty)\\n' >> $GLOBAL_MD" "copied lens list"
+expect_fail workflow-description \
+  "perl -0pi -e 's/(### Review Workflows\\n\\n)/\$1Each review workflow has a slash command. Pick the one that fits.\\n/' $GLOBAL_MD" "not a one-line pointer bullet"
+expect_fail workflow-bullet-no-pointer \
+  "perl -0pi -e 's/(### Review Workflows\\n\\n)/\$1- \`\\/panel-review\`: reviews my branch.\\n/' $GLOBAL_MD" "names no skill file or planwright skill"
+expect_fail hard-invariants-dropped \
+  "perl -0pi -e 's/\\*\\*Hard invariants\\.\\*\\* //' $GLOBAL_MD" "hard-invariants paragraph"
+expect_fail review-sequence-claim-global \
+  "printf '\\n\`/panel-review --nested\` fits planwright.s review_sequence.\\n' >> $GLOBAL_MD" "forbidden review_sequence claim"
+
+# Messages to people (REQ-D1.1 to REQ-D1.5)
+expect_fail outbound-rule-dropped \
+  "perl -0pi -e 's/and said yes in this session/and it seems fine/' $GLOBAL_MD" "outbound-message rule"
+expect_fail never-guess-dropped \
+  "perl -0pi -e 's/A recipient\\s+that cannot be resolved is never guessed\\.//' $GLOBAL_MD" "outbound-message rule"
+expect_fail third-exception \
+  "perl -0pi -e 's/(human may read them\\.\\n)/\$1- Messages to colleagues on my team.\\n/' $GLOBAL_MD" "besides its two exceptions"
+expect_fail unscoped-go-ahead \
+  "perl -0pi -e 's/, which\\s+covers only the recipients and message kinds I named when giving it//' $GLOBAL_MD" "outbound-message rule"
+expect_fail outbound-rule-in-skill \
+  "printf '\\nNothing is sent unless I have seen it and said yes in this session.\\n' >> $(md peer-review)" "restates the outbound-message rule"
+expect_fail slack-resolution-in-global \
+  "printf '\\n## Resolve the GitHub login to a Slack user\\n' >> $GLOBAL_MD" "forbidden Slack mechanics"
+expect_fail slack-resolution-duplicated \
+  "printf '\\nResolve the GitHub login to a Slack user first.\\n' >> $(md code-review)" "must live only in"
+expect_fail fixed-template-global \
+  "printf '\\nThe body does not need confirming: it is a fixed template the command supplies.\\n' >> $GLOBAL_MD" "forbidden Slack mechanics"
+expect_fail fixed-template-shared \
+  "printf '\\nThe body does not need confirming: it is a fixed template the command supplies.\\n' >> $SHARED/slack.md" "fixed-template exemption"
+expect_fail unattended-global-dropped \
+  "perl -0pi -e 's/drafted, with\\s+its recipient, into the run.s handoff and never sent/sent anyway/' $GLOBAL_MD" "outbound-message rule"
+expect_fail unattended-shared-dropped \
+  "perl -0pi -e 's/With no operator present, draft a message no\\s+go-ahead covers, and its recipient, into the handoff instead of sending it\\./Send it anyway./' $SHARED/slack.md" "unattended handoff step"
+expect_fail bot-definition-dropped \
+  "perl -0pi -e 's/a login ending in\\s+\`\\[bot\\]\`, //' $GLOBAL_MD" "outbound-message rule"
+expect_fail mixed-thread-dropped \
+  "perl -0pi -e 's/a thread any\\s+human has replied in is a message to that human/a thread is a bot thread/' $GLOBAL_MD" "outbound-message rule"
+expect_fail own-pr-clause-dropped \
+  "perl -0pi -e 's/, and review requests on them, are not messages/ are messages too/' $GLOBAL_MD" "outbound-message rule"
+
+# The diet (REQ-E1.1 to REQ-E1.5)
+expect_fail dated-origin-story \
+  "printf '\\nOrigin: the 2026-06-12 orchestration run.\\n' >> $GLOBAL_MD" "dated origin story"
+expect_fail commit-reference \
+  "printf '\\nAdded in ee7a5f8 after a review.\\n' >> $GLOBAL_MD" "commit reference"
+expect_fail push-delete-spelling-dropped \
+  "perl -0pi -e 's/\\(\`git push origin --delete <branch>\`, or a\\s+\`:<branch>\` refspec\\)//' $GLOBAL_MD" "push rule"
+expect_fail fish-only-wording \
+  "printf '\\nUse fish syntax, \`set\` not \`export\`.\\n' >> $GLOBAL_MD" "fish-only wording"
+expect_fail shell-line-dropped \
+  "perl -0pi -e 's/and cannot be pointed at\\s+fish/and runs fish/' $GLOBAL_MD" "shell line"
+expect_fail lifecycle-draft-active \
+  "printf '\\nA spec runs Draft → Active → Done.\\n' >> $GLOBAL_MD" "lifecycle wording"
+expect_fail lifecycle-non-active \
+  "printf '\\nNever act on a non-Active spec.\\n' >> $GLOBAL_MD" "lifecycle wording"
+expect_fail lifecycle-ready-dropped \
+  "perl -0pi -e 's/\`Ready\` or \`Active\`/\`Active\`/' $GLOBAL_MD" "hard-invariants paragraph"
+expect_fail deepwiki-named \
+  "printf '\\nUse the deepwiki MCP for repo facts.\\n' >> $GLOBAL_MD" "deepwiki"
+expect_fail slack-mcp-not-optional \
+  "printf '\\nIf a Slack MCP server is available, DM the author.\\n' >> $GLOBAL_MD" "without calling it optional"
+expect_pass slack-mcp-absent \
+  "perl -0pi -e 's/The Slack MCP server is optional;[^\\n]*\\n[^\\n]*\\n//' $GLOBAL_MD"
+expect_fail polish-scope-twice \
+  "printf '\\n\`/polish\` applies Auto-applicable, Agent-resolvable and Needs-sign-off fixes on the branch, pausing first on planwright'\\''s hard-disqualifier zones and stopping at Needs human judgment.\\n' >> $GLOBAL_MD" "drain scope 2 times"
+expect_fail polish-scope-contradiction \
+  "printf '\\n\`/polish\` and \`/panel-review --nested\` use Needs human judgment as their loop boundary.\\n' >> $GLOBAL_MD" "/polish drain-scope phrasing"
+expect_fail polish-scope-auto-boundary \
+  "printf '\\n\`/polish\` and \`/panel-review --nested\` use the Auto-applicable bucket as their loop boundary.\\n' >> $GLOBAL_MD" "/polish drain-scope phrasing"
+expect_fail polish-scope-old-drain \
+  "printf '\\nIt drains Auto-applicable and Needs sign-off, all applied on the branch.\\n' >> $GLOBAL_MD" "/polish drain-scope phrasing"
+expect_fail polish-scope-missing \
+  "perl -0pi -e 's/\`\\/polish\` applies Auto-applicable, Agent-resolvable and Needs-sign-off fixes on the branch, pausing first on planwright.s hard-disqualifier zones and stopping at Needs human judgment/It polishes/' $GLOBAL_MD" "drain scope 0 times"
+
+# Each pinned prohibition and spelling fails on its own (REQ-E1.1).
+for pin in 'with or without force' 'counts as protected' 'Never delete a remote branch' \
+    'whatever its spelling' '--force-with-lease --force-if-includes' \
+    '--force-with-lease=<branch>:<sha>' 'plain `--force`' 'a `+` refspec' \
+    'push-time force configuration are forbidden' '`stale info`' \
+    '`remote ref updated since checkout`' 'never retry with a broader force' \
+    'never one read from the remote-tracking ref' 'turns `--force-if-includes` off'; do
+  PIN="$pin" expect_fail "push-rule-dropped ($pin)" 'drop_pin "$PIN" "$GLOBAL_MD"' "push rule"
+done
+for pin in 'never a bare `git push`' 'counts as a work repo' 'It never widens it onto a protected or shared' \
+    'any protected branch, and a shared branch' 'or you cannot tell'; do
+  PIN="$pin" expect_fail "rewrite-scope-dropped ($pin)" 'drop_pin "$PIN" "$GLOBAL_MD"' "rewrite scope"
+done
+expect_fail never-auto-chain-dropped \
+  "perl -0pi -e 's/Never\\s+auto-chain/Feel free to auto-chain/' $GLOBAL_MD" "hard-invariants paragraph"
+expect_fail drafts-dropped \
+  "perl -0pi -e 's/Open pull requests as drafts\\./Open pull requests./' $GLOBAL_MD" "ready-flip sentence"
+expect_fail origin-story \
+  "printf '\\nOrigin: a stale socket broke signing.\\n' >> $GLOBAL_MD" "carries an origin story"
+expect_fail dated-origin-month \
+  "printf '\\nAdded after the 2026-06 orchestration run.\\n' >> $GLOBAL_MD" "dated origin story"
+expect_pass key-type-not-a-commit \
+  "printf '\\nThe on-disk key is an ssh-ed25519 key.\\n' >> $GLOBAL_MD"
+
+# Currency, lifecycle and shell wording, each phrasing on its own.
+expect_fail ready-flip-up-to-date \
+  "printf '\\nThe branch must be up to date with its base.\\n' >> $GLOBAL_MD" "currency condition"
+expect_fail ready-flip-sync-push-rerun \
+  "printf '\\nBefore a flip: sync, push and re-run CI.\\n' >> $GLOBAL_MD" "currency condition"
+expect_fail ready-flip-capitalized \
+  "printf '\\nCurrent with its base, always.\\n' >> $GLOBAL_MD" "currency condition"
+expect_fail lifecycle-backticked \
+  "printf '\\nA spec runs \`Draft\` → \`Active\` → \`Done\`.\\n' >> $GLOBAL_MD" "lifecycle wording"
+expect_fail shell-fish-syntax-dropped \
+  "perl -0pi -e 's/Commands written for me to run use fish syntax\\./Commands use bash./' $GLOBAL_MD" "shell line"
+expect_fail shell-mise-dropped \
+  "perl -0pi -e 's/Run mise-managed tools through \`fish -c\`/Run mise-managed tools directly/' $GLOBAL_MD" "shell line"
+expect_fail fish-default-shell \
+  "printf '\\nThe default shell is Fish.\\n' >> $GLOBAL_MD" "fish-only wording"
+expect_fail deepwiki-capitalized \
+  "printf '\\nUse the DeepWiki MCP for repo facts.\\n' >> $GLOBAL_MD" "phantom tool"
+
+# Doctrine pointer and workflow sections.
+expect_fail global-doctrine-name-dropped \
+  "perl -0pi -e 's/\`finding-categorization\` documents/documents/' $GLOBAL_MD" "names finding-categorization in 0 places"
+expect_fail workflow-heading-renamed \
+  "perl -0pi -e 's/### Review Workflows/### Workflows/' $GLOBAL_MD" "no Review Workflows pointer bullets"
+
+# The outbound rule's exceptions and its one home.
+expect_fail second-exception-dropped \
+  "perl -0pi -e 's/- Replies to automated reviewers, which are addressed to a bot even when a\\s+human may read them\\.\\n//' $GLOBAL_MD" "outbound-message rule"
+expect_fail prose-third-exception \
+  "perl -0pi -e 's/(human may read them\\.\\n)/\$1\\nA third: messages to my team.\\n/' $GLOBAL_MD" "besides its two exceptions"
+expect_fail exceptions-anchor-missing \
+  "perl -0pi -e 's/The rule has exactly two exceptions:/The exceptions:/' $GLOBAL_MD" "no \"exactly two exceptions:\" list"
+expect_pass exceptions-reflowed \
+  "perl -0pi -e 's/exactly two exceptions:/exactly two\\nexceptions:/' $GLOBAL_MD"
+expect_fail outbound-rule-in-root \
+  "printf '\\nNothing is sent unless I have seen it and said yes in this session.\\n' >> CLAUDE.md" "copy of a global rule or the Slack mechanics"
+expect_fail slack-resolution-in-root \
+  "printf '\\n## Resolve the GitHub login to a Slack user\\n' >> CLAUDE.md" "copy of a global rule or the Slack mechanics"
+expect_fail slack-pointer-dropped \
+  "perl -0pi -e 's/; its recipient resolution, confirmation and\\s+sign-off are in \`~\\/\\.claude\\/skills\\/review-shared\\/slack\\.md\`/ is optional too/' $GLOBAL_MD" "Slack mechanics pointer"
+expect_pass slack-mcp-optional-reflowed \
+  "perl -0pi -e 's/The Slack MCP server is optional;/The Slack MCP server is\\noptional;/' $GLOBAL_MD"
+
+expect_fail first-exception-dropped \
+  "perl -0pi -e 's/- An explicit go-ahead I give for a specific message, or for a run, which\\s+covers only the recipients and message kinds I named when giving it\\.\\n//' $GLOBAL_MD" "outbound-message rule"
+expect_pass exceptions-other-marker \
+  "perl -0pi -e 's/^- (An explicit go-ahead|Replies to automated)/* \$1/mg' $GLOBAL_MD"
+expect_fail slack-mcp-second-sentence \
+  "perl -0pi -e 's/(The Slack MCP server is optional;)/A Slack MCP server must always run. \$1/' $GLOBAL_MD" "without calling it optional"
+expect_fail origin-numbered-item \
+  "printf '\\n1. Origin: a stale socket broke signing.\\n' >> $GLOBAL_MD" "carries an origin story"
+expect_fail origin-mid-line \
+  "printf '\\nKeep the socket stable. Origin: a stale socket broke signing.\\n' >> $GLOBAL_MD" "carries an origin story"
+expect_fail slack-mcp-bulleted \
+  "printf '\\n- A Slack MCP server must run\\n- Other servers are optional\\n' >> $GLOBAL_MD" "without calling it optional"
+expect_fail slack-mcp-bold-lead \
+  "printf '\\n**A Slack MCP server is required.** Others are optional.\\n' >> $GLOBAL_MD" "without calling it optional"
+expect_pass origin-in-prose \
+  "printf '\\nWhen you push to origin: always name the branch.\\n' >> $GLOBAL_MD"
+expect_pass year-range-past-twelve-not-a-date \
+  "printf '\\nThe 2024-25 budget is not a date.\\n' >> $GLOBAL_MD"
+expect_fail ready-flip-up-to-date-hyphenated \
+  "printf '\\nThe branch must be up-to-date with its base.\\n' >> $GLOBAL_MD" "currency condition"
+expect_fail lifecycle-non-active-backticked \
+  "printf '\\nNever act on a non-\`Active\` spec.\\n' >> $GLOBAL_MD" "lifecycle wording"
+expect_fail fish-set-comma \
+  "printf '\\nUse fish syntax: \`set\`, not \`export\`.\\n' >> $GLOBAL_MD" "fish-only wording"
+expect_fail fish-run-directly \
+  "printf '\\nRun commands directly in Fish.\\n' >> $GLOBAL_MD" "fish-only wording"
+expect_fail protected-branch-invariant-dropped \
+  "perl -0pi -e 's/and never push to a\\s+protected branch/and push freely/' $GLOBAL_MD" "hard-invariants paragraph"
+
+for heading in 'Validation Rigor (Issue Identification)' 'Finding Categorization' 'Refactor Instinct' 'Composability by default'; do
+  HEADING="$heading" expect_fail "global-doctrine-heading ($heading)" \
+    'printf "\n### %s\n\nCopied rule text.\n" "$HEADING" >> "$GLOBAL_MD"' "heading for a planwright doctrine document"
+done
+expect_fail fixed-template-in-root \
+  "printf '\\nThe body does not need confirming: it is a fixed template the command supplies.\\n' >> CLAUDE.md" "copy of a global rule or the Slack mechanics"
+expect_fail slack-resolution-anchor-removed \
+  "perl -0pi -e 's/Resolve the GitHub login\\s+to a Slack user/Look them up/' $SHARED/slack.md" "shared block anchor missing"
+expect_fail exception-after-definition \
+  "perl -0pi -e 's/(into the run.s handoff and never sent\\.\\n)/\$1\\nMessages to my team are a third exception.\\n/' $GLOBAL_MD" "further exception after"
+expect_pass exceptions-as-prose \
+  "perl -0pi -e 's/^- (An explicit go-ahead|Replies to automated)/\$1/mg' $GLOBAL_MD"
+expect_pass doctrine-pointer-nested-bullet \
+  "perl -0pi -e 's/^- \\*\\*Review doctrine is planwright.s\\.\\*\\*/  - **Review doctrine is planwright.s.**/m' $GLOBAL_MD"
+expect_fail origin-bold-colon-outside \
+  "printf '\\n**Origin**: a stale socket broke signing.\\n' >> $GLOBAL_MD" "carries an origin story"
+expect_fail commit-reference-sha256 \
+  "printf '\\nFixed in 3f1a9c0d2b7e4a6f8c1d0e9b2a4c6e8f0a1b3c5d7e9f1a2b4c6d8e0f2a4b6c8d.\\n' >> $GLOBAL_MD" "commit reference"
+expect_fail slack-mcp-heading-joined \
+  "printf '\\n### Slack MCP\\nOther servers are optional.\\n' >> $GLOBAL_MD" "without calling it optional"
+
+# A missing global file still lets every skills-tree scan run.
+expect_fail missing-global-file-tree-still-scanned \
+  "rm $GLOBAL_MD && printf '\\nNothing is sent unless I have seen it and said yes in this session.\\n' >> $(md peer-review)" "restates the outbound-message rule"
+# Not through expect_fail: its tree checksum cannot read a mode-000 file.
+# unreadable_case <name> <path>: skipped where mode bits do not stop a read
+# (root, or a process holding CAP_DAC_OVERRIDE).
+unreadable_case() {
+  local out rc
+  setup
+  chmod 000 "$tmp/$2"
+  if [ -r "$tmp/$2" ]; then
+    echo "SKIP $1: this user can still read a mode-000 file"
+  else
+    out="$(run_checker 2>&1)" && rc=0 || rc=$?
+    if [ "$rc" -eq 0 ] || ! grep -qF "$2 could not be read" <<< "$out" || ! grep -qF "invariant(s) broken" <<< "$out"; then
+      echo "FAIL $1: expected a read error and the summary (exit $rc): $out"
+      failures=$((failures + 1))
+    fi
+  fi
+  chmod 644 "$tmp/$2"
+  teardown
+}
+unreadable_case unreadable-global-file "$GLOBAL_MD"
+unreadable_case unreadable-skill-file "$(md copilot-review)"
+expect_fail workflow-deeper-heading \
+  "perl -0pi -e 's/(### Review Workflows\\n\\n)/\$1#### Notes\\n\\nEach workflow has a slash command.\\n\\n/' $GLOBAL_MD" "not a one-line pointer bullet"
+expect_fail slack-mcp-not-optional-negated \
+  "printf '\\nThe Slack MCP server is not optional.\\n' >> $GLOBAL_MD" "without calling it optional"
+expect_fail commit-reference-uppercase \
+  "printf '\\nFixed in EE7A5F8.\\n' >> $GLOBAL_MD" "commit reference"
+expect_fail exceptions-moved-out \
+  "perl -0pi -e 's/(exactly two exceptions:\\n\\n)- An explicit go-ahead.*?human may read them\\.\\n/\$1- Anything I say.\\n/s; s/\\z/\\nAn explicit go-ahead I give for a specific message, or for a run, which covers only the recipients and message kinds I named when giving it. Replies to automated reviewers, which are addressed to a bot even when a human may read them.\\n/' $GLOBAL_MD" "does not hold both pinned exceptions"
+
 # --- File-missing guards ---
 expect_fail missing-skill \
   "rm $(md peer-review)" "does not exist"
 expect_fail missing-shared-file \
   "rm $SHARED/limits.md" "does not exist"
+expect_fail missing-global-file \
+  "rm $GLOBAL_MD" "CLAUDE.md does not exist"
 
 # --- Checks the fixtures above do not reach ---
 expect_fail front-matter-missing \
@@ -508,7 +768,7 @@ expect_fail stale-self-review-step-unquoted \
 expect_fail threshold-in-supporting-file \
   "printf '\\nThe iteration cap here is 15 iterations.\\n' >> $SKILLS/panel-review/reviewer-backend.md" "states a shared threshold value"
 expect_fail cache-path-in-global \
-  "echo 'planwright lives under ~/.claude/plugins/cache/planwright.' >> roles/claude/files/CLAUDE.md" "names the plugin cache path"
+  "echo 'planwright lives under ~/.claude/plugins/cache/planwright.' >> $GLOBAL_MD" "names the plugin cache path"
 expect_fail cache-path-in-root \
   "echo 'planwright lives under ~/.claude/plugins/cache/planwright.' >> CLAUDE.md" "names the plugin cache path"
 
@@ -526,7 +786,7 @@ id_setup() {
   cp "$ROOT/specs/pair-flow/requirements.md" "$tmp/specs/pair-flow/"
   printf '# synthetic\nzqx-synthetic-project\n' > "$tmp/identifiers"
 }
-for planted in "$(md peer-review)" "$SHARED/github.md" roles/claude/files/CLAUDE.md CLAUDE.md \
+for planted in "$(md peer-review)" "$SHARED/github.md" "$GLOBAL_MD" CLAUDE.md \
     specs/claude-instructions/requirements.md; do
   id_setup
   printf 'Seen in the zqx-synthetic-project repo.\n' >> "$tmp/$planted"

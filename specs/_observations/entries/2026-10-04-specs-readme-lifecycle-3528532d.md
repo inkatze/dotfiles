@@ -1,0 +1,1 @@
+- 2026-10-04 [dotfiles] specs/README.md still lists the spec lifecycle as Draft|Active|Done (no Ready) and has no claude-instructions row; planwright executes Ready and Active specs.

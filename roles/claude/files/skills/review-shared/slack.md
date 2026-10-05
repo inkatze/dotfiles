@@ -6,13 +6,14 @@ decides when to send and what to say; the mechanics are these.
 **Optional, and never blocking.** If no Slack MCP server is available, or a
 recipient cannot be resolved, say so once in the terminal and carry on. A
 notification failure never aborts, retry-loops or delays the review: the
-review is the deliverable, the message is a courtesy. Default to a DM.
+review is the deliverable, the message is a courtesy. Default to a DM unless
+I say otherwise for that run.
 
 ## Resolve the GitHub login to a Slack user
 
 1. **Remembered first.** Consult `~/.config/dotfiles/slack-users.json`
    (`{"<github-login>": "<slack-user-id>"}`, mode 0600, never tracked: it holds
-   other people's identities).
+   other people's identities, and this repo is public).
 2. **By email.** The profile email (`gh api users/<login> --jq .email`), else
    the author email on their commits in the PR (`gh pr view <n> --json
    commits`), looked up through the Slack MCP's user-by-email call. Emails
@@ -65,7 +66,8 @@ A recipient is never guessed.
 
 ## Confirm before sending
 
-Show the resolved recipient and the exact text, and wait for a yes:
+Show the resolved recipient and the exact text, and wait for a yes, unless a
+go-ahead I gave for this run covers the message:
 
 ```
 notify <name> (@<handle>)? [y/N]
@@ -75,8 +77,8 @@ notify <name> (@<handle>)? [y/N]
 When the resolution came through a commit email rather than the profile email
 or the remembered file, say so in the prompt (`@<handle>, via commit email`):
 commit emails are author-controlled. Anything other than a yes sends nothing
-and the review carries on. With no operator present, draft the message and
-its recipient into the handoff instead of sending it.
+and the review carries on. With no operator present, draft a message no
+go-ahead covers, and its recipient, into the handoff instead of sending it.
 
 ## Signing
 
