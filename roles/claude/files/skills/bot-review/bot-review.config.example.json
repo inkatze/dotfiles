@@ -12,6 +12,10 @@
       "build_id_regex": "Review ID: ([a-zA-Z0-9_-]+)",
       "repo_config_path": ".example-bot.yaml",
       "reply_suffix": "[example-bot-ack]",
+      "full_review_comment": "@example-review-bot full review",
+      "rereview_comment": "@example-review-bot review",
+      "quota_refusal_regex": "(review|usage) limit|quota (exceeded|reached)",
+      "request_notes": "a metered vendor counts a full review against the whole diff and an incremental one only against changes since its last completed review: full_review_comment is posted for a PR's first pass only, rereview_comment for every request after it; set quota_refusal_regex to the vendor's real refusal wording so a quota stop is named, not read as silence",
       "cli": {
         "binary": "example-bot-cli",
         "install_command": "npm install -g @example/bot-cli",
