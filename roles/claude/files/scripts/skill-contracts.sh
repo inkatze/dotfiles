@@ -773,6 +773,9 @@ egress_checks=(
 )
 require_phrases "$SKILLS/panel-review/reviewer-backend.md" "reviewer-backend containment line" "${reviewer_backend_checks[@]}"
 require_phrases "$(skill_md panel-review)" "reviewer-backend consent line" "${panel_consent_checks[@]}"
+require_phrases "$(skill_md panel-review)" "default-backend consent line" \
+  '7. **Egress consent, once per repo (`codex` and `gemini`).**' \
+  'so before its first upload it asks per [egress.md](../review-shared/egress.md), with key `<owner>/<repo>` and the backend as value'
 require_phrases "$SHARED/egress.md" "egress-consent line" "${egress_checks[@]}"
 # The consent lock is released after the write whether or not it succeeded,
 # so the rmdir sits after the failure branch's fi, not inside it.

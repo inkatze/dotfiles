@@ -236,6 +236,8 @@ reviewer_drift reviewer-backend-tree-change-not-fatal '[ -z "$tree_msg" ] || { e
 reviewer_drift reviewer-backend-findings-escape-output \
   'case "$(realpath "$src")" in "$(realpath "$out")"/*) ;;' 'case "$src" in *) ;;'
 
+expect_fail panel-egress-consent-dropped \
+  "perl -ni -e 'print unless /^7\\. \\*\\*Egress consent, once per repo \\(/' $(md panel-review)" "default-backend consent line"
 reviewer_drift reviewer-backend-no-egress-consent \
   '6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).**' '6. **Notes.**'
 reviewer_drift reviewer-backend-consent-diff-only \
