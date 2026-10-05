@@ -46,22 +46,22 @@ near-empty. See [docs/claude-config.md](docs/claude-config.md).
 
 1. Create `roles/claude/files/skills/<name>/SKILL.md` with front matter
    (`name`, `description`, and `disable-model-invocation: true` for a
-   slash-invoked review skill). Mechanics more than one skill uses go in
-   `roles/claude/files/skills/review-shared/`, linked by relative path.
+   review skill without a `--nested` mode). Mechanics more than one skill uses
+   go in `roles/claude/files/skills/review-shared/`, linked by relative path.
 2. A review skill also joins `SKILL_NAMES` and `expected_hint` in
    `roles/claude/files/scripts/skill-contracts.sh`, with a fixture.
 3. Declare its word budget (below), commit, and run Ansible from the main
    checkout: the links point into whichever checkout Ansible ran from. Verify
    in a fresh session.
 
-A new tracked directory under `roles/claude/files/` other than a skill needs
-a matching symlink task in `roles/claude/tasks/main.yml`.
+Any new tracked directory under `roles/claude/files/` except a skill or
+`planwright/` needs a symlink task in `roles/claude/tasks/main.yml`.
 
 ## Contract and budget guards
 
 - `roles/claude/files/scripts/skill-contracts.sh` literal-matches
-  load-bearing sentences in the review skills and the global `CLAUDE.md`, and
-  re-runs when it is edited. A reword that trips it means the contract moved:
+  load-bearing sentences in the review skills and the global `CLAUDE.md`,
+  holds the rendered-file templates to their rules, and re-runs when edited. A reword that trips it means the contract moved:
   update the checker and the fixture that plants that drift, in one commit.
 - `roles/claude/files/scripts/instruction-budget.sh` holds per-surface word
   budgets. A change that grows or adds a surface re-derives its row there, in
@@ -126,15 +126,15 @@ row names a writer. Keep machine-specific values here, never in tracked files.
 | `work-shell-init` | `roles/fish/files/work-init.fish` | Path of a second config manager's shell init to source |
 | `slack-users.json` | `roles/claude/files/skills/review-shared/slack.md` | GitHub login to Slack user ID (0600), written by the skills |
 | `code-review-egress.json` | `roles/claude/files/skills/review-shared/egress.md` | Per-repo (and per-reviewer) upload consents (0600), written by the skills |
-| `bot-review.json` | the `/bot-review` skill, `/panel-review`'s `reviewer:<name>` backend | Named third-party reviewers; example at `roles/claude/files/skills/bot-review/bot-review.config.example.json` (0600) |
+| `bot-review.json` | the `/bot-review` skill, `/panel-review`'s `reviewer:<name>` backend | Named third-party reviewers, one schema (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/bot-review/bot-review.json.tpl` |
+| `sibling-repos.json` | nothing yet; `/code-review` and `/panel-review` gain the reader | Consuming repository to its producers' clone paths (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/review-shared/sibling-repos.json.tpl` |
 | `private-identifiers` | `scripts/gitleaks-identifier-rules.sh`, `roles/claude/files/scripts/identifier-check.sh` | Names that must never reach a committed file |
 | `claude-instructions-inventory/` | the `specs/claude-instructions` tasks, by hand | Dated instruction-surface audit (directory 0700, files 0600) |
 | `review/` | `roles/claude/files/scripts/review-state.sh`, through `roles/claude/files/skills/review-shared/state.md` | Lock root for the review skills: writer locks, session registry, inboxes (directory 0700, created by the helper) |
 
 Service-account items live in the `Dotfiles Service Account` vault (service
-accounts cannot read Personal or Private); moving an item there reassigns its
-id. See [docs/machine-local-files.md](docs/machine-local-files.md) for the why
-and the rotation procedure.
+accounts cannot read Personal or Private); moving one there reassigns its id.
+[docs/machine-local-files.md](docs/machine-local-files.md) has the rest.
 
 ## Identifier check
 

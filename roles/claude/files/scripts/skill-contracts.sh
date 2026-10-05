@@ -146,15 +146,62 @@ if command -v jq >/dev/null 2>&1; then
     [ -e "$f" ] || continue
     jq empty "$f" >/dev/null 2>&1 || err "$f is not valid JSON"
   done
+  # The schema's template mode (review_template_errors); see config-schema.jq
+  # for what it requires.
+  review_tpl="$SKILLS/bot-review/bot-review.json.tpl"
+  if [ ! -f "$review_tpl" ]; then
+    err "$review_tpl does not exist"
+  elif ! tpl_errors="$(jq -r -s -L "$SKILLS/bot-review" 'include "config-schema";
+      if length != 1 then "template: must hold exactly one JSON document"
+      else .[0] | review_template_errors end' "$review_tpl" 2>&1)"; then
+    err "$review_tpl could not be checked: $tpl_errors"
+  else
+    while IFS= read -r line; do
+      [ -z "$line" ] || err "$review_tpl: $line"
+    done <<< "$tpl_errors"
+  fi
+  # The other two templates commit no values either: a literal there would
+  # publish a private repository name or push destination.
+  sibling_tpl="$SHARED/sibling-repos.json.tpl"
+  if [ ! -f "$sibling_tpl" ]; then
+    err "$sibling_tpl does not exist"
+  elif ! tpl_errors="$(jq -r -s -L "$SKILLS/bot-review" 'include "config-schema";
+      if length != 1 then "must hold exactly one JSON document" else .[0] |
+      (if .version == 1 then empty else "version must be 1" end),
+      ((keys - ["version", "repos"])[] | "unknown top-level field \(.)"),
+      (if (.repos | type) == "string" and (.repos | test(op_reference))
+          and (.repos | capture(op_reference).j != null) then empty
+       else "repos: not a | json op:// reference" end) end' "$sibling_tpl" 2>&1)"; then
+    err "$sibling_tpl could not be checked: $tpl_errors"
+  else
+    while IFS= read -r line; do
+      [ -z "$line" ] || err "$sibling_tpl: $line"
+    done <<< "$tpl_errors"
+  fi
+  overlay_tpl="roles/claude/files/planwright/planwright.yml.tpl"
+  if [ ! -f "$overlay_tpl" ]; then
+    err "$overlay_tpl does not exist"
+  elif ! tpl_errors="$(jq -R -r -L "$SKILLS/bot-review" 'include "config-schema";
+      input_line_number as $n
+      | select(test("^(#.*|---)?$") | not)
+      | if test("^steps_") then "line \($n) sets a step list"
+        elif test("^[a-z][a-z0-9_]*: " + op_reference_inline + "$") then empty
+        else "line \($n) is not a key: <op:// reference> line" end' "$overlay_tpl" 2>&1)"; then
+    err "$overlay_tpl could not be checked: $tpl_errors"
+  else
+    while IFS= read -r line; do
+      [ -z "$line" ] || err "$overlay_tpl: $line"
+    done <<< "$tpl_errors"
+  fi
 else
-  err "jq is required to validate $SKILLS/*/*.json but is not on PATH"
+  err "jq is required to validate $SKILLS/*/*.json and the templates but is not on PATH"
 fi
 
 for name in "${SKILL_NAMES[@]}"; do
   [ -f "$(skill_md "$name")" ] || err "$(skill_md "$name") does not exist"
 done
 
-# --- Slash-invoked only, with fixed names and flags ---
+# --- Fixed names and flags; slash-only unless a --nested mode needs the Skill tool ---
 # Each skill's argument-hint. peer-review takes no arguments, so it has none.
 expected_hint() {
   case "$1" in
@@ -173,8 +220,23 @@ for name in "${SKILL_NAMES[@]}"; do
   front="$(awk 'NR==1 { if ($0 != "---") exit; next } $0 == "---" { closed = 1; exit } { buf = buf $0 "\n" } END { if (closed) printf "%s", buf }' "$f")"
   [ -n "$front" ] || { err "$f has no front matter"; continue; }
   grep -qx "name: $name" <<< "$front" || err "$f front matter does not name the skill '$name'"
-  grep -qx 'disable-model-invocation: true' <<< "$front" || err "$f front matter lacks disable-model-invocation: true"
   want="$(expected_hint "$name")"
+  case "$want" in
+    *--nested*)
+      ! grep -q '^disable-model-invocation:' <<< "$front" \
+        || err "$f front matter sets disable-model-invocation, but $name has a --nested mode that parent skills invoke through the Skill tool"
+      # The description is always in context, so it is what keeps the model
+      # from starting the skill unasked; a copy in the body does not count.
+      sentence="Runs only when the operator types \`/$name\` or a parent skill calls it; never on the model's own initiative, and a plain-language request is answered by naming the command to type."
+      desc="$(sed -n 's/^description: *//p' <<< "$front")"
+      desc="${desc#\"}"; desc="${desc%\"}"
+      [[ "$desc" == *" $sentence" ]] || err "$f front-matter description does not end with: \"$sentence\""
+      # The read above sees one line; an indented continuation would extend
+      # the YAML value past the sentence it matched.
+      ! awk '/^description:/ { d = 1; next } d && /^[^[:space:]]/ { exit } d && /[^[:space:]]/ { c = 1; exit } END { exit !c }' <<< "$front" \
+        || err "$f front-matter description continues onto another line; keep it on one line so its ending can be checked" ;;
+    *) grep -qx 'disable-model-invocation: true' <<< "$front" || err "$f front matter lacks disable-model-invocation: true" ;;
+  esac
   hint_lines="$(grep -c '^argument-hint:' <<< "$front" || true)"
   if [ -z "$want" ]; then
     [ "$hint_lines" -eq 0 ] || err "$f has an argument-hint, but $name takes no arguments"
@@ -648,11 +710,26 @@ require_phrases "$(skill_md copilot-review)" "mark-ready safety sentence" \
   "This confirmation-gated ready-flip is the only PR-lifecycle action this loop takes, and only on this exit path." \
   "Never automatically, never on a diminishing-returns/stop-condition/iteration-cap exit, and never for create or merge"
 
+# The review config's readers refuse a version they do not know.
+require_normalized "$(skill_md bot-review)" "version refusal" \
+  "Its \`version\` must be \`1\`: on any other value, or none, stop, naming the file and the version it carries."
+require_normalized "$(skill_md panel-review)" "version refusal" \
+  "on another version, or none, stop, naming the file and the version it carries."
+
 # bot-review permits one confirmation-gated label add and forbids the rest.
 require_phrases "$(skill_md bot-review)" "safety sentence" \
   "Never apply the code change in this bucket while nested." \
   "force-push, push to a protected branch, mark the PR ready, or merge" \
   "Do not add the opt-in label speculatively"
+
+# A metered hosted reviewer: full review once per PR, and a quota refusal is a
+# named stop rather than silence or a retry.
+require_phrases "$(skill_md bot-review)" "metering sentence" \
+  "never substitute the full comment for a missing incremental one" \
+  "never retried, never reported as **No response**" \
+  "\`full_review_comment\` only for the PR's **first pass**" \
+  "\`rereview_comment\` for **every request after the first**" \
+  "| Vendor quota | The reviewer answered with a quota or plan refusal"
 
 # panel-review's reviewer:<name> backend runs a vendor CLI from the repo root.
 # Each anchor pins a guard itself, not only its message.
@@ -782,6 +859,9 @@ egress_checks=(
 )
 require_phrases "$SKILLS/panel-review/reviewer-backend.md" "reviewer-backend containment line" "${reviewer_backend_checks[@]}"
 require_phrases "$(skill_md panel-review)" "reviewer-backend consent line" "${panel_consent_checks[@]}"
+require_phrases "$(skill_md panel-review)" "default-backend consent line" \
+  '7. **Egress consent, once per repo (`codex` and `gemini`).**' \
+  'so before its first upload it asks per [egress.md](../review-shared/egress.md), with key `<owner>/<repo>` and the backend as value'
 require_phrases "$SHARED/egress.md" "egress-consent line" "${egress_checks[@]}"
 # The consent lock is released after the write whether or not it succeeded,
 # so the rmdir sits after the failure branch's fi, not inside it.

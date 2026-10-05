@@ -22,7 +22,7 @@ tmp=""
 setup() {
   tmp="$(mktemp -d -t skill-contracts-test.XXXXXX)"
   mkdir -p "$tmp/roles/claude/files/scripts"
-  cp -R "$ROOT/roles/claude/files/skills" "$tmp/roles/claude/files/"
+  cp -R "$ROOT/roles/claude/files/skills" "$ROOT/roles/claude/files/planwright" "$tmp/roles/claude/files/"
   cp "$ROOT/roles/claude/files/CLAUDE.md" "$tmp/roles/claude/files/"
   cp "$ROOT/CLAUDE.md" "$tmp/"
   cp "$ROOT/roles/claude/files/scripts/skill-contracts.sh" "$tmp/roles/claude/files/scripts/"
@@ -236,6 +236,8 @@ reviewer_drift reviewer-backend-tree-change-not-fatal '[ -z "$tree_msg" ] || { e
 reviewer_drift reviewer-backend-findings-escape-output \
   'case "$(realpath "$src")" in "$(realpath "$out")"/*) ;;' 'case "$src" in *) ;;'
 
+expect_fail panel-egress-consent-dropped \
+  "perl -ni -e 'print unless /^7\\. \\*\\*Egress consent, once per repo \\(/' $(md panel-review)" "default-backend consent line"
 reviewer_drift reviewer-backend-no-egress-consent \
   '6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).**' '6. **Notes.**'
 reviewer_drift reviewer-backend-consent-diff-only \
@@ -298,7 +300,7 @@ reviewer_drift reviewer-backend-consent-release-on-failure-only \
 reviewer_drift reviewer-backend-nested-skips-preflight \
   'Run every "## Pre-flight" item above before entering the loop' 'Run "## Pre-flight" items 1-7 above before entering the loop'
 
-# --- JSON example configs ---
+# --- JSON files under the skills tree ---
 # A missing jq must be reported as missing, not as every config being invalid.
 setup
 nojq="$(mktemp -d)"
@@ -315,16 +317,89 @@ fi
 rm -rf "$nojq"
 teardown
 
-expect_fail example-config-json \
-  "echo 'not json' >> $SKILLS/bot-review/bot-review.config.example.json" "is not valid JSON"
+expect_fail skills-tree-json \
+  "echo 'not json' > $SKILLS/bot-review/planted.json" "is not valid JSON"
 
-# --- Slash-invoked only, names and flags kept (REQ-C1.11) ---
+# --- The review config template (REQ-A1.2, REQ-A1.3) ---
+expect_fail review-template-required-key \
+  "perl -ni -e 'print unless /cubic_opt_out_label/' $SKILLS/bot-review/bot-review.json.tpl" \
+  "reviewers.cubic: missing required field opt_out_label"
+expect_fail review-template-literal-value \
+  "perl -pi -e 's|\\{\\{ op://__OP_VAULT__/__OP_ITEM__/copilot_login_pattern \\}\\}|some-bot|' $SKILLS/bot-review/bot-review.json.tpl" \
+  "reviewers.copilot.login_pattern: not an op:// reference"
+expect_fail review-template-default \
+  "perl -pi -e 's/\"default\": \"cubic\"/\"default\": \"copilot\"/' $SKILLS/bot-review/bot-review.json.tpl" \
+  "template: default must name the cubic entry"
+expect_fail review-template-unparseable \
+  "echo '}' >> $SKILLS/bot-review/bot-review.json.tpl" "could not be checked"
+expect_fail review-template-missing \
+  "rm $SKILLS/bot-review/bot-review.json.tpl" "bot-review.json.tpl does not exist"
+expect_fail review-template-no-copilot \
+  "jq 'del(.reviewers.copilot)' $SKILLS/bot-review/bot-review.json.tpl > x && mv x $SKILLS/bot-review/bot-review.json.tpl" \
+  "template: no copilot entry"
+expect_fail review-template-version \
+  "perl -pi -e 's/\"version\": 1/\"version\": 2/' $SKILLS/bot-review/bot-review.json.tpl" \
+  "template: version must be 1"
+expect_fail review-template-nested-literal \
+  "perl -pi -e 's|\\{\\{ op://__OP_VAULT__/__OP_ITEM__/cubic_rerequest_command \\}\\}|@bot review|' $SKILLS/bot-review/bot-review.json.tpl" \
+  "reviewers.cubic.rerequest.command: not an op:// reference"
+expect_fail review-template-no-method \
+  "perl -ni -e 'print unless /cubic_rerequest_method/' $SKILLS/bot-review/bot-review.json.tpl" \
+  "reviewers.cubic.rerequest: needs a method reference"
+expect_fail sibling-template-literal \
+  "jq '.repos = {\"o/a\": {\"o/b\": \"/src/b\"}}' $SHARED/sibling-repos.json.tpl > x && mv x $SHARED/sibling-repos.json.tpl" \
+  "repos: not a | json op:// reference"
+expect_fail review-template-literal-rereview \
+  "perl -pi -e 's|\\{\\{ op://__OP_VAULT__/__OP_ITEM__/cubic_rereview_comment \\}\\}|@bot review|' $SKILLS/bot-review/bot-review.json.tpl" \
+  "reviewers.cubic.rereview_comment: not an op:// reference"
+expect_fail review-template-json-on-string \
+  "perl -pi -e 's|copilot_opt_out_label \\}\\}|copilot_opt_out_label \\| json }}|' $SKILLS/bot-review/bot-review.json.tpl" \
+  "a list takes a | json reference and a string a plain one"
+expect_fail review-template-two-documents \
+  "cp $SKILLS/bot-review/bot-review.json.tpl x && cat x >> $SKILLS/bot-review/bot-review.json.tpl" \
+  "template: must hold exactly one JSON document"
+expect_fail sibling-template-plain-reference \
+  "perl -pi -e 's/ \\| json \\}\\}/ }}/' $SHARED/sibling-repos.json.tpl" \
+  "repos: not a | json op:// reference"
+expect_fail sibling-template-two-documents \
+  "cp $SHARED/sibling-repos.json.tpl x && cat x >> $SHARED/sibling-repos.json.tpl" \
+  "must hold exactly one JSON document"
+expect_fail sibling-template-unknown-field \
+  "jq '.extra = 1' $SHARED/sibling-repos.json.tpl > x && mv x $SHARED/sibling-repos.json.tpl" \
+  "unknown top-level field extra"
+expect_fail sibling-template-version \
+  "perl -pi -e 's/\"version\": 1/\"version\": 2/' $SHARED/sibling-repos.json.tpl" "version must be 1"
+expect_fail sibling-template-missing \
+  "rm $SHARED/sibling-repos.json.tpl" "sibling-repos.json.tpl does not exist"
+expect_fail overlay-template-missing \
+  "rm roles/claude/files/planwright/planwright.yml.tpl" "planwright.yml.tpl does not exist"
+expect_pass overlay-template-document-marker \
+  "perl -0pi -e 's/^/---\\n/' roles/claude/files/planwright/planwright.yml.tpl"
+expect_fail overlay-template-literal \
+  "echo 'flight_pr_hosts: [github.com/someone]' >> roles/claude/files/planwright/planwright.yml.tpl" \
+  "is not a key: <op:// reference> line"
+expect_fail overlay-template-step-list \
+  "echo 'steps_convergence: {{ op://__OP_VAULT__/__OP_ITEM__/steps }}' >> roles/claude/files/planwright/planwright.yml.tpl" \
+  "sets a step list"
+expect_fail version-refusal-bot-review \
+  "perl -pi -e 's/or none, stop, naming the file/or none, carry on/' $(md bot-review)" "missing expected version refusal"
+expect_fail version-refusal-panel-review \
+  "perl -pi -e 's/or none, stop, naming the file/or none, carry on/' $(md panel-review)" "missing expected version refusal"
+
+# --- Slash-only unless nested, names and flags kept (REQ-C1.12) ---
 expect_fail front-matter-model-invocation \
-  "perl -ni -e 'print unless /^disable-model-invocation: true\$/' $(md panel-review)" "lacks disable-model-invocation: true"
+  "perl -ni -e 'print unless /^disable-model-invocation: true\$/' $(md peer-review)" "lacks disable-model-invocation: true"
+expect_fail front-matter-nested-hidden \
+  "perl -pi -e 's/^(name: panel-review)\$/\$1\\ndisable-model-invocation: true/' $(md panel-review)" "has a --nested mode"
 expect_fail front-matter-flag-dropped \
   "perl -pi -e 's/ \\[--dry-run\\]//' $(md bot-review)" "argument-hint is"
 expect_fail front-matter-renamed \
   "perl -pi -e 's/^name: peer-review\$/name: peer-reviews/' $(md peer-review)" "does not name the skill"
+export SENTENCE='Runs only when the operator types `/copilot-review` or a parent skill calls it; never on the model'"'"'s own initiative, and a plain-language request is answered by naming the command to type.'
+expect_fail description-sentence-moved \
+  "perl -0pi -e 's/ \\Q\$ENV{SENTENCE}\\E\$//m; \$_ .= \"\\n\$ENV{SENTENCE}\\n\"' $(md copilot-review)" "description does not end with"
+expect_fail description-continued \
+  "perl -pi -e 's/^(description: .*)\$/\$1\\n  Also handles more./' $(md panel-review)" "description continues onto another line"
 
 # --- One source of review doctrine (REQ-B1.2, REQ-B1.3, REQ-B1.6) ---
 expect_fail doctrine-pointer-missing \
@@ -488,6 +563,16 @@ expect_fail bot-review-safety-never-mutate \
   "perl -pi -e 's/force-push, push to a protected branch, mark the PR ready, or merge/land whatever it likes/' $(md bot-review)" "safety sentence"
 expect_fail bot-review-safety-no-speculative-label \
   "perl -pi -e 's/Do not add the opt-in label speculatively//' $(md bot-review)" "safety sentence"
+expect_fail bot-review-metering-full-substitute \
+  "perl -pi -e 's/never substitute the full comment for a missing incremental one/fall back to the full comment/' $(md bot-review)" "metering sentence"
+expect_fail bot-review-metering-quota-retry \
+  "perl -pi -e 's/never retried, never reported as \\*\\*No response\\*\\*/retried after the poll window/' $(md bot-review)" "metering sentence"
+expect_fail bot-review-metering-first-pass \
+  "perl -pi -e 's/only for the PR.s \\*\\*first pass\\*\\*/for every request/' $(md bot-review)" "metering sentence"
+expect_fail bot-review-metering-later-requests \
+  "perl -pi -e 's/for \\*\\*every request after the first\\*\\*/only when asked/' $(md bot-review)" "metering sentence"
+expect_fail bot-review-metering-quota-row \
+  "perl -pi -e 's/^\\| Vendor quota \\|.*\\n//' $(md bot-review)" "metering sentence"
 expect_fail severity-tier \
   "perl -pi -e 's/\\*\\*Nits\\*\\*/**Notes**/g' $(md code-review)" "missing expected severity tier"
 expect_fail severity-order \
@@ -832,13 +917,15 @@ id_setup() {
   setup
   cp "$ROOT/CLAUDE.md" "$tmp/"
   cp -R "$ROOT/docs" "$tmp/"
-  mkdir -p "$tmp/specs/claude-instructions" "$tmp/specs/pair-flow"
+  mkdir -p "$tmp/specs/claude-instructions" "$tmp/specs/review-skills" "$tmp/specs/pair-flow"
   cp "$ROOT/specs/claude-instructions/requirements.md" "$tmp/specs/claude-instructions/"
+  cp "$ROOT/specs/review-skills/requirements.md" "$tmp/specs/review-skills/"
   cp "$ROOT/specs/pair-flow/requirements.md" "$tmp/specs/pair-flow/"
   printf '# synthetic\nzqx-synthetic-project\n' > "$tmp/identifiers"
 }
 for planted in "$(md peer-review)" "$SHARED/github.md" "$GLOBAL_MD" CLAUDE.md \
-    specs/claude-instructions/requirements.md docs/claude-hooks.md; do
+    specs/claude-instructions/requirements.md docs/claude-hooks.md \
+    roles/claude/files/planwright/planwright.yml.tpl specs/review-skills/requirements.md; do
   id_setup
   printf 'Seen in the zqx-synthetic-project repo.\n' >> "$tmp/$planted"
   if out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" 2>&1)"; then

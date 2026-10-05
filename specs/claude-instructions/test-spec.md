@@ -1,7 +1,7 @@
 # Claude Instructions Audit — Test Spec
 
 **Status:** Ready
-**Last reviewed:** 2026-09-26
+**Last reviewed:** 2026-10-05
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -44,6 +44,8 @@ with its base") and expects a failure.
 The contract checker pins the exception clause and the operator-confirmed
 clause; the fixture suite plants a version of the never-flip rule without
 the exception and expects a failure.
+**Superseded-by: REQ-A1.6** (2026-10-05); the exception and the
+operator-confirmed clause are pinned under REQ-A1.6's entry.
 
 ### REQ-A1.4 — planwright items carried upstream [manual]
 
@@ -54,6 +56,30 @@ convergence-merge items; verified when Task 6's done-when is checked.
 
 The contract checker pins the hook-denial sentence in the user-global file;
 the fixture removes it and expects a failure.
+
+### REQ-A1.6 — Ready flip scoped by ownership [test + manual]
+
+The contract checker pins, in the user-global file, the solo clause (the
+last session of the cadence flips itself once the cadence has run, CI is
+green and the head is mergeable, re-checked immediately before the flip and
+stated in the handoff), the work-and-collaborative clause (operator-requested,
+an unknown owner counts as a work repository, `ready_flip_policy: human`),
+the kickoff exception and the operator-confirmed clause, and counts the solo
+clause exactly once. Fixtures, each expecting a failure:
+`ready-flip-collaborative-dropped` removes the work-and-collaborative clause;
+`ready-flip-everywhere` strikes the ownership qualifier from the solo clause;
+`ready-flip-recheck-dropped` removes the re-check before the flip;
+`kickoff-exception-dropped` removes the exception (an existing fixture,
+retargeted); `ready-flip-scope-duplicated` appends a second copy of the solo
+clause. The checker also pins in `/copilot-review` that its convergence flip
+evaluates the REQ-A1.1 conditions and reports a ready-guard denial;
+`copilot-flip-conditions-dropped` removes that sentence. Manually, after
+merge and the main checkout fast-forwarded: a fresh session in this
+repository, asked who marks its pull request ready, answers the agent, once
+the review cadence has run, CI is green and the head is mergeable, citing
+the Pull Request Lifecycle section of the user-global file and not a memory
+entry; the same question in a repository whose `git log` shows a second
+human author answers the operator.
 
 ## REQ-B — One source of review doctrine
 
@@ -185,6 +211,31 @@ a fixture deletes each group's anchor and expects a failure.
 The checker asserts every SKILL.md front-matter sets
 `disable-model-invocation: true` and that each skill's documented flags
 match the list the checker holds; fixtures drop the key and a flag.
+**Superseded-by: REQ-C1.12** (2026-10-05).
+
+### REQ-C1.12 — Model invocation scoped by caller, names and flags kept [test + manual]
+
+The checker derives each skill's mode from the argument-hint it pins
+(`expected_hint`): a hint without `--nested` requires
+`disable-model-invocation: true`, a hint with it forbids any
+`disable-model-invocation` line; each skill's documented flags still match
+the checker's list. Fixtures, each expecting a failure:
+`front-matter-model-invocation` drops the key from a slash-only skill;
+`front-matter-nested-hidden` adds it back to a nested-mode skill;
+`front-matter-flag-dropped` drops a flag. The checker reads each
+model-invocable skill's front-matter `description:` value and requires it to
+end with REQ-C1.12's sentence; `description-sentence-moved` moves the
+sentence into the body and expects a failure. The checker pins
+`/panel-review`'s egress consent step for its default backends;
+`panel-egress-consent-dropped` removes it. Manually, after merge, the main
+checkout fast-forwarded and the Claude role run: a fresh session's skill
+listing names every nested-mode review skill and no slash-only one; a prose
+request to invoke a slash-only review skill through the Skill tool is
+refused by Claude Code; a prose request to invoke a nested-mode review skill
+with `--nested` through the Skill tool returns the skill body; a session
+asked only to "review this branch" starts no review skill; and
+`/panel-review` in a repository with no recorded consent asks before its
+first upload.
 
 ## REQ-D — Outbound messages to people
 
