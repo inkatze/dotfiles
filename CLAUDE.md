@@ -618,8 +618,8 @@ visibly rather than silently.
 
 The **rendered** ones are written by `scripts/op-render.sh` from the claude
 role (`roles/claude/tasks/op-render.yml`), behind the same `op` probe and CI
-guard as the Gemini key sync, so on a host with `op` a missing item fails its
-task rather than degrading; the rest are written by hand or by the skill that
+guard as the Gemini key sync, so on a host with `op` a missing item fails the
+play rather than degrading; the rest are written by hand or by the skill that
 reads them. planwright's adopter overlay config renders the same way outside
 this directory, to
 `~/.claude/plugins/data/planwright-planwright/overlay/planwright.yml`, from
@@ -659,8 +659,8 @@ files that already carry the identifiers permanently exempt — containment, not
 coverage, which is the half the successor bundle exists to avoid doing in
 isolation. `roles/claude/files/scripts/identifier-check.sh` reads the same file
 for a review-time report over the live instruction files and the templates
-rendered beside them, run by hand and by
-the contract fixture suite; it warns and never blocks a commit.
+rendered beside them, run by hand and by the contract fixture suite; it warns
+and never blocks a commit.
 
 `code-review-egress.json` is untracked for the same class of reason as
 `slack-users.json` below: it enumerates repos (employer and third-party

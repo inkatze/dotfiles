@@ -60,7 +60,9 @@
 # a failure stops the play, naming every render that failed.
 - name: Fail on any 1Password render that failed
   ansible.builtin.fail:
-    msg: "{{ claude_render_failed | map(attribute='stderr') | join(' | ') }}"
+    msg: >-
+      {% for r in claude_render_failed %}{{ r.stderr or r.msg | default('failed with no output') }}
+      {{- '' if loop.last else ' | ' }}{% endfor %}
   vars:
     claude_render_failed: >-
       {{ [claude_render_review_config, claude_render_sibling_map, claude_render_overlay_config]

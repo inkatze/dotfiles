@@ -56,10 +56,10 @@
 # ~/.config/dotfiles exists before this role runs: most files in it are written
 # by hand, and the claude role, which renders others there, runs later.
 # pushover-credentials is generated here, so this role creates the directory
-# too. On an established machine the bug never showed
-# up, because the directory already existed for the hand-written files; on a
-# fresh host the copy below dies with "Destination directory ... does not
-# exist" and takes the whole play with it.
+# too. On an established machine the bug never showed up, because the
+# directory already existed for the hand-written files; on a fresh host the
+# copy below dies with "Destination directory ... does not exist" and takes
+# the whole play with it.
 #
 # 0700 because this directory holds secrets -- this file, and on headless hosts
 # op-service-account-token. A machine where it already exists is left alone.

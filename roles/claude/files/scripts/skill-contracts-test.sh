@@ -356,12 +356,17 @@ expect_fail review-template-two-documents \
 expect_fail sibling-template-plain-reference \
   "perl -pi -e 's/ \\| json \\}\\}/ }}/' $SHARED/sibling-repos.json.tpl" \
   "repos: not a | json op:// reference"
+expect_fail sibling-template-two-documents \
+  "cp $SHARED/sibling-repos.json.tpl x && cat x >> $SHARED/sibling-repos.json.tpl" \
+  "must hold exactly one JSON document"
 expect_fail sibling-template-version \
   "perl -pi -e 's/\"version\": 1/\"version\": 2/' $SHARED/sibling-repos.json.tpl" "version must be 1"
 expect_fail sibling-template-missing \
   "rm $SHARED/sibling-repos.json.tpl" "sibling-repos.json.tpl does not exist"
 expect_fail overlay-template-missing \
   "rm roles/claude/files/planwright/planwright.yml.tpl" "planwright.yml.tpl does not exist"
+expect_pass overlay-template-document-marker \
+  "perl -0pi -e 's/^/---\\n/' roles/claude/files/planwright/planwright.yml.tpl"
 expect_fail overlay-template-literal \
   "echo 'flight_pr_hosts: [github.com/someone]' >> roles/claude/files/planwright/planwright.yml.tpl" \
   "is not a key: <op:// reference> line"
