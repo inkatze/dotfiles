@@ -29,9 +29,10 @@
 #   review-state.sh loop append --skill <s>                         (body on stdin)
 #   review-state.sh encode <segment>
 #
-# Exit status: 0 success or hit, 1 a miss / a held lock / not this session's
-# lock / no CI evidence / an inbox recipient whose process is gone, 2 an error. `evidence run` is the exception: it exits
-# with the wrapped command's own status once the command has run.
+# Exit status: 0 success or hit; 1 a miss, a held lock, not this session's
+# lock, no CI evidence, or an inbox recipient whose process is gone; 2 an
+# error. `evidence run` is the exception: it exits with the wrapped command's
+# own status once the command has run.
 #
 # Bash 3.2 compatible: the Macs run it under /bin/bash, which has no
 # inherit_errexit. So a function that can fail hands its result back in a
@@ -348,7 +349,7 @@ cmd_sessions() {
     owner_alive "$token" || continue
     # Read once: a registration removed by a concurrent unregister is skipped,
     # not an error.
-    j="$(jq -c . "$f" 2> /dev/null)" || continue
+    j="$(jq -c . "$f" 2> /dev/null)" || { [ -e "$f" ] || continue; die "$f is not valid JSON; refusing it"; }
     v="$(jq -r 'if type == "object" and has("version") then .version | tostring else "missing" end' <<< "$j")"
     [ "$v" = "$VERSION" ] || die "$f has unknown version '$v' (this helper reads version $VERSION); refusing it"
     printf '%s\n' "$j"
@@ -710,14 +711,15 @@ cmd_inbox() {
       rand_hex
       name="$(now)-$HEX.md"
       sent="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      body="$(mktemp "$box/.body.XXXXXX")" || die "cannot write in $box"
-      head -c "$((INBOX_CAP + 1))" > "$body" || { rm -f "$body"; die "cannot read the message"; }
-      cat > /dev/null || true
+      # Outside the inbox and removed on any exit, so a failed send leaves
+      # nothing behind. A writer past the cap gets SIGPIPE; the note says why.
+      body="$(mktemp -t review-state-body.XXXXXX)" || die "cannot create a scratch file"
+      CAPTURE="$body"; trap cleanup_capture EXIT
+      head -c "$((INBOX_CAP + 1))" > "$body" || die "cannot read the message"
       if [ "$(wc -c < "$body")" -gt "$INBOX_CAP" ]; then
         note "the message was cut at $INBOX_CAP bytes"
       fi
       { printf 'from: %s\nsent: %s\n\n' "$opt_from" "$sent"; head -c "$INBOX_CAP" "$body"; } | write_file "$box/$name"
-      rm -f "$body"
       if [ ! -e "$REG" ]; then
         rm -f "$box/$name"
         die "session $opt_to unregistered while the message was written; nothing delivered"
@@ -906,7 +908,7 @@ cmd_evidence() {
       # exec runs only a program, never one of this helper's functions or a
       # builtin, and in the caller's locale rather than this helper's C.
       ( if [ -n "$CALLER_LC_ALL_SET" ]; then export LC_ALL="$CALLER_LC_ALL"; else unset LC_ALL; fi
-        exec "${rest_args[@]}" ) < /dev/null 2>&1 | tee "$CAPTURE" \
+        exec -- "${rest_args[@]}" ) < /dev/null 2>&1 | tee "$CAPTURE" \
         || { pipe=("${PIPESTATUS[@]}"); rc="${pipe[0]}"; }
       ended="$(now)"
       # From here on a failure is reported, never allowed to replace the

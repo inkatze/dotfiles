@@ -9,10 +9,10 @@ arguments, one call per command.
 
 Operations that act as a session (`session-pid`, `register`, `unregister`,
 `lock acquire`, `lock release`, `lock handover`, `inbox read`) must run from
-the Claude Code session they act for: the helper finds that session process in
-its own ancestry and exits 2 anywhere else. `sessions`, `lock status` and `inbox send`
-run from anywhere. A session token identifies a session; it is printed to
-peers on purpose and is not a secret.
+the Claude Code session they act for: the helper finds that session process
+in its own ancestry and exits 2 anywhere else. `sessions`, `lock status` and
+`inbox send` run from anywhere. A session token identifies a session; it is
+printed to peers on purpose and is not a secret.
 
 **No skill writes any of this state with a shell redirect.** Content goes to
 the helper on stdin (`printf '%s\n' "$body" | ~/.claude/scripts/review-state.sh inbox send ...`)
@@ -57,12 +57,13 @@ later skill and iteration on that tree.
   reproduction never reads the record: validation pass 1 reproduces.
 - **Running.** `evidence run --command <key> [--tree <hash>] -- <argv>` runs the
   program (never a shell function or builtin), with stdin from `/dev/null`,
-  stderr merged into the captured output and the caller's locale, streams that output, records it,
-  and exits with the command's own status. It records nothing when the tree
-  afterwards differs from the key (a stale `--tree`, or a command that changed
-  the tree) or when its output could not be captured, and a failure to record
-  is reported without changing that exit status. An entry whose output file
-  has gone is dropped on lookup and reads as a miss.
+  stderr merged into the captured output and the caller's locale, streams
+  that output, records it, and exits with the command's own status. It
+  records nothing when the tree afterwards differs from the key (a stale
+  `--tree`, or a command that changed the tree) or when its output could not
+  be captured, and a failure to record is reported without changing that exit
+  status. An entry whose output file has gone is dropped on lookup and reads
+  as a miss.
 - **Full-suite key.** The repository's declared test task, as written in its
   task runner (for example `mise run test`). Local runs and CI evidence record
   under that same key, so either satisfies the other's lookup.
@@ -120,8 +121,8 @@ immediately after. It replaces the per-skill same-PR lock in
   A permission error on the probe reads as alive.
 - **Reclaim.** The reclaimer removes the dead holder's inbox files, read and
   unread, and its registration with the lock, then prints a notice naming the
-  holder and those files. Every other registration whose owner is gone is pruned the
-  same way, as is any inbox with no registration.
+  holder and those files. Every other registration whose owner is gone is
+  pruned the same way, as is any inbox with no registration.
 - **Acquire.** `lock acquire --session <token> --repo <owner>/<repo> (--pr <n> |
   --branch <b>) [--wait <seconds>]` prints the lock token and exits 0. While
   another session holds it, it exits 1 and prints the holder record, whose
