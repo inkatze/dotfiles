@@ -556,7 +556,7 @@ expect_fail signoff-shared-missing \
 
 # --- The user-global file ---
 
-# Ready flips (REQ-A1.1, REQ-A1.2, REQ-A1.3, REQ-A1.5)
+# Ready flips (REQ-A1.1, REQ-A1.2, REQ-A1.5, REQ-A1.6)
 expect_fail ready-flip-base-current \
   "perl -0pi -e 's/CI is green and the review/the branch current with its base, CI is green and the review/' $GLOBAL_MD" "forbidden currency condition"
 expect_fail ready-flip-sync-ritual \
@@ -566,11 +566,24 @@ expect_fail ready-flip-cadence-dropped \
 expect_fail ready-flip-unknown-dropped \
   "perl -0pi -e 's/, including a mergeability GitHub still\\s+reports as \`UNKNOWN\` after one re-query a few seconds later//' $GLOBAL_MD" "ready-flip sentence"
 expect_pass ready-flip-reflow \
-  "perl -0pi -e 's/once it is mergeable/once it is\\nmergeable/' $GLOBAL_MD"
-expect_fail kickoff-exception-dropped \
-  "perl -0pi -e 's/, with one exception: the spec PR\\s+after a signed-off kickoff, which planwright marks ready by configuration\\././' $GLOBAL_MD" "kickoff-flip exception"
-expect_fail operator-confirmed-clause-dropped \
-  "perl -0pi -e 's/is one I requested, not an exception/is fine/' $GLOBAL_MD" "kickoff-flip exception"
+  "perl -0pi -e 's/flip it once it is/flip it\\nonce it is/' $GLOBAL_MD"
+PIN="In a work or collaborative repo, marking a PR ready is mine to request" \
+  expect_fail ready-flip-collaborative-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN="In a solo repo," expect_fail ready-flip-everywhere 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN=", re-checking each condition immediately before the flip" \
+  expect_fail ready-flip-recheck-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN="a repository whose owner you cannot tell counts as one" \
+  expect_fail ready-flip-unknown-owner-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+expect_fail ready-flip-scope-duplicated \
+  "perl -0ne 'print \"\\n\$1\\n\" if /(In a solo repo, the session.*?in its reply or handoff\\.)/s' $GLOBAL_MD > solo.tmp && cat solo.tmp >> $GLOBAL_MD && rm solo.tmp" "states the solo ready flip 2 times"
+expect_fail ready-flip-never-rule-restored \
+  "printf '\\nNever flip a PR ready on your own initiative.\\n' >> $GLOBAL_MD" "forbidden never-flip rule"
+PIN="the spec PR after a signed-off kickoff, which planwright marks ready by configuration" \
+  expect_fail kickoff-exception-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "kickoff-flip exception"
+PIN="A flip I confirm when a run asks me is one I requested." \
+  expect_fail operator-confirmed-clause-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "kickoff-flip exception"
+expect_fail copilot-flip-conditions-dropped \
+  "perl -0pi -e 's/Before asking, and again on yes immediately before[^\\n]*?no bypass\\.//' $(md copilot-review)" "convergence-flip conditions"
 expect_fail hook-denial-dropped \
   "perl -0pi -e 's/report the denial to me and never work around it/sync and retry/' $GLOBAL_MD" "hook-denial sentence"
 
