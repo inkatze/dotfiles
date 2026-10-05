@@ -601,7 +601,7 @@ PIN="automated accounts are not another person" \
   expect_fail ready-flip-own-agents-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN="moving the rewrite scope or naming its kind does not move the flip" \
   expect_fail ready-flip-override-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
-PIN="; where one exists without it, say so, keep configured flips from marking a PR ready" \
+PIN="; where a config exists without it, say so, keep configured flips from marking a PR ready" \
   expect_fail ready-flip-policy-missing-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN=" and the repo's kind" \
   expect_fail ready-flip-kind-recheck-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"

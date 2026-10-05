@@ -106,8 +106,8 @@ and states the flip and the conditions it checked in its reply or handoff.
 
 In a work or collaborative repo, marking a PR ready is mine to request and
 yours to perform, and a planwright config there sets
-`ready_flip_policy: human`; where one exists without it, say so, keep
-configured flips from marking a PR ready and report one that already did. Once
+`ready_flip_policy: human`; where a config exists without it, say so, keep
+configured flips from marking a PR ready and report any that already did. Once
 I have asked, do not hand the flip back to me as a manual step.
 
 planwright's configured flips count as you flipping and follow the same scope,

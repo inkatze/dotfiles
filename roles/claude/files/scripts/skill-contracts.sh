@@ -556,7 +556,7 @@ if [ -n "$global_ok" ]; then
     "A **work repo** is owned by an employer or another organization; a repository whose owner you cannot tell counts as one." \
     "A **collaborative repo** is one I own where another person works; one where you cannot tell whether another person works counts as one." \
     "$SOLO_FLIP" \
-    "In a work or collaborative repo, marking a PR ready is mine to request and yours to perform, and a planwright config there sets \`ready_flip_policy: human\`; where one exists without it, say so, keep configured flips from marking a PR ready and report one that already did."
+    "In a work or collaborative repo, marking a PR ready is mine to request and yours to perform, and a planwright config there sets \`ready_flip_policy: human\`; where a config exists without it, say so, keep configured flips from marking a PR ready and report any that already did."
   occurrences "$global_norm" "the session that completes the last step of the review cadence" n
   [ "$n" -le 1 ] || err "$GLOBAL_MD states the solo ready flip $n times; state it once: \"$SOLO_FLIP\""
   forbid_normalized "$GLOBAL_MD" "never-flip rule" "Never flip a PR ready on your own initiative"
