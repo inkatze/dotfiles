@@ -160,9 +160,6 @@
     - inventory_hostname != 'work'
   tags: [claude, osx, linux]
 
-- name: Render machine-local files from 1Password
-  ansible.builtin.import_tasks: op-render.yml
-
 - name: Remove dangling pair-flow.yml symlink (repo-class retirement cleanup)
   ansible.builtin.file:
     path: "{{ ansible_facts.env.HOME }}/.claude/pair-flow.yml"
@@ -182,3 +179,8 @@
 
 - name: Install the planwright plugin
   ansible.builtin.import_tasks: planwright.yml
+
+# Last, unlike the Gemini key sync: a host with `op` but without one of these
+# items yet fails here, and nothing after it is skipped.
+- name: Render machine-local files from 1Password
+  ansible.builtin.import_tasks: op-render.yml
