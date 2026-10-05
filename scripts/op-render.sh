@@ -40,9 +40,9 @@ output="$3"
 
 [ -f "$template" ] && [ -r "$template" ] || fail "template not readable: $template"
 case "${template##*/}" in
-  bot-review.json.tpl) rule=review-config mode=json ;;
-  sibling-repos.json.tpl) rule=sibling-map mode=json ;;
-  planwright.yml.tpl) rule=planwright-overlay mode=text ;;
+  bot-review.json.tpl) rule=review-config format=json ;;
+  sibling-repos.json.tpl) rule=sibling-map format=json ;;
+  planwright.yml.tpl) rule=planwright-overlay format=text ;;
   *) fail "no validation rule for ${template##*/}; refusing to render it unchecked" ;;
 esac
 
@@ -52,10 +52,15 @@ case "$item" in
   '' | -* | *[!A-Za-z0-9._\ -]*) fail "item name '$item' is outside [A-Za-z0-9._ -]" ;;
 esac
 
-if [ -e "$output" ] || [ -L "$output" ]; then
-  [ -L "$output" ] && fail "refusing to write $output: it is a symlink"
-  [ -f "$output" ] || fail "refusing to write $output: not a regular file"
-fi
+
+check_output() {
+  if [ -e "$output" ] || [ -L "$output" ]; then
+    [ -L "$output" ] && fail "refusing to write $output: it is a symlink"
+    [ -f "$output" ] || fail "refusing to write $output: not a regular file"
+  fi
+  return 0
+}
+check_output
 
 self="$0"
 while [ -L "$self" ]; do
@@ -113,7 +118,7 @@ jq_or_fail "could not read item '$item'" -c '
     else $f | map({key: .label, value: (.value // "")}) | from_entries end' \
   "$work/item.json" >"$work/fields.json"
 
-if [ "$mode" = json ]; then
+if [ "$format" = json ]; then
   # Walks the template's own structure only, so a value parsed from a ` | json`
   # field is never pruned: an empty string inside it reaches the rule intact.
   jq_or_fail "could not render $template" -L "$schema_dir" --slurpfile m "$work/fields.json" '
@@ -194,16 +199,17 @@ case "$rule" in
          end)' "$work/rendered")" || fail "could not apply the sibling map rule"
     ;;
   planwright-overlay)
-    # planwright reads this layer as flat `key: value` YAML, and a step list is
+    # planwright reads this layer as flat `key: value` lines, and a step list is
     # a per-repository decision this machine-wide layer must never make.
     errors=""
     n=0
+    flat='^[a-z][a-z0-9_]*:([[:space:]]|$)'
     while IFS= read -r line || [ -n "$line" ]; do
       n=$((n + 1))
       case "$line" in
         '' | '#'* | '---') continue ;;
       esac
-      if ! printf '%s\n' "$line" | grep -Eq '^[a-z][a-z0-9_]*:([[:space:]]|$)'; then
+      if ! [[ "$line" =~ $flat ]]; then
         errors="${errors}line $n is not a flat key: value line"$'\n'
       elif [ "${line#steps_}" != "$line" ]; then
         errors="${errors}sets ${line%%:*}, a step list this layer must not carry"$'\n'
@@ -212,27 +218,27 @@ case "$rule" in
     ;;
 esac
 if [ -n "$errors" ]; then
-  fail "$output would not satisfy its rule: $(printf '%s' "$errors" | paste -sd ';' - | sed 's/;/; /g')"
+  printf '%s' "$errors" | sed 's/^/  - /' >&2
+  fail "$output would not satisfy its rule; the violations are listed above"
 fi
 
-if [ -f "$output" ] && cmp -s "$work/rendered" "$output"; then
-  if [ "$(mode_of "$output")" = 600 ]; then
-    echo "OK: $output already matches 1Password"
-    exit 0
-  fi
-  [ -L "$output" ] && fail "refusing to chmod $output: it is a symlink"
-  chmod 600 "$output"
-  echo "CHANGED: tightened $output to 0600"
+if [ -f "$output" ] && [ ! -L "$output" ] && cmp -s "$work/rendered" "$output" \
+  && [ "$(mode_of "$output")" = 600 ]; then
+  echo "OK: $output already matches 1Password"
   exit 0
 fi
 
 out_dir="$(dirname -- "$output")"
 (umask 077 && mkdir -p -- "$out_dir") || fail "could not create $out_dir"
 # Beside the output, so the rename is atomic: a reader sees the old file or the
-# new one, never a partial write.
+# new one, never a partial write. A mode-only fix goes this way too, so chmod
+# never follows a path that changed under it.
 tmp_out="$(mktemp "$out_dir/.${output##*/}.XXXXXX")" || fail "could not create a temp file in $out_dir"
-cat "$work/rendered" >"$tmp_out"
-chmod 600 "$tmp_out"
-mv -f -- "$tmp_out" "$output"
+cat "$work/rendered" >"$tmp_out" || fail "could not write $tmp_out"
+chmod 600 "$tmp_out" || fail "could not set the mode of $tmp_out"
+# Again, because the op call takes seconds: GNU mv would move the rendered file
+# into a directory that appeared at the output meanwhile.
+check_output
+mv -f -- "$tmp_out" "$output" || fail "could not move the rendered file into $output"
 tmp_out=""
 echo "CHANGED: rendered $output from 1Password (item '$item')"

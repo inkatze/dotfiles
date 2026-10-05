@@ -30,7 +30,7 @@ new_sandbox() {
   export OP_STUB_ITEM="$sandbox/item.json"
   export OP_STUB_ARGV="$sandbox/argv"
   export OP_STUB_ENV="$sandbox/env"
-  unset OP_STUB_FAIL
+  unset OP_STUB_FAIL OP_STUB_MKDIR
   out="$HOME/.config/dotfiles/bot-review.json"
   install_fake_op
 }
@@ -42,6 +42,8 @@ install_fake_op() {
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$OP_STUB_ARGV"
 printf '%s\n' "${OP_SERVICE_ACCOUNT_TOKEN:-}" >>"$OP_STUB_ENV"
+# Stands in for whatever else writes the output path while op is running.
+[ -z "${OP_STUB_MKDIR:-}" ] || mkdir -p "$OP_STUB_MKDIR"
 if [ -n "${OP_STUB_FAIL:-}" ]; then
   echo "[ERROR] stubbed op failure" >&2
   exit 1
@@ -375,6 +377,19 @@ expect_failed "carriage return in a text value" "flight_pr_hosts holds a line br
 printf '{"id":"stub"}\n' >"$OP_STUB_ITEM"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 expect_failed "op output with no fields" "holds no fields"
+
+echo "20. the output's type is checked again just before the rename"
+new_sandbox
+full_review_item
+export OP_STUB_MKDIR="$out"
+run "$review_tpl" dotfiles-bot-review "$out"
+unset OP_STUB_MKDIR
+expect_failed "a directory appearing at the output mid-run" "not a regular file"
+if find "$HOME/.config/dotfiles" -name '.bot-review.json.*' | grep -q .; then
+  ko "a temp file was left beside the output"
+else
+  ok "no temp file left beside the output"
+fi
 
 echo
 echo "op-render: $pass passed, $fail failed"
