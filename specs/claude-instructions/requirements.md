@@ -1,7 +1,7 @@
 # Claude Instructions Audit — Requirements
 
 **Status:** Ready
-**Last reviewed:** 2026-09-26
+**Last reviewed:** 2026-10-05
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -82,6 +82,7 @@ the machine-local inventory (Sources).)*
   A flip the operator confirms in that run (such as `/copilot-review
   --nested` asking at convergence) is operator-requested, not an exception.
   *(Cites: D-12, drafting-session decision (2026-09-24).)*
+  **Superseded-by: REQ-A1.6** (2026-10-05)
 - **REQ-A1.4** The planwright mechanisms that enforce a zero behind-count
   (the ready-guard hook) and merge the base into a worker branch at every
   convergence pass SHALL be carried to planwright as seed items rather than
@@ -92,6 +93,34 @@ the machine-local inventory (Sources).)*
   to the operator and never worked around (no sync to satisfy it, no
   bypass).
   *(Cites: D-3, kickoff decision (2026-09-25).)*
+- **REQ-A1.6** Who marks a pull request ready SHALL follow the repository's
+  ownership, borrowing the ownership tests of the Git Conventions' rewrite
+  scope and applying them to the repository. A **solo repository** is one the
+  operator owns (not an employer or another organization) where no other
+  person works; the operator's own sessions, worktrees, dispatched agents and
+  automated accounts do not count as another person. A **work repository**
+  is one owned by an employer or another organization, and a repository
+  whose owner cannot be told counts as one. A **collaborative repository**
+  is one the operator owns where another person works. A repository's own
+  `CLAUDE.md` override of the rewrite scope does not move the flip. In a solo
+  repository the session that completes the last step of the review cadence
+  the pull request calls for SHALL mark it ready itself once every step of
+  that cadence has run to completion, CI is green on the current head and
+  the pull request is mergeable, re-checking every condition of REQ-A1.1
+  immediately before the flip, and SHALL state the flip and the conditions
+  it checked in its reply or handoff. In a work or collaborative repository
+  the flip stays the operator's to request and the agent performs it only
+  on request. planwright's configured flips are the agent flipping and
+  follow the same scope: a work or collaborative repository's planwright
+  config sets `ready_flip_policy: human`, while the spec pull request after
+  a signed-off kickoff stays the one configured flip kept in every
+  repository. A flip the operator confirms when a run asks is one they
+  requested. A nested review loop's own convergence flip stays
+  confirmation-gated in every repository, never counts as the solo flip,
+  and SHALL evaluate the same conditions first and report a ready-guard
+  denial rather than work around it. Supersedes REQ-A1.3.
+  *(Cites: D-17, obs:062cccca, the second invocation (Sources), delta
+  re-walkthrough (2026-10-05).)*
 
 ## REQ-B — One source of review doctrine
 
@@ -213,6 +242,23 @@ the machine-local inventory (Sources).)*
   `disable-model-invocation: true`, and keep its invocation name and flags
   exactly as the command had them.
   *(Cites: D-4, kickoff decision (2026-09-25).)*
+  **Superseded-by: REQ-C1.12** (2026-10-05)
+- **REQ-C1.12** Every converted review skill SHALL keep its invocation name
+  and flags exactly as the command had them. Whether it carries
+  `disable-model-invocation: true` SHALL follow its caller: a review skill
+  whose pinned argument-hint does not carry `--nested` sets it (the skill is
+  slash-only), and a review skill whose pinned argument-hint carries
+  `--nested` SHALL NOT carry the key (the skill is model-invocable), because
+  a parent skill invokes it through the Skill tool and the key blocks that
+  call. A parent skill is any skill that invokes a review skill through the
+  Skill tool: its `--nested` mode, or a handoff the calling skill documents
+  (such as `/bot-review --local`). Each model-invocable review skill's
+  front-matter `description:` value SHALL end with the sentence "Runs only
+  when the operator types `/<name>` or a parent skill calls it; never on the
+  model's own initiative, and a plain-language request is answered by naming
+  the command to type." Supersedes REQ-C1.11.
+  *(Cites: D-16, the second invocation (Sources), research: Claude Code
+  skills documentation (2026-10-05), delta re-walkthrough (2026-10-05).)*
 
 ## REQ-D — Outbound messages to people
 
@@ -406,6 +452,21 @@ the machine-local inventory (Sources).)*
 
 ## Changelog
 
+- 2026-10-05 — Delta re-walkthrough lens review: REQ-A1.6 defines the
+  three repository kinds, names the flipping session, folds planwright's
+  `ready_flip_policy` into its scope and keeps nested loops
+  confirmation-gated; REQ-C1.12 fixes the description sentence, defines a
+  parent skill and forbids the key rather than its value; D-16 corrects the
+  egress-consent claim (Task 8 extends consent to `/panel-review`'s default
+  backends); D-12 amended; Tasks 7, 8 and 9 and the two test-spec entries
+  made evaluable. The brief's amendment log records every finding.
+- 2026-10-05 — Extended via `/spec-draft --extend`; reopened Ready→Draft.
+  REQ-C1.11 superseded by REQ-C1.12 (model invocation scoped by caller:
+  slash-only for the skills without a `--nested` mode, model-invocable for
+  the three with one) and REQ-A1.3 by REQ-A1.6 (the ready flip scoped by
+  repository ownership the way history rewrites are). D-16 and D-17 minted;
+  D-4's invocation sentence now points at D-16. Tasks 8 and 9 added; Task 2
+  is complete and unchanged.
 - 2026-09-29 — Expression-only: Task 1's Done-when named lefthook's
   `--commands` flag, which lefthook 2 does not have; corrected to
   `--command`.
@@ -431,6 +492,35 @@ the machine-local inventory (Sources).)*
   addendum for the command that merged mid-session, held at
   `~/.config/dotfiles/claude-instructions-inventory/` per D-13; the
   evidence every cluster verdict was taken on.
+- **The second invocation (2026-10-05).** The request to split REQ-C1.11
+  by caller, with the reason that slash-only protects human-facing skills
+  from running unasked and must not apply to a skill with a parent-invoked
+  mode; and, in the same delta, to scope who marks a pull request ready the
+  way the Git Conventions scope history rewrites. The second half of that
+  message reached the session cut off after naming the work-or-collaborative
+  case; the bundle takes the remainder as "the flip stays the operator's to
+  request there", for confirmation at kickoff.
+- **The unmerged flight branch (2026-10-05).** A visual-flight branch in
+  this repository, `planwright/flight/nested-skills-invocable-9a71204e`,
+  with no pull request, that already drops the flag on the three nested-mode
+  skills, derives the nested-mode set from the argument-hint in the
+  checker, repoints the model-invocation fixture and adds the one that
+  fails when a nested-mode skill gets the flag back. Task 8 starts from it.
+- **obs:062cccca.** `/copilot-review --nested` flips a pull request ready
+  at convergence checking fewer conditions than the global rule names;
+  folded into REQ-A1.6.
+- **Research: Claude Code skills documentation (2026-10-05).** The
+  invocation-control table: with `disable-model-invocation: true` the
+  operator can invoke a skill, Claude cannot on its own and Claude Code
+  blocks the attempt, and the description stays out of context; without it
+  the description is always in context and Claude may invoke the skill.
+- **The legacy observations line of 2026-07-14.** Records the fold of the
+  pairing commands into `--nested` modes on their siblings, which D-16's
+  rejected sibling-skill alternative leans on; consumed by another bundle,
+  cited here as prose.
+- **Delta re-walkthrough (2026-10-05).** The scoped kickoff of this
+  extension and its lens review, recorded in the brief's amendment log; the
+  wording decisions it took are cited by this token.
 - **Kickoff decision (2026-09-25).** Decisions taken during the kickoff
   walkthrough and its sign-off lens review, recorded in
   `specs/claude-instructions/kickoff-brief.md`.

@@ -1,7 +1,7 @@
 # Claude Instructions Audit — Design
 
 **Status:** Ready
-**Last reviewed:** 2026-09-26
+**Last reviewed:** 2026-10-05
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -99,9 +99,11 @@ the tracked skills directory, links an entry only when its destination is
 absent or already a link into this repository (failing otherwise), prunes its
 own links whose target is gone, and removes the commands path only when it is
 a link into this repository. Rollback is a revert plus a run of the Claude
-role on each host. Every converted skill is slash-invoked only
-(`disable-model-invocation: true`) and keeps its name and flags.
+role on each host. Every converted skill keeps its name and flags; whether
+it is slash-only or model-invocable follows its caller (D-16).
 *(Amended at kickoff 2026-09-25: per-entry links, link policy, invocation mode.)*
+*(Amended at extension 2026-10-05: the slash-only-for-all sentence replaced
+by the pointer to D-16.)*
 
 **Alternatives considered:**
 - Keep commands and add a tracked reference directory read by absolute path.
@@ -269,6 +271,9 @@ session; stating the reality removes the resolution.
 **Decision:** planwright keeps marking the spec PR ready on a clean kickoff
 (the knob stays at its default), and the user-global rule gains one clause
 naming that as the single exception.
+*(Amended at extension 2026-10-05: in a solo repository the agent also
+flips under D-17; the kickoff flip is the single configured flip kept in a
+work or collaborative repository.)*
 
 **Alternatives considered:**
 - Set the knob to false on every host. Rejected because: it re-introduces a
@@ -329,6 +334,96 @@ gets no separate task and no gate.
 a Maintenance section, restated validation, a distinct nested drain scope
 that stays as its own recorded override under REQ-B1.2).
 
+### D-16: Model invocation is scoped by caller, not disabled across the board  (N)
+
+**Decision:** `disable-model-invocation: true` protects the human-facing
+review skills, those with no `--nested` mode, from being invoked without
+anyone asking: they stay slash-only. A skill with a `--nested` mode (its
+pinned argument-hint carries the flag) leaves the key unset and is
+model-invocable, because a parent skill invokes that mode through the Skill
+tool and the key blocks that call. A parent skill is any skill that invokes
+a review skill through the Skill tool: its `--nested` mode, or a handoff the
+calling skill documents (`/bot-review --local` hands off to `/panel-review`
+without `--nested`). The contract checker derives the set from the
+argument-hint it already pins per skill (`expected_hint`), not from a
+separate list of nested skills, and each model-invocable skill's front-matter
+description ends with the sentence REQ-C1.12 fixes. Enforcement is the
+description sentence plus each skill's own gates: a permission deny on the
+Skill tool would block the parent call too, so it is not used.
+
+**Alternatives considered:**
+- Keep the key on every review skill and have a parent skill ask the
+  operator to type the nested invocation. Rejected because: the nested mode
+  exists so a parent can run the loop unattended; a manual hop defeats it.
+- Drop the key on every review skill. Rejected because: `/peer-review` and
+  `/code-review` post to humans and have no mode a parent calls; nothing is
+  gained by letting the model start them, and the description load is pure
+  cost.
+- A nested-only sibling skill per family, model-invocable, with the
+  interactive skill kept slash-only. Rejected because: the families were
+  folded into one skill with a mode on purpose (the legacy observations line
+  of 2026-07-14 records the fold; Sources), and two files per family
+  re-creates the duplication Task 2 removed.
+
+**Chosen because:** The skills documentation is explicit that the key stops
+Claude invoking the skill on its own and that Claude Code blocks the
+attempt, so a parent skill's call cannot survive it. Accepted risk: a
+model-invocable skill's description is always in context, so it could run
+without anyone asking. That matters most for `/panel-review`, which sends
+the diff to an external backend on every pass; today its per-repository
+upload consent covers only the `reviewer:<name>` backend, so Task 8 extends
+the shared egress consent (the `<owner>/<repo>` key `/code-review` already
+uses) to `/panel-review`'s default backends, and the work host's override
+confirmation stays. `/copilot-review` and `/bot-review` push commits, post
+replies and spend a metered vendor quota; the description sentence, the
+outbound rule's bot exception, the same-PR lock and each loop's
+confirmation-gated or forbidden ready flip bound an unasked run. Early
+signal: a review skill in a transcript with no typed invocation and no
+parent call.
+
+### D-17: The ready flip follows repository ownership, like a history rewrite  (N)
+
+**Decision:** The user-global Pull Request Lifecycle rule scopes who marks a
+pull request ready by repository ownership, borrowing the ownership tests
+the Git Conventions apply to a history rewrite (operator-owned; nobody else
+working from it; an unknown owner counts as work) and applying them to the
+repository, with the three repository kinds REQ-A1.6 defines. In a solo
+repository the session that completes the last step of the review cadence
+the pull request calls for flips it ready itself once that cadence has run,
+CI is green on the current head and the pull request is mergeable,
+re-checking each condition of REQ-A1.1 immediately before the flip and
+stating the flip in its handoff. In a work or collaborative repository the
+flip stays the operator's to request, and planwright's `ready_flip_policy`
+is set to `human` there, since its default `unit-owner` flips task pull
+requests in every repository. The kickoff spec pull request exception
+(D-12) and the operator-confirmed clause stay. A nested loop's convergence
+flip keeps its confirmation gate everywhere and never counts as the solo
+flip: `/copilot-review --nested` is one step of the cadence, not its end.
+
+**Alternatives considered:**
+- Keep the flip operator-requested everywhere. Rejected because: in the
+  repositories the operator owns alone, the request is granted every time
+  the review cadence and CI have passed, so the rule only adds a manual
+  un-draft hop to every solo pull request.
+- Let the agent flip everywhere. Rejected because: in a work or
+  collaborative repository a draft is a signal to reviewers that the
+  operator controls.
+- A per-repository setting of this repository's own. Rejected because:
+  planwright already has the seam (`ready_flip_policy`, enforced by its
+  ready-flip and policy-guard scripts), so the rule names that knob for the
+  repositories where the flip is reserved instead of minting a second one;
+  and ownership is already how the rewrite scope is judged.
+- A permission rule asking before `gh pr ready`. Rejected because: it would
+  prompt during the kickoff flip planwright performs by configuration and
+  in every solo repository, and a prompt the operator always answers yes is
+  the hop being removed.
+
+**Chosen because:** The rewrite rule already encodes the ownership
+judgement the flip needs, so borrowing its tests keeps the two rules
+reading the same facts. The conditions do not change, only who evaluates
+them, and they are re-checked at the head immediately before the flip
+exactly as before.
+
 ## Cross-cutting concerns
 
 ### Decision-domains walk
@@ -339,7 +434,12 @@ rule: D-6, D-8, D-13); LLM output quality and evaluation gates (D-5, D-6,
 D-14); human comprehension and information UX (the every-turn load and the
 repo-root ceiling: D-2, D-7); existing-seam reuse (planwright's resolution
 script, its budget doctrine, the existing identifier file: D-2, D-5, D-8);
-API surface (skills are slash-invoked only, names and flags kept: D-4);
+API surface (names and flags kept, model invocation scoped by caller:
+D-4, D-16); organization design (who owns the ready flip, by repository
+ownership: D-17, with the kickoff exception D-12); secrets and configuration
+and intellectual-property posture (what a model-started review run may
+upload, and the consent that gates it: D-16); observability (an unasked run
+or an unstated flip: the stated flip of REQ-A1.6 and the risk register);
 deploy and migration (the per-host link cutover and its rollback: D-4, and
 the kickoff brief's risk register); observability (halt on an unresolved
 doctrine document, visible budget warnings: D-2, D-5); dependency adoption
@@ -359,12 +459,13 @@ decisions rather than with the files.
 | Command boilerplate and per-run ceremony | Skills with a shared directory; Maintenance dropped; lens table once in nested loops; compact empty rows | REQ-C |
 | Every-turn load of the global file | Slack mechanics and workflow descriptions out; outbound rule in | REQ-B1.4, REQ-D |
 | Repo-root narrative and size | Rules stay, rationale to docs, ceiling kept | REQ-F |
-| Incident-reactive rules and contradictions | Rule not story; shell reality; lifecycle vocabulary; kickoff exception | REQ-E, REQ-A1.3 |
+| Incident-reactive rules and contradictions | Rule not story; shell reality; lifecycle vocabulary; kickoff exception | REQ-E, REQ-A1.6 |
 | Stale references | Sweep applied whole | REQ-C1.7, REQ-E1.4, REQ-F1.3, REQ-F1.5 |
 | The project repo | Contradicting skills fixed, stale state removed, routing guidance trimmed | REQ-H |
 | planwright-owned rules | Seed note | REQ-I |
 | Regrowth | Word-budget guard; re-check new instruction sources | REQ-G, REQ-K |
-| Safety gates through the conversion | Safety mechanics and checker pins kept; skills slash-invoked only | REQ-C1.2, REQ-C1.10, REQ-C1.11 |
+| Safety gates through the conversion | Safety mechanics and checker pins kept; model invocation scoped by caller (slash-only without a `--nested` mode) | REQ-C1.2, REQ-C1.10, REQ-C1.12 |
+| Ready-flip ownership | The last session of the review cadence flips in a solo repository, once the cadence has run, CI is green and the head is mergeable; operator-requested in a work or collaborative repository | REQ-A1.6 |
 | Name hygiene | Neutral labels; review-time check against the existing identifier file | REQ-C1.8, REQ-J1.2 |
 | The work repos | Same method, run on the work host | REQ-J |
 | Hooks (path-guard, worker-guard, bootstrap) | Keep as they are | no REQ; recorded here |
