@@ -777,13 +777,14 @@ IDCHECK="$ROOT/roles/claude/files/scripts/identifier-check.sh"
 id_setup() {
   setup
   cp "$ROOT/CLAUDE.md" "$tmp/"
+  cp -R "$ROOT/docs" "$tmp/"
   mkdir -p "$tmp/specs/claude-instructions" "$tmp/specs/pair-flow"
   cp "$ROOT/specs/claude-instructions/requirements.md" "$tmp/specs/claude-instructions/"
   cp "$ROOT/specs/pair-flow/requirements.md" "$tmp/specs/pair-flow/"
   printf '# synthetic\nzqx-synthetic-project\n' > "$tmp/identifiers"
 }
 for planted in "$(md peer-review)" "$SHARED/github.md" "$GLOBAL_MD" CLAUDE.md \
-    specs/claude-instructions/requirements.md; do
+    specs/claude-instructions/requirements.md docs/claude-hooks.md; do
   id_setup
   printf 'Seen in the zqx-synthetic-project repo.\n' >> "$tmp/$planted"
   if out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" 2>&1)"; then
