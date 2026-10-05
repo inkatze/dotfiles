@@ -75,7 +75,8 @@ pre-commit:
     copilot-retirement:
       # The suite is what notices the credential removal reaching past its one
       # directory, or a host declaration bringing the Copilot CLI back.
-      glob: "{Brewfile*,mise.toml,roles/environments/files/{mise.toml,default-npm-packages,default-python-packages},\
+      glob: "{Brewfile*,mise.toml,main.yml,CLAUDE.md,roles/environments/defaults/main.yml,\
+        roles/environments/files/{mise.toml,default-npm-packages,default-python-packages,default-gems,default-mix-commands},\
         roles/linux/files/mise/linux.toml,roles/linux/defaults/main.yml,\
         roles/claude/tasks/{main,copilot-credential}.yml,scripts/copilot-retirement-test.sh}"
       run: scripts/copilot-retirement-test.sh

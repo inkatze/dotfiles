@@ -111,7 +111,9 @@ so the backend and its checker anchors are gone and nothing declares its cask
 or Linux mise pin any more (a host that already installed the CLI keeps it until
 it is removed by hand). A run given `--backends copilot` stops and names the
 replacement: a Copilot CLI, if wanted again, runs as a `reviewer:<name>`
-entry's `cli` block like any other vendor. The contract checker's
+entry's `cli` block like any other vendor, added to the review template the
+config is rendered from (a hand edit to the rendered file is overwritten on
+the next role run; see `docs/machine-local-files.md`). The contract checker's
 retired-backend sweep keeps the name out of the skills.
 
 With the last consumer gone, the OAuth credential under

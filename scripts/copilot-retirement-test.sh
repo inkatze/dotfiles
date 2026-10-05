@@ -25,7 +25,8 @@ fail() { printf 'FAIL[%s]: %s\n' "$1" "$2"; fails=$((fails + 1)); }
 # The Brewfile glob expands in $repo, never the caller's directory, so a run
 # from elsewhere scans this checkout's variants.
 declarations=("$repo"/Brewfile "$repo"/Brewfile.* "$repo"/mise.toml
-  "$repo"/roles/environments/files/{mise.toml,default-npm-packages,default-python-packages}
+  "$repo"/roles/environments/defaults/main.yml
+  "$repo"/roles/environments/files/{mise.toml,default-npm-packages,default-python-packages,default-gems,default-mix-commands}
   "$repo"/roles/linux/files/mise/linux.toml "$repo"/roles/linux/defaults/main.yml)
 missing=""
 for f in "${declarations[@]}"; do
@@ -52,7 +53,7 @@ fi
 # role still imports it.
 # Captured first: piped straight into grep -q, an early grep exit could kill
 # ansible-playbook with SIGPIPE, which pipefail reports as a failure.
-listing="$(cd "$repo" && ansible-playbook main.yml --list-tasks --tags claude 2>&1)"
+listing="$(cd "$repo" && env -u ANSIBLE_CONFIG ansible-playbook main.yml --list-tasks --tags claude 2>&1)"
 rc=$?
 if [ "$rc" -ne 0 ]; then
     fail wired "listing the claude role's tasks failed (exit $rc): $(tail -3 <<< "$listing" | tr '\n' ';')"
@@ -60,6 +61,14 @@ elif grep -qF 'claude : Remove the stale GitHub Copilot credential directory' <<
     ok wired "the claude role imports the removal task"
 else
     fail wired "\`ansible-playbook main.yml --list-tasks --tags claude\` does not list the removal task"
+fi
+
+# Deleting the directory leaves the token live, so the repo-root CLAUDE.md
+# must keep telling the operator to revoke it.
+if tr -s '[:space:]' ' ' < "$repo/CLAUDE.md" | grep -qF 'Copilot CLI backend, so revoke its GitHub OAuth apps'; then
+    ok revoke-documented "the repo-root CLAUDE.md names the GitHub-side revoke step"
+else
+    fail revoke-documented "the repo-root CLAUDE.md no longer names the GitHub-side revoke step"
 fi
 
 ln -s "$repo/roles" "$work/roles" || { echo "FAIL[harness]: cannot link roles"; exit 1; }
@@ -77,18 +86,18 @@ cat >"$play" <<'YAML' || { echo "FAIL[harness]: cannot write the play"; exit 1; 
         tasks_from: copilot-credential
 YAML
 
+# Called as $(fresh_home), so its exit ends only that subshell: every caller
+# checks the status, or an empty $h would aim the cases at / instead.
 fresh_home() {
     h="$(mktemp -d "$work/h.XXXXXX")" || { echo "FAIL[harness]: mktemp failed" >&2; exit 1; }
-    mkdir -p "$h/.config/gh" "$h/.copilot"
-    echo token >"$h/.config/gh/hosts.yml"
-    echo state >"$h/.copilot/config.json"
+    mkdir -p "$h/.config/gh" "$h/.copilot" && echo token >"$h/.config/gh/hosts.yml" \
+        && echo state >"$h/.copilot/config.json" || exit 1
     printf '%s\n' "$h"
 }
 
 with_credential() {
-    mkdir -p "$1/.config/github-copilot"
-    echo secret >"$1/.config/github-copilot/auth.db"
-    chmod 644 "$1/.config/github-copilot/auth.db"
+    mkdir -p "$1/.config/github-copilot" && echo secret >"$1/.config/github-copilot/auth.db" \
+        && chmod 644 "$1/.config/github-copilot/auth.db"
 }
 
 # run_role <home>: 0 when the play completed, 1 when a task failed.
@@ -96,7 +105,7 @@ run_role() {
     # Become off, whatever the caller's environment says: sudo would reset HOME
     # and aim the removal at a real home. Fact injection off, as the repo's
     # ansible.cfg (unread from $work) has it, so a bare ansible_env fails here too.
-    (cd "$work" && HOME="$1" ANSIBLE_BECOME=false ANSIBLE_INJECT_FACT_VARS=false \
+    (cd "$work" && env -u ANSIBLE_CONFIG HOME="$1" ANSIBLE_BECOME=false ANSIBLE_INJECT_FACT_VARS=false \
         ansible-playbook "$play" >"$work/out" 2>&1)
     grep -q 'PLAY RECAP' "$work/out" || { printf 'FAIL[harness]: no recap\n'; sed 's/^/    /' "$work/out" | tail -20; exit 1; }
     grep -qE 'failed=0 ' "$work/out"
@@ -109,7 +118,7 @@ siblings_intact() {
         && [ "$(cat "$1/.copilot/config.json" 2>/dev/null)" = state ]
 }
 
-h="$(fresh_home)"; with_credential "$h"
+h="$(fresh_home)" && with_credential "$h" || { echo "FAIL[harness]: cannot build a scratch home"; exit 1; }
 if run_role "$h" && [ "$(changed_count)" = 1 ] && [ ! -e "$h/.config/github-copilot" ] && siblings_intact "$h"; then
     ok removes "the credential directory is removed, reported changed, siblings untouched"
 else
@@ -122,7 +131,7 @@ else
     fail idempotent "changed=$(changed_count) on the second run"
 fi
 
-h="$(fresh_home)"
+h="$(fresh_home)" || { echo "FAIL[harness]: cannot build a scratch home"; exit 1; }
 if run_role "$h" && [ "$(changed_count)" = 0 ] && siblings_intact "$h"; then
     ok absent "a home without the directory reports no change"
 else
@@ -130,8 +139,8 @@ else
 fi
 
 # A link at the path is removed as a link: its target is someone else's.
-h="$(fresh_home)"; mkdir -p "$h/elsewhere"; echo keep >"$h/elsewhere/auth.db"
-ln -s "$h/elsewhere" "$h/.config/github-copilot"
+h="$(fresh_home)" && mkdir -p "$h/elsewhere" && echo keep >"$h/elsewhere/auth.db" \
+    && ln -s "$h/elsewhere" "$h/.config/github-copilot" || { echo "FAIL[harness]: cannot build a scratch home"; exit 1; }
 if run_role "$h" && [ "$(changed_count)" = 1 ] && [ ! -L "$h/.config/github-copilot" ] \
     && [ "$(cat "$h/elsewhere/auth.db")" = keep ] && siblings_intact "$h"; then
     ok link-target-kept "a link at the path is removed without touching its target"

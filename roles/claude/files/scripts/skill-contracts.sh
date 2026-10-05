@@ -679,15 +679,17 @@ require_normalized "$(skill_md panel-review)" "retired-backend stop sentence" "$
 # Glob patterns, so a comma list and either flag spelling count; `,copilot`
 # must not be followed by a hyphen or letter, which keeps Copilot's own
 # reviewer login (`reviewers[]=copilot-pull-request-reviewer`) legal.
-COPILOT_PATTERNS=('*`copilot`*' '*backends[ =]copilot*' '*,copilot' '*,copilot[!-a-z]*'
-  '*[Cc]opilot backend*' '*copilot_bin*' '*copilot-cli*' '*gh copilot*' '*gh/copilot*' '*mise which copilot*')
+COPILOT_PATTERNS=('*`copilot`*' '*backends[ =][Cc]opilot*' '*,copilot[!-a-z]*' '*, copilot[!-a-z]*'
+  '*[Cc]opilot backend*' '*copilot_bin*' '*copilot-cli*' '*gh copilot*' '*gh/copilot*'
+  '*mise which copilot*' '*command -v copilot*')
 copilot_sweep() {
-  local rest="${2//"$COPILOT_STOP"/}" pat
+  local rest="${2//"$COPILOT_STOP"/}" pat hits=""
   for pat in "${COPILOT_PATTERNS[@]}"; do
     # shellcheck disable=SC2053 # $pat is a glob on purpose
-    [[ "$rest" != $pat ]] \
-      || { err "$1 names the retired Copilot CLI backend ('$pat'); a Copilot CLI runs as a reviewer:<name> entry's cli block"; return; }
+    [[ "$rest" != $pat ]] || hits="${hits:+$hits, }'$pat'"
   done
+  [ -z "$hits" ] \
+    || err "$1 names the retired Copilot CLI backend ($hits); a Copilot CLI runs as a reviewer:<name> entry's cli block"
 }
 for i in ${tree_files[@]+"${!tree_files[@]}"}; do copilot_sweep "${tree_files[$i]}" "${tree_norm[$i]}"; done
 [ -z "$global_ok" ] || copilot_sweep "$GLOBAL_MD" "$global_norm"

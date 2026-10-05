@@ -355,12 +355,12 @@ by that task. Blocks are listed in dependency order.
   fresh host has to re-author one of those files by hand. Citations: D-13.
 - **Removing the Copilot credential cleanup.** The role task that deletes
   the stale credential directory is a one-off: once every host has run it,
-  nothing this repository installs can bring the directory back, so the task,
-  its fixture, the fixture's lefthook and workflow wiring, and the prose
-  naming the task in the repo-root `CLAUDE.md` and `docs/review-backends.md`
-  go. Confidence:
-  high. **Gate:** when every host (work, personal, alt, server) has run the
-  claude role after the cleanup merged. Citations: D-14.
+  nothing this repository declares writes there, so the task, its fixture,
+  the fixture's lefthook and workflow wiring, and the prose naming the task
+  in `docs/review-backends.md` go; the revoke step in the repo-root
+  `CLAUDE.md` stays. Confidence: high. **Gate:** when every host (work,
+  personal, alt, server) has run the claude role after the cleanup merged.
+  Citations: D-14.
 - **Replacing the evidence record with planwright's handoff bundle.**
   Confidence: medium. **Gate:** spec review-effectiveness done, in the
   planwright repository, and its output contract read by the dotfiles
