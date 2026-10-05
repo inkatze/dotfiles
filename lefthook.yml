@@ -36,7 +36,10 @@ pre-commit:
       run: roles/claude/files/scripts/skill-contracts-test.sh
     instruction-budget:
       # lefthook.yml and the workflow too: the suite asserts both wire the checker.
-      glob: "{CLAUDE.md,lefthook.yml,.github/workflows/test.yml,\
+      # docs/ and claude-context too: the suite checks the root file's links and
+      # the line ceiling that bundle sets.
+      glob: "{CLAUDE.md,lefthook.yml,.github/workflows/test.yml,docs/*.md,\
+        specs/claude-context/requirements.md,\
         roles/claude/files/{skills/*/*.md,CLAUDE.md,scripts/instruction-budget{.sh,-test.sh}}}"
       run: roles/claude/files/scripts/instruction-budget.sh && roles/claude/files/scripts/instruction-budget-test.sh
     review-state:

@@ -1,0 +1,1 @@
+- 2026-10-04 [dotfiles] The review-time identifier check scans the skills, both CLAUDE.md files, docs/ and the claude-instructions bundle, but not .github/copilot-instructions.md or README.md, both public prose surfaces that name machine-local files and review tooling. Pre-existing gap; widening the scope is a call for the bundle that owns the check.

@@ -55,7 +55,9 @@ a backend silently, because its variance is why the run exists.
 
 - **gitleaks**, for every backend: `command -v gitleaks` resolves, since the
   outbound-prompt guard below refuses to send an unscanned prompt. Missing:
-  `gitleaks not installed; the outbound-prompt guard cannot scan the prompt`.
+  `gitleaks not installed; the outbound-prompt guard cannot scan the prompt;
+  mise run osx will install via Brewfile 'gitleaks', mise run linux via
+  roles/linux/files/mise/linux.toml`.
 - **codex**: `fish -c 'cd ~; mise which codex 2>/dev/null; or command -v codex'`
   resolves, and `codex login status` succeeds (exit status only; never print
   account details). Missing: `Codex CLI not installed; mise run osx will

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Fixture tests for instruction-budget.sh. Each case copies the tracked
 # surfaces into a temp tree, plants one change, and asserts the checker's exit
-# status and message. The wiring cases read lefthook.yml and the workflow,
-# since a guard nothing runs fails silently.
+# status and message. The root-file cases instead check the repo-root CLAUDE.md
+# itself: its line ceiling and that its links and repo paths resolve. The
+# wiring cases read lefthook.yml and the workflow, since a guard nothing runs
+# fails silently.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
@@ -13,6 +15,7 @@ ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 SCRIPT=roles/claude/files/scripts/instruction-budget.sh
 failures=0
 tmp=""
+rtree=""
 
 setup() {
   tmp="$(mktemp -d -t instruction-budget-test.XXXXXX)"
@@ -24,7 +27,7 @@ setup() {
 }
 
 teardown() { rm -rf "$tmp" || true; tmp=""; }
-trap '[ -n "$tmp" ] && rm -rf "$tmp"' EXIT
+trap 'rm -rf "${tmp:-}" "${rtree:-}"' EXIT
 
 fail() { echo "FAIL $1: $2"; failures=$((failures + 1)); }
 
@@ -160,6 +163,191 @@ out="$(cd "$tmp" && GITHUB_ACTIONS=true bash "$SCRIPT" 2>/dev/null)" || true
   fail ci-annotation-escaped "annotation path not escaped: $out"
 teardown
 
+# The root file's own limits: the line ceiling the claude-context bundle sets,
+# read from that bundle rather than copied, and every relative markdown link
+# (inline, titled or reference-style) and backticked repo path in the file
+# resolving. A repo path is a backticked span whose first segment is a
+# top-level directory of the tree or of HEAD, so a renamed directory still
+# flags the paths under it; placeholders, globs, `path:line` spans and
+# home-relative paths are not paths. Link anchors are not checked.
+top_dirs="$(git -C "$ROOT" ls-tree -d --name-only HEAD 2>/dev/null || true)"
+
+ceiling_of() {
+  sed -n 's/.*shall target [0-9][0-9]* lines and shall not exceed \([0-9][0-9]*\) lines.*/\1/p' \
+    "$1" 2>/dev/null | head -n 1 || true
+}
+
+root_links() {
+  perl -ne 'while (/\]\(<?([^)\s>]+)>?(?:\s+(?:"[^"]*"|\x27[^\x27]*\x27|\([^)]*\)))?\)/g) { print "$1\n" }
+    print "$1\n" if /^\s*\[[^\]]+\]:\s*<?([^\s>]+)/' "$1" 2>/dev/null |
+    perl -ne 'chomp; next if m{^[a-z][a-z0-9+.-]*:}i || m{^//} || m{^#}; s/#.*//; print "$_\n"' |
+    sort -u
+}
+
+root_paths() {
+  perl -ne 'while (/`([^`\s]+\/[^`\s]*)`/g) { my $p = $1; next if $p =~ m{[<>*{}\$~:]} || $p =~ m{^/}; $p =~ s{/$}{}; print "$p\n" }' \
+    "$1" 2>/dev/null | sort -u
+}
+
+# root_file_problems <tree> <CLAUDE.md> <claude-context requirements.md>
+root_file_problems() {
+  local tree="$1" claude="$2" req="$3" ceiling lines target
+  ceiling="$(ceiling_of "$req")"
+  if [ -z "$ceiling" ]; then
+    echo "no line ceiling found in specs/claude-context/requirements.md"
+  elif [ ! -f "$claude" ]; then
+    echo "CLAUDE.md is missing"
+  else
+    lines="$(awk 'END { print NR }' "$claude")"
+    [ "$lines" -le "$ceiling" ] || echo "CLAUDE.md has $lines lines, over the ceiling of $ceiling"
+  fi
+  while IFS= read -r target; do
+    case "/$target/" in */../*)
+      echo "CLAUDE.md links to $target, outside the repository"
+      continue
+      ;;
+    esac
+    [ -e "$tree/$target" ] || echo "CLAUDE.md links to $target, which does not exist"
+  done < <(root_links "$claude")
+  while IFS= read -r target; do
+    case "/$target/" in */../*)
+      echo "CLAUDE.md names $target, outside the repository"
+      continue
+      ;;
+    esac
+    [ -d "$tree/${target%%/*}" ] || grep -qxF -- "${target%%/*}" <<<"$top_dirs" || continue
+    [ -e "$tree/$target" ] || echo "CLAUDE.md names $target, which does not exist"
+  done < <(root_paths "$claude")
+}
+
+# One copy of the tracked files, as a clean CI checkout has them, so neither a
+# gitignored directory nor a file not yet added can make a path resolve.
+# Fixtures edit copies of the two files under test, and move a target aside and
+# back rather than recopying.
+rtree="$(mktemp -d -t instruction-budget-root.XXXXXX)"
+(cd "$ROOT" && git ls-files -z --cached |
+  while IFS= read -r -d '' f; do if [ -e "$f" ]; then printf '%s\0' "$f"; fi; done |
+  tar --null -T - -cf -) | tar -xf - -C "$rtree"
+fx_claude="$rtree/.fixture-CLAUDE.md"
+fx_req="$rtree/.fixture-requirements.md"
+# A source missing from the tree leaves its copy absent, so the check reports
+# it rather than cp aborting the suite with no FAIL line.
+reset_root_fixture() {
+  rm -f "$fx_claude" "$fx_req"
+  if [ -f "$rtree/CLAUDE.md" ]; then cp "$rtree/CLAUDE.md" "$fx_claude"; fi
+  if [ -f "$rtree/specs/claude-context/requirements.md" ]; then
+    cp "$rtree/specs/claude-context/requirements.md" "$fx_req"
+  fi
+}
+
+# expect_root <name> [fragment]: no fragment means the fixture must be clean.
+expect_root() {
+  local out
+  out="$(root_file_problems "$rtree" "$fx_claude" "$fx_req")"
+  if [ -z "${2:-}" ]; then
+    [ -z "$out" ] || fail "$1" "$out"
+  else
+    [[ "$out" == *"$2"* ]] || fail "$1" "no '$2' reported: ${out:-nothing}"
+  fi
+}
+
+# expect_root_moved <name> <path> <fragment>: with <path> moved aside, the
+# fixture must report the fragment.
+expect_root_moved() {
+  if [ -z "$2" ] || [ ! -e "$rtree/$2" ]; then
+    fail "$1" "no existing target '$2' to move aside"
+    return
+  fi
+  mv "$rtree/$2" "$rtree/.fixture-moved"
+  expect_root "$1" "$3"
+  mv "$rtree/.fixture-moved" "$rtree/$2"
+}
+
+reset_root_fixture
+expect_root root-file
+
+ceiling="$(ceiling_of "$fx_req")"
+if [ -z "$ceiling" ]; then
+  fail root-ceiling "no line ceiling found in specs/claude-context/requirements.md"
+else
+  lines="$(awk 'END { print NR }' "$fx_claude" 2>/dev/null || true)"
+  for ((i = lines; i < ceiling; i++)); do echo >>"$fx_claude"; done
+  expect_root root-at-ceiling
+  echo >>"$fx_claude"
+  expect_root root-over-ceiling "over the ceiling of $ceiling"
+  reset_root_fixture
+  for ((i = lines; i < ceiling; i++)); do echo >>"$fx_claude"; done
+  printf 'no final newline' >>"$fx_claude"
+  expect_root root-over-ceiling-unterminated "over the ceiling of $ceiling"
+fi
+
+reset_root_fixture
+perl -pi -e 's/shall not exceed \d+ lines/shall stay short/' "$fx_req"
+expect_root root-ceiling-unreadable "no line ceiling found"
+
+# A ceiling one under the file's length must trip, so the value is read from
+# the bundle rather than assumed.
+reset_root_fixture
+below=$(($(awk 'END { print NR }' "$fx_claude" 2>/dev/null || echo 1) - 1))
+perl -pi -e "s/shall not exceed \\d+ lines/shall not exceed $below lines/" "$fx_req"
+expect_root root-ceiling-read "over the ceiling of $below"
+
+reset_root_fixture
+rm -f "$fx_claude"
+expect_root root-file-missing "CLAUDE.md is missing"
+
+# Planted, so these test detection rather than what the live file names.
+reset_root_fixture
+link="$(cd "$rtree" && ls docs/*.md 2>/dev/null | head -n 1 || true)"
+printf '[a](%s)\n' "$link" >"$fx_claude"
+expect_root_moved root-link-missing "$link" "links to $link, which does not exist"
+
+reset_root_fixture
+path="$(cd "$rtree" && ls scripts/*.sh 2>/dev/null | head -n 1 || true)"
+printf '`%s`\n' "$path" >"$fx_claude"
+expect_root_moved root-path-missing "$path" "names $path, which does not exist"
+expect_root_moved root-top-dir-missing scripts "names $path, which does not exist"
+
+# The planted fixtures below replace the file, so its own size and links
+# cannot mask or trip them.
+reset_root_fixture
+printf '[a](docs/no-such-note.md "title")\n' >"$fx_claude"
+expect_root root-link-titled "links to docs/no-such-note.md"
+
+reset_root_fixture
+printf "[a](docs/no-such-note.md 'title')\n" >"$fx_claude"
+expect_root root-link-titled-single "links to docs/no-such-note.md"
+
+reset_root_fixture
+printf '[a](docs/no-such-note.md (title))\n' >"$fx_claude"
+expect_root root-link-titled-paren "links to docs/no-such-note.md"
+
+reset_root_fixture
+printf '[r]: docs/no-such-ref.md\n' >"$fx_claude"
+expect_root root-link-reference "links to docs/no-such-ref.md"
+
+reset_root_fixture
+printf '[up](../outside.md)\n' >"$fx_claude"
+expect_root root-link-escapes "links to ../outside.md, outside the repository"
+
+reset_root_fixture
+printf '[web](HTTPS://example.invalid/x)\n' >"$fx_claude"
+expect_root root-link-url
+
+reset_root_fixture
+printf '[a](CLAUDE.md#a-section)\n' >"$fx_claude"
+expect_root root-link-anchor
+
+reset_root_fixture
+printf '%s\n' "\`../outside/x.md\`" >"$fx_claude"
+expect_root root-path-escapes "names ../outside/x.md, outside the repository"
+
+# A top-level directory not yet in HEAD still has its paths checked.
+reset_root_fixture
+mkdir "$rtree/fixture-top"
+printf '%s\n' "\`fixture-top/missing.md\`" >"$fx_claude"
+expect_root root-path-new-top-dir "names fixture-top/missing.md, which does not exist"
+rmdir "$rtree/fixture-top"
 
 lefthook_run="$(awk '/^    instruction-budget:/{f=1;next} f&&/^    [a-z]/{f=0} f' "$ROOT/lefthook.yml")"
 [[ "$lefthook_run" == *"run: $SCRIPT"* ]] || fail lefthook-entry "no instruction-budget command running $SCRIPT"

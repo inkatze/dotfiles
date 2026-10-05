@@ -12,7 +12,7 @@ Reviews here are expected to be **exhaustive in one pass**. Multiple iterations
 of partial feedback are a failure mode, not the workflow. When you review a
 diff, walk every lens before producing the comment list:
 
-<!-- diverges from CLAUDE.md `Discovery Rigor` by design: idempotency added (Ansible repo); performance and concurrency dropped (no hot paths or concurrent code in this repo). -->
+<!-- diverges from planwright's discovery-rigor lens checklist by design: idempotency split out of concurrency/state as its own lens (Ansible repo) and edge cases split from correctness; performance and the rest of concurrency/state dropped (no hot paths or concurrent code in this repo). -->
 
 1. Correctness and logic bugs
 2. Security and secret handling (this repo touches 1Password, GitHub PATs, MCP)
@@ -92,9 +92,9 @@ each finding before posting:
    tests, project conventions. If the pattern is intentional and consistent
    elsewhere, it is probably not a bug.
 3. **Outside-in check.** Consult `git log` / `git blame` for context on why
-   the code is shaped the way it is. Check `CLAUDE.md`, `specs/README.md`,
-   and per-directory docs for documented conventions before flagging a
-   "violation."
+   the code is shaped the way it is. Check `CLAUDE.md`, the `docs/` notes it
+   links, `specs/README.md`, and per-directory docs for documented
+   conventions before flagging a "violation."
 
 Findings that fail any of these three should be dropped, not softened.
 
