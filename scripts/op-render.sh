@@ -113,23 +113,32 @@ jq_or_fail "could not read item '$item'" -c '
   "$work/item.json" >"$work/fields.json"
 
 if [ "$mode" = json ]; then
-  jq_or_fail "could not render $template" --slurpfile m "$work/fields.json" '
-    def ref: "^\\{\\{ op://__OP_VAULT__/__OP_ITEM__/(?<f>[A-Za-z0-9_.-]+)(?<j> \\| json)? \\}\\}$";
-    $m[0] as $fields
-    | if [paths | .[] | strings | select(contains("{{"))] | length > 0
-      then error("unsubstituted template expression in a key") else . end
-    | walk(
-        if type == "string" and test(ref) then
-          capture(ref) as $c
-          | if ($fields | has($c.f) | not) then error("the item has no field \($c.f)")
-            elif $c.j == null or $fields[$c.f] == "" then $fields[$c.f]
-            else $fields[$c.f]
-              | try fromjson catch error("item field \($c.f) does not hold valid JSON")
-            end
-        elif type == "string" and contains("{{") then
-          error("unsubstituted template expression: \(.)")
-        else . end)
-    | walk(if type == "object" then with_entries(select(.value != "")) else . end)' \
+  # Walks the template's own structure only, so a value parsed from a ` | json`
+  # field is never pruned: an empty string inside it reaches the rule intact.
+  jq_or_fail "could not render $template" -L "$schema_dir" --slurpfile m "$work/fields.json" '
+    include "config-schema";
+    def none: {"__op_render_none__": true};
+    def resolve($fields):
+      capture(op_reference) as $c
+      | if ($fields | has($c.f) | not) then error("the item has no field \($c.f)")
+        elif $fields[$c.f] == "" then none
+        elif $c.j == null then $fields[$c.f]
+        else $fields[$c.f]
+          | try fromjson catch error("item field \($c.f) does not hold valid JSON")
+        end;
+    def render($fields):
+      if type == "object" then
+        if any(keys[]; contains("{{"))
+        then error("unsubstituted template expression in a key") else . end
+        | length as $n
+        | with_entries(.value |= render($fields)) | with_entries(select(.value != none))
+        | if length == 0 and $n > 0 then none else . end
+      elif type == "array" then map(render($fields)) | map(select(. != none))
+      elif type == "string" and test(op_reference) then resolve($fields)
+      elif type == "string" and contains("{{") then
+        error("unsubstituted template expression: \(.)")
+      else . end;
+    $m[0] as $fields | render($fields) | if . == none then {} else . end' \
     "$template" >"$work/rendered"
 else
   jq_or_fail "could not render $template" -R -r --slurpfile m "$work/fields.json" '

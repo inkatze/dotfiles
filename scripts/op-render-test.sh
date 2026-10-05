@@ -226,7 +226,7 @@ run "$review_tpl" dotfiles-bot-review "$out"
 expect_failed "regex that does not compile" "reviewers.cubic.finding_key_regex: does not compile"
 full_review_item "cubic_gating_checks={\"a\":1}"
 run "$review_tpl" dotfiles-bot-review "$out"
-expect_failed "gating checks not a list" "gating_checks: must be an array of strings"
+expect_failed "gating checks not a list" "gating_checks: must be an array of non-empty strings"
 full_review_item "cubic_gating_checks=[not json"
 run "$review_tpl" dotfiles-bot-review "$out"
 expect_failed "json reference that does not parse" "cubic_gating_checks does not hold valid JSON"
@@ -336,6 +336,27 @@ unset OP_SERVICE_ACCOUNT_TOKEN
 grep -q ops_teststubtoken123 "$OP_STUB_ENV" && ok "token in op's environment" || ko "token in op's environment"
 grep -q ops_teststubtoken123 "$OP_STUB_ARGV" && ko "token in argv" || ok "token not in argv"
 [ "$rc" -eq 0 ] && ok "renders with a token" || ko "renders with a token ($output)"
+
+echo "18. empty fields drop their keys, and an entry left wholly empty drops out"
+new_sandbox
+mapfile -t empty_copilot < <(full_review_fields | grep '^copilot_' | sed 's/=.*/=/')
+full_review_item "${empty_copilot[@]}"
+run "$review_tpl" dotfiles-bot-review "$out"
+[ "$rc" -eq 0 ] && ok "renders with the copilot entry unset" || ko "renders with the copilot entry unset ($output)"
+if jq -e '.reviewers | has("copilot")' "$out" >/dev/null 2>&1; then ko "empty entry dropped"; else ok "empty entry dropped"; fi
+rm -f "$out"
+full_review_item "cubic_gating_checks="
+run "$review_tpl" dotfiles-bot-review "$out"
+[ "$rc" -eq 0 ] && ok "an empty json reference renders" || ko "an empty json reference renders ($output)"
+if jq -e '.reviewers.cubic | has("gating_checks")' "$out" >/dev/null 2>&1; then ko "empty json reference dropped"; else ok "empty json reference dropped"; fi
+rm -f "$out"
+full_review_item 'cubic_gating_checks=[""]'
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "an empty check name" "gating_checks: must be an array of non-empty strings"
+sib="$HOME/.config/dotfiles/sibling-repos.json"
+item_from 'repos={"acme/web":{"acme/api":""}}'
+run "$sibling_tpl" dotfiles-sibling-repos "$sib"
+expect_failed "an empty string inside a json value is kept for the rule" "repos.acme/web.acme/api: clone path must be absolute"
 
 echo
 echo "op-render: $pass passed, $fail failed"

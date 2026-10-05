@@ -12,8 +12,12 @@ def optional_hosted:
    "errored_review_regex"];
 def rerequest_methods: ["request", "comment", "push"];
 def draft_policies: ["reviews-drafts", "skips-drafts"];
+# The template reference syntax, for scripts/op-render.sh too: `f` captures
+# the item field, `j` the suffix that parses its value as JSON.
+def op_reference_inline:
+  "\\{\\{ op://__OP_VAULT__/__OP_ITEM__/(?<f>[A-Za-z0-9_.-]+) \\}\\}";
 def op_reference:
-  "^\\{\\{ op://__OP_VAULT__/__OP_ITEM__/[A-Za-z0-9_.-]+( \\| json)? \\}\\}$";
+  "^\\{\\{ op://__OP_VAULT__/__OP_ITEM__/(?<f>[A-Za-z0-9_.-]+)(?<j> \\| json)? \\}\\}$";
 
 def _one_of($p; $allowed):
   if (. as $v | $allowed | index([$v])) then empty
@@ -53,8 +57,8 @@ def _rendered_value_errors($p):
         else "\($p).addressed_marker_format: must contain {key}" end ),
     ( if has("gating_checks")
         and ((.gating_checks | type) != "array"
-             or (.gating_checks | map(type == "string") | all | not))
-      then "\($p).gating_checks: must be an array of strings" else empty end );
+             or (.gating_checks | map(type == "string" and . != "") | all | not))
+      then "\($p).gating_checks: must be an array of non-empty strings" else empty end );
 
 def _template_value_errors($p):
   ( if (.rerequest | type) == "object" and (.rerequest | has("method"))
