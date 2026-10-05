@@ -54,14 +54,14 @@ near-empty. See [docs/claude-config.md](docs/claude-config.md).
    checkout: the links point into whichever checkout Ansible ran from. Verify
    in a fresh session.
 
-A new tracked directory under `roles/claude/files/`, other than a skill or a
-template directory, needs a symlink task in `roles/claude/tasks/main.yml`.
+Any new tracked directory under `roles/claude/files/` except a skill or
+`planwright/` needs a symlink task in `roles/claude/tasks/main.yml`.
 
 ## Contract and budget guards
 
 - `roles/claude/files/scripts/skill-contracts.sh` literal-matches
-  load-bearing sentences in the review skills and the global `CLAUDE.md`, and
-  re-runs when it is edited. A reword that trips it means the contract moved:
+  load-bearing sentences in the review skills and the global `CLAUDE.md`,
+  holds the rendered-file templates to their rules, and re-runs when edited. A reword that trips it means the contract moved:
   update the checker and the fixture that plants that drift, in one commit.
 - `roles/claude/files/scripts/instruction-budget.sh` holds per-surface word
   budgets. A change that grows or adds a surface re-derives its row there, in
@@ -127,7 +127,7 @@ row names a writer. Keep machine-specific values here, never in tracked files.
 | `slack-users.json` | `roles/claude/files/skills/review-shared/slack.md` | GitHub login to Slack user ID (0600), written by the skills |
 | `code-review-egress.json` | `roles/claude/files/skills/review-shared/egress.md` | Per-repo (and per-reviewer) upload consents (0600), written by the skills |
 | `bot-review.json` | the `/bot-review` skill, `/panel-review`'s `reviewer:<name>` backend | Named third-party reviewers, one schema (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/bot-review/bot-review.json.tpl` |
-| `sibling-repos.json` | nothing yet; `/code-review` and `/panel-review` gain the reader | Consuming repository to its producers' clone paths (0600), rendered from `roles/claude/files/skills/review-shared/sibling-repos.json.tpl` |
+| `sibling-repos.json` | nothing yet; `/code-review` and `/panel-review` gain the reader | Consuming repository to its producers' clone paths (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/review-shared/sibling-repos.json.tpl` |
 | `private-identifiers` | `scripts/gitleaks-identifier-rules.sh`, `roles/claude/files/scripts/identifier-check.sh` | Names that must never reach a committed file |
 | `claude-instructions-inventory/` | the `specs/claude-instructions` tasks, by hand | Dated instruction-surface audit (directory 0700, files 0600) |
 

@@ -66,8 +66,8 @@ to_item() {
 }
 item_from() { printf '%s\n' "$@" | to_item; }
 
-# A complete review item for the tracked template: cubic comments, copilot
-# requests by login. The backslashes are the point of the regex values: they
+# A complete review item for the tracked template, one entry per re-request
+# method the schema takes. The backslashes are the point of the regex values: they
 # must land in the JSON verbatim, with no hand-escaping in the item.
 full_review_fields() {
   local v

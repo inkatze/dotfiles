@@ -315,7 +315,7 @@ fi
 rm -rf "$nojq"
 teardown
 
-expect_fail example-config-json \
+expect_fail skills-tree-json \
   "echo 'not json' > $SKILLS/bot-review/planted.json" "is not valid JSON"
 
 # --- The review config template (REQ-A1.2, REQ-A1.3) ---
@@ -362,6 +362,9 @@ expect_fail sibling-template-plain-reference \
 expect_fail sibling-template-two-documents \
   "cp $SHARED/sibling-repos.json.tpl x && cat x >> $SHARED/sibling-repos.json.tpl" \
   "must hold exactly one JSON document"
+expect_fail sibling-template-unknown-field \
+  "jq '.extra = 1' $SHARED/sibling-repos.json.tpl > x && mv x $SHARED/sibling-repos.json.tpl" \
+  "unknown top-level field extra"
 expect_fail sibling-template-version \
   "perl -pi -e 's/\"version\": 1/\"version\": 2/' $SHARED/sibling-repos.json.tpl" "version must be 1"
 expect_fail sibling-template-missing \
