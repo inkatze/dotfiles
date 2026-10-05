@@ -658,7 +658,8 @@ reverses a recorded decision, and doing the enforcement half alone leaves the
 files that already carry the identifiers permanently exempt — containment, not
 coverage, which is the half the successor bundle exists to avoid doing in
 isolation. `roles/claude/files/scripts/identifier-check.sh` reads the same file
-for a review-time report over the live instruction files, run by hand and by
+for a review-time report over the live instruction files and the templates
+rendered beside them, run by hand and by
 the contract fixture suite; it warns and never blocks a commit.
 
 `code-review-egress.json` is untracked for the same class of reason as
@@ -698,8 +699,9 @@ Three consequences worth knowing before moving items around:
   overlay items) lives in the `Dotfiles Service Account` vault rather than
   `Private`, and why that is every script's default vault. Note the blast
   radius that creates: one machine-local file on the headless host now reaches
-  the LAN ssh topology *and* a billable Google API key. Splitting them across two service accounts is the move if
-  that ever stops being an acceptable trade.
+  the LAN ssh topology, a billable Google API key, and the private review
+  configuration. Splitting the sensitive items onto their own service account
+  is the move if that ever stops being an acceptable trade.
 - Moving an item into that vault **reassigns its id**. That is only a problem
   for `claude-gemini-auth-sync.sh`, which addresses its item by id, so a move
   there is also an edit to the script. `ssh-lan-config-sync.sh` addresses its
@@ -707,8 +709,8 @@ Three consequences worth knowing before moving items around:
   template), which survives a move untouched.
 - Every script that reads 1Password with it resolves the token through one
   sourced helper, `scripts/op-token.sh`, tested by `scripts/op-token-test.sh`
-  through the two older syncs, so a fix to the checks lands everywhere at
-  once. The helper refuses a file that is a
+  through `ssh-lan-config-sync.sh` and `claude-gemini-auth-sync.sh`, so a fix
+  to the checks lands everywhere at once. The helper refuses a file that is a
   symlink, is not regular, or is not mode 0600 or 0400, and a value that is
   blank or holds anything outside the token character set (NUL bytes
   included). An already-exported `OP_SERVICE_ACCOUNT_TOKEN` takes precedence,

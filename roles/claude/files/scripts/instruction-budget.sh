@@ -27,7 +27,7 @@ COVERED=(
 # path                                                     n      warn   error
 SURFACES="
 roles/claude/files/CLAUDE.md                               1690   2000   2500
-CLAUDE.md                                                  7290   7750   8250
+CLAUDE.md                                                  7302   7750   8250
 roles/claude/files/skills/bot-review/SKILL.md              3657   4000   4500
 roles/claude/files/skills/code-review/SKILL.md             4050   4500   5000
 roles/claude/files/skills/copilot-review/SKILL.md          4985   5250   5750
