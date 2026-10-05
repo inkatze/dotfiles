@@ -59,6 +59,22 @@
   },
   "permissions": {
     "defaultMode": "auto",
-    "allow": []
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(cd:*)",
+      "Bash(cut:*)",
+      "Bash(diff:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git merge-base:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git status:*)",
+      "Bash(grep:*)",
+      "Bash(head:*)",
+      "Bash(jq:*)",
+      "Bash(ls:*)",
+      "Bash(stat:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)"
+    ]
   }
 }
