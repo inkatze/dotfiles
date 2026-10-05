@@ -40,7 +40,7 @@ Runs identically in both modes.
 
    When `bin_abs` and `bin_real` differ, add a line before the question naming both: `cli.binary resolves to <bin_abs>, which runs <bin_real>`. Anything other than a yes stops the run. `--nested` asks only once, here, before the loop, so a revocation takes effect on the next run.
 
-7. **Egress consent, once per repo (`codex` and `gemini`).** Each sends the diff and the tooling output to an external service (OpenAI for codex, Google for gemini) under this machine's account, so before its first upload it asks per [egress.md](../review-shared/egress.md), with key `<owner>/<repo>` and the backend as value, exactly as `/code-review` does; say that in one line and ask. An entry naming a different backend asks again, and the key holds one backend, so a set naming both asks for each and remembers the last yes. Anything other than a yes stops the run. `--nested` asks only here, before the loop.
+7. **Egress consent, once per repo (`codex` and `gemini`).** Each sends the diff and the tooling output to an external service (OpenAI for codex, Google for gemini) under this machine's account, so before its first upload it asks per [egress.md](../review-shared/egress.md), with key `<owner>/<repo>` and the backend as value, exactly as `/code-review` does; say that in one line and ask. An entry naming a different backend asks again, and the key holds one backend, so a set naming both asks for each and remembers the last yes. Anything but a yes stops the run before any upload. `--nested` asks only here, before the loop.
 
 **Nested-only additions** (after the items above, only with `--nested`):
 
