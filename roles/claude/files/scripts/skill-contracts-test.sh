@@ -346,7 +346,22 @@ expect_fail review-template-no-method \
   "reviewers.cubic.rerequest: needs a method reference"
 expect_fail sibling-template-literal \
   "jq '.repos = {\"o/a\": {\"o/b\": \"/src/b\"}}' $SHARED/sibling-repos.json.tpl > x && mv x $SHARED/sibling-repos.json.tpl" \
-  "repos: not an op:// reference"
+  "repos: not a | json op:// reference"
+expect_fail review-template-json-on-string \
+  "perl -pi -e 's|copilot_opt_out_label \\}\\}|copilot_opt_out_label \\| json }}|' $SKILLS/bot-review/bot-review.json.tpl" \
+  "a list takes a | json reference and a string a plain one"
+expect_fail review-template-two-documents \
+  "cp $SKILLS/bot-review/bot-review.json.tpl x && cat x >> $SKILLS/bot-review/bot-review.json.tpl" \
+  "template: must hold exactly one JSON document"
+expect_fail sibling-template-plain-reference \
+  "perl -pi -e 's/ \\| json \\}\\}/ }}/' $SHARED/sibling-repos.json.tpl" \
+  "repos: not a | json op:// reference"
+expect_fail sibling-template-version \
+  "perl -pi -e 's/\"version\": 1/\"version\": 2/' $SHARED/sibling-repos.json.tpl" "version must be 1"
+expect_fail sibling-template-missing \
+  "rm $SHARED/sibling-repos.json.tpl" "sibling-repos.json.tpl does not exist"
+expect_fail overlay-template-missing \
+  "rm roles/claude/files/planwright/planwright.yml.tpl" "planwright.yml.tpl does not exist"
 expect_fail overlay-template-literal \
   "echo 'flight_pr_hosts: [github.com/someone]' >> roles/claude/files/planwright/planwright.yml.tpl" \
   "is not a key: <op:// reference> line"

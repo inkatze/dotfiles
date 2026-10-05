@@ -152,8 +152,9 @@ if command -v jq >/dev/null 2>&1; then
   review_tpl="$SKILLS/bot-review/bot-review.json.tpl"
   if [ ! -f "$review_tpl" ]; then
     err "$review_tpl does not exist"
-  elif ! tpl_errors="$(jq -r -L "$SKILLS/bot-review" \
-      'include "config-schema"; review_template_errors' "$review_tpl" 2>&1)"; then
+  elif ! tpl_errors="$(jq -r -s -L "$SKILLS/bot-review" 'include "config-schema";
+      if length != 1 then "template: must hold exactly one JSON document"
+      else .[0] | review_template_errors end' "$review_tpl" 2>&1)"; then
     err "$review_tpl could not be checked: $tpl_errors"
   else
     while IFS= read -r line; do
@@ -165,11 +166,13 @@ if command -v jq >/dev/null 2>&1; then
   sibling_tpl="$SHARED/sibling-repos.json.tpl"
   if [ ! -f "$sibling_tpl" ]; then
     err "$sibling_tpl does not exist"
-  elif ! tpl_errors="$(jq -r -L "$SKILLS/bot-review" 'include "config-schema";
+  elif ! tpl_errors="$(jq -r -s -L "$SKILLS/bot-review" 'include "config-schema";
+      if length != 1 then "must hold exactly one JSON document" else .[0] |
       (if .version == 1 then empty else "version must be 1" end),
       ((keys - ["version", "repos"])[] | "unknown top-level field \(.)"),
-      (if (.repos | type) == "string" and (.repos | test(op_reference)) then empty
-       else "repos: not an op:// reference" end)' "$sibling_tpl" 2>&1)"; then
+      (if (.repos | type) == "string" and (.repos | test(op_reference))
+          and (.repos | capture(op_reference).j != null) then empty
+       else "repos: not a | json op:// reference" end) end' "$sibling_tpl" 2>&1)"; then
     err "$sibling_tpl could not be checked: $tpl_errors"
   else
     while IFS= read -r line; do
@@ -181,7 +184,7 @@ if command -v jq >/dev/null 2>&1; then
     err "$overlay_tpl does not exist"
   elif ! tpl_errors="$(jq -R -r -L "$SKILLS/bot-review" 'include "config-schema";
       input_line_number as $n
-      | select(test("^(#.*)?$") | not)
+      | select(test("^(#.*|---)?$") | not)
       | if test("^steps_") then "line \($n) sets a step list"
         elif test("^[a-z][a-z0-9_]*: " + op_reference_inline + "$") then empty
         else "line \($n) is not a key: <op:// reference> line" end' "$overlay_tpl" 2>&1)"; then

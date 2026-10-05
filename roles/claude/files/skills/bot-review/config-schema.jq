@@ -65,8 +65,12 @@ def _template_value_errors($p):
   ( if (.rerequest | type) == "object" and (.rerequest | has("method"))
     then empty else "\($p).rerequest: needs a method reference" end ),
   ( del(.cli) | paths(scalars) as $path | getpath($path) as $v
-    | select(($v | type) != "string" or ($v | test(op_reference) | not))
-    | "\($p).\($path | map(tostring) | join(".")): not an op:// reference" );
+    | "\($p).\($path | map(tostring) | join("."))" as $at
+    | if ($v | type) != "string" or ($v | test(op_reference) | not)
+      then "\($at): not an op:// reference"
+      elif ($path[0] == "gating_checks") != ($v | capture(op_reference).j != null)
+      then "\($at): a list takes a | json reference and a string a plain one"
+      else empty end );
 
 def _entry_errors($name; $mode):
   "reviewers.\($name)" as $p
