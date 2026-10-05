@@ -95,7 +95,7 @@ full_review_fields() {
     "cubic_rerequest_command=@reviewer review this" \
     "cubic_rerequest_incremental_command=@reviewer incremental" \
     "copilot_rerequest_method=request" \
-    "copilot_rerequest_login=copilot" \
+    "copilot_rerequest_login=requester-placeholder" \
     "copilot_rerequest_command=" \
     "copilot_rerequest_incremental_command="
 }
