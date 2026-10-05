@@ -318,9 +318,11 @@ teardown
 expect_fail example-config-json \
   "echo 'not json' >> $SKILLS/bot-review/bot-review.config.example.json" "is not valid JSON"
 
-# --- Slash-invoked only, names and flags kept (REQ-C1.11) ---
+# --- Slash-only unless nested, names and flags kept (REQ-C1.11) ---
 expect_fail front-matter-model-invocation \
-  "perl -ni -e 'print unless /^disable-model-invocation: true\$/' $(md panel-review)" "lacks disable-model-invocation: true"
+  "perl -ni -e 'print unless /^disable-model-invocation: true\$/' $(md peer-review)" "lacks disable-model-invocation: true"
+expect_fail front-matter-nested-hidden \
+  "perl -pi -e 's/^(name: panel-review)\$/\$1\\ndisable-model-invocation: true/' $(md panel-review)" "has a --nested mode"
 expect_fail front-matter-flag-dropped \
   "perl -pi -e 's/ \\[--dry-run\\]//' $(md bot-review)" "argument-hint is"
 expect_fail front-matter-renamed \

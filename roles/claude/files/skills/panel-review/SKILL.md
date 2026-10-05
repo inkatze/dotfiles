@@ -2,7 +2,6 @@
 name: panel-review
 description: Do a comprehensive code review of the current feature branch using configurable non-Anthropic model backends. Pass `--nested` to loop autonomously (review, apply, re-review) until convergence instead of running one interactive pass.
 argument-hint: "[--nested] [--backends <a,b,c>] [--effort <value>]"
-disable-model-invocation: true
 ---
 
 Do a comprehensive code review of the current feature branch using configurable non-Anthropic model backends, so the variance does not come exclusively from this Claude session. Pass `--nested` to loop autonomously (review, apply, re-review) until convergence instead of running one interactive pass.

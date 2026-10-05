@@ -2,7 +2,6 @@
 name: copilot-review
 description: Review and address unresolved GitHub Copilot review threads on the current PR. Pass `--nested` to loop autonomously (address, push, re-request review, wait, repeat) until convergence or diminishing returns.
 argument-hint: "[--nested]"
-disable-model-invocation: true
 ---
 
 Review and address unresolved GitHub Copilot review threads on the current PR. Pass `--nested` to loop autonomously (address, push, re-request review, wait, repeat) until convergence or diminishing returns, instead of running one interactive pass.

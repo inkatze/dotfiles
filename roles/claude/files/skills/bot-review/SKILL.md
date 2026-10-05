@@ -2,7 +2,6 @@
 name: bot-review
 description: "Drive a third-party automated PR-review bot to a clean, documented state on the current PR: every finding replied to and resolved, including rejections and deferrals."
 argument-hint: "[--reviewer <name>] [--local] [--nested] [--dry-run] [--effort <value>]"
-disable-model-invocation: true
 ---
 
 Drive a third-party automated PR-review bot to a clean, documented state on the current PR: every finding replied to and resolved, including the ones we reject. Multi-vendor: the config names one or more reviewers, each with its own hosted-bot mechanics and/or its own local pre-push CLI, and this skill detects up front whether the hosted bot can reach this repo before drawing conclusions from its absence. Pass `--reviewer <name>` to pick one (default from config otherwise), `--local` to hand its CLI to `/panel-review --backends reviewer:<name>` instead, `--nested` to loop the PR drain autonomously, or `--dry-run` to fetch and triage without posting, resolving, or labeling anything.

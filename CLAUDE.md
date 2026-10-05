@@ -46,7 +46,7 @@ near-empty. See [docs/claude-config.md](docs/claude-config.md).
 
 1. Create `roles/claude/files/skills/<name>/SKILL.md` with front matter
    (`name`, `description`, and `disable-model-invocation: true` for a
-   slash-invoked review skill). Mechanics more than one skill uses go in
+   review skill without a `--nested` mode). Mechanics more than one skill uses go in
    `roles/claude/files/skills/review-shared/`, linked by relative path.
 2. A review skill also joins `SKILL_NAMES` and `expected_hint` in
    `roles/claude/files/scripts/skill-contracts.sh`, with a fixture.
