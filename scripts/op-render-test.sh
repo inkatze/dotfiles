@@ -515,6 +515,25 @@ full_review_item "cubic_quota_refusal_regex=limit (["
 run "$review_tpl" dotfiles-bot-review "$out"
 expect_failed "a quota pattern that does not compile" "reviewers.cubic.quota_refusal_regex: does not compile"
 
+echo "25. output shape and early refusals"
+new_sandbox
+full_review_item "cubic_opt_out_label="
+run "$review_tpl" dotfiles-bot-review "$out"
+grep -q '^FAILED: ' <<<"$log" && ok "FAILED starts its own line after a violation list" || ko "FAILED starts its own line ($log)"
+grep -qx '  - reviewers.cubic: missing required field opt_out_label' <<<"$log" && ok "each violation on its own line" || ko "each violation on its own line ($log)"
+ln -s "$sandbox/elsewhere" "$out"
+: >"$OP_STUB_ARGV"
+run "$review_tpl" dotfiles-bot-review "$out"
+[ -s "$OP_STUB_ARGV" ] && ko "a symlinked output still reached op" || ok "a symlinked output is refused before op runs"
+rm -f "$out"
+item_from 'flight_pr_hosts=[a]'
+printf -- '---\nflight_pr_hosts: {{ op://__OP_VAULT__/__OP_ITEM__/flight_pr_hosts }}\n' >"$sandbox/tpl/planwright.yml.tpl"
+run "$sandbox/tpl/planwright.yml.tpl" item "$sandbox/ov.yml"
+[ "$rc" -eq 0 ] && ok "a --- document marker is allowed in the overlay" || ko "a --- document marker is allowed ($log)"
+schema_dir="$repo/roles/claude/files/skills/bot-review"
+got="$(jq -n -r -L "$schema_dir" 'include "config-schema"; {reviewers: {a: {cli: {}}}} | review_config_errors')"
+grep -qF 'config: missing required field default' <<<"$got" && ok "a missing default is named" || ko "a missing default is named ($got)"
+
 echo
 echo "op-render: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

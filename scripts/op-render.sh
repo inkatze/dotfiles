@@ -222,7 +222,7 @@ case "$rule" in
     ;;
 esac
 if [ -n "$errors" ]; then
-  printf '%s' "$errors" | sed 's/^/  - /' >&2
+  printf '%s\n' "$errors" | sed -e '/^$/d' -e 's/^/  - /' >&2
   fail "$output would not satisfy its rule; the violations are listed above"
 fi
 
