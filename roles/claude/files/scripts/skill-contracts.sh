@@ -177,7 +177,13 @@ for name in "${SKILL_NAMES[@]}"; do
   case "$want" in
     *--nested*)
       ! grep -q '^disable-model-invocation:' <<< "$front" \
-        || err "$f front matter sets disable-model-invocation, but $name has a --nested mode that parent skills invoke through the Skill tool" ;;
+        || err "$f front matter sets disable-model-invocation, but $name has a --nested mode that parent skills invoke through the Skill tool"
+      # The description is always in context, so it is what keeps the model
+      # from starting the skill unasked; a copy in the body does not count.
+      sentence="Runs only when the operator types \`/$name\` or a parent skill calls it; never on the model's own initiative, and a plain-language request is answered by naming the command to type."
+      desc="$(sed -n 's/^description: *//p' <<< "$front")"
+      desc="${desc#\"}"; desc="${desc%\"}"
+      [[ "$desc" == *" $sentence" ]] || err "$f front-matter description does not end with: \"$sentence\"" ;;
     *) grep -qx 'disable-model-invocation: true' <<< "$front" || err "$f front matter lacks disable-model-invocation: true" ;;
   esac
   hint_lines="$(grep -c '^argument-hint:' <<< "$front" || true)"

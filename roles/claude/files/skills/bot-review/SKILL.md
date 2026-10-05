@@ -1,6 +1,6 @@
 ---
 name: bot-review
-description: "Drive a third-party automated PR-review bot to a clean, documented state on the current PR: every finding replied to and resolved, including rejections and deferrals."
+description: "Drive a third-party automated PR-review bot to a clean, documented state on the current PR: every finding replied to and resolved, including rejections and deferrals. Runs only when the operator types `/bot-review` or a parent skill calls it; never on the model's own initiative, and a plain-language request is answered by naming the command to type."
 argument-hint: "[--reviewer <name>] [--local] [--nested] [--dry-run] [--effort <value>]"
 ---
 

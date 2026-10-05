@@ -1,6 +1,6 @@
 ---
 name: panel-review
-description: Do a comprehensive code review of the current feature branch using configurable non-Anthropic model backends. Pass `--nested` to loop autonomously (review, apply, re-review) until convergence instead of running one interactive pass.
+description: Do a comprehensive code review of the current feature branch using configurable non-Anthropic model backends. Pass `--nested` to loop autonomously (review, apply, re-review) until convergence instead of running one interactive pass. Runs only when the operator types `/panel-review` or a parent skill calls it; never on the model's own initiative, and a plain-language request is answered by naming the command to type.
 argument-hint: "[--nested] [--backends <a,b,c>] [--effort <value>]"
 ---
 

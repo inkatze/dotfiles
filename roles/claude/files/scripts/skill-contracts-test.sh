@@ -318,7 +318,7 @@ teardown
 expect_fail example-config-json \
   "echo 'not json' >> $SKILLS/bot-review/bot-review.config.example.json" "is not valid JSON"
 
-# --- Slash-only unless nested, names and flags kept (REQ-C1.11) ---
+# --- Slash-only unless nested, names and flags kept (REQ-C1.12) ---
 expect_fail front-matter-model-invocation \
   "perl -ni -e 'print unless /^disable-model-invocation: true\$/' $(md peer-review)" "lacks disable-model-invocation: true"
 expect_fail front-matter-nested-hidden \
@@ -327,6 +327,9 @@ expect_fail front-matter-flag-dropped \
   "perl -pi -e 's/ \\[--dry-run\\]//' $(md bot-review)" "argument-hint is"
 expect_fail front-matter-renamed \
   "perl -pi -e 's/^name: peer-review\$/name: peer-reviews/' $(md peer-review)" "does not name the skill"
+export SENTENCE='Runs only when the operator types `/copilot-review` or a parent skill calls it; never on the model'"'"'s own initiative, and a plain-language request is answered by naming the command to type.'
+expect_fail description-sentence-moved \
+  "perl -0pi -e 's/ \\Q\$ENV{SENTENCE}\\E\$//m; \$_ .= \"\\n\$ENV{SENTENCE}\\n\"' $(md copilot-review)" "description does not end with"
 
 # --- One source of review doctrine (REQ-B1.2, REQ-B1.3, REQ-B1.6) ---
 expect_fail doctrine-pointer-missing \
