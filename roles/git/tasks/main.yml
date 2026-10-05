@@ -36,6 +36,7 @@
     create: true
     insertbefore: BOF
     marker: "# {mark} dotfiles git role"
+    # Keeps only the owner's read and write bits; the overrides task below says why.
     mode: >-
       {{ '%04o' | format((git_global_config_stat.stat.mode | default('0600')
       | int(base=8)) // 64 % 8 // 2 * 2 * 64) }}
