@@ -33,7 +33,7 @@ Shape: a map of named reviewers plus a default, because one bot may not be insta
       "build_id_regex": "...",
       "repo_config_path": "...",
       "reply_suffix": "...",
-      "full_review_comment": "...", "rereview_comment": "...", "quota_refusal_regex": "...",
+      "full_review_comment": "...", "rereview_comment": "...", "quota_refusal_regex": "...", "request_notes": "...",
       "cli": { "binary": "...", "install_command": "...", "local_invocation": "...", "timeout_seconds": 600, "findings_output": "...", "findings_jq": "...", "default_effort": "...", "env_allow": ["..."], "invocation_notes": "..." }
     }
   }
