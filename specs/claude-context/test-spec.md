@@ -1,5 +1,9 @@
 # Dotfiles Repo-Root CLAUDE.md Test Specification
 
+**Status:** Ready
+**Last reviewed:** 2026-10-04
+**Format-version:** 1
+
 ## What to verify
 
 There is no automated test surface for a CLAUDE.md file. Verification is by
@@ -16,9 +20,11 @@ fresh-session smoke test plus structural spot checks against the requirements.
 ### Behavioral checks (fresh session, cwd in dotfiles)
 
 - Asked "where do I add a new slash command?", Claude points to
-  `roles/osx/files/claude/commands/`, not `~/.claude/commands/`.
+  `roles/claude/files/commands/`, not `~/.claude/commands/`.
 - Asked "edit my commit command", Claude edits the tracked source file under
-  `roles/osx/files/claude/commands/`, not the symlink target in `~/.claude/`.
+  `roles/claude/files/commands/`, not the symlink target in `~/.claude/`.
+  **Superseded-by: specs/claude-instructions REQ-C1.1** (2026-10-04), for both
+  command checks above: the review commands are now skills.
 - Asked where a new durable permission belongs, Claude can map the request to the
   correct layer of the three-layer model (global tracked, per-repo tracked, per-repo
   local) without re-deriving it from scratch.
