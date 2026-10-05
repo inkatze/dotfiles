@@ -22,8 +22,11 @@ ko() { echo "  FAIL: $1"; fail=$((fail + 1)); }
 ORIG_PATH="$PATH"
 unset OP_SERVICE_ACCOUNT_TOKEN DOTFILES_OP_TOKEN_FILE DOTFILES_OP_VAULT
 
+root="$(mktemp -d)"
+trap 'rm -rf "$root"' EXIT
+
 new_sandbox() {
-  sandbox="$(mktemp -d)"
+  sandbox="$(mktemp -d "$root/case.XXXXXX")"
   mkdir -p "$sandbox/home/.config/dotfiles" "$sandbox/bin" "$sandbox/tpl"
   export HOME="$sandbox/home"
   export PATH="$sandbox/bin:$ORIG_PATH"
@@ -107,17 +110,17 @@ full_review_item() {
   printf '%s\n' "$fields" | to_item
 }
 
-run() { # run <template> <item> <output>; sets rc and output
+run() { # run <template> <item> <output>; sets rc and log
   set +e
-  output="$("$subject" "$@" 2>&1)"
+  log="$("$subject" "$@" 2>&1)"
   rc=$?
   set -e
 }
 
 expect_failed() { # expect_failed <label> <needle>
-  if [ "$rc" -eq 0 ]; then ko "$1: exited 0 ($output)"
-  elif ! grep -qF "FAILED:" <<<"$output"; then ko "$1: no FAILED: line ($output)"
-  elif ! grep -qF -- "$2" <<<"$output"; then ko "$1: expected \"$2\", got: $output"
+  if [ "$rc" -eq 0 ]; then ko "$1: exited 0 ($log)"
+  elif ! grep -qF "FAILED:" <<<"$log"; then ko "$1: no FAILED: line ($log)"
+  elif ! grep -qF -- "$2" <<<"$log"; then ko "$1: expected \"$2\", got: $log"
   else ok "$1"; fi
 }
 
@@ -127,7 +130,7 @@ echo "1. tracked review template renders, at 0600, regexes verbatim"
 new_sandbox
 full_review_item
 run "$review_tpl" dotfiles-bot-review "$out"
-if [ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$output"; then ok "prints CHANGED"; else ko "prints CHANGED ($output)"; fi
+if [ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$log"; then ok "prints CHANGED"; else ko "prints CHANGED ($log)"; fi
 [ -f "$out" ] && [ "$(mode_of "$out")" = 600 ] && ok "mode 0600" || ko "mode 0600"
 if [ "$(jq -r '.reviewers.cubic.login_pattern' "$out" 2>/dev/null)" = 'cubic-bot\[bot\]' ]; then
   ok "regex value carried verbatim"
@@ -145,18 +148,18 @@ grep -q -- '--vault Dotfiles Service Account' "$OP_STUB_ARGV" && ok "default vau
 
 echo "2. an unchanged output prints OK"
 run "$review_tpl" dotfiles-bot-review "$out"
-[ "$rc" -eq 0 ] && grep -q '^OK:' <<<"$output" && ok "prints OK" || ko "prints OK ($output)"
+[ "$rc" -eq 0 ] && grep -q '^OK:' <<<"$log" && ok "prints OK" || ko "prints OK ($log)"
 
 echo "3. same content at a looser mode is tightened and reported"
 chmod 644 "$out"
 run "$review_tpl" dotfiles-bot-review "$out"
-[ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$output" && ok "prints CHANGED" || ko "prints CHANGED ($output)"
+[ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$log" && ok "prints CHANGED" || ko "prints CHANGED ($log)"
 [ "$(mode_of "$out")" = 600 ] && ok "mode back to 0600" || ko "mode back to 0600"
 
 echo "4. a hand-written regular file is overwritten"
 printf '{"default":"x","reviewers":{"x":{}}}\n' >"$out"
 run "$review_tpl" dotfiles-bot-review "$out"
-[ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$output" && ok "prints CHANGED" || ko "prints CHANGED ($output)"
+[ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$log" && ok "prints CHANGED" || ko "prints CHANGED ($log)"
 [ "$(jq -r .version "$out")" = 1 ] && ok "rendered content replaced it" || ko "rendered content replaced it"
 
 echo "5. a template with an unsubstituted expression fails, nothing written"
@@ -264,7 +267,7 @@ new_sandbox
 sib="$HOME/.config/dotfiles/sibling-repos.json"
 item_from 'repos={"acme/web":{"acme/api":"~/src/api","acme/schema":"/srv/schema"}}'
 run "$sibling_tpl" dotfiles-sibling-repos "$sib"
-[ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$output" && ok "renders" || ko "renders ($output)"
+[ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$log" && ok "renders" || ko "renders ($log)"
 # shellcheck disable=SC2088 # the literal tilde is the value under test
 [ "$(jq -r '.repos["acme/web"]["acme/api"]' "$sib" 2>/dev/null)" = '~/src/api' ] && ok "map content typed" || ko "map content typed"
 [ -f "$sib" ] && [ "$(mode_of "$sib")" = 600 ] && ok "mode 0600" || ko "mode 0600"
@@ -282,11 +285,11 @@ new_sandbox
 ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
 item_from 'flight_pr_hosts=[github.com/acme]'
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
-[ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$output" && ok "renders, creating the directory" || ko "renders ($output)"
+[ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$log" && ok "renders, creating the directory" || ko "renders ($log)"
 grep -qx 'flight_pr_hosts: \[github.com/acme\]' "$ov" 2>/dev/null && ok "value substituted raw" || ko "value substituted raw"
 [ -f "$ov" ] && [ "$(mode_of "$ov")" = 600 ] && ok "mode 0600" || ko "mode 0600"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
-grep -q '^OK:' <<<"$output" && ok "second run prints OK" || ko "second run prints OK ($output)"
+grep -q '^OK:' <<<"$log" && ok "second run prints OK" || ko "second run prints OK ($log)"
 printf 'steps_convergence: {{ op://__OP_VAULT__/__OP_ITEM__/flight_pr_hosts }}\n' >"$sandbox/tpl/planwright.yml.tpl"
 run "$sandbox/tpl/planwright.yml.tpl" item "$sandbox/ov.yml"
 expect_failed "steps_ key in the overlay" "sets steps_convergence"
@@ -324,7 +327,7 @@ new_sandbox
 rm "$sandbox/bin/op"
 for tool in bash dirname jq mktemp; do ln -s "$(command -v "$tool")" "$sandbox/bin/$tool"; done
 set +e
-output="$(PATH="$sandbox/bin" "$subject" "$review_tpl" dotfiles-bot-review "$out" 2>&1)"
+log="$(PATH="$sandbox/bin" "$subject" "$review_tpl" dotfiles-bot-review "$out" 2>&1)"
 rc=$?
 set -e
 expect_failed "op not installed" "1Password CLI (op) not installed"
@@ -337,19 +340,19 @@ run "$review_tpl" dotfiles-bot-review "$out"
 unset OP_SERVICE_ACCOUNT_TOKEN
 grep -q ops_teststubtoken123 "$OP_STUB_ENV" && ok "token in op's environment" || ko "token in op's environment"
 grep -q ops_teststubtoken123 "$OP_STUB_ARGV" && ko "token in argv" || ok "token not in argv"
-[ "$rc" -eq 0 ] && ok "renders with a token" || ko "renders with a token ($output)"
+[ "$rc" -eq 0 ] && ok "renders with a token" || ko "renders with a token ($log)"
 
 echo "18. empty fields drop their keys, and an entry left wholly empty drops out"
 new_sandbox
 mapfile -t empty_copilot < <(full_review_fields | grep '^copilot_' | sed 's/=.*/=/')
 full_review_item "${empty_copilot[@]}"
 run "$review_tpl" dotfiles-bot-review "$out"
-[ "$rc" -eq 0 ] && ok "renders with the copilot entry unset" || ko "renders with the copilot entry unset ($output)"
+[ "$rc" -eq 0 ] && ok "renders with the copilot entry unset" || ko "renders with the copilot entry unset ($log)"
 if jq -e '.reviewers | has("copilot")' "$out" >/dev/null 2>&1; then ko "empty entry dropped"; else ok "empty entry dropped"; fi
 rm -f "$out"
 full_review_item "cubic_gating_checks="
 run "$review_tpl" dotfiles-bot-review "$out"
-[ "$rc" -eq 0 ] && ok "an empty json reference renders" || ko "an empty json reference renders ($output)"
+[ "$rc" -eq 0 ] && ok "an empty json reference renders" || ko "an empty json reference renders ($log)"
 if jq -e '.reviewers.cubic | has("gating_checks")' "$out" >/dev/null 2>&1; then ko "empty json reference dropped"; else ok "empty json reference dropped"; fi
 rm -f "$out"
 full_review_item 'cubic_gating_checks=[""]'
@@ -365,11 +368,11 @@ new_sandbox
 ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
 item_from 'flight_pr_hosts='
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
-[ "$rc" -eq 0 ] && ok "renders with the value unset" || ko "renders with the value unset ($output)"
+[ "$rc" -eq 0 ] && ok "renders with the value unset" || ko "renders with the value unset ($log)"
 if grep -q '^flight_pr_hosts' "$ov" 2>/dev/null; then ko "the empty key's line is dropped"; else ok "the empty key's line is dropped"; fi
 item_from 'flight_pr_hosts=[a {{ b }}]'
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
-grep -qxF 'flight_pr_hosts: [a {{ b }}]' "$ov" 2>/dev/null && ok "a value holding {{ lands as data" || ko "a value holding {{ lands as data ($output)"
+grep -qxF 'flight_pr_hosts: [a {{ b }}]' "$ov" 2>/dev/null && ok "a value holding {{ lands as data" || ko "a value holding {{ lands as data ($log)"
 item_from 'flight_pr_hosts=x'
 jq '.fields[0].value = "a\rb"' "$OP_STUB_ITEM" >"$sandbox/i" && mv "$sandbox/i" "$OP_STUB_ITEM"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
@@ -390,6 +393,62 @@ if find "$HOME/.config/dotfiles" -name '.bot-review.json.*' | grep -q .; then
 else
   ok "no temp file left beside the output"
 fi
+
+echo "21. guards a deletion used to leave green"
+new_sandbox
+full_review_item
+for bad in -flag a/b; do
+  run "$review_tpl" "$bad" "$out"
+  expect_failed "item name $bad" "is outside"
+done
+export DOTFILES_OP_VAULT="Other Vault"
+run "$review_tpl" dotfiles-bot-review "$out"
+unset DOTFILES_OP_VAULT
+grep -q -- '--vault Other Vault' "$OP_STUB_ARGV" && ok "vault override reaches op" || ko "vault override reaches op"
+rm -f "$out"
+jq '.reviewers.cubic["{{ op://__OP_VAULT__/__OP_ITEM__/k }}"] = "x"' "$review_tpl" >"$sandbox/tpl/bot-review.json.tpl"
+run "$sandbox/tpl/bot-review.json.tpl" dotfiles-bot-review "$out"
+expect_failed "a reference in a key" "unsubstituted template expression in a key"
+sib="$HOME/.config/dotfiles/sibling-repos.json"
+item_from 'repos={"acme/web":{"acme/api":7}}'
+run "$sibling_tpl" dotfiles-sibling-repos "$sib"
+expect_failed "a non-string clone path" "repos.acme/web.acme/api: clone path must be absolute"
+item_from 'repos={"acme/web":["~/src/api"]}'
+run "$sibling_tpl" dotfiles-sibling-repos "$sib"
+expect_failed "producers not a map" "repos.acme/web: must map producer repositories to clone paths"
+item_from 'repos={}'
+printf '{"version": 1, "extra": 1, "repos": "{{ op://__OP_VAULT__/__OP_ITEM__/repos | json }}"}\n' >"$sandbox/tpl/sibling-repos.json.tpl"
+run "$sandbox/tpl/sibling-repos.json.tpl" item "$sib"
+expect_failed "sibling map unknown field" "unknown top-level field extra"
+printf '{"repos": "{{ op://__OP_VAULT__/__OP_ITEM__/repos | json }}"}\n' >"$sandbox/tpl/sibling-repos.json.tpl"
+run "$sandbox/tpl/sibling-repos.json.tpl" item "$sib"
+expect_failed "sibling map with no version" "sibling-repos.json: no version key"
+
+echo "22. the review schema's structural rules"
+schema_dir="$repo/roles/claude/files/skills/bot-review"
+# schema_says <label> <jq edit on a valid rendered config> <expected message>
+new_sandbox
+full_review_item
+run "$review_tpl" dotfiles-bot-review "$out"
+valid="$(jq -c '.' "$out")"
+schema_says() {
+  local got
+  got="$(jq -r -L "$schema_dir" "include \"config-schema\"; $2 | review_config_errors" <<<"$valid" 2>&1 || true)"
+  if grep -qF -- "$3" <<<"$got"; then ok "$1"; else ko "$1: expected \"$3\", got: $got"; fi
+}
+[ -z "$(jq -r -L "$schema_dir" 'include "config-schema"; review_config_errors' <<<"$valid")" ] \
+  && ok "the rendered fixture config is valid" || ko "the rendered fixture config is valid"
+schema_says "unknown hosted field" '.reviewers.cubic.colour = "x"' "reviewers.cubic: unknown field colour"
+schema_says "non-string value" '.reviewers.cubic.opt_out_label = 3' "reviewers.cubic.opt_out_label: not a string"
+schema_says "login pattern that does not compile" '.reviewers.cubic.login_pattern = "a(["' "reviewers.cubic.login_pattern: does not compile"
+schema_says "unknown rerequest field" '.reviewers.cubic.rerequest.when = "x"' "reviewers.cubic.rerequest: unknown field when"
+schema_says "default not under reviewers" '.default = "nobody"' "config: default names nobody"
+schema_says "empty reviewers" '.reviewers = {}' "config: reviewers must be a non-empty object"
+schema_says "unknown top-level field" '.extra = 1' "config: unknown top-level field extra"
+schema_says "cli not an object" '.reviewers.cubic.cli = "x"' "reviewers.cubic.cli: not an object"
+schema_says "an entry with nothing" '.reviewers.copilot = {}' "reviewers.copilot: carries neither hosted mechanics nor a cli block"
+schema_says "a cli-only entry is valid" '.reviewers.copilot = {cli: {}} | .extra = 1' "config: unknown top-level field extra"
+schema_says "gating checks holding a number" '.reviewers.cubic.gating_checks = [1]' "gating_checks: must be an array of non-empty strings"
 
 echo
 echo "op-render: $pass passed, $fail failed"
