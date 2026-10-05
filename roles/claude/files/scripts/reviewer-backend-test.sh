@@ -19,6 +19,8 @@ unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR \
   GIT_PREFIX GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_NAMESPACE GIT_CEILING_DIRECTORIES \
   GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+inner=""
+[ "${1:-}" != --inner ] || inner=1
 
 root="$(cd "$(dirname "$0")/../../../.." && pwd)"
 [ -f "$root/lefthook.yml" ] || {
@@ -83,6 +85,7 @@ EOF
 echo "$sandbox/tools/node/bin/node" >"$sandbox/seen-node"
 env >"$sandbox/seen-env"
 printf '%s\n' "\$@" >"$sandbox/seen-argv"
+if { true >&3; } 2>/dev/null; then echo open >"$sandbox/seen-fd3"; fi
 case "\$(cat "$sandbox/mode")" in
   issues) printf '{"issues":[{"file":"a.sh","line":3,"priority":"P1","title":"t","description":"d"}]}\n'; exit 1 ;;
   error) printf '{"issues":[{"file":"a.sh","line":1,"priority":"P2","title":"t"}],"error":"stubbed failure"}\n'; echo "stubbed vendor reason" >&2; exit 1 ;;
@@ -197,7 +200,9 @@ else
   ko "the configured link runs, with the base ref in argv ($(tr '\n' ' ' <"$sandbox/seen-argv"))"
 fi
 
-if [ -n "${REVIEWER_BACKEND_TEST_INNER:-}" ]; then
+[ ! -e "$sandbox/seen-fd3" ] && ok "the key pipe is closed before the CLI starts" || ko "the CLI inherited the key pipe on fd 3"
+
+if [ -n "$inner" ]; then
   echo
   echo "reviewer-backend-test: $pass passed, $fail failed"
   [ "$fail" -eq 0 ]
@@ -297,6 +302,30 @@ case ":$(seen PATH):" in
   *) [ "$rc" -eq 0 ] && ok "a relocated MISE_DATA_DIR's shims are stripped" || ko "relocated MISE_DATA_DIR run (rc=$rc, err=$err)" ;;
 esac
 
+new_case
+mkdir -p "$sandbox/odd"
+ln -s "$sandbox/mise-bin/mise" "$sandbox/odd/jq"
+session_path="$sandbox/odd:$session_path"
+run_snippet
+expect_refused "a helper tool linked to mise from an unrecognised directory" "is a mise shim outside mise's shims directory"
+new_case
+session_path="::$session_path"
+mkdir -p "$repo/bin"
+printf '#!/bin/sh\necho steered >"%s/steered-ran"\nexit 1\n' "$sandbox" >"$repo/git"
+chmod +x "$repo/git"
+run_snippet
+[ "$rc" -eq 0 ] && [ ! -e "$sandbox/steered-ran" ] && ok "an empty PATH entry never finds a git in the repo" || ko "empty PATH entry (rc=$rc, err=$err)"
+
+echo "8b. without env_files, nothing is piped and the CLI still runs"
+new_case
+edit_cfg '.reviewers.cubic.cli |= (del(.env_files) | .env_allow = [])'
+run_snippet
+[ "$rc" -eq 0 ] && [ -z "$(seen CUBIC_API_KEY)" ] && ok "no key, no pipe, CLI ran" || ko "no env_files (rc=$rc, err=$err)"
+new_case
+edit_cfg '.reviewers.cubic.cli |= (.env.SHELLOPTS = "xtrace")'
+run_snippet
+expect_refused "refused: a shell option variable" "cli.env_files and cli.env must map"
+
 echo "9. under a git hook's environment, the suite leaves that repository alone"
 decoy="$work/decoy"
 sandbox_git init -q -b main "$decoy"
@@ -308,8 +337,8 @@ decoy_state() {
     && cksum .git/config .git/index && git config --list --local)
 }
 before="$(decoy_state)"
-REVIEWER_BACKEND_TEST_INNER=1 GIT_DIR="$decoy/.git" GIT_INDEX_FILE="$decoy/.git/index" GIT_WORK_TREE="$decoy" \
-  "$0" >"$work/inner.log" 2>&1
+GIT_DIR="$decoy/.git" GIT_INDEX_FILE="$decoy/.git/index" GIT_WORK_TREE="$decoy" \
+  "$0" --inner >"$work/inner.log" 2>&1
 inner_rc=$?
 after="$(decoy_state)"
 [ "$before" = "$after" ] && ok "decoy refs, HEAD, index and config unchanged" || ko "the decoy repository changed: $(diff <(echo "$before") <(echo "$after"))"

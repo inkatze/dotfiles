@@ -30,9 +30,10 @@ pre-commit:
       # The fixture suite is what notices a check class being deleted from the
       # checker (the checker alone still reports "all invariants hold"). It is
       # slow, so it runs here only when the checker, the suite or the
-      # identifier check it runs changes; CI (.github/workflows/test.yml) runs
-      # it on every PR.
-      glob: "roles/claude/files/scripts/{skill-contracts.sh,skill-contracts-test.sh,identifier-check.sh}"
+      # identifier check it runs changes, or a file holding its fixtures'
+      # anchors; CI (.github/workflows/test.yml) runs it on every PR.
+      glob: "{roles/claude/files/scripts/{skill-contracts.sh,skill-contracts-test.sh,identifier-check.sh},\
+        roles/claude/files/skills/{panel-review/{SKILL,reviewer-backend},review-shared/egress}.md}"
       run: roles/claude/files/scripts/skill-contracts-test.sh
     instruction-budget:
       # lefthook.yml and the workflow too: the suite asserts both wire the checker.
@@ -108,8 +109,8 @@ pre-commit:
         roles/claude/files/scripts/reviewer-backend-test.sh}"
       run: roles/claude/files/scripts/reviewer-backend-test.sh
     cubic-postinstall-optout:
-      # Needs the network: it fetches the pinned package to read its
-      # postinstall. A version bump fails it until the new script is reviewed.
+      # Needs the network: it fetches the pinned package to read its install
+      # scripts and license. A version bump fails it until they are re-read.
       glob: "{roles/environments/files/mise.toml,roles/environments/{tasks,defaults}/main.yml,\
         scripts/cubic-postinstall-optout-test.sh}"
       run: scripts/cubic-postinstall-optout-test.sh

@@ -14,7 +14,8 @@
 # tightened: if group or other could read it, the key may already have been
 # read, and the fix is a rotation, which a chmod would hide. So is a directory
 # for it that someone else owns or could write, where the file could be
-# swapped under the reader.
+# swapped under the reader; group write counts only when the group is not the
+# user's own primary group (a user-private group shares nothing).
 
 set -eu
 umask 077
@@ -37,6 +38,22 @@ case "$output" in
 esac
 
 mode_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null || echo ''; }
+group_of() { stat -c '%g' "$1" 2>/dev/null || stat -f '%g' "$1" 2>/dev/null || echo ''; }
+
+check_dir() {
+  local dir="$1" mode
+  [ -O "$dir" ] || fail "$dir is not owned by this user; refusing to write a key there"
+  mode="$(mode_of "$dir")"
+  [ -n "$mode" ] || fail "could not stat $dir"
+  # Only the permission digits: stat prints setgid and sticky as a leading fourth.
+  mode="${mode#"${mode%???}"}"
+  case "$mode" in
+    ??[2367]) fail "$dir is writable by other; tighten it (chmod o-w) and re-run" ;;
+    ?[2367]?)
+      [ "$(group_of "$dir")" = "$(id -g)" ] \
+        || fail "$dir is writable by its group, which is not your own; tighten it (chmod g-w) and re-run" ;;
+  esac
+}
 
 check_output() {
   if [ -L "$output" ]; then
@@ -83,20 +100,18 @@ case "$value" in
   *[[:space:]]*) fail "item '$item' holds a credential with a line break or space; an API key has none" ;;
 esac
 
+out_dir="$(dirname -- "$output")"
 # Re-checked: the output can be replaced or loosened during the seconds op takes.
 check_output
+[ ! -d "$out_dir" ] || check_dir "$out_dir"
 if [ -f "$output" ] && [ "$(cat "$output")" = "$value" ]; then
   echo "OK: $output already matches 1Password"
   exit 0
 fi
 
-out_dir="$(dirname -- "$output")"
 # The umask above makes any directory created here 0700.
 mkdir -p -- "$out_dir" || fail "could not create $out_dir"
-[ -O "$out_dir" ] || fail "$out_dir is not owned by this user; refusing to write a key there"
-case "$(mode_of "$out_dir")" in
-  ?[2367]? | ??[2367]) fail "$out_dir is writable by group or other; tighten it (chmod go-w) and re-run" ;;
-esac
+check_dir "$out_dir"
 
 tmp_out=""
 trap '[ -z "$tmp_out" ] || rm -f "$tmp_out"' EXIT

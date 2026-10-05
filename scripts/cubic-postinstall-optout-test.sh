@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Proves, by reading the cubic CLI package's postinstall rather than running
-# it, that the git-ai installer it can pipe to bash is unreachable under the
-# opt-out the environments role sets up: the flag file it writes, and the
-# variable on its install task.
+# Proves, by reading the cubic CLI package's install scripts rather than
+# running them, that the git-ai installer its postinstall can pipe to bash is
+# unreachable under the opt-out the environments role sets up: the flag file
+# it writes, and the variables on its install task.
 #
 # The package is fetched from the npm registry at the version the tracked mise
 # config pins and checked against the integrity reviewed below, so a version
-# bump fails here until someone re-reads the new postinstall and updates
-# reviewed_version and reviewed_integrity. Needs network; offline it fails
-# rather than passing unchecked.
+# bump fails here until someone re-reads the new install scripts and license
+# and updates reviewed_version, reviewed_integrity and reviewed_license. Needs
+# network; offline it fails rather than passing unchecked.
 set -uo pipefail
 
 reviewed_version="1.14.2"

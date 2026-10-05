@@ -81,7 +81,7 @@ if grep -q -- '--vault Dotfiles Service Account' "$OP_STUB_ARGV" && grep -q -- '
 else
   ko "reads the credential field from the service-account vault ($(cat "$OP_STUB_ARGV"))"
 fi
-if grep -q placeholder-key "$OP_STUB_ARGV"; then ko "the key reached op's argv"; else ok "the key never reaches argv"; fi
+if grep -q placeholder-key "$OP_STUB_ARGV"; then ko "op was called with the key"; else ok "op is called without the key"; fi
 if [ -n "$(find "$(dirname "$out")" -name '.*' -type f)" ]; then ko "a temp file was left behind"; else ok "no temp file left behind"; fi
 
 echo "2. a second run is a no-op"
@@ -168,11 +168,32 @@ new_sandbox
 mkdir -p "$(dirname "$out")"
 chmod 777 "$(dirname "$out")"
 run test-item "$out"
-expect_failed "group/other-writable directory refused" "writable by group or other"
+expect_failed "other-writable directory refused" "writable by other"
 [ -e "$out" ] && ko "a key was written there" || ok "no key written there"
+chmod 1777 "$(dirname "$out")"
+run test-item "$out"
+expect_failed "sticky other-writable directory refused" "writable by other"
+chmod 775 "$(dirname "$out")"
+run test-item "$out"
+if [ "$rc" -eq 0 ]; then ok "a directory writable only by your own primary group is accepted"; else ko "user-private group directory ($log)"; fi
+chmod 2775 "$(dirname "$out")" 2>/dev/null && [ "$(mode_of "$(dirname "$out")")" != 775 ] && {
+  run test-item "$out"
+  [ "$rc" -eq 0 ] && ok "setgid on your own group's directory is read past" || ko "setgid own-group directory ($log)"
+}
+chmod 777 "$(dirname "$out")"
+run test-item "$out"
+expect_failed "an existing matching key in an other-writable directory is not OK" "writable by other"
 chmod 755 "$(dirname "$out")"
 run test-item "$out"
-if [ "$rc" -eq 0 ] && [ "$(mode_of "$(dirname "$out")")" = 755 ]; then ok "an existing directory is left at its own mode"; else ko "an existing directory is left at its own mode ($log)"; fi
+dir_mode="$(mode_of "$(dirname "$out")")"
+if [ "$rc" -eq 0 ] && [ "${dir_mode#"${dir_mode%???}"}" = 755 ]; then ok "an existing directory is left at its own mode"; else ko "an existing directory is left at its own mode ($log)"; fi
+if [ "$(id -G | wc -w)" -gt 1 ]; then
+  other_group="$(id -G | tr ' ' '\n' | grep -vx "$(id -g)" | head -n 1)"
+  if chgrp "$other_group" "$(dirname "$out")" 2>/dev/null && chmod 775 "$(dirname "$out")"; then
+    run test-item "$out"
+    expect_failed "a directory writable by another group refused" "which is not your own"
+  fi
+fi
 
 echo "12. no shell config exports the key"
 if grep -rq CUBIC "$script_dir/../roles/fish"; then ko "roles/fish mentions CUBIC"; else ok "roles/fish never mentions CUBIC"; fi

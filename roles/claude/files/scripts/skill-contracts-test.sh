@@ -150,11 +150,14 @@ expect_fail reviewer-backend-multi-doc \
 expect_fail reviewer-backend-row-shape \
   "perl -pi -e 's/cli\\.findings_jq must yield one array/rows look fine/' $RB" "reviewer-backend containment line"
 
-reviewer_drift reviewer-backend-inherited-env '/usr/bin/env -i "${env_kept[@]}" /bin/sh' '/bin/sh'
-reviewer_drift reviewer-backend-key-on-argv 'file_pairs+=("$v=$value_file")' 'env_kept+=("$v=$val")'
+reviewer_drift reviewer-backend-inherited-env '/usr/bin/env -i "${env_kept[@]}" "$tbin"' '"$tbin"'
+reviewer_drift reviewer-backend-key-on-argv 'secret_pairs+=("$v=$val")' 'env_kept+=("$v=$val")'
+reviewer_drift reviewer-backend-key-pipe-left-open 'unset __rb_pair; exec "$@" 3<&-' 'unset __rb_pair; exec "$@"'
+reviewer_drift reviewer-backend-loader-traced 'set +x; while IFS=' 'while IFS='
+reviewer_drift reviewer-backend-git-env-inherited 'unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE' 'unset GIT_WORK_TREE GIT_INDEX_FILE'
 reviewer_drift reviewer-backend-env-from-shell-vars 'val="$(printenv "$v")"' 'val="${!v}"'
 reviewer_drift reviewer-backend-env-allow-unvalidated \
-  ' and test("^[A-Za-z_][A-Za-z0-9_]*$")) then' ') then'
+  ' and test("\\A[A-Za-z_][A-Za-z0-9_]*\\z")) then' ') then'
 reviewer_drift reviewer-backend-env-allow-no-stop \
   '|| { echo "cli.env_allow must be a list of variable names" >&2; exit 1; }' '|| true'
 reviewer_drift reviewer-backend-in-repo-textual '[ "$x" -ef "$top" ] && return 0' '[ "$x" = "$top" ] && return 0'
@@ -167,7 +170,8 @@ reviewer_drift reviewer-backend-tool-dirs-keep-repo-dirs \
   $'in_repo "$dir"; [ "$?" -eq 1 ] || continue\n    cli_path=' $':\n    cli_path='
 reviewer_drift reviewer-backend-snippet-path-unfiltered '  PATH="$safe_path"' '  :'
 reviewer_drift reviewer-backend-cli-path-unfiltered 'env_kept=("PATH=$safe_path")' 'env_kept=("PATH=$PATH")'
-reviewer_drift reviewer-backend-no-tool-probe 'for tool in realpath jq printenv git; do' 'for tool in; do'
+reviewer_drift reviewer-backend-no-tool-probe 'for tool in jq printenv git; do' 'for tool in; do'
+reviewer_drift reviewer-backend-tools-checked-after-first-git $'check_tools || exit 1\n  top=' $'top='
 reviewer_drift reviewer-backend-binary-unresolved 'bin_real="$(realpath "$bin_abs")" ||' 'bin_real="$bin_abs" ||'
 reviewer_drift reviewer-backend-binary-in-repo 'in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] || { echo "cli.binary resolves inside' 'true || { echo "cli.binary resolves inside'
 reviewer_drift reviewer-backend-binary-not-approved '[ "$bin_real" = "$approved" ] ||' 'true ||'
@@ -178,11 +182,10 @@ reviewer_drift reviewer-backend-shims-data-dir-missed '[ -d "$mise_shims" ] && [
 reviewer_drift reviewer-backend-home-tools-not-first 'cli_path="${cli_path:+$cli_path:}$safe_path"' 'cli_path="$safe_path${cli_path:+:$cli_path}"'
 reviewer_drift reviewer-backend-mise-sees-key 'mise_env=("PATH=$safe_path" "HOME=$HOME")' 'mise_env=("${env_kept[@]}")'
 reviewer_drift reviewer-backend-shim-binary-runs 'if is_mise_link "$bin_real"; then' 'if false; then'
-reviewer_drift reviewer-backend-shim-helper-runs '! is_mise_link "$tool_abs" || { echo' 'true || { echo'
+reviewer_drift reviewer-backend-shim-helper-runs '! is_mise_link "$tool_real" || { echo' 'true || { echo'
 reviewer_drift reviewer-backend-shim-timeout-runs '! is_mise_link "$tbin_real" || { echo' 'true || { echo'
 reviewer_drift reviewer-backend-shim-hardlink-missed '{ [ -n "$mise_bin" ] && [ "$probe" -ef "$mise_bin" ]; }' 'false'
 reviewer_drift reviewer-backend-first-git-through-shims '  PATH="$no_shims"' '  :'
-reviewer_drift reviewer-backend-shims-data-dir-missed '[ -d "$mise_shims" ] && [ "$probe" -ef "$mise_shims" ]' 'false'
 reviewer_drift reviewer-backend-binary-found-in-repo 'in_repo "${bin_abs%/*}/"; [ "$?" -eq 1 ] ||' 'true ||'
 reviewer_drift reviewer-backend-key-file-symlink '[ ! -L "$value_file" ] && [ -f "$value_file" ] && [ -O "$value_file" ] \' 'true \'
 reviewer_drift reviewer-backend-key-file-loose-mode $'      600|400) ;;\n' $'      *) ;;\n'
@@ -190,8 +193,9 @@ reviewer_drift reviewer-backend-key-file-empty 'val="$(cat "$value_file")" && [ 
 reviewer_drift reviewer-backend-key-file-whitespace 'case "$val" in *[[:space:]]*) echo' 'case "$val" in "") echo'
 reviewer_drift reviewer-backend-key-file-bypasses-allow 'and ($files - $allow | length == 0)' 'and true'
 reviewer_drift reviewer-backend-fixed-env-replaces-path 'and ($files + $fixed | all(.[]; . != "PATH" and . != "HOME"))' 'and true'
-reviewer_drift reviewer-backend-env-names-git 'and ($files + $fixed + $allow | all(.[]; startswith("GIT_") | not))' 'and true'
-reviewer_drift reviewer-backend-mise-sees-xdg-only-listed 'case "$v" in MISE_*|XDG_*) val=' 'case "$v" in *) val='
+reviewer_drift reviewer-backend-env-names-git '(startswith("GIT_") or startswith("__rb_")' '(false'
+reviewer_drift reviewer-backend-env-names-shell 'or IN("SHELLOPTS", "BASHOPTS", "BASH_ENV", "ENV", "PS4", "IFS")) | not))' ') | not))'
+reviewer_drift reviewer-backend-mise-sees-tokens 'case "$v" in MISE_*_DIR|XDG_*_HOME) val=' 'case "$v" in *) val='
 reviewer_drift reviewer-backend-findings-exit-any-code 'for code in $findings_codes; do [ "$backend_status" -ne "$code" ] || findings_status="$code"; done' 'findings_status="$backend_status"'
 reviewer_drift reviewer-backend-findings-exit-allows-timeout 'and . > 0 and . < 124) then' 'and . > 0) then'
 reviewer_drift reviewer-backend-findings-exit-unnormalised '.[] | floor else error("") end' '.[] else error("") end'
@@ -201,7 +205,12 @@ reviewer_drift reviewer-backend-sandbox-claim 'an accident guard, not a sandbox'
 reviewer_drift reviewer-backend-trust-unstated 'the CLI itself still runs with your full filesystem and network access' 'the CLI is contained'
 reviewer_drift reviewer-backend-mise-bin-relative 'mise_bin="$(type -P mise)"' 'mise_bin="$(command -v mise)"'
 reviewer_drift reviewer-backend-home-in-repo '0) echo "HOME is inside the repo under review' '0) true "HOME is inside the repo under review'
-reviewer_drift reviewer-backend-tool-dirs-colon 'case "$dir" in *:*|[!/]*) continue ;; esac' 'case "$dir" in [!/]*) continue ;; esac'
+reviewer_drift reviewer-backend-tool-dirs-colon \
+  $'case "$dir" in \'\'|*:*|[!/]*) continue ;; esac\n    [ -d "$dir" ] || continue\n    in_repo "$dir"; [ "$?" -eq 1 ] || continue\n    cli_path=' \
+  $'case "$dir" in [!/]*) continue ;; esac\n    [ -d "$dir" ] || continue\n    in_repo "$dir"; [ "$?" -eq 1 ] || continue\n    cli_path='
+reviewer_drift reviewer-backend-first-git-empty-path-entry \
+  $'case "$dir" in \'\'|*:*|[!/]*) continue ;; esac\n    ! is_shims "$dir" || continue\n    no_shims=' \
+  $'case "$dir" in *:*|[!/]*) continue ;; esac\n    ! is_shims "$dir" || continue\n    no_shims='
 reviewer_drift reviewer-backend-consent-not-real-path 'is item 5'"'"'s `bin_real`' 'is item 5'"'"'s `bin_abs`'
 reviewer_drift reviewer-backend-preflight-range 'up to, not including, its `[ "$bin_real" = "$approved" ]` check' 'through its approved check'
 reviewer_drift reviewer-backend-cli-path-unused '  env_kept[0]="PATH=$cli_path"' '  :'
@@ -226,7 +235,8 @@ reviewer_drift reviewer-backend-git-setup-links-by-name '"$(readlink "$path")"; 
 reviewer_drift reviewer-backend-git-setup-hooks-fallback \
   'git rev-parse --path-format=absolute --git-path hooks)"' 'echo "$git_common/hooks")"'
 reviewer_drift reviewer-backend-git-setup-hooks-dir-unseen '"$git_hooks" "$git_hooks"/*; do' '"$git_hooks"/*; do'
-reviewer_drift reviewer-backend-findings-error-hides-stderr '[ "$backend_status" -eq 0 ] || tail -n 50 "$work/stderr"' 'true || tail -n 50 "$work/stderr"'
+reviewer_drift reviewer-backend-findings-error-hides-stderr '[ "$backend_status" -eq 0 ] || show_stderr' 'true || show_stderr'
+reviewer_drift reviewer-backend-loader-failure-blamed-on-cli 'elif [ "$backend_status" -ge 125 ] && [ "$backend_status" -le 127 ]; then' 'elif false; then'
 reviewer_drift reviewer-backend-git-setup-unchecked \
   'if ! setup_after="$(git_setup_sum)" || [ "$setup_after" != "$setup_before" ]; then' 'if false; then'
 reviewer_drift reviewer-backend-tree-not-compared 'elif [ "$tree_after" != "$tree_before" ]; then' 'elif false; then'

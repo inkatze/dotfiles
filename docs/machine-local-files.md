@@ -60,9 +60,10 @@ task in the same file and behind the same guards. It is a raw key, not a
 rendered template, so it gets its own script: written at 0600, a blank value
 or one holding any whitespace refused, an existing file at any mode but 600
 or 400 refused rather than tightened (if others could read it, the fix is a
-rotation), and a directory someone else owns or can write refused. Nothing exports it into a shell; `/panel-review`'s
-`reviewer:cubic` backend reads it through the entry's `cli.env_files` and
-hands it to the CLI's `env -i` alone.
+rotation), and a directory someone else owns, or that other users or a group
+other than your own primary one can write, refused. Nothing exports it into a
+shell; `/panel-review`'s `reviewer:cubic` backend reads it through the
+entry's `cli.env_files` and hands it to the CLI on a pipe, never an argv.
 
 ## The service account
 
@@ -71,8 +72,9 @@ hands it to the CLI's `env -i` alone.
   keys and the three rendered items above) therefore lives in the
   `Dotfiles Service Account` vault, which is every script's default. One
   file on the headless host thereby reaches the LAN ssh topology, two
-  billable API keys and the private review configuration; splitting the sensitive items onto their own service
-  account is the move if that stops being an acceptable trade.
+  billable API keys and the private review configuration; splitting the
+  sensitive items onto their own service account is the move if that stops
+  being an acceptable trade.
 - **Moving an item into that vault reassigns its id.** That only matters for
   `scripts/claude-gemini-auth-sync.sh`, which addresses its item by id;
   `scripts/ssh-lan-config-sync.sh` addresses its item by name.

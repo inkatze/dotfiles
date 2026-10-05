@@ -165,7 +165,7 @@ jobs:
         run: roles/claude/files/scripts/reviewer-backend-test.sh
 
       # Fetches the pinned cubic package from the npm registry and reads its
-      # postinstall; curl, openssl, tar and jq are all it needs.
+      # install scripts and license; curl, openssl, tar and jq are all it needs.
       - name: Run the cubic postinstall opt-out suite
         run: scripts/cubic-postinstall-optout-test.sh
 
