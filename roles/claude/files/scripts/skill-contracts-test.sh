@@ -347,6 +347,9 @@ expect_fail review-template-no-method \
 expect_fail sibling-template-literal \
   "jq '.repos = {\"o/a\": {\"o/b\": \"/src/b\"}}' $SHARED/sibling-repos.json.tpl > x && mv x $SHARED/sibling-repos.json.tpl" \
   "repos: not a | json op:// reference"
+expect_fail review-template-literal-rereview \
+  "perl -pi -e 's|\\{\\{ op://__OP_VAULT__/__OP_ITEM__/cubic_rereview_comment \\}\\}|@bot review|' $SKILLS/bot-review/bot-review.json.tpl" \
+  "reviewers.cubic.rereview_comment: not an op:// reference"
 expect_fail review-template-json-on-string \
   "perl -pi -e 's|copilot_opt_out_label \\}\\}|copilot_opt_out_label \\| json }}|' $SKILLS/bot-review/bot-review.json.tpl" \
   "a list takes a | json reference and a string a plain one"

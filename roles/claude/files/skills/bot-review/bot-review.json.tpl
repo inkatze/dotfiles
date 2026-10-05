@@ -23,7 +23,11 @@
       "repo_config_path": "{{ op://__OP_VAULT__/__OP_ITEM__/cubic_repo_config_path }}",
       "reply_suffix": "{{ op://__OP_VAULT__/__OP_ITEM__/cubic_reply_suffix }}",
       "feedback_reaction": "{{ op://__OP_VAULT__/__OP_ITEM__/cubic_feedback_reaction }}",
-      "errored_review_regex": "{{ op://__OP_VAULT__/__OP_ITEM__/cubic_errored_review_regex }}"
+      "errored_review_regex": "{{ op://__OP_VAULT__/__OP_ITEM__/cubic_errored_review_regex }}",
+      "full_review_comment": "{{ op://__OP_VAULT__/__OP_ITEM__/cubic_full_review_comment }}",
+      "rereview_comment": "{{ op://__OP_VAULT__/__OP_ITEM__/cubic_rereview_comment }}",
+      "quota_refusal_regex": "{{ op://__OP_VAULT__/__OP_ITEM__/cubic_quota_refusal_regex }}",
+      "request_notes": "{{ op://__OP_VAULT__/__OP_ITEM__/cubic_request_notes }}"
     },
     "copilot": {
       "login_pattern": "{{ op://__OP_VAULT__/__OP_ITEM__/copilot_login_pattern }}",
@@ -46,7 +50,11 @@
       "repo_config_path": "{{ op://__OP_VAULT__/__OP_ITEM__/copilot_repo_config_path }}",
       "reply_suffix": "{{ op://__OP_VAULT__/__OP_ITEM__/copilot_reply_suffix }}",
       "feedback_reaction": "{{ op://__OP_VAULT__/__OP_ITEM__/copilot_feedback_reaction }}",
-      "errored_review_regex": "{{ op://__OP_VAULT__/__OP_ITEM__/copilot_errored_review_regex }}"
+      "errored_review_regex": "{{ op://__OP_VAULT__/__OP_ITEM__/copilot_errored_review_regex }}",
+      "full_review_comment": "{{ op://__OP_VAULT__/__OP_ITEM__/copilot_full_review_comment }}",
+      "rereview_comment": "{{ op://__OP_VAULT__/__OP_ITEM__/copilot_rereview_comment }}",
+      "quota_refusal_regex": "{{ op://__OP_VAULT__/__OP_ITEM__/copilot_quota_refusal_regex }}",
+      "request_notes": "{{ op://__OP_VAULT__/__OP_ITEM__/copilot_request_notes }}"
     }
   }
 }
