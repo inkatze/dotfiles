@@ -23,7 +23,7 @@ pre-commit:
     skill-contracts:
       # Beyond the skill files: both CLAUDE.md files are in the glob because the
       # checker asserts against them, and the checker so its own edits re-run it.
-      glob: "{CLAUDE.md,roles/claude/files/{skills/*/*.{md,json},CLAUDE.md,\
+      glob: "{CLAUDE.md,roles/claude/files/{skills/*/*.{md,json,tpl,jq},planwright/*.tpl,CLAUDE.md,\
         scripts/{skill-contracts.sh,skill-contracts-test.sh,identifier-check.sh}}}"
       run: roles/claude/files/scripts/skill-contracts.sh
     skill-contracts-suite:
@@ -89,6 +89,12 @@ pre-commit:
       glob: "{scripts/op-token.sh,scripts/op-token-test.sh,\
         scripts/claude-gemini-auth-sync.sh,scripts/ssh-lan-config-sync.sh}"
       run: scripts/op-token-test.sh
+    op-render:
+      # The suite is what notices a guard being dropped from the renderer; the
+      # renderer alone still writes a file, just one nothing checked.
+      glob: "{scripts/op-render.sh,scripts/op-render-test.sh,scripts/op-token.sh,\
+        roles/claude/files/skills/*/*.{tpl,jq},roles/claude/files/planwright/*.tpl}"
+      run: scripts/op-render-test.sh
     fish-tower:
       # The suite is what notices the launcher losing its fail-closed refusal;
       # the function alone still starts a tower, just without its deny floor.

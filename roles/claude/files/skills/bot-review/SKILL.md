@@ -10,28 +10,35 @@ Resolve planwright's review doctrine first, per [doctrine.md](../review-shared/d
 
 ## Config
 
-Read `~/.config/dotfiles/bot-review.json` (mode 0600, read-only from this skill; you write it by hand). The example at [bot-review.config.example.json](bot-review.config.example.json) shows the shape with placeholder values.
+Read `~/.config/dotfiles/bot-review.json` (mode 0600, read-only from this skill). Ansible renders it from a 1Password item through the committed template [bot-review.json.tpl](bot-review.json.tpl), whose every vendor value is an `op://` reference, and checks it against [config-schema.jq](config-schema.jq) before it lands; change the item, never the file. Its `version` must be `1`: on any other value, or none, stop, naming the file and the version it carries.
 
 **Terminology**: a config **reviewer** entry configures one third-party **bot** shipped by some **vendor**; the three words name the same thing at different distances (the config key, the thing that posts comments, the company that makes it), never a fourth term for the same referent.
 
-**Missing or unreadable config: stop and say so.** Name the expected path and point at the example. Do not guess a bot login, label name, check name, or marker format; a wrong guess either misses every finding or acts on someone else's.
+**Missing or unreadable config: stop and say so.** Name the expected path, point at the template, and say the file is rendered by the claude role's Ansible run from the 1Password item `dotfiles-bot-review`. Do not guess a bot login, label name, check name, or marker format; a wrong guess either misses every finding or acts on someone else's.
 
 Shape: a map of named reviewers plus a default, because one bot may not be installed on every repo, and a second reviewer (or a CLI-only fallback for the same one) needs to be reachable without editing this file:
 
 ```json
 {
+  "version": 1,
   "default": "<name>",
   "reviewers": {
     "<name>": {
       "login_pattern": "...",
-      "opt_in_label": "...", "opt_out_label": "...",
-      "gating_checks": ["...", "..."],
-      "requirement_level_hint": "...",
-      "addressed_marker_format": "...",
+      "rerequest": { "method": "request | comment | push", "login": "...", "command": "...", "incremental_command": "..." },
+      "reviewed_head_regex": "...",
       "finding_key_regex": "...",
       "build_id_regex": "...",
+      "draft_policy": "reviews-drafts | skips-drafts", "draft_setting": "...",
+      "opt_out_label": "...",
+      "addressed_marker_format": "...",
+      "opt_in_label": "...",
+      "gating_checks": ["...", "..."],
+      "requirement_level_hint": "...",
       "repo_config_path": "...",
       "reply_suffix": "...",
+      "feedback_reaction": "...",
+      "errored_review_regex": "...",
       "full_review_comment": "...", "rereview_comment": "...", "quota_refusal_regex": "...", "request_notes": "...",
       "cli": { "binary": "...", "install_command": "...", "local_invocation": "...", "timeout_seconds": 600, "findings_output": "...", "findings_jq": "...", "default_effort": "...", "env_allow": ["..."], "invocation_notes": "..." }
     }
@@ -39,13 +46,15 @@ Shape: a map of named reviewers plus a default, because one bot may not be insta
 }
 ```
 
+The hosted fields, one schema for every vendor: `login_pattern` matches the bot's login as a regex. `rerequest.method` is how a review is asked for: `request` (a reviewer request for `login`), `comment` (post `command` on a run's first request, and the cheaper `incremental_command`, when one is set, on a re-request after a push) or `push` (the bot reviews each push unasked). `reviewed_head_regex` captures, in its first group, the commit the bot's summary says it reviewed. `finding_key_regex` extracts a finding's stable key. `build_id_regex` matches the bot's summary marker and captures its build id. `draft_policy` says whether the bot reviews drafts, and when it skips them `draft_setting` names the repository-side setting that changes that. `opt_out_label` silences the bot on a PR. `request` needs `login`, `comment` needs `command`, and only `comment` takes `incremental_command`; `skips-drafts` needs `draft_setting`. Every value is a string except `rerequest` and `gating_checks` (a list of check names), every `_regex` field and `login_pattern` must compile, and a field the schema does not name is refused. Optional: `feedback_reaction`, the reaction the bot reads as feedback on a finding, and `errored_review_regex`, matching a summary that reports an errored review rather than a finding-free one.
+
 The `cli` block is read by `/panel-review`'s `reviewer:<name>` backend, not here; its keys are documented there. `cli.invocation_notes` is optional free text for you; nothing reads it. `reply_suffix` is optional: a vendor-specified tag appended as the last line of every inline reply (step 10), for bots that ask agent replies to carry one. `full_review_comment`, `rereview_comment` and `quota_refusal_regex` are optional and read by "## Requesting a review"; `request_notes` is free text for you, like `cli.invocation_notes`.
 
 **Select a reviewer** via `--reviewer <name>`, else `default`. If either names a key not under `reviewers`, stop and say so; never fall through to another entry. **An entry needs only what its use requires**: hosted mechanics with no `cli` is valid for a bot you never run locally; `cli` with no hosted mechanics is valid for a bot not installed on the repo's org, reachable only through `--local`.
 
 A PR-drain mode (standalone, `--nested` without `--local`, `--dry-run`) on a reviewer with no hosted mechanics stops and says so, suggesting `--local` if it has a `cli`. `--local` on a reviewer with no `cli` stops and says so, suggesting a drain mode if it has hosted mechanics. Never fall back silently between the two.
 
-PR-drain modes require `login_pattern` and `addressed_marker_format`, and the marker must contain `{key}` (a constant marker would make the first acknowledgment match every later finding). Every other hosted key is optional, with the degradation described where it is used; without `build_id_regex`, `--nested` runs a single iteration, since nothing can detect a re-review. Name a missing required key and stop.
+PR-drain modes require `login_pattern`, `rerequest` with its `method`, `reviewed_head_regex`, `finding_key_regex`, `build_id_regex`, `draft_policy`, `opt_out_label` and `addressed_marker_format`, and the marker must contain `{key}` (a constant marker would make the first acknowledgment match every later finding). Every other hosted key is optional, with the degradation described where it is used. Name a missing required key and stop.
 
 ## Invocation modes
 
@@ -242,6 +251,6 @@ The reviewer's local CLI is a `/panel-review` backend: `--local` is an alias for
 
 ## Naming
 
-`bot-review` names the workflow, not a product. Vendors are config, not content, so before pointing this skill at a newly added reviewer, check that reviewer's `cli.binary` and any skill its install docs mention against `bot-review`, and rename this skill if either collides.
+`bot-review` names the workflow, not a product. Vendor mechanics are config, not content, so before pointing this skill at a newly added reviewer, check that reviewer's `cli.binary` and any skill its install docs mention against `bot-review`, and rename this skill if either collides.
 
 $ARGUMENTS

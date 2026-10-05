@@ -178,3 +178,8 @@
 
 - name: Install the planwright plugin
   ansible.builtin.import_tasks: planwright.yml
+
+# Last, unlike the Gemini key sync: a host with `op` but without one of these
+# items yet fails here, after every other task in the role has run.
+- name: Render machine-local files from 1Password
+  ansible.builtin.import_tasks: op-render.yml

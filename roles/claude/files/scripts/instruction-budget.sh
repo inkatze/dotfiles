@@ -27,12 +27,12 @@ COVERED=(
 # path                                                     n      warn   error
 SURFACES="
 roles/claude/files/CLAUDE.md                               1690   2000   2500
-CLAUDE.md                                                  1499   1750   2250
-roles/claude/files/skills/bot-review/SKILL.md              3840   4250   4750
+CLAUDE.md                                                  1537   2000   2500
+roles/claude/files/skills/bot-review/SKILL.md              4111   4500   5000
 roles/claude/files/skills/code-review/SKILL.md             4050   4500   5000
 roles/claude/files/skills/copilot-review/SKILL.md          5041   5500   6000
 roles/claude/files/skills/panel-review/reviewer-backend.md 4405   4750   5250
-roles/claude/files/skills/panel-review/SKILL.md            2624   3000   3500
+roles/claude/files/skills/panel-review/SKILL.md            2656   3000   3500
 roles/claude/files/skills/peer-review/SKILL.md             778    1250   1750
 roles/claude/files/skills/review-shared/backends.md        1903   2250   2750
 roles/claude/files/skills/review-shared/doctrine.md        434    750    1250
