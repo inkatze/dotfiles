@@ -625,6 +625,15 @@ require_phrases "$(skill_md bot-review)" "safety sentence" \
   "force-push, push to a protected branch, mark the PR ready, or merge" \
   "Do not add the opt-in label speculatively"
 
+# A metered hosted reviewer: full review once per PR, and a quota refusal is a
+# named stop rather than silence or a retry.
+require_phrases "$(skill_md bot-review)" "metering sentence" \
+  "never substitute the full comment for a missing incremental one" \
+  "never retried, never reported as **No response**" \
+  "\`full_review_comment\` only for the PR's **first pass**" \
+  "\`rereview_comment\` for **every request after the first**" \
+  "| Vendor quota | The reviewer answered with a quota or plan refusal"
+
 # panel-review's reviewer:<name> backend runs a vendor CLI from the repo root.
 # Each anchor pins a guard itself, not only its message.
 reviewer_backend_checks=(

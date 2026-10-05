@@ -434,6 +434,16 @@ expect_fail bot-review-safety-never-mutate \
   "perl -pi -e 's/force-push, push to a protected branch, mark the PR ready, or merge/land whatever it likes/' $(md bot-review)" "safety sentence"
 expect_fail bot-review-safety-no-speculative-label \
   "perl -pi -e 's/Do not add the opt-in label speculatively//' $(md bot-review)" "safety sentence"
+expect_fail bot-review-metering-full-substitute \
+  "perl -pi -e 's/never substitute the full comment for a missing incremental one/fall back to the full comment/' $(md bot-review)" "metering sentence"
+expect_fail bot-review-metering-quota-retry \
+  "perl -pi -e 's/never retried, never reported as \\*\\*No response\\*\\*/retried after the poll window/' $(md bot-review)" "metering sentence"
+expect_fail bot-review-metering-first-pass \
+  "perl -pi -e 's/only for the PR.s \\*\\*first pass\\*\\*/for every request/' $(md bot-review)" "metering sentence"
+expect_fail bot-review-metering-later-requests \
+  "perl -pi -e 's/for \\*\\*every request after the first\\*\\*/only when asked/' $(md bot-review)" "metering sentence"
+expect_fail bot-review-metering-quota-row \
+  "perl -pi -e 's/^\\| Vendor quota \\|.*\\n//' $(md bot-review)" "metering sentence"
 expect_fail severity-tier \
   "perl -pi -e 's/\\*\\*Nits\\*\\*/**Notes**/g' $(md code-review)" "missing expected severity tier"
 expect_fail severity-order \
