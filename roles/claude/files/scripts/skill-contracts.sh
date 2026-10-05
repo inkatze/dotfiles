@@ -183,7 +183,11 @@ for name in "${SKILL_NAMES[@]}"; do
       sentence="Runs only when the operator types \`/$name\` or a parent skill calls it; never on the model's own initiative, and a plain-language request is answered by naming the command to type."
       desc="$(sed -n 's/^description: *//p' <<< "$front")"
       desc="${desc#\"}"; desc="${desc%\"}"
-      [[ "$desc" == *" $sentence" ]] || err "$f front-matter description does not end with: \"$sentence\"" ;;
+      [[ "$desc" == *" $sentence" ]] || err "$f front-matter description does not end with: \"$sentence\""
+      # The read above sees one line; an indented continuation would extend
+      # the YAML value past the sentence it matched.
+      ! awk '/^description:/ { d = 1; next } d && /^[^[:space:]]/ { exit } d && /[^[:space:]]/ { c = 1; exit } END { exit !c }' <<< "$front" \
+        || err "$f front-matter description continues onto another line; keep it on one line so its ending can be checked" ;;
     *) grep -qx 'disable-model-invocation: true' <<< "$front" || err "$f front matter lacks disable-model-invocation: true" ;;
   esac
   hint_lines="$(grep -c '^argument-hint:' <<< "$front" || true)"
