@@ -270,6 +270,9 @@ linux_mise_tools:
   # The opt-in /panel-review `copilot` backend: a native release binary, so no
   # node and no ordering constraint either.
   - copilot
+  # The review backends' outbound secret scan; a release binary, no ordering
+  # constraint.
+  - gitleaks
 
 # Absolute path to the user-level mise binary. The tasks below shell out to it
 # directly rather than relying on PATH, because on a fresh host mise has just
