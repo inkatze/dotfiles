@@ -426,11 +426,11 @@ expect_failed "sibling map with no version" "sibling-repos.json: no version key"
 
 echo "22. the review schema's structural rules"
 schema_dir="$repo/roles/claude/files/skills/bot-review"
-# schema_says <label> <jq edit on a valid rendered config> <expected message>
 new_sandbox
 full_review_item
 run "$review_tpl" dotfiles-bot-review "$out"
 valid="$(jq -c '.' "$out")"
+# schema_says <label> <jq edit on a valid rendered config> <expected message>
 schema_says() {
   local got
   got="$(jq -r -L "$schema_dir" "include \"config-schema\"; $2 | review_config_errors" <<<"$valid" 2>&1 || true)"
@@ -447,8 +447,49 @@ schema_says "empty reviewers" '.reviewers = {}' "config: reviewers must be a non
 schema_says "unknown top-level field" '.extra = 1' "config: unknown top-level field extra"
 schema_says "cli not an object" '.reviewers.cubic.cli = "x"' "reviewers.cubic.cli: not an object"
 schema_says "an entry with nothing" '.reviewers.copilot = {}' "reviewers.copilot: carries neither hosted mechanics nor a cli block"
-schema_says "a cli-only entry is valid" '.reviewers.copilot = {cli: {}} | .extra = 1' "config: unknown top-level field extra"
+got="$(jq -r -L "$schema_dir" 'include "config-schema"; .reviewers.copilot = {cli: {}} | review_config_errors' <<<"$valid")"
+[ -z "$got" ] && ok "a cli-only entry is valid" || ko "a cli-only entry is valid: $got"
 schema_says "gating checks holding a number" '.reviewers.cubic.gating_checks = [1]' "gating_checks: must be an array of non-empty strings"
+
+echo "23. arrays of references, documents, text-mode gaps, write failures"
+new_sandbox
+{ full_review_fields; printf '%s\n' a= b= c=x; } | to_item
+jq '.reviewers.cubic.gating_checks = ["{{ op://__OP_VAULT__/__OP_ITEM__/a }}", "{{ op://__OP_VAULT__/__OP_ITEM__/b }}"]' "$review_tpl" >"$sandbox/tpl/bot-review.json.tpl"
+run "$sandbox/tpl/bot-review.json.tpl" dotfiles-bot-review "$out"
+if [ "$rc" -eq 0 ] && ! jq -e '.reviewers.cubic | has("gating_checks")' "$out" >/dev/null; then
+  ok "an array whose references are all empty drops its key"
+else
+  ko "an array whose references are all empty drops its key ($log)"
+fi
+jq '.reviewers.cubic.gating_checks = ["{{ op://__OP_VAULT__/__OP_ITEM__/a }}", "{{ op://__OP_VAULT__/__OP_ITEM__/c }}"]' "$review_tpl" >"$sandbox/tpl/bot-review.json.tpl"
+run "$sandbox/tpl/bot-review.json.tpl" dotfiles-bot-review "$out"
+[ "$(jq -c '.reviewers.cubic.gating_checks' "$out" 2>/dev/null)" = '["x"]' ] && ok "an array keeps its non-empty references" || ko "an array keeps its non-empty references ($log)"
+: >"$sandbox/tpl/bot-review.json.tpl"
+run "$sandbox/tpl/bot-review.json.tpl" dotfiles-bot-review "$out"
+expect_failed "an empty JSON template" "exactly one JSON document"
+cat "$review_tpl" "$review_tpl" >"$sandbox/tpl/bot-review.json.tpl"
+run "$sandbox/tpl/bot-review.json.tpl" dotfiles-bot-review "$out"
+expect_failed "a JSON template holding two documents" "exactly one JSON document"
+item_from 'flight_pr_hosts='
+printf 'flight_pr_hosts: {{ op://__OP_VAULT__/__OP_ITEM__/flight_pr_host }}\n' >"$sandbox/tpl/planwright.yml.tpl"
+run "$sandbox/tpl/planwright.yml.tpl" item "$sandbox/ov.yml"
+expect_failed "a text reference to a field the item lacks" "the item has no field flight_pr_host"
+printf 'flight_pr_hosts: [{{ op://__OP_VAULT__/__OP_ITEM__/flight_pr_hosts }}]\n' >"$sandbox/tpl/planwright.yml.tpl"
+run "$sandbox/tpl/planwright.yml.tpl" item "$sandbox/ov.yml"
+grep -qxF 'flight_pr_hosts: []' "$sandbox/ov.yml" 2>/dev/null && ok "only a whole-value reference drops its line" || ko "only a whole-value reference drops its line ($log)"
+full_review_item
+rm -f "$out"
+# Each shim fails only the renderer's own write step; the fake op uses cat too.
+for case in "mv:could not move the rendered file" "cat:could not write"; do
+  tool="${case%%:*}"
+  rm -f "$out"
+  printf '#!/bin/sh\ncase "$*" in *rendered*|*.bot-review.json.*) exit 1 ;; esac\nexec %s "$@"\n' \
+    "$(command -v "$tool")" >"$sandbox/bin/$tool"
+  chmod +x "$sandbox/bin/$tool"
+  run "$review_tpl" dotfiles-bot-review "$out"
+  rm "$sandbox/bin/$tool"
+  expect_failed "a failing $tool" "${case#*:}"
+done
 
 echo
 echo "op-render: $pass passed, $fail failed"

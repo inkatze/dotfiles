@@ -52,7 +52,6 @@ case "$item" in
   '' | -* | *[!A-Za-z0-9._\ -]*) fail "item name '$item' is outside [A-Za-z0-9._ -]" ;;
 esac
 
-
 check_output() {
   if [ -e "$output" ] || [ -L "$output" ]; then
     [ -L "$output" ] && fail "refusing to write $output: it is a symlink"
@@ -136,16 +135,17 @@ if [ "$format" = json ]; then
       if type == "object" then
         if any(keys[]; contains("{{"))
         then error("unsubstituted template expression in a key") else . end
-        | length as $n
         | with_entries(.value |= render($fields)) | with_entries(select(.value != none))
-        | if length == 0 and $n > 0 then none else . end
-      elif type == "array" then map(render($fields)) | map(select(. != none))
+        | if length == 0 then none else . end
+      elif type == "array" then
+        map(render($fields)) | map(select(. != none)) | if length == 0 then none else . end
       elif type == "string" and test(op_reference) then resolve($fields)
       elif type == "string" and contains("{{") then
         error("unsubstituted template expression: \(.)")
       else . end;
-    $m[0] as $fields | render($fields) | if . == none then {} else . end' \
-    "$template" >"$work/rendered"
+    if length != 1 then error("the template must hold exactly one JSON document")
+    else $m[0] as $fields | .[0] | render($fields) end' \
+    --slurp "$template" >"$work/rendered"
 else
   # The {{ check reads the template line, not the substituted one, so a value
   # that holds {{ is data. A `key: <reference>` line whose value is empty is
@@ -234,8 +234,8 @@ out_dir="$(dirname -- "$output")"
 # new one, never a partial write. A mode-only fix goes this way too, so chmod
 # never follows a path that changed under it.
 tmp_out="$(mktemp "$out_dir/.${output##*/}.XXXXXX")" || fail "could not create a temp file in $out_dir"
+# mktemp creates it 0600, the mode the output must have.
 cat "$work/rendered" >"$tmp_out" || fail "could not write $tmp_out"
-chmod 600 "$tmp_out" || fail "could not set the mode of $tmp_out"
 # Again, because the op call takes seconds: GNU mv would move the rendered file
 # into a directory that appeared at the output meanwhile.
 check_output
