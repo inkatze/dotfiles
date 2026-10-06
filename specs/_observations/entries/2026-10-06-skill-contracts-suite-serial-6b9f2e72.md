@@ -1,0 +1,1 @@
+- 2026-10-06 [dotfiles] skill-contracts-test.sh runs every fixture case serially, each a full tree copy plus a checker run, so each pinned sentence adds roughly half a second and the suite is the slowest CI step; the cases are independent temp trees and could run in parallel or batch drop-only pins per file.
