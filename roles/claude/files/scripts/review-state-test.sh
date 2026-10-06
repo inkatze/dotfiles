@@ -348,7 +348,20 @@ rmdir sub
 # /code-review exports the pinned head with git archive and runs tooling there,
 # keyed by that commit's own tree; the record lands in the session's worktree,
 # apart from work-tree runs. The session's tree differs from the export's
-# throughout, so a hit can only come from the --dir record itself.
+# throughout, so a hit can only come from the --dir record itself. The tree
+# carries what a naive rehash of an export gets wrong: an executable, a
+# symlink, a tracked file its own ignore rules match, and CRLF content under
+# core.autocrlf.
+printf '#!/bin/sh\n' > run.sh
+chmod +x run.sh
+ln -s a.txt link.txt
+printf '*.log\n' > .gitignore
+printf 'kept\n' > keep.log
+printf 'dos\r\nline\r\n' > dos.txt
+git add run.sh link.txt .gitignore dos.txt
+git add -f keep.log
+git commit -qm 'export fixtures'
+git config core.autocrlf true
 htree="$(git rev-parse 'HEAD^{tree}')"
 export_at() { mkdir -p "$1" && git archive HEAD | tar -x -C "$1"; }
 export_dir="$tmp/export"
@@ -399,13 +412,32 @@ export_at "$export_dir"
 # git in the export trusts no repository: not the caller's, not one above it,
 # and not a bare layout planted at its root.
 GIT_DIR="$repo/.git" "$H" evidence run --command 'git-inherited' --tree "$htree" --dir "$export_dir" -- git rev-parse --absolute-git-dir > "$tmp/dir.out" 2>&1 && rc=0 || rc=$?
-[ "$rc" -ne 0 ] && ! grep -qxF "$repo/.git" "$tmp/dir.out" || fail dir-git-inherited "git in the export used the caller's repository: $(cat "$tmp/dir.out")"
+[ "$rc" -eq 128 ] && grep -q 'not a git repository' "$tmp/dir.out" || fail dir-git-inherited "git in the export used the caller's repository: $(cat "$tmp/dir.out")"
+nest="$tmp/outer"
+git init -q "$nest"
+export_at "$nest/export"
+"$H" evidence run --command 'git-above' --tree "$htree" --dir "$nest/export" -- git rev-parse --absolute-git-dir > "$tmp/dir.out" 2>&1 && rc=0 || rc=$?
+[ "$rc" -eq 128 ] && grep -q 'not a git repository' "$tmp/dir.out" || fail dir-git-above "git in the export found the repository above it: $(cat "$tmp/dir.out")"
+GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.bareRepository GIT_CONFIG_VALUE_0=all \
+  "$H" evidence run --command 'git-config' --tree "$htree" --dir "$nest/export" -- git config --get safe.bareRepository > "$tmp/dir.out" 2>&1 \
+  && [ "$(cat "$tmp/dir.out")" = explicit ] || fail dir-git-config "the caller's config overrode the export's git protections: $(cat "$tmp/dir.out")"
+rm -rf "$nest"
+# Hashing the export runs no hook it carries, even where the session's
+# hooksPath is relative and so resolves inside the export.
+git config core.hooksPath .hooks
+mkdir -p "$export_dir/.hooks"
+printf '#!/bin/sh\ntouch "%s"\n' "$tmp/hook-ran" > "$export_dir/.hooks/post-index-change"
+chmod +x "$export_dir/.hooks/post-index-change"
+"$H" evidence run --command 'hooks' --tree "$htree" --dir "$export_dir" -- true > /dev/null 2>&1 || true
+[ ! -e "$tmp/hook-ran" ] || fail dir-hash-hook "hashing the export ran a hook the export carries"
+git config --unset core.hooksPath
+rm -rf "$export_dir/.hooks"
 bare_dir="$tmp/bare-export"
 export_at "$bare_dir"
 git init -q --bare "$tmp/bare-src"
 cp -R "$tmp/bare-src/." "$bare_dir/"
 "$H" evidence run --command 'git-bare' --tree "$htree" --dir "$bare_dir" -- git rev-parse --absolute-git-dir > "$tmp/dir.out" 2>&1 && rc=0 || rc=$?
-[ "$rc" -ne 0 ] && ! grep -qxF "$bare_dir" "$tmp/dir.out" || fail dir-git-bare "git in the export trusted a planted bare repository: $(cat "$tmp/dir.out")"
+[ "$rc" -eq 128 ] && grep -q 'cannot use bare repository' "$tmp/dir.out" || fail dir-git-bare "git in the export trusted a planted bare repository: $(cat "$tmp/dir.out")"
 rm -rf "$bare_dir" "$tmp/bare-src"
 
 # Refusals run nothing and say why.
@@ -438,12 +470,28 @@ export_at "$tmp/repo-export"
   || fail dir-prefix-sibling "a directory whose name extends the work tree's was refused"
 "$H" evidence lookup --command 'prefix-sibling' --tree "$htree" --source export > /dev/null 2>&1 \
   || fail dir-prefix-sibling-record "a run beside the work tree was not recorded"
-rm -rf "$export_dir" "$tmp/repo-export" "$repo/inside" "$tmp/repo-link" "$repo/.claude/review-evidence/$htree" untracked.txt
+mkdir -p "$tmp/co:lon"
+export_at "$tmp/co:lon/export"
+refuse_dir colon "has a ':' in its path" --tree "$htree" --dir "$tmp/co:lon/export"
+rm -rf "$export_dir" "$tmp/repo-export" "$repo/inside" "$tmp/repo-link" "$tmp/co:lon" "$repo/.claude/review-evidence/$htree" untracked.txt
+git config --unset core.autocrlf
 
-# A run killed by a signal or by its timeout says nothing about the tree.
-"$H" evidence run --command 'timed-out' -- timeout 1 sleep 5 > /dev/null 2>&1 && rc=0 || rc=$?
-[ "$rc" -eq 124 ] || fail run-timeout-exit "a timed-out run did not pass 124 through (got $rc)"
-if "$H" evidence lookup --command 'timed-out' > /dev/null 2>&1; then fail run-timeout-recorded "a timed-out run was recorded"; fi
+# A command that never started, or was killed by a signal or by its timeout,
+# says nothing about the tree.
+printf '#!/no/such/interpreter\n' > "$tmp/bin/badinterp"
+chmod +x "$tmp/bin/badinterp"
+"$H" evidence run --command 'no-start' -- "$tmp/bin/badinterp" > /dev/null 2> "$tmp/run.err" && rc=0 || rc=$?
+[ "$rc" -eq 127 ] && [[ "$(cat "$tmp/run.err")" == *"could not be started"* ]] \
+  || fail run-no-start "a command that could not start was not named as such (exit $rc): $(cat "$tmp/run.err")"
+if "$H" evidence lookup --command 'no-start' > /dev/null 2>&1; then fail run-no-start-recorded "a command that never started was recorded"; fi
+timeout_bin="$(type -P timeout || type -P gtimeout || true)"
+if [ -n "$timeout_bin" ]; then
+  "$H" evidence run --command 'timed-out' -- "${timeout_bin##*/}" 1 sleep 5 > /dev/null 2>&1 && rc=0 || rc=$?
+  [ "$rc" -eq 124 ] || fail run-timeout-exit "a timed-out run did not pass 124 through (got $rc)"
+  if "$H" evidence lookup --command 'timed-out' > /dev/null 2>&1; then fail run-timeout-recorded "a timed-out run was recorded"; fi
+else
+  echo "review-state-test: no timeout or gtimeout on PATH; skipping the timeout case"
+fi
 "$H" evidence run --command 'killed' -- sh -c 'kill -TERM $$' > /dev/null 2>&1 && rc=0 || rc=$?
 [ "$rc" -gt 128 ] || fail run-killed-exit "a killed run did not pass its status through (got $rc)"
 if "$H" evidence lookup --command 'killed' > /dev/null 2>&1; then fail run-killed-recorded "a run killed by a signal was recorded"; fi
