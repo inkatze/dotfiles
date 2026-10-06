@@ -920,7 +920,9 @@ cmd_evidence() {
       [ "${#rest_args[@]}" -gt 0 ] || die "run needs a command after --"
       if [ -n "$opt_tree" ]; then tree="$opt_tree"; else tree_key; tree="$TREE_KEY"; fi
       valid_tree "$tree"
-      command -v -- "${rest_args[0]}" > /dev/null 2>&1 \
+      # type -P looks on PATH only: command -v also finds this helper's own
+      # functions and the shell's builtins, which exec cannot run.
+      type -P -- "${rest_args[0]}" > /dev/null 2>&1 \
         || die "${rest_args[0]} is not on PATH; nothing run or recorded"
       CAPTURE="$(mktemp -t review-state-run.XXXXXX)" || die "cannot create a capture file"
       trap cleanup_capture EXIT

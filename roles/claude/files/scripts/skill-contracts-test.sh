@@ -487,6 +487,8 @@ expect_pass state-prose-benign \
   "printf '\\nNever touch anything under ~/.config/dotfiles/review by hand. Read with \\x60dd if=.claude/review-evidence/x.out\\x60.\\n' >> $(md panel-review)"
 expect_fail state-force-add-evidence \
   "printf '\\n    git add -f .claude/review-evidence\\n' >> $(md panel-review)" "commits the evidence record"
+expect_fail state-mkdir-lock \
+  "printf '\\n    mkdir -p ~/.config/dotfiles/review/locks/o/r/pr-1\\n' >> $(md bot-review)" "writes review state around review-state.sh"
 expect_fail state-helper-path-removed \
   "perl -0pi -e 's{~/\\.claude/scripts/review-state\\.sh}{review-state}g' $SHARED/state.md" "helper path"
 expect_pass state-path-mention-benign \

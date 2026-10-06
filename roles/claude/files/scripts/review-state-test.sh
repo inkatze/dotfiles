@@ -200,7 +200,10 @@ for lc in set unset; do
     seen="$(env -u LC_ALL "$H" evidence run --command "lc-$lc" -- sh -c 'echo "${LC_ALL-unset}"' 2>/dev/null)" || true
     want='unset'
   fi
-  [ "$rc" -eq 127 ] || fail "evidence-run-function-$lc" "a helper function ran in place of the command (exit $rc)"
+  [ "$rc" -eq 2 ] || fail "evidence-run-function-$lc" "a helper function name passed the PATH check (exit $rc)"
+  if "$H" evidence lookup --command "fn-$lc" > /dev/null 2>&1; then
+    fail "evidence-run-function-recorded-$lc" "a helper function name was recorded as a result"
+  fi
   [ "$seen" = "$want" ] || fail "evidence-run-locale-$lc" "the command saw LC_ALL '$seen', not the caller's '$want'"
 done
 # A cut-off output stream records nothing.
