@@ -894,10 +894,11 @@ lookup_entry() {
 
 # The tree an exported directory actually holds, so an export-ignore or
 # export-subst attribute, a missing submodule, or a tool that edited the export
-# shows as a different tree. The scratch index is seeded from the claimed tree,
-# so a tracked path stays tracked whatever the ignore rules and line-ending
-# settings say, and it is kept for the run, so the second hash only rehashes
-# what changed. Hooks, fsmonitor and the untracked cache are off: a relative
+# shows as a different tree. The scratch index is seeded from the claimed tree
+# before each hash, so a tracked path stays tracked whatever the ignore rules
+# and line-ending settings say, and every file is read again rather than
+# trusted by its stat data: an edit in the same second as the last hash, its
+# size kept and its mtime put back, leaves no stat trace. Hooks, fsmonitor and the untracked cache are off: a relative
 # core.hooksPath resolves inside the work tree, here the export, and would run
 # a hook the reviewed tree carries.
 DIR_KEY=""
@@ -905,11 +906,12 @@ DIR_SCRATCH=""
 DIR_GITDIR=""
 DIR_OBJECTS=""
 DIR_RUN=""
+DIR_TREE=""
 dir_git() {
   GIT_DIR="$DIR_GITDIR" GIT_WORK_TREE="$DIR_RUN" GIT_INDEX_FILE="$DIR_SCRATCH/index" \
     GIT_OBJECT_DIRECTORY="$DIR_SCRATCH/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$DIR_OBJECTS" \
     git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c core.untrackedCache=false \
-      -c core.trustctime=true -c core.checkStat=default \
+      -c core.ignoreStat=false -c core.fileMode=true \
       -c core.sparseCheckout=false "$@"
 }
 dir_hash_setup() {
@@ -920,11 +922,12 @@ dir_hash_setup() {
   DIR_OBJECTS="$(git -C "$TOP" rev-parse --path-format=absolute --git-path objects)" || die "cannot locate the object store"
   DIR_SCRATCH="$(mktemp -d -t review-state-scratch.XXXXXX)" || die "cannot create a scratch directory"
   mkdir "$DIR_SCRATCH/objects" || die "cannot create a scratch directory"
-  dir_git read-tree "$tree" 2> "$DIR_SCRATCH/err" || die "cannot read tree $tree: $(cat "$DIR_SCRATCH/err")"
+  DIR_TREE="$tree"
 }
 # dir_tree_key: 0 with DIR_KEY set, or 1 with git's message in DIR_SCRATCH/err.
 dir_tree_key() {
-  dir_git -C "$DIR_RUN" add -A -- . 2> "$DIR_SCRATCH/err" \
+  dir_git read-tree "$DIR_TREE" 2> "$DIR_SCRATCH/err" \
+    && dir_git -C "$DIR_RUN" add -A -- . 2>> "$DIR_SCRATCH/err" \
     && DIR_KEY="$(dir_git write-tree 2>> "$DIR_SCRATCH/err")"
 }
 
@@ -959,9 +962,10 @@ int_opt() {
 
 CAPTURE=""
 MARKER=""
+MARKER_DIR=""
 cleanup_capture() {
   [ -z "$CAPTURE" ] || rm -f "$CAPTURE"
-  [ -z "$MARKER" ] || rm -f "$MARKER"
+  [ -z "$MARKER_DIR" ] || rm -rf "$MARKER_DIR"
   [ -z "$DIR_SCRATCH" ] || rm -rf "$DIR_SCRATCH"
 }
 
@@ -989,7 +993,7 @@ cmd_evidence() {
       [[ "$opt_exit" =~ ^[0-9]{1,3}$ ]] && [ "$opt_exit" -le 255 ] || die "--exit must be an exit status, 0 to 255, got '$opt_exit'"
       int_opt started "$opt_started"; int_opt ended "$opt_ended"
       single_line source "$opt_source"
-      [ "$opt_source" != export ] || die "--source export is reserved for runs in an export (evidence run --dir)"
+      case "$opt_source" in export | ci:*) die "--source $opt_source is reserved for the helper's own export and CI records" ;; esac
       if [ -n "$opt_tree" ]; then tree="$opt_tree"; else tree_key; tree="$TREE_KEY"; fi
       valid_tree "$tree"
       record_entry "$opt_command" "$tree" "$opt_exit" "$opt_started" "$opt_ended" "${opt_source:-local}"
@@ -1035,15 +1039,17 @@ cmd_evidence() {
         fi
       fi
       CAPTURE="$(mktemp -t review-state-run.XXXXXX)" || die "cannot create a capture file"
-      MARKER="$(mktemp -t review-state-marker.XXXXXX)" || die "cannot create a marker file"
+      MARKER_DIR="$(mktemp -d -t review-state-marker.XXXXXX)" || die "cannot create a marker directory"
+      MARKER="$MARKER_DIR/not-started"
+      : > "$MARKER" || die "cannot create a marker file"
       started="$(now)"
       rc=0
       pipe=(0 0)
       # exec runs only a program, never one of this helper's functions or a
       # builtin, and in the caller's locale rather than this helper's C. In an
       # export, git must not trust a repository layout the reviewed tree
-      # planted: no inherited repository or environment config, no discovery above the
-      # export, and no bare repository found by discovery at all. The marker
+      # planted: no inherited repository or command-line config, no discovery
+      # above the export, and no bare repository found by discovery. The marker
       # is removed just before exec and put back if exec fails, so a command
       # that never started is never recorded as a result.
       ( if [ -n "$CALLER_LC_ALL_SET" ]; then export LC_ALL="$CALLER_LC_ALL"; else unset LC_ALL; fi
@@ -1057,13 +1063,19 @@ cmd_evidence() {
         fi
         # A subshell exits on a failed exec whatever execfail says, so the
         # exec happens in a shell of its own, which then replaces itself. That
-        # shell must not source BASH_ENV (relative to the export, the reviewed
-        # tree could supply it) or inherit this helper's errexit through
-        # SHELLOPTS, which would end it before the marker is put back.
-        # SHELLOPTS is readonly here, so env drops it.
+        # shell starts with BASH_ENV empty, so it sources nothing, and hands
+        # the caller's value back to the command, except a relative one in an
+        # export, where the reviewed tree could supply the file. It drops the
+        # errexit an exported SHELLOPTS carries in, which would end it before
+        # the marker is put back.
+        be_set="${BASH_ENV+set}"
+        be="${BASH_ENV-}"
+        if [ -n "$rundir" ]; then case "$be" in /*) ;; *) be_set="" ;; esac; fi
         # shellcheck disable=SC2016
-        exec env -u BASH_ENV -u ENV -u SHELLOPTS "$BASH" -c 'set +e +u +o pipefail; shopt -s execfail; m="$1"; shift
-          rm -f -- "$m"; exec -- "$@"; : > "$m"; exit 127' review-state "$MARKER" "${rest_args[@]}" ) \
+        BASH_ENV='' exec "$BASH" -c 'set +e +u +o pipefail; shopt -s execfail; m="$1"
+          if [ "$2" = set ]; then export BASH_ENV="$3"; else unset BASH_ENV; fi
+          shift 3; rm -f -- "$m"; exec -- "$@"; : > "$m"; exit 127' \
+          review-state "$MARKER" "$be_set" "$be" "${rest_args[@]}" ) \
         < /dev/null 2>&1 | tee "$CAPTURE" \
         || { pipe=("${PIPESTATUS[@]}"); rc="${pipe[0]}"; }
       ended="$(now)"

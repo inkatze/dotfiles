@@ -486,7 +486,8 @@ chmod +x "$tmp/bin/badinterp"
 if "$H" evidence lookup --command 'no-start' > /dev/null 2>&1; then fail run-no-start-recorded "a command that never started was recorded"; fi
 # The shell that starts the command inherits neither the helper's errexit,
 # through an exported SHELLOPTS, nor a BASH_ENV to source.
-env SHELLOPTS=braceexpand:hashall:interactive-comments "$H" evidence run --command 'no-start-shellopts' -- "$tmp/bin/badinterp" > /dev/null 2>&1 || true
+env SHELLOPTS=braceexpand:hashall:interactive-comments "$H" evidence run --command 'no-start-shellopts' -- "$tmp/bin/badinterp" > /dev/null 2> "$tmp/run.err" && rc=0 || rc=$?
+[ "$rc" -eq 127 ] && grep -q 'could not be started' "$tmp/run.err" || fail run-no-start-shellopts-named "a command that never started under SHELLOPTS was not named (exit $rc): $(cat "$tmp/run.err")"
 if "$H" evidence lookup --command 'no-start-shellopts' > /dev/null 2>&1; then
   fail run-no-start-shellopts "an exported SHELLOPTS let a command that never started be recorded"
 fi
@@ -497,9 +498,27 @@ printf 'echo FROM_BASH_ENV\n' > "$tmp/ns-export/.benv"
 out="$(BASH_ENV=.benv "$H" evidence run --command 'bash-env' --tree "$(git rev-parse 'HEAD^{tree}')" --dir "$tmp/ns-export" -- sh -c 'echo real' 2>/dev/null)" || true
 [ "$out" = real ] || fail run-bash-env "a BASH_ENV planted in the export was sourced before the command: $out"
 rm "$tmp/ns-export/.benv"
+# An absolute BASH_ENV still reaches the command itself.
+: > "$tmp/benv-abs"
+out="$(BASH_ENV="$tmp/benv-abs" "$H" evidence run --command 'bash-env-kept' -- sh -c 'echo "$BASH_ENV"' 2>/dev/null)" || true
+[ "$out" = "$tmp/benv-abs" ] || fail run-bash-env-kept "the command lost the caller's BASH_ENV: $out"
+# The after-run hash sees a same-size edit with its mtime put back, whatever
+# stat settings the session's repository carries.
+git config core.checkStat minimal
+git config core.trustctime false
+git config core.ignoreStat true
+"$H" evidence run --command 'stat-edit' --tree "$(git rev-parse 'HEAD^{tree}')" --dir "$tmp/ns-export" -- \
+  sh -c 'cp -p a.txt .ref && printf "b\n" > a.txt && touch -r .ref a.txt && rm .ref' > /dev/null 2> "$tmp/run.err" || true
+[[ "$(cat "$tmp/run.err")" == *"no longer holds tree"* ]] || fail dir-stat-edit "a same-size edit with its mtime put back went unseen: $(cat "$tmp/run.err")"
+git config --unset core.checkStat
+git config --unset core.trustctime
+git config --unset core.ignoreStat
+rm -rf "$tmp/ns-export"
+export_at "$tmp/ns-export"
 # The --dir path detects a command that never started too.
 cp "$tmp/bin/badinterp" "$tmp/ns-bad"
-"$H" evidence run --command 'no-start-dir' --tree "$(git rev-parse 'HEAD^{tree}')" --dir "$tmp/ns-export" -- "$tmp/ns-bad" > /dev/null 2>&1 || true
+"$H" evidence run --command 'no-start-dir' --tree "$(git rev-parse 'HEAD^{tree}')" --dir "$tmp/ns-export" -- "$tmp/ns-bad" > /dev/null 2> "$tmp/run.err" && rc=0 || rc=$?
+[ "$rc" -eq 127 ] && grep -q 'could not be started' "$tmp/run.err" || fail run-no-start-dir-named "a command that never started in an export was not named (exit $rc): $(cat "$tmp/run.err")"
 if "$H" evidence lookup --command 'no-start-dir' --tree "$(git rev-parse 'HEAD^{tree}')" --source export > /dev/null 2>&1; then
   fail run-no-start-dir "a command that never started in an export was recorded"
 fi
@@ -517,8 +536,10 @@ for v in '2.37.1 (Apple Git-137.1)' '2.39.5 (Apple Git-154)'; do
 done
 rm -rf "$tmp/oldgit" "$tmp/ns-export" "$tmp/ns-bad"
 # The export source is the helper's own; a recorded entry cannot claim it.
-"$H" evidence record --command 'claims-export' --exit 0 --started 1 --ended 2 --source export < /dev/null > /dev/null 2>&1 && rc=0 || rc=$?
-[ "$rc" -eq 2 ] || fail record-source-export "a record claiming the export source was accepted (exit $rc)"
+for src in export ci:check-runs:0000000000000000000000000000000000000001; do
+  "$H" evidence record --command "claims-$src" --exit 0 --started 1 --ended 2 --source "$src" < /dev/null > /dev/null 2> "$tmp/run.err" && rc=0 || rc=$?
+  [ "$rc" -eq 2 ] && grep -q 'is reserved' "$tmp/run.err" || fail "record-source-${src%%:*}" "a record claiming the $src source was accepted (exit $rc)"
+done
 timeout_bin="$(type -P timeout || type -P gtimeout || true)"
 if [ -n "$timeout_bin" ]; then
   "$H" evidence run --command 'timed-out' -- "${timeout_bin##*/}" 1 sleep 5 > /dev/null 2>&1 && rc=0 || rc=$?

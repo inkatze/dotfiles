@@ -54,8 +54,8 @@ later skill and iteration on that tree.
   `<id>` is the command string's git blob hash (an export run's hashes the
   command behind an `export` line, its `command` field still the plain
   command); `source` is `local`, `export` (set only by an export run), the CI
-  source below, or whatever other one line `evidence record --source` was
-  given. Two
+  source below (set only by `evidence ci`), or whatever other one line
+  `evidence record --source` was given. Two
   runs that both miss on one tree both run; the first to finish records and
   the later one is dropped.
 - **Lookup before running.** `evidence lookup --command <key>` prints the entry
@@ -78,13 +78,14 @@ later skill and iteration on that tree.
   <absolute dir> -- <argv>` runs the program in that directory, keyed by the
   `--tree` it requires (a tree object in this repository), and records only
   when the directory hashes to exactly that tree before the run and after it,
-  hashed from an index seeded with that tree, through the session's clean
-  filters and with hooks off. It needs git 2.38 or later and is refused inside
+  hashed from an index seeded with that tree, every file read again, through
+  the session's clean filters and with hooks off. It needs git 2.38 or later and is refused inside
   the work tree, holding it, holding a `.git`, or on a path with a `:`. In it
   git trusts no repository: none inherited from the caller, none above the
-  directory, and no bare layout found there. Git config passed through the
-  environment does not reach it either (global and system config still do),
-  and a tool's own git calls see the same, so a test that opens a bare
+  directory, and no bare layout found there. Config given through `git -c`
+  or `GIT_CONFIG_COUNT` does not reach it either; global and system config,
+  including files `GIT_CONFIG_GLOBAL` or `GIT_CONFIG_SYSTEM` name, still do.
+  A tool's own git calls see the same, so a test that opens a bare
   repository by discovery fails there. Its entry is kept apart
   from work-tree entries: `evidence lookup --source export` reads it (and a
   work-tree run of the same tree), a plain lookup never does.
