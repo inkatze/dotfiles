@@ -326,6 +326,29 @@ edit_cfg '.reviewers.cubic.cli |= (.env.SHELLOPTS = "xtrace")'
 run_snippet
 expect_refused "refused: a shell option variable" "cli.env_files and cli.env must map"
 
+echo "8c. a tree carrying a path the CLI would load is refused before mise or the CLI runs"
+for planted in cubic.json cubic.jsonc .cubic .cubic-link .cubic-dangling; do
+  new_case
+  case "$planted" in
+    .cubic) mkdir -p "$repo/.cubic/plugin" && echo 'export default {}' >"$repo/.cubic/plugin/x.js" ;;
+    .cubic-link) mkdir -p "$sandbox/elsewhere" && ln -s "$sandbox/elsewhere" "$repo/.cubic" ;;
+    .cubic-dangling) ln -s "$sandbox/nowhere" "$repo/.cubic" ;;
+    *) echo '{}' >"$repo/$planted" ;;
+  esac
+  run_snippet
+  want="${planted%%-*}"
+  if [ "$rc" -ne 0 ] && grep -qF "$want exists at its root" <<<"$err" && grep -qF "hosted bot still reviews" <<<"$err" \
+    && [ ! -e "$sandbox/seen-mise-env" ] && [ ! -e "$sandbox/seen-node" ]; then
+    ok "$planted refused before mise or the CLI ran"
+  else
+    ko "$planted refused before mise or the CLI ran (rc=$rc, err=$err)"
+  fi
+done
+new_case
+edit_cfg '.reviewers.cubic.cli.refuse_paths = ["../outside"]'
+run_snippet
+expect_refused "a refuse_paths entry climbing out of the repo" "cli.refuse_paths must be a list"
+
 echo "9. under a git hook's environment, the suite leaves that repository alone"
 decoy="$work/decoy"
 sandbox_git init -q -b main "$decoy"

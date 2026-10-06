@@ -27,7 +27,11 @@ skills fall back to the copy `gh copilot` downloads on first use.
 The cubic.dev CLI, run as `--backends reviewer:cubic`, is pinned for every
 platform in `roles/environments/files/mise.toml` through mise's npm backend,
 with its key from `scripts/op-key-sync.sh`; its invocation is the cubic
-entry's `cli` block in the review config template. The package is
+entry's `cli` block in the review config template. The CLI loads
+`cubic.json`, `cubic.jsonc` and `.cubic/` (plugins included) from the tree it
+reviews, with no switch to turn that off, so the entry's `cli.refuse_paths`
+stops the backend on a repository carrying any of them; the hosted bot still
+reviews such a repository through `/bot-review`. The package is
 proprietary (its license field is `UNLICENSED`, so use is on the vendor's
 terms), and its optional dependencies carry one native binary per platform
 variant, of which npm may fetch several on one host; `mise prune` reclaims

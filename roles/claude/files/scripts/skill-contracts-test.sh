@@ -268,6 +268,14 @@ for optout in CUBIC_DISABLE_AUTOUPDATE CUBIC_DISABLE_GIT_AI CUBIC_DISABLE_LSP_DO
     "the cubic entry's cli.env must carry the vendor's opt-outs"
 done
 
+reviewer_drift reviewer-backend-refusal-follows-links-only 'if [ -e "$top/$refused" ] || [ -L "$top/$refused" ]; then' 'if [ -e "$top/$refused" ]; then'
+reviewer_drift reviewer-backend-refusal-after-mise $'  done <<< "$refuse_paths"\n  get() {' $'  done <<< ""\n  get() {'
+reviewer_drift reviewer-backend-refuse-paths-climb '(split("/") | index("..") | not))' 'true)'
+for refused in cubic.json cubic.jsonc .cubic; do
+  V="$refused" F="$SKILLS/bot-review/bot-review.json.tpl" expect_fail "template-refuse-paths-missing-$refused" \
+    'jq --arg v "$V" ".reviewers.cubic.cli.refuse_paths -= [\$v]" "$F" > "$F.new" && mv "$F.new" "$F"' \
+    "cli.refuse_paths must list cubic.json, cubic.jsonc and .cubic"
+done
 reviewer_drift reviewer-backend-no-egress-consent \
   '6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).**' '6. **Notes.**'
 reviewer_drift reviewer-backend-consent-diff-only \

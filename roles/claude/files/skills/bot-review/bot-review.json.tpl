@@ -31,6 +31,7 @@
       "cli": {
         "binary": "cubic",
         "install_command": "mise run environments, from the dotfiles checkout",
+        "refuse_paths": ["cubic.json", "cubic.jsonc", ".cubic"],
         "local_invocation": "cubic review --base {base_ref} --json",
         "timeout_seconds": 1200,
         "findings_output": "stdout-json",
@@ -43,7 +44,7 @@
           "CUBIC_DISABLE_GIT_AI": "true",
           "CUBIC_DISABLE_LSP_DOWNLOAD": "1"
         },
-        "invocation_notes": "The env values are the vendor's opt-outs: no self-update or language-server download mid-review, and no git-ai commit tagger, which writes git notes. The CLI exits 1 whenever it reports issues and also on its own errors, so findings_exit_codes admits 1 and findings_jq refuses the error document. --base takes a ref name, not a SHA (a bare name gains an origin/ prefix), hence {base_ref}. The key file is written by scripts/op-key-sync.sh from the dotfiles-cubic-api-key item."
+        "invocation_notes": "The env values are the vendor's opt-outs: no self-update or language-server download mid-review, and no git-ai commit tagger, which writes git notes. The CLI exits 1 whenever it reports issues and also on its own errors, so findings_exit_codes admits 1 and findings_jq refuses the error document. --base takes a ref name, not a SHA (a bare name gains an origin/ prefix), hence {base_ref}. The CLI loads cubic.json, cubic.jsonc and .cubic/ (plugins included) from the tree it reviews, so refuse_paths keeps a PR's copy of them from running with the key. The key file is written by scripts/op-key-sync.sh from the dotfiles-cubic-api-key item."
       }
     },
     "copilot": {

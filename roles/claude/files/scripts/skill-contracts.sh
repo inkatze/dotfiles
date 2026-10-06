@@ -167,6 +167,12 @@ if command -v jq >/dev/null 2>&1; then
       and .CUBIC_DISABLE_LSP_DOWNLOAD == "1"' "$review_tpl" >/dev/null 2>&1; then
     err "$review_tpl: the cubic entry's cli.env must carry the vendor's opt-outs (CUBIC_DISABLE_AUTOUPDATE=1, CUBIC_DISABLE_GIT_AI=true, CUBIC_DISABLE_LSP_DOWNLOAD=1)"
   fi
+  # The cubic CLI loads configuration and plugins from the tree it reviews, so
+  # the entry refuses a tree that carries them.
+  if [ -f "$review_tpl" ] && ! jq -e '.reviewers.cubic.cli.refuse_paths as $r | $r | type == "array"
+      and (["cubic.json", "cubic.jsonc", ".cubic"] - $r | length == 0)' "$review_tpl" >/dev/null 2>&1; then
+    err "$review_tpl: the cubic entry's cli.refuse_paths must list cubic.json, cubic.jsonc and .cubic"
+  fi
   # The other two templates commit no values either: a literal there would
   # publish a private repository name or push destination.
   sibling_tpl="$SHARED/sibling-repos.json.tpl"
@@ -827,6 +833,10 @@ reviewer_backend_checks=(
   'and ($files + $fixed + $allow | all(.[]; (startswith("GIT_") or startswith("__rb_")'
   'or IN("SHELLOPTS", "BASHOPTS", "BASH_ENV", "ENV", "PS4", "IFS")) | not))'
   '**mise shims are stripped, not steered.**'
+  'if [ -e "$top/$refused" ] || [ -L "$top/$refused" ]; then'
+  '  done <<< "$refuse_paths"'$'\n''  get() {'
+  '(split("/") | index("..") | not))'
+  '**A tree that would steer the CLI is refused before anything runs.**'
 )
 panel_consent_checks=(
   'where `<approved-binary-path>` is item 5'"'"'s `bin_real`'
