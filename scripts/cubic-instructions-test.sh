@@ -7,8 +7,9 @@ set -uo pipefail
 here="$(cd -- "$(dirname "$0")" && pwd -P)"
 repo="$(cd -- "$here/.." && pwd -P)"
 work="$(cd -- "$(mktemp -d)" && pwd -P)" || exit 1
-# A hung play's workers, or a jq blocked on a FIFO, must not outlive the suite.
-trap 'pkill -f "$work" 2>/dev/null; rm -rf "$work"' EXIT
+# A hung play's workers must not outlive the suite; they get a moment to exit
+# before their scratch files go.
+trap 'pkill -f "$work" 2>/dev/null && sleep 1; rm -rf "$work"' EXIT
 fails=0
 
 ok()   { printf 'ok[%s]: %s\n' "$1" "$2"; }
@@ -43,10 +44,12 @@ run_role() {
 }
 changed() { grep -oE 'changed=[0-9]+' "$work/out" | head -1 | cut -d= -f2; }
 reported() { grep -qF -- "$1" "$work/out"; }
-fresh_home() { h="$(mktemp -d "$work/h.XXXXXX")" || exit 1; printf '%s\n' "$h"; }
+# Sets h; a subshell would let a failed mktemp leave h empty and the suite
+# writing under /.
+fresh_home() { h="$(mktemp -d "$work/h.XXXXXX")" || { echo "cubic-instructions-test: mktemp failed"; exit 1; }; }
 mode_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
 
-h="$(fresh_home)"
+fresh_home
 run_role "$h" --check && [ ! -e "$h/.config/cubic" ] && ok check "a --check run on a fresh host writes nothing" \
   || fail check "a --check run wrote files or failed"
 run_role "$h"
@@ -69,7 +72,7 @@ else
   ok quiet-again "a converged host reports nothing"
 fi
 
-h="$(fresh_home)"
+fresh_home
 mkdir -p "$h/.config/cubic" "$h/.local/share/cubic"
 printf 'my own rules\n' >"$h/.config/cubic/AGENTS.md"
 printf '{"preferredProvider":"claude-code"}\n' >"$h/.local/share/cubic/preferences.json"
@@ -82,7 +85,7 @@ reported "is not an empty regular file" && ok reported "AGENTS.md with content i
 reported "whose preferredProvider is" && ok reported-prefs "the other provider is reported" || fail reported-prefs "no report for the provider"
 reported "holds cubic.json" && ok reported-extra "an extra config entry is reported" || fail reported-extra "no report for cubic.json"
 
-h="$(fresh_home)"
+fresh_home
 mkdir -p "$h/.config/cubic/AGENTS.md" "$h/.local/share/cubic"
 printf 'not json\n' >"$h/.local/share/cubic/preferences.json"
 run_role "$h" && ok dir "a directory at AGENTS.md is reported, not fatal"
@@ -90,7 +93,7 @@ reported "is not an empty regular file" || fail dir-report "no report for a dire
 reported "whose preferredProvider is" && ok not-json "a preferences.json that is not JSON is reported, not fatal" \
   || fail not-json "no report for unparseable preferences"
 
-h="$(fresh_home)"
+fresh_home
 mkdir -p "$h/.config/cubic"
 : >"$h/elsewhere"
 ln -s "$h/elsewhere" "$h/.config/cubic/AGENTS.md"
@@ -98,7 +101,7 @@ run_role "$h"
 [ -L "$h/.config/cubic/AGENTS.md" ] && ok link "a symlinked AGENTS.md is left alone" || fail link "the symlink was replaced"
 reported "is not an empty regular file" && ok link-report "a symlinked AGENTS.md is reported" || fail link-report "no report for the symlink"
 
-h="$(fresh_home)"
+fresh_home
 mkdir -p "$h/.local/share/cubic" "$h/real-config" "$h/.config"
 ln -s "$h/real-config" "$h/.config/cubic"
 printf '{"x":{"preferredProvider":"cubic"}}\n' >"$h/.local/share/cubic/preferences.json"
@@ -109,13 +112,13 @@ reported "not yours" && ok link-dir-report "a symlinked config directory is repo
 reported "whose preferredProvider is" && ok nested "a nested preferredProvider is reported, as the backend refuses it" \
   || fail nested "no report for a nested preferredProvider"
 
-h="$(fresh_home)"
+fresh_home
 mkdir -p "$h/.config/cubic" "$h/.local/share/cubic"
 if (unset USER; run_role "$h"); then ok no-user "an unset USER does not fail the play"; else fail no-user "an unset USER failed the play"; fi
 [ -f "$h/.config/cubic/AGENTS.md" ] && ok no-user-created "the user's own directories are still used" \
   || fail no-user-created "nothing was created with USER unset"
 
-h="$(fresh_home)"
+fresh_home
 mkdir -p "$h/.local/share/cubic"
 mkfifo "$h/.local/share/cubic/preferences.json"
 tbin="$(command -v timeout || command -v gtimeout)" || tbin=""
@@ -128,7 +131,7 @@ else
   fail fifo "a FIFO at preferences.json hung or failed the play"
 fi
 
-h="$(fresh_home)"
+fresh_home
 mkdir -p "$h/.local/share/cubic"
 printf '{"https://example.invalid":{"type":"wellknown","key":"PLACEHOLDER","token":"placeholder-secret-value"}}\n' \
   >"$h/.local/share/cubic/auth.json"
@@ -137,7 +140,7 @@ reported "holds a wellknown login" && ok wellknown "a wellknown login is reporte
 reported "placeholder-secret-value" && fail wellknown-leak "auth.json contents reached the output" \
   || ok wellknown-leak "auth.json contents never reach the output"
 
-h="$(fresh_home)"
+fresh_home
 mkdir -p "$h/.local/share/cubic" "$work/nojq"
 printf '{"preferredProvider":"cubic"}\n' >"$h/.local/share/cubic/preferences.json"
 printf '#!/bin/sh\nexit 127\n' >"$work/nojq/jq"
@@ -146,7 +149,7 @@ PATH="$work/nojq:$PATH" run_role "$h"
 reported "could not run jq" && ok no-jq "a missing jq is reported as such" || fail no-jq "no report for a missing jq"
 reported "whose preferredProvider is" && fail no-jq-blame "a missing jq was blamed on preferences.json" \
   || ok no-jq-blame "a missing jq is not blamed on the files"
-h="$(fresh_home)"
+fresh_home
 mkdir -p "$h/.local/share/cubic"
 ln -s /dev/null "$h/.local/share/cubic/preferences.json"
 printf '{"cubic":{"type":"api","key":"placeholder"}}\n' >"$h/.local/share/cubic/auth.json"

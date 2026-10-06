@@ -73,7 +73,7 @@ if [ "$got" != "$reviewed_integrity" ]; then
     staged="$(mktemp "$cache_dir/.tgz.XXXXXX")" || staged=""
     if [ -n "$staged" ] && cp "$work/pkg.tgz" "$staged" && mv -f "$staged" "$cached"; then
       # A staged copy under an hour old may belong to another run still writing it;
-      # fetches are capped well below that.
+      # each lives only for one local copy, far under that.
       find "$cache_dir" -maxdepth 1 -type f \( -name 'cli-linux-x64-*.tgz' ! -name "${cached##*/}" \
         -o -name '.tgz.*' -mmin +60 \) -delete
     else

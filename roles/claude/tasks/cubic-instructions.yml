@@ -158,20 +158,19 @@
          + (claude_cubic_dirs.results | selectattr('stat.exists') | selectattr('stat.islnk')
             | map(attribute='item') | list)
          + (claude_cubic_dirs.results | selectattr('stat.exists')
-            | rejectattr('stat.uid', 'equalto', claude_cubic_mine)
+            | rejectattr('stat.uid', 'equalto', ansible_facts.effective_user_id)
             | map(attribute='item') | list) }}
     claude_cubic_agents_msg: >-
       ~/.config/cubic/AGENTS.md is not an empty regular file; the cubic CLI would upload it, so move its
       content elsewhere and empty it
     claude_cubic_prefs_rc: "{{ claude_cubic_prefers.rc | default(1) }}"
     claude_cubic_auth_rc: "{{ claude_cubic_no_wellknown.rc | default(0) }}"
-    claude_cubic_mine: "{{ ansible_facts.effective_user_id }}"
     claude_cubic_foreign: >-
       {{ ([claude_cubic_files.results[0], claude_cubic_files.results[1]]
-          | selectattr('stat.exists') | rejectattr('stat.uid', 'equalto', claude_cubic_mine)
+          | selectattr('stat.exists') | rejectattr('stat.uid', 'equalto', ansible_facts.effective_user_id)
           | map(attribute='item') | list)
          + ([claude_cubic_auth.stat.path] if claude_cubic_auth.stat.exists
-            and claude_cubic_auth.stat.uid != claude_cubic_mine else []) }}
+            and claude_cubic_auth.stat.uid != ansible_facts.effective_user_id else []) }}
     claude_cubic_prefs_msg: >-
       ~/.local/share/cubic/preferences.json is not a regular file holding one JSON document whose
       preferredProvider is "cubic"; fix it so the review stays on cubic's own provider

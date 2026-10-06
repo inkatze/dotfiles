@@ -71,7 +71,7 @@ jobs:
       - name: Run the mise global config suite
         run: scripts/mise-global-config-test.sh
 
-      # Needs ansible-playbook, which this job installs.
+      # Needs ansible-playbook, which this job installs, and jq.
       - name: Run the cubic instruction-file suite
         run: scripts/cubic-instructions-test.sh
 
