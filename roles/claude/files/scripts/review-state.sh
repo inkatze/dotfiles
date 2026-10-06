@@ -84,7 +84,10 @@ parse_opts() {
   rest_args=()
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --) shift; rest_args=("$@"); return 0 ;;
+      --)
+        # Only a command that wraps another takes arguments after --.
+        case "$allowed" in *" -- "*) ;; *) die "unexpected --; this command takes no trailing arguments" ;; esac
+        shift; rest_args=("$@"); return 0 ;;
       --*)
         name="${1#--}"
         case "$allowed" in *" $name "*) ;; *) die "unknown option --$name" ;; esac
@@ -662,6 +665,7 @@ cmd_lock() {
     release)
       parse_opts "session token repo pr branch" -- "$@"
       require_opt session; require_opt token; repo_args; target_args
+      valid_token "$opt_token" || die "'$opt_token' is not a lock token"
       own_registration "$opt_session"
       lock_path "$opt_repo" "$opt_pr" "$opt_branch"
       release "$LOCKP" "$opt_session" "$opt_token"
@@ -669,6 +673,7 @@ cmd_lock() {
     handover)
       parse_opts "session token repo pr branch" -- "$@"
       require_opt session; require_opt token; repo_args
+      valid_token "$opt_token" || die "'$opt_token' is not a lock token"
       [ -n "$opt_pr" ] && [ -n "$opt_branch" ] || die "handover needs both --branch and --pr"
       valid_pr "$opt_pr"
       own_registration "$opt_session"; reg="$REG"; pid="$SESSION_PID"
@@ -910,7 +915,7 @@ cmd_evidence() {
       record_entry "$opt_command" "$tree" "$opt_exit" "$opt_started" "$opt_ended" "${opt_source:-local}"
       ;;
     run)
-      parse_opts "command tree" -- "$@"
+      parse_opts "command tree --" -- "$@"
       require_opt command
       [ "${#rest_args[@]}" -gt 0 ] || die "run needs a command after --"
       if [ -n "$opt_tree" ]; then tree="$opt_tree"; else tree_key; tree="$TREE_KEY"; fi
@@ -1045,12 +1050,12 @@ need git
 cmd="${1:-}"
 shift || true
 case "$cmd" in
-  key) tree_key; printf '%s\n' "$TREE_KEY" ;;
+  key) [ "$#" -eq 0 ] || die "key takes no arguments"; tree_key; printf '%s\n' "$TREE_KEY" ;;
   evidence) cmd_evidence "$@" ;;
-  session-pid) find_session_pid; printf '%s\n' "$SESSION_PID" ;;
+  session-pid) [ "$#" -eq 0 ] || die "session-pid takes no arguments"; find_session_pid; printf '%s\n' "$SESSION_PID" ;;
   register) cmd_register "$@" ;;
   unregister) cmd_unregister "$@" ;;
-  sessions) cmd_sessions ;;
+  sessions) [ "$#" -eq 0 ] || die "sessions takes no arguments"; cmd_sessions ;;
   lock) cmd_lock "$@" ;;
   inbox) cmd_inbox "$@" ;;
   loop) cmd_loop "$@" ;;

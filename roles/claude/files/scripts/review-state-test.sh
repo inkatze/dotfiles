@@ -379,6 +379,8 @@ live alpha '"$H" register --name alpha-inner --skill bot-review --repo o/r --pr 
 inner="$(out_of alpha)"
 live alpha "\"\$H\" lock acquire --session $inner --repo o/r --pr 7"
 [ "$LIVE_RC" = 1 ] || fail lock-same-process "another registration in the holder's process was granted the lock"
+live alpha "\"\$H\" lock release --session $inner --token '../../x' --repo o/r --pr 7"
+[ "$LIVE_RC" = 2 ] || fail lock-release-token-shape "a malformed lock token was not refused (exit $LIVE_RC)"
 live alpha "\"\$H\" lock release --session $inner --token $atok --repo o/r --pr 7"
 [ "$LIVE_RC" = 1 ] && [ "$(readlink "$lockp")" = "$atok" ] \
   || fail lock-release-other-session "another registration released the holder's lock"
@@ -529,6 +531,9 @@ in_session "\"\$H\" register --name dots --skill bot-review --repo '../..' --bra
 [ -L "$REVIEW_STATE_ROOT/locks/_2e./_2e./branch-_2e._2f.._2fx" ] \
   || fail lock-encoded-path "the dotted lock is not at its encoded path"
 if "$H" lock status --repo 'o' --pr 7 > /dev/null 2>&1; then fail lock-repo-shape "a repository without an owner was accepted"; fi
+if "$H" lock status --repo o/r --pr 7 -- extra > /dev/null 2>&1; then fail args-trailing "a command that wraps nothing accepted arguments after --"; fi
+if "$H" sessions extra > /dev/null 2>&1; then fail args-stray "sessions accepted a stray argument"; fi
+if "$H" key extra > /dev/null 2>&1; then fail args-stray-key "key accepted a stray argument"; fi
 if "$H" lock status --repo 'o/r' --pr '7;x' > /dev/null 2>&1; then fail lock-pr-shape "a non-numeric PR was accepted"; fi
 [ "$("$H" lock status --repo o/r --pr 99 | jq -r .state)" = free ] || fail lock-status-free "an untaken lock does not read free"
 mkdir "$REVIEW_STATE_ROOT/locks/o/r/pr-98"
