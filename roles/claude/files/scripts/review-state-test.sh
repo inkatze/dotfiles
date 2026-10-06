@@ -326,6 +326,56 @@ printf '{"check_runs":[%s]}' "$(check_run_json a completed '"success"')" \
 src="$("$H" evidence lookup --command 'mise run test' | jq -r .source)"
 [[ "$src" == "ci:check-runs:$head" ]] || fail ci-source "CI record's source does not name the check runs and head: $src"
 
+# --- Evidence across skills (REQ-D1.2) ----------------------------------------
+# A second skill's lookup on the same tree, from its own process and from a
+# subdirectory, hits what the first skill recorded; an edit makes it miss.
+rm -rf "$repo/.claude/review-evidence/$k1"
+mkdir -p sub
+"$H" evidence run --command 'mise run lint' -- sh -c 'echo first skill' > /dev/null 2>&1 \
+  || fail cross-skill-record "the first skill's run failed"
+(cd sub && "$H" evidence lookup --command 'mise run lint') > "$tmp/cross.out" 2>&1 \
+  || fail cross-skill-hit "a second skill's lookup on the same tree missed: $(cat "$tmp/cross.out")"
+[ "$(cat "$(jq -r .output_path "$tmp/cross.out" 2>/dev/null)" 2>/dev/null)" = 'first skill' ] \
+  || fail cross-skill-output "the second skill did not get the first skill's output"
+printf 'c\n' > a.txt
+if "$H" evidence lookup --command 'mise run lint' > /dev/null 2>&1; then
+  fail cross-skill-edit "a second skill's lookup hit after the tree changed"
+fi
+git checkout -q HEAD -- a.txt
+rmdir sub
+
+# --- Tooling in an exported tree (REQ-E1.6, D-15) ------------------------------
+# /code-review exports the pinned head with git archive and runs tooling there,
+# keyed by that commit's own tree; the record lands in the session's worktree.
+export_dir="$tmp/export"
+mkdir -p "$export_dir"
+git archive HEAD | tar -x -C "$export_dir"
+htree="$(git rev-parse 'HEAD^{tree}')"
+rm -rf "$repo/.claude/review-evidence/$htree"
+out="$("$H" evidence run --command 'lint-export' --tree "$htree" --dir "$export_dir" -- sh -c 'pwd -P; exit 5')" && rc=0 || rc=$?
+[ "$rc" -eq 5 ] || fail dir-run-exit "a --dir run did not pass the command's exit status through (got $rc)"
+[ "$out" = "$export_dir" ] || fail dir-run-cwd "a --dir run did not run in that directory: $out"
+"$H" evidence lookup --command 'lint-export' --tree "$htree" 2>/dev/null | jq -e '.exit == 5 and .source == "local"' > /dev/null \
+  || fail dir-run-record "a --dir run was not recorded under the given tree"
+[ -z "$(ls -A "$export_dir/.claude" 2>/dev/null)" ] || fail dir-run-location "a --dir run wrote evidence into the exported tree"
+"$H" evidence run --command 'dir-no-tree' --dir "$export_dir" -- true > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" -eq 2 ] || fail dir-needs-tree "--dir without --tree was not an error (exit $rc)"
+mkdir -p "$repo/inside"
+"$H" evidence run --command 'dir-inside' --tree "$htree" --dir "$repo/inside" -- true > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" -eq 2 ] || fail dir-inside-worktree "--dir inside the work tree was not refused (exit $rc)"
+ln -s "$repo/inside" "$tmp/repo-link"
+"$H" evidence run --command 'dir-inside-link' --tree "$htree" --dir "$tmp/repo-link" -- true > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" -eq 2 ] || fail dir-inside-worktree-link "--dir reaching the work tree through a symlink was not refused (exit $rc)"
+rm "$tmp/repo-link"
+"$H" evidence run --command 'dir-holds' --tree "$htree" --dir "$tmp" -- true > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" -eq 2 ] || fail dir-holds-worktree "--dir holding the work tree was not refused (exit $rc)"
+"$H" evidence run --command 'dir-missing' --tree "$htree" --dir "$tmp/no-such-dir" -- true > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" -eq 2 ] || fail dir-missing "a --dir that is not a directory was not an error (exit $rc)"
+for c in dir-no-tree dir-inside dir-inside-link dir-holds dir-missing; do
+  if "$H" evidence lookup --command "$c" --tree "$htree" > /dev/null 2>&1; then fail "dir-refused-recorded-$c" "a refused --dir run was recorded"; fi
+done
+rm -rf "$export_dir" "$repo/inside" "$repo/.claude/review-evidence/$htree"
+
 # --- Plain-name encoding -------------------------------------------------------
 for seg in 'feat/x y' '..' '.hidden' '-dash' 'a#b' 'ünï' 'under_score' 'plain-Name.1'; do
   enc="$("$H" encode "$seg")" || { fail "encode-$seg" "encode errored"; continue; }

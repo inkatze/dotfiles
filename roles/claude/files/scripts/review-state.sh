@@ -10,6 +10,7 @@
 #   review-state.sh evidence record --command <key> --exit <n> --started <epoch>
 #       --ended <epoch> [--source <text>] [--tree <hash>]      (output on stdin)
 #   review-state.sh evidence run --command <key> [--tree <hash>] -- <argv>...
+#   review-state.sh evidence run --command <key> --tree <hash> --dir <dir> -- <argv>...
 #   review-state.sh evidence ci --head <sha> --command <key>   (check runs on stdin)
 #   review-state.sh session-pid
 #   review-state.sh register --name <n> --skill <s> --repo <owner/repo>
@@ -82,7 +83,7 @@ rand_hex() {
 # parse_opts <allowed names> -- <args>: clears every opt_<name>, sets one for
 # each --<name> <value> (a hyphen in the name becomes an underscore in the variable),
 # and leaves anything after a literal -- in rest_args.
-OPT_NAMES="anchor base branch command disposition ended exit follow_up from head iteration key name phase pr reason repo reply reviewer session skill source started to token tree wait worktree"
+OPT_NAMES="anchor base branch command dir disposition ended exit follow_up from head iteration key name phase pr reason repo reply reviewer session skill source started to token tree wait worktree"
 for _n in $OPT_NAMES; do printf -v "opt_$_n" '%s' ""; done
 rest_args=()
 parse_opts() {
@@ -889,7 +890,7 @@ CAPTURE=""
 cleanup_capture() { [ -z "$CAPTURE" ] || rm -f "$CAPTURE"; }
 
 cmd_evidence() {
-  local sub="${1:-}" tree file started rc ended out pipe after
+  local sub="${1:-}" tree file started rc ended out pipe after rundir top_real
   shift || true
   case "$sub" in
     lookup)
@@ -924,14 +925,26 @@ cmd_evidence() {
       record_entry "$opt_command" "$tree" "$opt_exit" "$opt_started" "$opt_ended" "${opt_source:-local}"
       ;;
     run)
-      parse_opts "command tree --" -- "$@"
+      parse_opts "command tree dir --" -- "$@"
       require_opt command
       [ "${#rest_args[@]}" -gt 0 ] || die "run needs a command after --"
       if [ -n "$opt_tree" ]; then tree="$opt_tree"; else tree_key; tree="$TREE_KEY"; fi
       valid_tree "$tree"
+      # A directory outside the work tree (an exported commit) has no tree
+      # key to recompute, so its key is the caller's --tree, and it must not
+      # sit inside the work tree, whose key the run would then move unseen.
+      rundir=""
+      if [ -n "$opt_dir" ]; then
+        [ -n "$opt_tree" ] || die "--dir needs --tree, the tree the directory was exported from"
+        rundir="$(cd -- "$opt_dir" 2> /dev/null && pwd -P)" || die "--dir $opt_dir is not a directory"
+        worktree_top
+        top_real="$(cd -- "$TOP" && pwd -P)" || die "cannot resolve the work tree"
+        case "$rundir/" in "$top_real/"*) die "--dir $opt_dir is inside the work tree; export the tree outside it" ;; esac
+        case "$top_real/" in "$rundir/"*) die "--dir $opt_dir holds the work tree; export the tree outside it" ;; esac
+      fi
       # type -P looks on PATH only: command -v also finds this helper's own
       # functions and the shell's builtins, which exec cannot run.
-      type -P -- "${rest_args[0]}" > /dev/null 2>&1 \
+      ( if [ -n "$rundir" ]; then cd -- "$rundir"; fi; type -P -- "${rest_args[0]}" ) > /dev/null 2>&1 \
         || die "${rest_args[0]} is not on PATH; nothing run or recorded"
       CAPTURE="$(mktemp -t review-state-run.XXXXXX)" || die "cannot create a capture file"
       trap cleanup_capture EXIT
@@ -941,6 +954,7 @@ cmd_evidence() {
       # exec runs only a program, never one of this helper's functions or a
       # builtin, and in the caller's locale rather than this helper's C.
       ( if [ -n "$CALLER_LC_ALL_SET" ]; then export LC_ALL="$CALLER_LC_ALL"; else unset LC_ALL; fi
+        if [ -n "$rundir" ]; then cd -- "$rundir" || exit 2; fi
         exec -- "${rest_args[@]}" ) < /dev/null 2>&1 | tee "$CAPTURE" \
         || { pipe=("${PIPESTATUS[@]}"); rc="${pipe[0]}"; }
       ended="$(now)"
@@ -948,6 +962,9 @@ cmd_evidence() {
       # command's own exit status.
       if [ "${pipe[1]:-0}" != 0 ]; then
         note "the output could not be captured or streamed (tee exited ${pipe[1]}); nothing recorded"
+      elif [ -n "$rundir" ]; then
+        (record_entry "$opt_command" "$tree" "$rc" "$started" "$ended" local < "$CAPTURE" > /dev/null) \
+          || note "the run could not be recorded"
       elif ! after="$(tree_key && printf '%s' "$TREE_KEY")"; then
         note "could not recompute the tree key after the run; nothing recorded"
       elif [ "$after" != "$tree" ]; then
