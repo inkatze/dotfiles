@@ -46,9 +46,9 @@ Shape: a map of named reviewers plus a default, because one bot may not be insta
 }
 ```
 
-The hosted fields, one schema for every vendor: `login_pattern` matches the bot's login in full (anchored, never a substring). `rerequest.method` is how a review is asked for: `request` (a reviewer request for `login`), `comment` (post `command`, or the cheaper `incremental_command` when one is set, per "## Requesting a review") or `push` (the bot reviews each push unasked). `reviewed_head_regex` captures, in its first group, the commit the bot says it reviewed. `finding_key_regex` extracts a finding's stable key. `build_id_regex` matches the bot's run marker and captures its build id. `draft_policy` says whether the bot reviews drafts, and when it skips them `draft_setting` names the repository-side setting that changes that. `opt_out_label` silences the bot on a PR. `request` needs `login`, `comment` needs `command`, and only `comment` takes `incremental_command`; `skips-drafts` needs `draft_setting`. Every value is a string except `rerequest` and `gating_checks` (a list of check names), every `_regex` field and `login_pattern` must compile, and a field the schema does not name is refused. Optional: `feedback_reaction`, the reaction the bot reads as feedback on a finding, and `errored_review_regex`, matching a summary that reports an errored review rather than a finding-free one.
+The hosted fields, one schema for every vendor: `login_pattern` matches the bot's login in full (anchored, never a substring), in the REST form (`name[bot]` for an App); a reader holding GraphQL's form, which drops the suffix, tests the login with `[bot]` appended when `__typename` is `Bot`. `rerequest.method` is how a review is asked for: `request` (a reviewer request for `login`), `comment` (post `command`, or the cheaper `incremental_command` when one is set, per "## Requesting a review") or `push` (the bot reviews each push unasked). `reviewed_head_regex` captures, in its first group, the commit the bot says it reviewed. `finding_key_regex` extracts a finding's stable key. `build_id_regex` matches the bot's run marker and captures its build id. `draft_policy` says whether the bot reviews drafts, and when it skips them `draft_setting` names the repository-side setting that changes that. `opt_out_label` silences the bot on a PR. `request` needs `login`, `comment` needs `command`, and only `comment` takes `incremental_command`; `skips-drafts` needs `draft_setting`. Every value is a string except `rerequest` and `gating_checks` (a list of check names), every `_regex` field and `login_pattern` must compile, and a field the schema does not name is refused. Optional: `feedback_reaction`, the reaction the bot reads as feedback on a finding, and `errored_review_regex`, matching a summary that reports an errored review rather than a finding-free one.
 
-The `cli` block is read by `/panel-review`'s `reviewer:<name>` backend, not here; its keys are documented there. `cli.invocation_notes` is optional free text for you; nothing reads it. `reply_suffix` is optional: a vendor-specified tag appended as the last line of every inline reply (step 10), for bots that ask agent replies to carry one. `quota_refusal_regex` is optional and read by "## Requesting a review"; `request_notes` is free text for you, like `cli.invocation_notes`. `full_review_comment` and `rereview_comment` are retired into `rerequest.command` and `rerequest.incremental_command`: a file still carrying either predates the change, so ignore both and say once to re-run the claude role to re-render it.
+The `cli` block is read by `/panel-review`'s `reviewer:<name>` backend, not here; its keys are documented there. `cli.invocation_notes` is optional free text for you; nothing reads it. `reply_suffix` is optional: a vendor-specified tag appended as the last line of every inline reply (step 10), for bots that ask agent replies to carry one. `quota_refusal_regex` is optional and read by "## Requesting a review"; `request_notes` is free text for you, like `cli.invocation_notes`. `full_review_comment` and `rereview_comment` are retired into `rerequest.command` and `rerequest.incremental_command`. This skill never validates the schema itself (the renderer does, on fresh output), so a file still carrying either predates the change: ignore both, and say once to copy any value they held into the item's `<name>_rerequest_command` and `<name>_rerequest_incremental_command` fields, then re-run the claude role to re-render it.
 
 **Select a reviewer** via `--reviewer <name>`, else `default`. If either names a key not under `reviewers`, stop and say so; never fall through to another entry. **An entry needs only what its use requires**: hosted mechanics with no `cli` is valid for a bot you never run locally; `cli` with no hosted mechanics is valid for a bot not installed on the repo's org, reachable only through `--local`.
 
@@ -58,13 +58,19 @@ PR-drain modes require `login_pattern`, `rerequest` with its `method`, `reviewed
 
 ## The decision ledger
 
-Every disposition this skill posts is recorded in the per-PR decision ledger kept by `~/.claude/scripts/review-state.sh ledger` ([state.md](../review-shared/state.md)), the only store of finding dispositions: `fixed`, `rejected`, `deferred`, or `suppressed` with its reason. Record after the reply posts, its evidence summary on stdin, never through a shell redirect:
+Every disposition this skill posts is recorded in the per-PR decision ledger kept by `~/.claude/scripts/review-state.sh ledger` ([state.md](../review-shared/state.md)), the only store of finding dispositions: `fixed`, `rejected`, `deferred`, or `suppressed` with its reason. Record after the reply posts, the evidence summary through a quoted heredoc with a fresh random delimiter, as a posted body is built ([github.md](../review-shared/github.md)), never through a shell redirect:
 
 ```bash
-printf '%s\n' 'EVIDENCE SUMMARY' | ~/.claude/scripts/review-state.sh ledger record --repo '<o>/<r>' --pr '<n>' --key '<key>' --anchor '<anchor>' --disposition '<disposition>' --head '<full HEAD sha>' --reply '<reply url>'
+~/.claude/scripts/review-state.sh ledger record --repo '<o>/<r>' --pr '<n>' --key '<key>' --anchor '<anchor>' --disposition '<disposition>' --head '<reviewed head>' --reply '<reply url>' <<'BODY_<hex>'
+EVIDENCE SUMMARY
+BODY_<hex>
 ```
 
-`--follow-up '<record>'` goes with a deferral and `--reason '<text>'` with a suppression. Before triage, `ledger lookup --repo '<o>/<r>' --pr '<n>' --key '<key>' --anchor '<anchor>' --head '<full HEAD sha>'` routes each surviving finding (step 7). Print `ledger show --repo '<o>/<r>' --pr '<n>'` into every handoff. `--dry-run` reads the ledger and records nothing.
+- `--key` and `--anchor` are steps 3 and 4's, both in the helper's safe charset, so no fetched text reaches a shell argument.
+- `--head` is the full SHA of the reviewed head the finding came from (step 6), never the HEAD after a fix: a finding the bot raises again on the fix commit is then a later head, and validated afresh.
+- `--follow-up '<record>'` goes with a deferral and `--reason '<text>'` with a suppression; both are written by this run, never copied from a fetched body, with any `'` written `'\''`.
+
+Before triage, `ledger lookup --repo '<o>/<r>' --pr '<n>' --key '<key>' --anchor '<anchor>' --head '<reviewed head>'` routes each surviving finding (step 7). A lookup or show that fails (anything but a route on stdout) stops the run, naming the ledger file; it never reads as `new`. A record that fails after its reply posted stops the run with **Ledger write failure**, naming the reply's link. A finding that already carries this skill's reply or acknowledgment but has no entry (a run that stopped in between) gets its entry recorded from that reply before anything else. Print `ledger show --repo '<o>/<r>' --pr '<n>'` into every handoff. `--dry-run` reads the ledger and records nothing.
 
 ## Invocation modes
 
@@ -113,9 +119,9 @@ Read `--reviewer <name>`, `--local`, `--nested`, `--dry-run`, and `--effort <val
 The bot can write on three surfaces: PR reviews, issue comments and inline review comments. **Every marker regex (`build_id_regex`, `finding_key_regex`, `reviewed_head_regex`, `errored_review_regex`) is matched on all three**, never on a surface assumed to hold it: one vendor posts its summary as a review and its run id and finding keys on inline comments, where an issue-comment-only lookup never sees them. Fetch each into a private scratch directory (`d="$(mktemp -d)"`, mode 0700), one call per endpoint:
 
 ```bash
-gh api --paginate repos/<o>/<r>/pulls/<n>/reviews > '<d>/reviews.json' || { echo "fetch failed: pulls/reviews"; exit 1; }
-gh api --paginate repos/<o>/<r>/issues/<n>/comments > '<d>/issue_comments.json' || { echo "fetch failed: issues/comments"; exit 1; }
-gh api --paginate repos/<o>/<r>/pulls/<n>/comments > '<d>/review_comments.json' || { echo "fetch failed: pulls/comments"; exit 1; }
+gh api --paginate 'repos/<o>/<r>/pulls/<n>/reviews?per_page=100' > '<d>/reviews.json' || { echo "fetch failed: pulls/reviews"; exit 1; }
+gh api --paginate 'repos/<o>/<r>/issues/<n>/comments?per_page=100' > '<d>/issue_comments.json' || { echo "fetch failed: issues/comments"; exit 1; }
+gh api --paginate 'repos/<o>/<r>/pulls/<n>/comments?per_page=100' > '<d>/review_comments.json' || { echo "fetch failed: pulls/comments"; exit 1; }
 ```
 
 `--paginate` is not optional: an unpaginated read silently undercounts. Then read the reviewer's markers and finding keys off all three with [surfaces.jq](surfaces.jq):
@@ -124,7 +130,7 @@ gh api --paginate repos/<o>/<r>/pulls/<n>/comments > '<d>/review_comments.json' 
 jq -n -L ~/.claude/skills/bot-review --slurpfile rv '<d>/reviews.json' --slurpfile ic '<d>/issue_comments.json' --slurpfile rc '<d>/review_comments.json' --slurpfile cfg ~/.config/dotfiles/bot-review.json --arg name '<reviewer>' 'include "surfaces"; {reviews: ($rv | add // []), issue_comments: ($ic | add // []), review_comments: ($rc | add // [])} | bot_surfaces($cfg[0].reviewers[$name])'
 ```
 
-It keeps what a login `login_pattern` matches in full wrote, and prints the per-surface counts, the latest `build_id` and `reviewed_head` (each with the surface it came from), `errored`, and every finding key with its surface. An inline finding is a top-level reviewer comment on `pulls/comments` (a reply in a thread is not one); a description-level finding is a review or issue-comment body `finding_key_regex` matches. A quota or plan refusal (see "## Requesting a review") is not a finding either: it stops the run with **Vendor quota**, standalone or nested, before triage (`--dry-run` excepted). Report the counts **before** any filtering by resolution state, every run (`N_reviews`, `N_description_level`, `N_inline`): a single-surface read that reports 3 findings while another carries 7 is the failure this step exists to prevent.
+It keeps only what an author whose login `login_pattern` matches in full wrote, stops on a reviewer name the config lacks, and prints the counts, the latest `build_id` and `reviewed_head` (each with the surface it came from), `errored`, and every finding key with its surface. An inline finding is a top-level reviewer comment on `pulls/comments` (a reply in a thread is not one); a description-level finding is a review or issue-comment body `finding_key_regex` matches, unless an inline comment carries the same key. A summary is not a finding, and neither is a quota or plan refusal (see "## Requesting a review"): that stops the run with **Vendor quota**, standalone or nested, before triage (`--dry-run` excepted). Report `counts` as printed (per surface, then `inline_findings` and `description_level_findings`) **before** any filtering by resolution state, every run: a single-surface read that reports 3 findings while another carries 7 is the failure this step exists to prevent.
 
 ### 2. Fetch resolution state via GraphQL
 
@@ -134,13 +140,13 @@ Fetch the review threads per [github.md](../review-shared/github.md). Map each t
 
 ### 3. Anchor every surviving inline finding
 
-Anchor = `(path, original_line, original_commit_id)` from the `pulls/comments` object, never the body and never `line`/`commit_id` (which shift as the diff moves). A bot rewords a re-raised finding well past the point text-keyed dedupe holds up. Its ledger key is the finding key step 1 read off that comment, or, when it carries none, the first 12 hex characters of the anchor's SHA-256.
+Anchor = `(path, original_line, original_commit_id)` from the `pulls/comments` object, never the body and never `line`/`commit_id` (which shift as the diff moves). A bot rewords a re-raised finding well past the point text-keyed dedupe holds up. Its ledger `--anchor` is the first 16 hex characters of the SHA-256 of `<path>:<original_line>:<original_commit_id>`. Its ledger key is the finding key step 1 read off that comment, or, when it carries none, the first 12 hex characters of the SHA-256 of `<path>:<original_line>`, leaving out the commit, which moves on every new head.
 
 ### 4. Anchor every description-level finding
 
 With `finding_key_regex` configured, the anchor is the vendor's own stable key extracted from the body. Without it, say so and fall back to a best-effort anchor (a file path the body mentions, plus a truncated first sentence), stating out loud that a reworded re-raise may be treated as new; recommend setting the regex.
 
-**The key is untrusted text before it is posted**: it is substituted into `addressed_marker_format` in a comment under your identity, so keep it only if step 1 reports `key_ok` (`^[A-Za-z0-9._:-]{1,128}$`); otherwise use the first 12 hex characters of its SHA-256. The fallback anchor always takes the hash form.
+**The key is untrusted text before it is posted**: it is substituted into `addressed_marker_format` in a comment under your identity and passed to the ledger, so any key, inline or description-level, is kept only if step 1 reports `key_ok` (`^[A-Za-z0-9._:-]{1,128}$`); otherwise use the first 12 hex characters of its SHA-256. The fallback anchor always takes the hash form. A description-level finding's ledger `--anchor` is its key.
 
 ### 5. Skip already-acknowledged description-level findings
 
@@ -150,7 +156,7 @@ Search the viewer's `issues/comments` for `addressed_marker_format` with this ke
 
 A bot can edit its summary in place on a re-review instead of posting a new one, so `created_at`/`updated_at` cannot tell a re-review from silence. With `build_id_regex`, freshness keys on step 1's `build_id`. Without it, say once that an in-place re-review cannot be told from none.
 
-**The review baseline is the reviewed head**: step 1's `reviewed_head`, the commit the bot says it reviewed, is what this drain's findings answer, and it is fresh for the current HEAD when it equals `git rev-parse HEAD`, or when `git diff --quiet <reviewed head> HEAD` shows no tree change. A baseline that is missing, gone from the repository, or behind on the tree is stale: the PR has commits the bot has not seen, so a clean thread list is no clean review.
+**The review baseline is the reviewed head**: step 1's `reviewed_head`, the commit the bot says it reviewed, is what this drain's findings answer. It is captured from untrusted text, so use it only when it matches `^[0-9a-f]{7,64}$` and `git rev-parse --verify --quiet --end-of-options '<reviewed head>^{commit}'` resolves it; it is fresh for the current HEAD when that full SHA equals `git rev-parse HEAD`, or when `git diff --quiet <full SHA> HEAD` shows no tree change. A baseline that is missing, gone from the repository, or behind on the tree is stale: the PR has commits the bot has not seen, so a clean thread list is no clean review.
 
 **An errored review is no review.** When step 1 reports `errored`, the bot's latest summary says its review failed, which a finding-free summary otherwise looks identical to: it never refreshes the baseline, never satisfies a poll and never reads as convergence. Say so, and on a reachable bot request a review per "## Requesting a review".
 
@@ -172,9 +178,9 @@ Record the results in finding-categorization's four tables, in fixed order, in t
 
 ### 8. Address items (standalone; `--nested` replaces this)
 
-Act-then-review, per finding-categorization: Auto-applicable, Agent-resolvable and Needs-sign-off **fixes** are applied on the branch, a Needs-sign-off fix as its own `[pending-sign-off]` commit listed in the PR body's checklist. Solution validation per validation-rigor. Drain-scope override: a **rejection** is not applied; it waits for my decision in the walk per [workflow.md](../review-shared/workflow.md). Reason: a rejection changes nothing on the branch, so there is nothing for a revert to undo, and telling a bot "no" is the one disposition review cannot take back. Needs human judgment gets bespoke options.
+Act-then-review, per finding-categorization: Auto-applicable, Agent-resolvable and Needs-sign-off **fixes** are applied on the branch, a Needs-sign-off fix as its own `[pending-sign-off]` commit listed in the PR body's checklist. Solution validation per validation-rigor. Drain-scope override: a **rejection** is not applied; it waits for my decision in the walk per [workflow.md](../review-shared/workflow.md). Reason: a rejection changes nothing on the branch, so there is nothing for a revert to undo, and telling a bot "no" is the one disposition review cannot take back. Needs human judgment gets bespoke options. A Skip in the walk is a deferral, so it needs a follow-up record like any other, or the finding stays open and unreplied, reported in the handoff.
 
-**A deferral carries a follow-up record.** A valid finding not fixed now is deferred only with a link to a record that re-surfaces it in context: a tracked issue or ticket, a spec task or gated deferral, or an Awaiting-input entry. Without one, the run halts (**Unlinked deferral**) before any reply: ask for the record, or fix it now. CI cost is never an accepted deferral reason. A rejection needs no such record; its reply carries the decision and its evidence.
+**A deferral carries a follow-up record.** A valid finding not fixed now is deferred only with a link to a record that re-surfaces it in context: a tracked issue or ticket, a spec task or gated deferral, or an Awaiting-input entry. Without one, the run halts (**Unlinked deferral**) before any reply: ask for the record, or fix it now. Nested, the drain-scope override below queues it instead. CI cost is never an accepted deferral reason. A rejection needs no such record; its reply carries the decision and its evidence.
 
 ### 9. Commit and push, before replying to anyone
 
@@ -188,7 +194,7 @@ An unreplied finding is not handled, whatever bucket it started in: a replied-an
 
 **Already-handled pre-check, inline findings too**: a prior pass's resolve can fail while its reply succeeded, so a thread already carrying a viewer reply gets only a re-attempted resolve.
 
-**Re-fetch `pulls/comments` once before the batch**, not per finding (a push can change ids). If one reply still 404s, retry that anchor's lookup alone; if the anchor is gone (deleted, or superseded by a force-push), skip it and note it once.
+**Re-fetch `pulls/comments` once before the batch**, not per finding (a push can change ids). If one reply still 404s, retry that anchor's lookup alone; if the anchor is gone (deleted, or superseded by a force-push), skip it and note it once. **A POST that failed is re-fetched before it is retried**: one that timed out after GitHub accepted it must not post twice, and a duplicate trigger comment spends a metered review.
 
 Every body follows the posted-body rule in [github.md](../review-shared/github.md). Every mutation is error-guarded, so a reply that posted but whose resolve failed never reads as success. Record each disposition in the ledger once its reply has posted.
 
@@ -245,7 +251,7 @@ Discovery cadence: this loop triages the bot's own findings and runs no discover
 
 When in doubt about a disposition, route to Needs human judgment: a false negative costs an iteration, a false positive mishandles someone's finding.
 
-Per iteration: run Steps 1-7. **If no unresolved finding survives step 2 and the reviewed head is fresh for the current HEAD (step 6, not errored), the loop has converged: stop before any push or poll.** Convergence is reported as a fact, naming the reviewed head and HEAD; this loop never declares the PR done, and never marks it ready. If Needs sign-off or Needs human judgment holds anything after this iteration's drain (step 9, then step 10, by Path A or B below, so the push still precedes any reply), stop (**Human attention required**) without polling and hand back, presenting the residue per [workflow.md](../review-shared/workflow.md)'s handoff rule. Otherwise run step 9 before step 10:
+Per iteration: run Steps 1-7. **If no unresolved finding survives step 2 and the reviewed head is fresh for the current HEAD (step 6, not errored), the loop has converged: stop before any push or poll.** On an iteration a new review started, re-fetch once more first and converge only if the counts held, since a vendor can post its summary before its inline findings. Convergence is reported as a fact, naming the reviewed head and HEAD; this loop never declares the PR done, and never marks it ready. If Needs sign-off or Needs human judgment holds anything after this iteration's drain (step 9, then step 10, by Path A or B below, so the push still precedes any reply), stop (**Human attention required**) without polling and hand back, presenting the residue per [workflow.md](../review-shared/workflow.md)'s handoff rule. Otherwise run step 9 before step 10:
 
 **Path A, an Auto-applicable or Agent-resolvable fix landed:** commit, capture `push_head` (`git rev-parse HEAD`), then push (`git push origin <branch>`, never forced). This makes `--nested` here not local-only: a hosted bot needs a new head to re-review. On a push failure, stop (**Push failure**) before step 10: the fix is committed locally, and nothing has been said. Then run step 10, citing `push_head`'s short SHA in fix replies, and request a review per "## Requesting a review".
 
@@ -263,12 +269,13 @@ On a new review, increment the counter, record the iteration's unresolved count 
 
 **Diminishing returns is a handoff, never a verdict**: when the last three iterations each netted at most one resolved finding while findings remained (never before three iterations), stop (**Diminishing returns**) and hand the residue to me with the ledger; whether the rest is worth more rounds is my call.
 
-**Stop conditions** (print the latest tables and the ledger, name the condition, hand back; commit nothing further):
+**Stop conditions** (print the latest tables and the ledger, name the condition, hand back; commit nothing further). Under a planwright step with no operator present, a stop parks per planwright gate-wiring's pause protocol; a standalone unattended run hands off the same way:
 
 | Condition | Trigger |
 |---|---|
 | Human attention required | Needs sign-off or Needs human judgment non-empty after a drain pass |
-| Unlinked deferral | A deferral with no follow-up record (step 8) |
+| Unlinked deferral | Standalone only: a deferral with no follow-up record (step 8); nested queues it under Human attention required |
+| Ledger write failure | A ledger record failed after its reply posted |
 | Test failure | Any test, lint or type-check failed after applying a fix |
 | Push failure | Step 9's push failed on an iteration that applied a fix |
 | Loop detection | The same anchor re-raised as unresolved in two consecutive iterations after a fix. Known limitation: an inline anchor includes `original_commit_id`, which changes on every push, so this rarely fires; the iteration cap is the real backstop |
@@ -285,7 +292,7 @@ On a new review, increment the counter, record the iteration's unresolved count 
 
 A transient failure on any other `gh` call (a label check, a poll, a reply, a resolve) is retried once; if it still fails, treat it as the nearest condition above, never a silent skip.
 
-**Never** force-push, push to a protected branch, mark the PR ready, or merge. `/bot-review` never marks a PR ready, for any reviewer, and offers no ready flip at convergence. This loop's only PR-lifecycle mutation is the optional opt-in-label add from Pre-flight step 5, confirmation-gated on every run; a review request is not a lifecycle change, and is governed by "## Requesting a review". **Never** push with `--no-verify`.
+**Never** force-push, push to a protected branch, mark the PR ready, or merge. `/bot-review` never marks a PR ready, for any reviewer, and offers no ready flip at convergence; any later flip is the user-global Pull Request Lifecycle rule's, outside this skill. This loop's only PR-lifecycle mutation is the optional opt-in-label add from Pre-flight step 5, confirmation-gated on every run; a review request is not a lifecycle change, and is governed by "## Requesting a review". **Never** push with `--no-verify`.
 
 ## Local mode (`--local`)
 

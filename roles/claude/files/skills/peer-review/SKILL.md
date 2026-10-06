@@ -38,15 +38,25 @@ it at the end of the run. Keep threads where `isResolved` is false and the
 first comment's author is not an automated reviewer as the user-global file
 defines one: GitHub reports it as a `Bot`, its login ends in `[bot]`, or a
 `login_pattern` in `~/.config/dotfiles/bot-review.json` matches the login in
-full (with no such file, the first two tests alone):
+full, tested in its REST form (`[bot]` appended for a `Bot`). With no such
+file, the first two tests alone; a file whose `version` is not `1`, or that
+does not parse, stops the run, naming the file and the version it carries. A
+deleted account's thread (no author) stays in, for a human to judge:
 
 ```bash
-bots="$(jq -c '[.reviewers[]?.login_pattern // empty]' ~/.config/dotfiles/bot-review.json 2>/dev/null || echo '[]')"
+cfg=~/.config/dotfiles/bot-review.json
+if [ -e "$cfg" ]; then
+  bots="$(jq -ce 'if .version == 1 then [.reviewers[]?.login_pattern // empty] else error("\(input_filename) has version \(.version // "none"), not 1; stopping") end' "$cfg")" \
+    || { echo "cannot use $cfg; stopping" >&2; exit 1; }
+else
+  bots='[]'
+fi
 jq --argjson bots "$bots" '[.[].data.repository.pullRequest.reviewThreads.nodes[]
      | select(.isResolved == false)
-     | .comments.nodes[0].author as $a
-     | select($a.__typename != "Bot" and ($a.login | endswith("[bot]") | not)
-         and ([$bots[] as $p | $a.login | test("^(?:" + $p + ")$")] | any | not))]'
+     | (.comments.nodes[0].author // {}) as $a
+     | (($a.login // "") + (if $a.__typename == "Bot" then "[bot]" else "" end)) as $l
+     | select($a.__typename != "Bot" and ($l | endswith("[bot]") | not)
+         and ([$bots[] as $p | $l | test("^(?:" + $p + ")$")] | any | not))]'
 ```
 
 Every automated-reviewer thread belongs to `/bot-review`, whichever bot wrote

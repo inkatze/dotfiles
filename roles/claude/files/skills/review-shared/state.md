@@ -2,18 +2,17 @@
 
 What the review skills share across passes and sessions: the evidence record,
 the writer lock, the session registry, the inbox, the loop artifact and the
-decision ledger. One
-helper writes all of it, `~/.claude/scripts/review-state.sh` (tracked at
-`roles/claude/files/scripts/review-state.sh`); its usage block lists every
-operation and its exit codes. Invoke it by that literal path with literal
-arguments, one call per command.
+decision ledger. One helper writes all of it, `~/.claude/scripts/review-state.sh`
+(tracked at `roles/claude/files/scripts/review-state.sh`); its usage block
+lists every operation and its exit codes. Invoke it by that literal path with
+literal arguments, one call per command.
 
 Operations that act as a session (`session-pid`, `register`, `unregister`,
 `lock acquire`, `lock release`, `lock handover`, `inbox read`) must run from
 the Claude Code session they act for: the helper finds that session process
 in its own ancestry and exits 2 anywhere else. `sessions`, `lock status`,
-`inbox send` and `ledger` run from anywhere. A session token identifies a session; it is
-printed to peers on purpose and is not a secret.
+`inbox send` and `ledger` run from anywhere. A session token identifies a
+session; it is printed to peers on purpose and is not a secret.
 
 **No skill writes any of this state with a shell redirect.** Content goes to
 the helper on stdin (`printf '%s\n' "$body" | ~/.claude/scripts/review-state.sh inbox send ...`)
@@ -22,9 +21,9 @@ or through `evidence run`, which captures a command's output itself.
 ## Version key
 
 Every evidence entry, registry entry, loop artifact and decision ledger
-carries `version` (the loop artifact in its first line). The helper refuses a file whose version it
-does not know, or that has none, naming the file and the version, and so does
-any skill that reads one directly. A dead session's registration is pruned
+carries `version` (the loop artifact in its first line). The helper refuses a
+file whose version it does not know, or that has none, naming the file and the
+version, and so does any skill that reads one directly. A dead session's registration is pruned
 without being read. Lock holder records and inbox files are the
 helper's own and short-lived, and carry none.
 
@@ -217,6 +216,10 @@ worktree. `ledger record` appends an entry (finding key, anchor, disposition,
 evidence summary on stdin, head, date, the posted reply's link, and a
 deferral's follow-up record or a suppression's reason); it refuses a deferral
 with no follow-up record and a suppression with no reason, writing nothing.
+Key and anchor are limited to `[A-Za-z0-9._:-]`, so a caller hashes anything
+else first. The helper serializes appends to one file itself, under a kernel
+file lock its holder's exit releases; until a skill adopts the writer lock,
+its own run lock covers the rest of its writes.
 `ledger lookup` routes a finding raised again by the latest entry for its key,
 and `ledger show` prints the file. **The ledger is never pruned
 automatically**: entries are only appended, and a reclaim leaves it alone.

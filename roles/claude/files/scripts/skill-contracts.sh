@@ -746,13 +746,20 @@ retired_sweep() {
 }
 for i in ${tree_files[@]+"${!tree_files[@]}"}; do retired_sweep "${tree_files[$i]}" "${tree_norm[$i]}"; done
 [ -z "$global_ok" ] || retired_sweep "$GLOBAL_MD" "$global_norm"
+if [ -f CLAUDE.md ]; then
+  if root_norm="$(tr -s '[:space:]' ' ' < CLAUDE.md)"; then
+    retired_sweep CLAUDE.md "$root_norm"
+  else
+    err "CLAUDE.md could not be read while sweeping for the retired skill"
+  fi
+fi
 
 # No review skill marks a PR ready: /bot-review says so for every reviewer, and
 # nothing under the skills tree carries a ready flip or an offer of one.
 require_normalized "$(skill_md bot-review)" "never-mark-ready sentence" \
-  "\`/bot-review\` never marks a PR ready, for any reviewer, and offers no ready flip at convergence." \
+  "\`/bot-review\` never marks a PR ready, for any reviewer, and offers no ready flip at convergence" \
   "this loop never declares the PR done, and never marks it ready."
-files_matching -F 'gh pr ready'
+files_matching -E 'gh pr ready|markPullRequestReadyForReview'
 for f in ${matched[@]+"${matched[@]}"}; do
   err "$f carries a ready flip; no review skill marks a PR ready"
 done
@@ -762,8 +769,10 @@ require_normalized "$(skill_md bot-review)" "generic drain mechanic" \
   "**Every marker regex (\`build_id_regex\`, \`finding_key_regex\`, \`reviewed_head_regex\`, \`errored_review_regex\`) is matched on all three**, never on a surface assumed to hold it" \
   "**The review baseline is the reviewed head**" \
   "**An errored review is no review.**" \
+  "it never refreshes the baseline, never satisfies a poll and never reads as convergence" \
   "**Suppression is a ledger disposition**" \
   "**Diminishing returns is a handoff, never a verdict**" \
+  "(never before three iterations), stop (**Diminishing returns**) and hand the residue to me with the ledger" \
   "**no review can arrive while it stays a draft.** Say so and name \`draft_setting\`" \
   "**Convergence is no unresolved finding and the reviewed head equal to the current HEAD, never a check-state read**" \
   "**A thread a human has replied in is a message to that human**"
@@ -780,6 +789,8 @@ require_normalized "$SHARED/state.md" "decision-ledger sentence" \
 # no vendor: the reviewers are the template's entries, never its prose.
 require_normalized "$(skill_md peer-review)" "bot-routing sentence" \
   "Every automated-reviewer thread belongs to \`/bot-review\`, whichever bot wrote it"
+require_normalized "$(skill_md peer-review)" "version refusal" \
+  "a file whose \`version\` is not \`1\`, or that does not parse, stops the run, naming the file and the version it carries."
 names_tpl="$SKILLS/bot-review/bot-review.json.tpl"
 if tpl_names="$(jq -r '.reviewers | keys[]' "$names_tpl" 2>/dev/null)" && [ -n "$tpl_names" ]; then
   while IFS= read -r tpl_name; do

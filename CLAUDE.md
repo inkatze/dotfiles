@@ -126,7 +126,7 @@ row names a writer. Keep machine-specific values here, never in tracked files.
 | `work-shell-init` | `roles/fish/files/work-init.fish` | Path of a second config manager's shell init to source |
 | `slack-users.json` | `roles/claude/files/skills/review-shared/slack.md` | GitHub login to Slack user ID (0600), written by the skills |
 | `code-review-egress.json` | `roles/claude/files/skills/review-shared/egress.md` | Per-repo (and per-reviewer) upload consents (0600), written by the skills |
-| `bot-review.json` | the `/bot-review` skill, `/panel-review`'s `reviewer:<name>` backend | Named third-party reviewers, one schema (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/bot-review/bot-review.json.tpl` |
+| `bot-review.json` | the `/bot-review` skill, `/panel-review`'s `reviewer:<name>` backend, `/peer-review` (its login patterns) | Named third-party reviewers, one schema (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/bot-review/bot-review.json.tpl` |
 | `sibling-repos.json` | nothing yet; `/code-review` and `/panel-review` gain the reader | Consuming repository to its producers' clone paths (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/review-shared/sibling-repos.json.tpl` |
 | `private-identifiers` | `scripts/gitleaks-identifier-rules.sh`, `roles/claude/files/scripts/identifier-check.sh` | Names that must never reach a committed file |
 | `claude-instructions-inventory/` | the `specs/claude-instructions` tasks, by hand | Dated instruction-surface audit (directory 0700, files 0600) |

@@ -607,18 +607,22 @@ PIN="this loop never declares the PR done" \
   expect_fail bot-review-never-done-dropped 'drop_pin "$PIN" "$(md bot-review)"' "never-mark-ready sentence"
 expect_fail ready-flip-planted \
   "echo 'At convergence, run gh pr ready <number>.' >> $(md panel-review)" "carries a ready flip"
-# The generic drain mechanics carried over from the retired skill (REQ-B1.1,
-# REQ-A1.4, REQ-I1.4) and the every-surface marker rule.
+expect_fail ready-flip-graphql-planted \
+  "echo 'Then call markPullRequestReadyForReview.' >> $SHARED/github.md" "carries a ready flip"
+# The generic drain mechanics (REQ-B1.1, REQ-A1.4, REQ-I1.4) and the
+# every-surface marker rule.
 for pin in \
   "is matched on all three**, never on a surface assumed to hold it" \
   "**The review baseline is the reviewed head**" \
   "**An errored review is no review.**" \
+  "it never refreshes the baseline, never satisfies a poll and never reads as convergence" \
   "**Suppression is a ledger disposition**" \
   "**Diminishing returns is a handoff, never a verdict**" \
+  "hand the residue to me with the ledger" \
   "**no review can arrive while it stays a draft.**" \
   "**Convergence is no unresolved finding and the reviewed head equal to the current HEAD" \
   "**A thread a human has replied in is a message to that human**"; do
-  PIN="$pin" expect_fail "bot-review-mechanic-dropped-${pin:2:24}" 'drop_pin "$PIN" "$(md bot-review)"' "generic drain mechanic"
+  PIN="$pin" expect_fail "bot-review-mechanic-dropped ($pin)" 'drop_pin "$PIN" "$(md bot-review)"' "generic drain mechanic"
 done
 # The ledger, linked deferrals and replies as rules (REQ-I1.1, REQ-I1.3, REQ-I1.8)
 for pin in \
@@ -626,7 +630,7 @@ for pin in \
   "Without one, the run halts (**Unlinked deferral**)" \
   "CI cost is never an accepted deferral reason." \
   "**Every reply states the decision and its evidence in one paragraph**"; do
-  PIN="$pin" expect_fail "bot-review-ledger-dropped-${pin:0:24}" 'drop_pin "$PIN" "$(md bot-review)"' "decision-ledger sentence"
+  PIN="$pin" expect_fail "bot-review-ledger-dropped ($pin)" 'drop_pin "$PIN" "$(md bot-review)"' "decision-ledger sentence"
 done
 PIN="**The ledger is never pruned automatically**" \
   expect_fail ledger-never-pruned-dropped 'drop_pin "$PIN" "$SHARED/state.md"' "decision-ledger sentence"
@@ -637,6 +641,10 @@ PIN="Every automated-reviewer thread belongs to \`/bot-review\`" \
   expect_fail peer-review-routing-dropped 'drop_pin "$PIN" "$(md peer-review)"' "bot-routing sentence"
 expect_fail peer-review-names-vendor \
   "echo 'Cubic threads go to /bot-review.' >> $(md peer-review)" "carries forbidden reviewer name"
+PIN="a file whose \`version\` is not \`1\`, or that does not parse, stops the run" \
+  expect_fail peer-review-version-dropped 'drop_pin "$PIN" "$(md peer-review)"' "version refusal"
+expect_fail retired-skill-name-root \
+  "echo 'Hosted Copilot threads: /copilot-review.' >> CLAUDE.md" "names the retired /copilot-review skill"
 expect_fail bot-review-safety-nested-apply \
   "perl -pi -e 's/Never apply the code change in this bucket while nested\\.//' $(md bot-review)" "safety sentence"
 expect_fail bot-review-safety-never-mutate \
