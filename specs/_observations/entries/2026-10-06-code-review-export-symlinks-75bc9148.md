@@ -1,0 +1,1 @@
+- 2026-10-06 [dotfiles] code-review: project tooling run in the PR export follows symlinks the PR adds, so a link to a file outside the export can put that file in tooling output sent to a backend; pre-existing with the old review worktree, not addressed by the export change
