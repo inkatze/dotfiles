@@ -898,9 +898,11 @@ lookup_entry() {
 # before each hash, so a tracked path stays tracked whatever the ignore rules
 # and line-ending settings say, and every file is read again rather than
 # trusted by its stat data: an edit in the same second as the last hash, its
-# size kept and its mtime put back, leaves no stat trace. Hooks, fsmonitor and the untracked cache are off: a relative
-# core.hooksPath resolves inside the work tree, here the export, and would run
-# a hook the reviewed tree carries.
+# size kept and its mtime put back, leaves no trace the session's stat
+# settings are sure to see. File modes are compared strictly. Hooks, fsmonitor
+# and the untracked cache are off: a relative core.hooksPath resolves inside
+# the work tree, here the export, and would run a hook the reviewed tree
+# carries.
 DIR_KEY=""
 DIR_SCRATCH=""
 DIR_GITDIR=""
@@ -970,7 +972,7 @@ cleanup_capture() {
 }
 
 cmd_evidence() {
-  local sub="${1:-}" tree started rc ended pipe after rundir top_real keep
+  local sub="${1:-}" tree started rc ended pipe after rundir top_real keep src_norm
   shift || true
   case "$sub" in
     lookup)
@@ -993,7 +995,10 @@ cmd_evidence() {
       [[ "$opt_exit" =~ ^[0-9]{1,3}$ ]] && [ "$opt_exit" -le 255 ] || die "--exit must be an exit status, 0 to 255, got '$opt_exit'"
       int_opt started "$opt_started"; int_opt ended "$opt_ended"
       single_line source "$opt_source"
-      case "$opt_source" in export | ci:*) die "--source $opt_source is reserved for the helper's own export and CI records" ;; esac
+      src_norm="$(printf '%s' "$opt_source" | tr '[:upper:]' '[:lower:]')"
+      src_norm="${src_norm#"${src_norm%%[![:space:]]*}"}"
+      src_norm="${src_norm%"${src_norm##*[![:space:]]}"}"
+      case "$src_norm" in export | ci:*) die "--source $opt_source is reserved for the helper's own export and CI records" ;; esac
       if [ -n "$opt_tree" ]; then tree="$opt_tree"; else tree_key; tree="$TREE_KEY"; fi
       valid_tree "$tree"
       record_entry "$opt_command" "$tree" "$opt_exit" "$opt_started" "$opt_ended" "${opt_source:-local}"
@@ -1034,7 +1039,7 @@ cmd_evidence() {
           note "could not hash --dir $opt_dir ($(tr '\n' ' ' < "$DIR_SCRATCH/err")); running without recording"
           keep=0
         elif [ "$DIR_KEY" != "$tree" ]; then
-          note "--dir $opt_dir does not hold tree $tree (an export-ignore or export-subst attribute, a submodule, or an edit); running without recording"
+          note "--dir $opt_dir does not hold tree $tree (an export-ignore or export-subst attribute, a submodule, an edit, or file modes the filesystem cannot carry); running without recording"
           keep=0
         fi
       fi
@@ -1064,13 +1069,21 @@ cmd_evidence() {
         # A subshell exits on a failed exec whatever execfail says, so the
         # exec happens in a shell of its own, which then replaces itself. That
         # shell starts with BASH_ENV empty, so it sources nothing, and hands
-        # the caller's value back to the command, except a relative one in an
-        # export, where the reviewed tree could supply the file. It drops the
-        # errexit an exported SHELLOPTS carries in, which would end it before
-        # the marker is put back.
+        # the caller's value back to the command. In an export it hands back
+        # only a literal absolute path whose directory, resolved from inside
+        # the export, lies outside it: bash expands the value, and a relative
+        # path, $PWD, /proc/self/cwd or a symlink would reach a file the
+        # reviewed tree supplies. It drops the errexit an exported SHELLOPTS
+        # carries in, which would end it before the marker is put back.
         be_set="${BASH_ENV+set}"
         be="${BASH_ENV-}"
-        if [ -n "$rundir" ]; then case "$be" in /*) ;; *) be_set="" ;; esac; fi
+        if [ -n "$rundir" ] && [ "$be_set" = set ]; then
+          case "$be" in /*) ;; *) be_set="" ;; esac
+          case "$be" in *'$'* | *'`'*) be_set="" ;; esac
+          be_dir=""
+          [ "$be_set" != set ] || be_dir="$(cd -P -- "${be%/*}/" 2> /dev/null && pwd -P)" || be_dir=""
+          case "$be_dir/" in "/" | "$rundir/"*) be_set="" ;; esac
+        fi
         # shellcheck disable=SC2016
         BASH_ENV='' exec "$BASH" -c 'set +e +u +o pipefail; shopt -s execfail; m="$1"
           if [ "$2" = set ]; then export BASH_ENV="$3"; else unset BASH_ENV; fi

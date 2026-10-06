@@ -498,10 +498,37 @@ printf 'echo FROM_BASH_ENV\n' > "$tmp/ns-export/.benv"
 out="$(BASH_ENV=.benv "$H" evidence run --command 'bash-env' --tree "$(git rev-parse 'HEAD^{tree}')" --dir "$tmp/ns-export" -- sh -c 'echo real' 2>/dev/null)" || true
 [ "$out" = real ] || fail run-bash-env "a BASH_ENV planted in the export was sourced before the command: $out"
 rm "$tmp/ns-export/.benv"
-# An absolute BASH_ENV still reaches the command itself.
-: > "$tmp/benv-abs"
+# An absolute BASH_ENV still reaches the command itself, and the start shell
+# never sources it: the file prints only when the shell sourcing it is that one.
+printf '[ "$0" != review-state ] || echo START_SHELL_SOURCED\n' > "$tmp/benv-abs"
 out="$(BASH_ENV="$tmp/benv-abs" "$H" evidence run --command 'bash-env-kept' -- sh -c 'echo "$BASH_ENV"' 2>/dev/null)" || true
-[ "$out" = "$tmp/benv-abs" ] || fail run-bash-env-kept "the command lost the caller's BASH_ENV: $out"
+[ "$out" = "$tmp/benv-abs" ] || fail run-bash-env-kept "the command lost the caller's BASH_ENV, or the start shell sourced it: $out"
+# In an export, a BASH_ENV that reaches into it by expansion, by the
+# process's own cwd or through a symlink is dropped; one outside it is kept.
+printf 'case "$PWD" in %s*) echo PLANTED ;; esac\n' "$tmp/ns-export" > "$tmp/ns-export/.benv"
+ln -s "$tmp/ns-export" "$tmp/export-link"
+benv_case() {
+  local name="$1" value="$2" want="$3" out
+  out="$(BASH_ENV="$value" "$H" evidence run --command "bash-env-$name" --tree "$(git rev-parse 'HEAD^{tree}')" \
+    --dir "$tmp/ns-export" -- bash -c 'echo "real ${BASH_ENV-unset}"' 2>/dev/null)" || true
+  case "$want" in
+    dropped) [ "$out" = 'real unset' ] || fail "dir-bash-env-$name" "BASH_ENV $value reached the command in the export: $out" ;;
+    kept) [ "$out" = "real $value" ] || fail "dir-bash-env-$name" "BASH_ENV $value was dropped or sourced from the export: $out" ;;
+  esac
+}
+# shellcheck disable=SC2016
+benv_case pwd '/${PWD#/}/.benv' dropped
+benv_case link "$tmp/export-link/.benv" dropped
+[ ! -d /proc/self/cwd ] || benv_case proc-cwd /proc/self/cwd/.benv dropped
+benv_case outside "$tmp/benv-abs" kept
+rm -f "$tmp/ns-export/.benv" "$tmp/export-link"
+# A mode change in the export is seen whatever the session's core.fileMode.
+git config core.fileMode false
+"$H" evidence run --command 'mode-edit' --tree "$(git rev-parse 'HEAD^{tree}')" --dir "$tmp/ns-export" -- chmod -x run.sh > /dev/null 2> "$tmp/run.err" || true
+[[ "$(cat "$tmp/run.err")" == *"no longer holds tree"* ]] || fail dir-mode-edit "a mode change in the export went unseen: $(cat "$tmp/run.err")"
+git config --unset core.fileMode
+rm -rf "$tmp/ns-export"
+export_at "$tmp/ns-export"
 # The after-run hash sees a same-size edit with its mtime put back, whatever
 # stat settings the session's repository carries.
 git config core.checkStat minimal
@@ -536,9 +563,9 @@ for v in '2.37.1 (Apple Git-137.1)' '2.39.5 (Apple Git-154)'; do
 done
 rm -rf "$tmp/oldgit" "$tmp/ns-export" "$tmp/ns-bad"
 # The export source is the helper's own; a recorded entry cannot claim it.
-for src in export ci:check-runs:0000000000000000000000000000000000000001; do
+for src in export ci:check-runs:0000000000000000000000000000000000000001 ' CI:check-runs:x' 'Export '; do
   "$H" evidence record --command "claims-$src" --exit 0 --started 1 --ended 2 --source "$src" < /dev/null > /dev/null 2> "$tmp/run.err" && rc=0 || rc=$?
-  [ "$rc" -eq 2 ] && grep -q 'is reserved' "$tmp/run.err" || fail "record-source-${src%%:*}" "a record claiming the $src source was accepted (exit $rc)"
+  [ "$rc" -eq 2 ] && grep -q 'is reserved' "$tmp/run.err" || fail "record-source-$(printf %s "$src" | tr -cd 'a-z' | cut -c1-12)" "a record claiming the $src source was accepted (exit $rc)"
 done
 timeout_bin="$(type -P timeout || type -P gtimeout || true)"
 if [ -n "$timeout_bin" ]; then
