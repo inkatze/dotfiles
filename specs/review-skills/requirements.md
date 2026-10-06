@@ -388,6 +388,11 @@ retrospective (Sources).)*
 
 ## Changelog
 
+- 2026-10-05 — Expression-only, at Task 5's review: `test-spec.md`'s manual
+  check for REQ-C1.3 now verifies that the key's value reaches the CLI on the
+  backend's pipe and appears on no argv, `env -i` included, rather than on
+  the `env -i` line; the key's name is still listed in `env_allow`, as the
+  requirement says.
 - 2026-10-03 — Kickoff sign-off lens pass: the writer lock covers every
   write (fix, commit, push, review submission, reply, resolve, ledger) and
   names the session process as owner; the suppressed-findings list folds

@@ -378,4 +378,16 @@ Anchor: `9fb5e69210cfe7c3eb3df7c17f04be5d238bdd63` — computed as
 
 ## 9. Amendment log
 
-(none yet)
+### 2026-10-05 — REQ-C1.3 manual check (Task 5 review)
+
+`test-spec.md`'s manual check for REQ-C1.3 described the key on the
+backend's `env -i` line; the implementation keeps it off every argv and hands
+it to the CLI on a pipe, which REQ-C1.3's "only through `env_allow` at
+invocation" still holds, since the name stays listed there. The check now
+verifies the pipe and the absence from every argv. Cites the `requirements.md`
+Changelog entry dated 2026-10-05. Requested by the operator during the task's
+review.
+
+Class: expression-only
+Anchor: `43d79d1bf515c0ea9ee9bc357663e29657506d72` — computed as
+`scripts/spec-anchor.sh specs/review-skills`
