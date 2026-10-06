@@ -1015,7 +1015,7 @@ forbid_normalized "$(skill_md code-review)" "retired isolated-session stop, revi
   "git worktree add" "code-review.worktree-" "same-PR lock"
 # The teardown's rm -rf reaches only this run's own scratch directory.
 require_phrases "$(skill_md code-review)" "teardown guard" \
-  'case "$t" in *..* | *[!A-Za-z0-9._/-]*) echo "refusing to remove $t"; exit 1 ;; esac' \
+  'case "$t" in *..* | *[!A-Za-z0-9._/+-]*) echo "refusing to remove $t"; exit 1 ;; esac' \
   'case "${t##*/}" in code-review-pr-<number>.*) ;;' \
   '[ -d "$t" ] && [ ! -L "$t" ] && [ -O "$t" ]'
 

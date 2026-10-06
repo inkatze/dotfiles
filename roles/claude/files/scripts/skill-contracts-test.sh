@@ -701,7 +701,7 @@ for planted in \
     'printf "%s\n" "$LINE" >> "$(md code-review)"' "$RETIRED"
 done
 for pin in \
-  'case "$t" in *..* | *[!A-Za-z0-9._/-]*) echo "refusing to remove $t"; exit 1 ;; esac' \
+  'case "$t" in *..* | *[!A-Za-z0-9._/+-]*) echo "refusing to remove $t"; exit 1 ;; esac' \
   'case "${t##*/}" in code-review-pr-<number>.*) ;;' \
   '[ -d "$t" ] && [ ! -L "$t" ] && [ -O "$t" ]'; do
   PIN="$pin" expect_fail "code-review-teardown-guard-dropped ($pin)" 'swap_fixed "$PIN" "true" "$(md code-review)"' "teardown guard"

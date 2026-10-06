@@ -233,7 +233,7 @@ List every tier with a non-zero posted count, in Blockers, Concerns, Suggestions
 
 ```bash
 t='<tmp>'
-case "$t" in *..* | *[!A-Za-z0-9._/-]*) echo "refusing to remove $t"; exit 1 ;; esac
+case "$t" in *..* | *[!A-Za-z0-9._/+-]*) echo "refusing to remove $t"; exit 1 ;; esac
 case "${t##*/}" in code-review-pr-<number>.*) ;; *) echo "not this run's scratch directory: $t"; exit 1 ;; esac
 [ -d "$t" ] && [ ! -L "$t" ] && [ -O "$t" ] || { echo "not a directory of mine: $t"; exit 1; }
 rm -rf -- "$t"
