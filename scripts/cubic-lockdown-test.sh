@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Proves, from the pinned cubic CLI binary's own code, that the switches the
 # review config template sets for reviewer:cubic are honoured: the review
-# agent loses its shell, grep, web-fetch and search tools, every built-in
-# language server is disabled, the review runs on cubic's own provider, and
-# the global instruction file the CLI uploads is the empty one the claude
-# role creates, not ~/.claude/CLAUDE.md.
+# agent loses its shell, edit, grep, web-fetch and search tools, every
+# built-in language server is disabled, the review runs on cubic's own
+# provider, a wellknown login's remote config cannot undo any of it, and the
+# global instruction file the CLI uploads is the empty one the claude role
+# creates, not ~/.claude/CLAUDE.md.
 #
 # The binary is not run (it needs an account); its bundled JavaScript is read
 # as text. The platform package is fetched at the version the tracked mise
@@ -32,7 +33,9 @@ work="$(mktemp -d)" || die "could not create a scratch directory"
 trap 'rm -rf "$work"' EXIT
 # The reviewed tarball is cached by version and re-hashed on every run, so a
 # hit is as trustworthy as a fresh fetch and a template edit needs no network.
-cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/cubic-lockdown"
+cache_home="${XDG_CACHE_HOME:-}"
+case "$cache_home" in /*) ;; *) cache_home="$HOME/.cache" ;; esac
+cache_dir="$cache_home/dotfiles/cubic-lockdown"
 cached="$cache_dir/cli-linux-x64-$reviewed_version.tgz"
 
 echo "1. the pinned version is the reviewed one"
@@ -42,25 +45,36 @@ pinned="$(sed -n 's/^"npm:@cubic-dev-ai\/cli" = "\([^"]*\)"$/\1/p' "$pins")"
 
 echo "2. the fetched binary is the reviewed one"
 integrity_of() { printf 'sha512-%s' "$(openssl dgst -sha512 -binary "$1" | openssl base64 -A)"; }
-mode_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
+mode_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null; }
 # Only a cache directory of the user's own that nobody else can write is used.
 cache_ok() {
   local m
   [ -d "$cache_dir" ] && [ ! -L "$cache_dir" ] && [ -O "$cache_dir" ] || return 1
-  m="00$(mode_of "$cache_dir")"
+  m="$(mode_of "$cache_dir")" || return 1
+  case "$m" in [0-7] | [0-7][0-7] | [0-7][0-7][0-7] | [0-7][0-7][0-7][0-7]) ;; *) return 1 ;; esac
+  m="00$m"
   case "${m#"${m%??}"}" in ?[2367] | [2367]?) return 1 ;; esac
 }
-[ -f "$cached" ] && [ ! -L "$cached" ] && cache_ok && cp "$cached" "$work/pkg.tgz"
-if [ ! -f "$work/pkg.tgz" ] || [ "$(integrity_of "$work/pkg.tgz")" != "$reviewed_integrity" ]; then
+got=""
+if [ -f "$cached" ] && [ ! -L "$cached" ] && cache_ok && cp "$cached" "$work/pkg.tgz"; then
+  got="$(integrity_of "$work/pkg.tgz")"
+fi
+if [ "$got" != "$reviewed_integrity" ]; then
+  cache_ok || [ ! -e "$cache_dir" ] || echo "  note: ignoring $cache_dir, which is not a private directory of yours"
   curl -fsSL --connect-timeout 10 --max-time 300 -o "$work/pkg.tgz" \
     "https://registry.npmjs.org/@cubic-dev-ai/cli-linux-x64/-/cli-linux-x64-$reviewed_version.tgz" \
-    || die "could not fetch the platform package and no reviewed copy is cached; nothing was checked"
-  if [ "$(integrity_of "$work/pkg.tgz")" = "$reviewed_integrity" ] && (umask 077; mkdir -p "$cache_dir") && cache_ok; then
-    staged="$(mktemp "$cache_dir/.tgz.XXXXXX")" && cp "$work/pkg.tgz" "$staged" && mv -f "$staged" "$cached" \
-      && find "$cache_dir" -maxdepth 1 -name 'cli-linux-x64-*.tgz' ! -name "${cached##*/}" -delete
+    || die "could not fetch the platform package and no usable reviewed copy is cached; nothing was checked"
+  got="$(integrity_of "$work/pkg.tgz")"
+  if [ "$got" = "$reviewed_integrity" ] && (umask 077; mkdir -p "$cache_dir") && cache_ok \
+    && { [ ! -e "$cached" ] && [ ! -L "$cached" ] || { [ -f "$cached" ] && [ ! -L "$cached" ]; }; }; then
+    staged="$(mktemp "$cache_dir/.tgz.XXXXXX")" || staged=""
+    if [ -n "$staged" ] && cp "$work/pkg.tgz" "$staged" && mv -f "$staged" "$cached"; then
+      find "$cache_dir" -maxdepth 1 -type f \( -name 'cli-linux-x64-*.tgz' ! -name "${cached##*/}" -o -name '.tgz.*' \) -delete
+    else
+      [ -z "$staged" ] || rm -f "$staged"
+    fi
   fi
 fi
-got="$(integrity_of "$work/pkg.tgz")"
 [ "$got" = "$reviewed_integrity" ] && ok "integrity matches" || ko "integrity $got is not the reviewed $reviewed_integrity"
 tar -xzOf "$work/pkg.tgz" package/bin/cubic | LC_ALL=C tr -c '\11\40-\176' '\n' | LC_ALL=C grep -E '.{6}' >"$work/code" \
   || die "could not read package/bin/cubic"
@@ -82,7 +96,7 @@ block_has() {
   fi
 }
 
-echo "3. CUBIC_PERMISSION removes the review agent's shell and web fetch"
+echo "3. CUBIC_PERMISSION removes the review agent's shell, web fetch and edit"
 has "the variable is read as a flag" 'Flag.CUBIC_PERMISSION = env3("PERMISSION");'
 has "it is merged into the config's permission" 'result.permission = D2(result.permission ?? {}, JSON.parse(Flag.CUBIC_PERMISSION));'
 block_has "the code-review agent's permission is merged with the config's" \

@@ -40,13 +40,15 @@ built-in server through `CUBIC_CONFIG_CONTENT`, and `cli.require_empty` keeps
 `~/.config/cubic/AGENTS.md`, which it reads before `~/.claude/CLAUDE.md`,
 present and empty (the claude role creates it). The grep tool, whose path
 argument reaches ripgrep as an option, and the web and code search tools are
-off too, and so is edit, which would run the repo's own formatter;
+off too, and edit stays denied, since a later version that enabled it
+would run the repo's own formatter;
 `~/.local/share/cubic/preferences.json` (the claude role writes it when
 absent) must prefer cubic's own provider and the key carry its `cbk_` prefix,
 or the CLI hands the review to Claude Code, Cursor or Codex with their own
 settings; `~/.local/share/cubic/auth.json` may hold no wellknown login, whose
-remote config the CLI merges after the lockdown; `~/.config/cubic` may hold nothing but that empty
-file, since global agents, tools and plugins load after the lockdown; and
+remote config the CLI merges after the lockdown; `~/.config/cubic` may hold
+nothing but that empty file, since global agents, tools and plugins load
+after the lockdown; and
 `cli.env_allow` may not name a `CUBIC_` switch or a relocated config or data
 home. The agent can still read any file you can read and send it to cubic,
 so run it only on branches whose contents you trust.

@@ -867,6 +867,8 @@ reviewer_backend_checks=(
   '[[ "" =~ $value_pattern ]]'
   'jq -e --arg e "$entry" '"'"'.[2:] | index($e) != null'"'"' <<< "$rule" > /dev/null || {'
   'listing="$(find "$wanted" -mindepth 1 -maxdepth 1 -print)" || {'
+  '[ -z "$(find "$wanted" -mindepth 1 -maxdepth 1 -name "*$nl*" -print)" ] || {'
+  'case "$val" in /*) ;; *) continue ;; esac'
   '[ ! -L "$wanted" ] && [ -d "$wanted" ] && [ -O "$wanted" ] && [ -r "$wanted" ] && [ -x "$wanted" ] || {'
   '[ -z "$value_pattern" ] || [[ "$val" =~ $value_pattern ]] \'
   '[ -z "$value_pattern" ] || [[ "${pair#*=}" =~ $value_pattern ]] \'

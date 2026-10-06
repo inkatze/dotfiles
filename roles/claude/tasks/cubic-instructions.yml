@@ -32,7 +32,7 @@
     label: "{{ item.item }}"
   when: >-
     not item.stat.exists
-    or (item.stat.isdir and not item.stat.islnk and item.stat.pw_name == ansible_facts.env.USER)
+    or (item.stat.isdir and not item.stat.islnk and item.stat.uid == ansible_facts.user_uid)
   tags: [claude]
 
 - name: Inspect the cubic CLI's instruction file and provider settings
@@ -58,7 +58,7 @@
     - >-
       not claude_cubic_dirs.results[0].stat.exists
       or (claude_cubic_dirs.results[0].stat.isdir and not claude_cubic_dirs.results[0].stat.islnk
-          and claude_cubic_dirs.results[0].stat.pw_name == ansible_facts.env.USER)
+          and claude_cubic_dirs.results[0].stat.uid == ansible_facts.user_uid)
   tags: [claude]
 
 - name: Prefer cubic's own provider for the cubic CLI
@@ -73,11 +73,11 @@
     - >-
       not claude_cubic_dirs.results[1].stat.exists
       or (claude_cubic_dirs.results[1].stat.isdir and not claude_cubic_dirs.results[1].stat.islnk
-          and claude_cubic_dirs.results[1].stat.pw_name == ansible_facts.env.USER)
+          and claude_cubic_dirs.results[1].stat.uid == ansible_facts.user_uid)
   tags: [claude]
 
-# The same test the backend applies, so the role reports exactly what it would
-# refuse; jq prints only true or false, never the file.
+# The same tests the backend applies, so the role reports what it would refuse;
+# jq prints only true or false, never a file's contents.
 - name: Check that the cubic CLI prefers its own provider
   ansible.builtin.command:
     argv:
@@ -90,7 +90,35 @@
   changed_when: false
   failed_when: false
   check_mode: false
-  when: claude_cubic_files.results[1].stat.exists
+  when:
+    - claude_cubic_files.results[1].stat.isreg | default(false)
+    - not claude_cubic_files.results[1].stat.islnk
+  tags: [claude]
+
+- name: Inspect the cubic CLI's login store
+  ansible.builtin.stat:
+    path: "{{ ansible_facts.env.HOME }}/.local/share/cubic/auth.json"
+    follow: false
+  register: claude_cubic_auth
+  check_mode: false
+  tags: [claude]
+
+# A wellknown login makes the CLI merge remote config after its lockdown.
+- name: Check the cubic CLI's logins for a wellknown one
+  ansible.builtin.command:
+    argv:
+      - jq
+      - -e
+      - -s
+      - 'length == 1 and ([.[0][]? | objects | select(.type == "wellknown")] | length == 0)'
+      - "{{ ansible_facts.env.HOME }}/.local/share/cubic/auth.json"
+  register: claude_cubic_no_wellknown
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when:
+    - claude_cubic_auth.stat.isreg | default(false)
+    - not claude_cubic_auth.stat.islnk
   tags: [claude]
 
 - name: List the cubic CLI's config directory
@@ -115,11 +143,17 @@
          + (claude_cubic_dirs.results | selectattr('stat.exists') | selectattr('stat.islnk')
             | map(attribute='item') | list)
          + (claude_cubic_dirs.results | selectattr('stat.exists')
-            | rejectattr('stat.pw_name', 'equalto', ansible_facts.env.USER)
+            | rejectattr('stat.uid', 'equalto', ansible_facts.user_uid)
             | map(attribute='item') | list) }}
     claude_cubic_agents_msg: >-
       ~/.config/cubic/AGENTS.md is not an empty regular file; the cubic CLI would upload it, so move its
       content elsewhere and empty it
+    claude_cubic_prefs_rc: "{{ claude_cubic_prefers.rc | default(1) }}"
+    claude_cubic_auth_rc: "{{ claude_cubic_no_wellknown.rc | default(0) }}"
+    # Ansible's own error when jq is not installed, as opposed to jq's exit for a file it cannot parse.
+    claude_cubic_no_jq: >-
+      {{ 'No such file or directory' in (claude_cubic_prefers.msg | default(''))
+         or 'No such file or directory' in (claude_cubic_no_wellknown.msg | default('')) }}
     claude_cubic_prefs_msg: >-
       ~/.local/share/cubic/preferences.json is not a regular file holding one JSON document whose
       preferredProvider is "cubic"; fix it so the review stays on cubic's own provider
@@ -133,8 +167,15 @@
             else [claude_cubic_agents_msg])
          + ([] if not claude_cubic_prefs_stat.exists
               or (claude_cubic_prefs_stat.isreg and not claude_cubic_prefs_stat.islnk
-                  and (claude_cubic_prefers.rc | default(1)) == 0)
-            else [claude_cubic_prefs_msg])
+                  and claude_cubic_prefs_stat.uid == ansible_facts.user_uid and claude_cubic_prefs_rc | int == 0)
+            else (['could not run jq to check ~/.local/share/cubic/preferences.json'] if claude_cubic_no_jq | bool
+                  else [claude_cubic_prefs_msg]))
+         + ([] if not claude_cubic_auth.stat.exists or claude_cubic_auth_rc | int == 0
+            else (['could not run jq to check ~/.local/share/cubic/auth.json'] if claude_cubic_no_jq | bool
+                  else ['~/.local/share/cubic/auth.json holds a wellknown login or is not one JSON document; the'
+                        ~ ' cubic CLI merges a wellknown login\'s remote config after its lockdown, so log out of it']))
+         + (['~/.local/share/cubic/auth.json is not a regular file'] if claude_cubic_auth.stat.exists
+            and (claude_cubic_auth.stat.islnk or not claude_cubic_auth.stat.isreg) else [])
          + ([] if (claude_cubic_config_entries.matched | default(0)) == 0
             else ['~/.config/cubic holds ' ~ claude_cubic_extra ~ ', which the cubic CLI would load; move it out']) }}
   when: claude_cubic_problems | length > 0

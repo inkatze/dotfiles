@@ -399,13 +399,18 @@ home_case "a symlinked instruction file stops the run" \
   'rm "$home/.config/cubic/AGENTS.md"; ln -s /dev/null "$home/.config/cubic/AGENTS.md"' "to be a regular file, not a symlink"
 home_case "missing provider settings stop the run" 'rm "$home/.local/share/cubic/preferences.json"' "preferences.json, which is missing"
 home_case "another preferred provider stops the run" \
-  'printf "{\"preferredProvider\":\"claude-code\"}\n" >"$home/.local/share/cubic/preferences.json"' 'to satisfy .preferredProvider == "cubic"'
+  'printf "{\"preferredProvider\":\"claude-code\"}\n" >"$home/.local/share/cubic/preferences.json"' 'satisfying .preferredProvider == "cubic"'
 home_case "unparseable provider settings stop the run" 'echo "{" >"$home/.local/share/cubic/preferences.json"' "could not apply"
 home_case "a second document in the provider settings stops the run" \
-  'printf "{\"preferredProvider\":\"x\"} {\"preferredProvider\":\"cubic\"}\n" >"$home/.local/share/cubic/preferences.json"' "to satisfy"
+  'printf "{\"preferredProvider\":\"x\"} {\"preferredProvider\":\"cubic\"}\n" >"$home/.local/share/cubic/preferences.json"' "one JSON document satisfying"
 home_case "a wellknown login stops the run" \
-  'printf "{\"https://example.invalid\":{\"type\":\"wellknown\",\"key\":\"PLACEHOLDER\",\"token\":\"placeholder-token\"}}\n" >"$home/.local/share/cubic/auth.json"' "auth.json to satisfy"
+  'printf "{\"https://example.invalid\":{\"type\":\"wellknown\",\"key\":\"PLACEHOLDER\",\"token\":\"placeholder-token\"}}\n" >"$home/.local/share/cubic/auth.json"' "auth.json to be one JSON document satisfying"
 home_case "a symlinked auth file stops the run" 'ln -s /dev/null "$home/.local/share/cubic/auth.json"' "auth.json to be a regular file"
+home_case "a dangling auth file symlink stops the run" 'ln -s "$home/nowhere" "$home/.local/share/cubic/auth.json"' "auth.json to be a regular file"
+home_case "an entry whose name has a line break stops the run" \
+  'touch "$home/.config/cubic/AGENTS.md"$'"'"'\n'"'"'"AGENTS.md"' "name has a line break"
+home_case "a mise directory inside the repo stops the run" \
+  'session_env=(MISE_CACHE_DIR="$repo/steered")' "is inside the repo under review; refusing to hand it to mise"
 home_case "an unreadable config directory stops the run" 'chmod 300 "$home/.config/cubic"' "that you can list"
 home_case "a missing config directory stops the run" \
   'rm -r "$home/.config/cubic"; edit_cfg ".reviewers.cubic.cli.require_empty = []"' "config/cubic, which is missing"

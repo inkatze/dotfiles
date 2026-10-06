@@ -287,6 +287,8 @@ reviewer_drift reviewer-backend-home-state-not-after-run 'elif ! check_home_stat
 reviewer_drift reviewer-backend-require-json-unchecked 'jq -e -s "length == 1 and (.[0] | ($predicate))" "$wanted" > /dev/null 2>&1' 'true'
 reviewer_drift reviewer-backend-require-json-if-present-skipped '[ -e "$wanted" ] || [ -L "$wanted" ] || continue' 'continue'
 reviewer_drift reviewer-backend-pattern-compile-unchecked '[[ "" =~ $value_pattern ]]' 'true'
+reviewer_drift reviewer-backend-require-only-newline-name '[ -z "$(find "$wanted" -mindepth 1 -maxdepth 1 -name "*$nl*" -print)" ] || {' 'true || {'
+reviewer_drift reviewer-backend-mise-dir-relative 'case "$val" in /*) ;; *) continue ;; esac' ':'
 reviewer_drift reviewer-backend-require-only-unlisted 'listing="$(find "$wanted" -mindepth 1 -maxdepth 1 -print)" || {' 'listing="" || {'
 reviewer_drift reviewer-backend-require-only-unreadable '[ -r "$wanted" ] && [ -x "$wanted" ] || {' 'true || {'
 reviewer_drift reviewer-backend-mise-dir-in-repo '      0) echo "$v ($val) is inside the repo under review; refusing to hand it to mise" >&2; exit 1 ;;' '      0) ;;'
@@ -296,8 +298,9 @@ reviewer_drift reviewer-backend-require-only-unchecked 'jq -e --arg e "$entry" '
 reviewer_drift reviewer-backend-key-pattern-unchecked '[ -z "$value_pattern" ] || [[ "$val" =~ $value_pattern ]] \' 'true || [[ "$val" =~ $value_pattern ]] \'
 reviewer_drift reviewer-backend-env-allow-refuse-ignored 'if endswith("*") then ($v | startswith(.[:-1])) | not else . != $v end)))' 'true)))'
 reviewer_drift reviewer-backend-trusted-branches-unstated 'so run such a backend only on branches whose contents you trust.' 'so run it anywhere.'
-for lockdown in '.env.CUBIC_PERMISSION = "{\"bash\":\"allow\",\"webfetch\":\"deny\"}"' \
-  '.env.CUBIC_PERMISSION = "{\"bash\":\"deny\"}"' '.env.CUBIC_CONFIG_CONTENT = "{\"lsp\":{}}"' \
+for lockdown in '.env.CUBIC_PERMISSION = "{\"bash\":\"allow\",\"webfetch\":\"deny\",\"edit\":\"deny\"}"' \
+  '.env.CUBIC_PERMISSION = "{\"bash\":\"deny\",\"edit\":\"deny\"}"' \
+  '.env.CUBIC_CONFIG_CONTENT |= (fromjson | .lsp = {} | tojson)' \
   '.env.CUBIC_CONFIG_CONTENT |= (fromjson | .lsp.typescript.disabled = false | tojson)' '.require_empty = []' \
   '.env.CUBIC_CONFIG_CONTENT |= (fromjson | .tools.grep = true | tojson)' \
   '.env.CUBIC_CONFIG_CONTENT |= (fromjson | del(.tools.websearch) | tojson)' \

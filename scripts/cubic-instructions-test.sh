@@ -108,4 +108,29 @@ reported "not yours" && ok link-dir-report "a symlinked config directory is repo
 reported "whose preferredProvider is" && ok nested "a nested preferredProvider is reported, as the backend refuses it" \
   || fail nested "no report for a nested preferredProvider"
 
+h="$(fresh_home)"
+mkdir -p "$h/.config/cubic" "$h/.local/share/cubic"
+if (unset USER; run_role "$h"); then ok no-user "an unset USER does not fail the play"; fi
+[ -f "$h/.config/cubic/AGENTS.md" ] && ok no-user-created "the user's own directories are still used" \
+  || fail no-user-created "nothing was created with USER unset"
+
+h="$(fresh_home)"
+mkdir -p "$h/.local/share/cubic"
+mkfifo "$h/.local/share/cubic/preferences.json"
+if timeout 120 bash -c 'source /dev/stdin' <<<"$(declare -f run_role fail); play='$play' work='$work' fails=0; run_role '$h'"; then
+  ok fifo "a FIFO at preferences.json neither hangs nor fails the play"
+else
+  fail fifo "a FIFO at preferences.json hung or failed the play"
+fi
+reported "whose preferredProvider is" && ok fifo-report "the FIFO is reported" || fail fifo-report "no report for the FIFO"
+
+h="$(fresh_home)"
+mkdir -p "$h/.local/share/cubic"
+printf '{"https://example.invalid":{"type":"wellknown","key":"PLACEHOLDER","token":"placeholder-secret-value"}}\n' \
+  >"$h/.local/share/cubic/auth.json"
+run_role "$h"
+reported "holds a wellknown login" && ok wellknown "a wellknown login is reported" || fail wellknown "no report for a wellknown login"
+reported "placeholder-secret-value" && fail wellknown-leak "auth.json contents reached the output" \
+  || ok wellknown-leak "auth.json contents never reach the output"
+
 [ "$fails" -eq 0 ] && echo "cubic-instructions-test: all assertions hold" || { echo "cubic-instructions-test: $fails failed"; exit 1; }
