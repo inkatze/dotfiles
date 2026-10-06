@@ -201,8 +201,9 @@ inbox file is the record and the message only the nudge.
 file>` is the nudge for a holder a session message cannot reach: one line,
 naming that file, written into the socket the holder registered and read there
 as a user turn, so `--from` is a plain name (letters, digits, `.`, `_`, `-`)
-and the line only describes. It names only a file in that holder's own inbox, and exits 1, delivering nothing, when the
-holder is gone, registered no socket, or its socket does not answer.
+and the line only describes. It names only an unread, regular file in that
+holder's own inbox, and exits 1, delivering nothing, when that file has gone,
+the holder is gone, registered no socket, or its socket does not answer.
 
 ## In a run
 

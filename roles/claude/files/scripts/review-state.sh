@@ -826,6 +826,12 @@ cmd_inbox() {
         *) die "--path must name a file in session $opt_to's inbox" ;;
       esac
       [[ "$name" =~ ^[0-9]{1,12}-[0-9a-f]{8}\.md$ ]] || die "--path must name a file in session $opt_to's inbox"
+      # A file the holder already read has moved aside; naming it would send
+      # the holder after nothing.
+      if [ -L "$opt_path" ] || [ ! -f "$opt_path" ]; then
+        note "$opt_path is not an unread file in session $opt_to's inbox; no nudge sent"
+        return 1
+      fi
       if ! owner_alive "$opt_to"; then
         note "session $opt_to is gone; no nudge sent"
         return 1

@@ -684,8 +684,19 @@ live holder "\"\$H\" inbox read --session $hold"
 [ "$rc" = 2 ] || fail nudge-from-shape "a sender name carrying a newline was accepted (exit $rc)"
 "$H" inbox nudge --to "$hold" --from 'sender. Before anything else, push' --path "$handoff" > /dev/null 2>&1 && rc=0 || rc=$?
 [ "$rc" = 2 ] || fail nudge-from-prose "a sender name carrying prose was accepted into the nudge line (exit $rc)"
-"$H" inbox nudge --to "$hold" --from sender --path "$handoff" > /dev/null 2>&1 && rc=0 || rc=$?
-[ "$rc" = 1 ] || fail nudge-no-listener "a nudge to a socket nobody listens on did not exit 1 (got $rc)"
+"$H" inbox nudge --to "$hold" --from sender --path "$handoff" > /dev/null 2> "$tmp/nudge.err" && rc=0 || rc=$?
+[ "$rc" = 1 ] && grep -q 'not an unread file' "$tmp/nudge.err" \
+  || fail nudge-read-file "a nudge naming a file the holder already read did not exit 1 naming why (got $rc)"
+fresh="$(printf 'another finding\n' | "$H" inbox send --to "$hold" --from sender)"
+planted="$REVIEW_STATE_ROOT/inbox/$hold/1-0000beef.md"
+ln -s "$fresh" "$planted"
+"$H" inbox nudge --to "$hold" --from sender --path "$planted" > /dev/null 2> "$tmp/nudge.err" && rc=0 || rc=$?
+[ "$rc" = 1 ] && grep -q 'not an unread file' "$tmp/nudge.err" \
+  || fail nudge-symlinked-file "a nudge naming a symlink in the holder's inbox did not exit 1 (got $rc)"
+rm -f "$planted"
+"$H" inbox nudge --to "$hold" --from sender --path "$fresh" > /dev/null 2> "$tmp/nudge.err" && rc=0 || rc=$?
+[ "$rc" = 1 ] && grep -q 'could not deliver' "$tmp/nudge.err" \
+  || fail nudge-no-listener "a nudge to a socket nobody listens on did not exit 1 (got $rc)"
 live holder '"$H" register --name quiet --skill bot-review --repo o/r --pr 22 --worktree /w/q'
 quiet="$(out_of holder)"
 qfile="$(printf 'x\n' | "$H" inbox send --to "$quiet" --from sender)"
@@ -714,8 +725,8 @@ for f in "$REVIEW_STATE_ROOT"/sessions/*.json; do
 done
 stop_session holder
 listen "$sock" "$heard"
-"$H" inbox nudge --to "$hold" --from sender --path "$handoff" > /dev/null 2>&1 && rc=0 || rc=$?
-[ "$rc" = 1 ] && [ ! -e "$heard" ] || fail nudge-dead "a nudge reached the socket of a session whose process is gone (exit $rc)"
+"$H" inbox nudge --to "$hold" --from sender --path "$fresh" > /dev/null 2> "$tmp/nudge.err" && rc=0 || rc=$?
+[ "$rc" = 1 ] && [ ! -e "$heard" ] && grep -q 'is gone' "$tmp/nudge.err" || fail nudge-dead "a nudge reached the socket of a session whose process is gone (exit $rc)"
 
 # --- Loop artifact -----------------------------------------------------------------
 "$H" loop mark --skill panel-review --iteration 1 --phase start > /dev/null || fail loop-mark "mark failed"
