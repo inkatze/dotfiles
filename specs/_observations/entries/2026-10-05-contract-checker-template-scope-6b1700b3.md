@@ -1,0 +1,1 @@
+- 2026-10-05 [dotfiles] skill-contracts.sh reads only *.md and *.json under roles/claude/files/skills, but the review config moved to *.json.tpl and *.jq templates, so its *.json arm matches nothing and no tree-wide check (the retired-backend sweeps included) reads the templates, though the skill-contracts lefthook glob already fires on them.
