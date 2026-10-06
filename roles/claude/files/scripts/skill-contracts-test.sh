@@ -503,6 +503,27 @@ expect_fail retired-backend-name-global \
   "echo 'OLLAMA_BASE_URL' >> $GLOBAL_MD" "retired backend name"
 expect_fail mark-ready \
   "perl -pi -e 's/This confirmation-gated ready-flip is the only PR-lifecycle action this loop takes, and only on this exit path\\.//' $(md copilot-review)" "mark-ready safety sentence"
+# copilot-review's convergence flip checks the ready conditions first (REQ-A1.6)
+PIN="evaluate the ready conditions against the current head" \
+  expect_fail copilot-flip-conditions-dropped 'drop_pin "$PIN" "$(md copilot-review)"' "convergence-flip conditions"
+PIN="On an unmet or unconfirmable one, name it, do not ask, and leave the PR a draft." \
+  expect_fail copilot-flip-unmet-dropped 'drop_pin "$PIN" "$(md copilot-review)"' "convergence-flip conditions"
+PIN="re-run the \`isDraft,state\` check, the head guard above" \
+  expect_fail copilot-flip-recheck-dropped 'drop_pin "$PIN" "$(md copilot-review)"' "convergence-flip conditions"
+PIN="report the denial and leave it a draft: no sync to satisfy it, no bypass." \
+  expect_fail copilot-ready-guard-denial-dropped 'drop_pin "$PIN" "$(md copilot-review)"' "convergence-flip conditions"
+PIN="(a moved head with a changed tree runs its request-and-poll branch), " \
+  expect_fail copilot-flip-head-guard-dropped 'drop_pin "$PIN" "$(md copilot-review)"' "convergence-flip conditions"
+PIN="a yes covers only the head it was given for, so a loop back asks again at the next convergence" \
+  expect_fail copilot-flip-yes-scope-dropped 'drop_pin "$PIN" "$(md copilot-review)"' "convergence-flip conditions"
+PIN="(this convergence completes the loop's own step)" \
+  expect_fail copilot-flip-own-step-dropped 'drop_pin "$PIN" "$(md copilot-review)"' "convergence-flip conditions"
+PIN="Leaving it a draft ends this loop's part only" \
+  expect_fail copilot-flip-handoff-scope-dropped 'drop_pin "$PIN" "$(md copilot-review)"' "convergence-flip conditions"
+expect_fail copilot-flip-ask-first \
+  'swap_fixed "**Only once the recheck confirms zero**, evaluate" "**Only once the recheck confirms zero**, ask; then evaluate" "$(md copilot-review)"' "convergence-flip conditions"
+expect_fail copilot-flip-ungated \
+  'swap_fixed "With every check passing, run" "On yes, run" "$(md copilot-review)"' "convergence-flip conditions"
 expect_fail bot-review-safety-nested-apply \
   "perl -pi -e 's/Never apply the code change in this bucket while nested\\.//' $(md bot-review)" "safety sentence"
 expect_fail bot-review-safety-never-mutate \
@@ -556,21 +577,50 @@ expect_fail signoff-shared-missing \
 
 # --- The user-global file ---
 
-# Ready flips (REQ-A1.1, REQ-A1.2, REQ-A1.3, REQ-A1.5)
+# Ready flips (REQ-A1.1, REQ-A1.2, REQ-A1.5, REQ-A1.6)
 expect_fail ready-flip-base-current \
-  "perl -0pi -e 's/CI is green and the review/the branch current with its base, CI is green and the review/' $GLOBAL_MD" "forbidden currency condition"
+  "perl -0pi -e 's/CI is green and\\s+the review/the branch current with its base, CI is green and the review/' $GLOBAL_MD" "forbidden currency condition"
 expect_fail ready-flip-sync-ritual \
   "printf '\\nBefore the flip, bring the branch current with its base.\\n' >> $GLOBAL_MD" "forbidden currency condition"
 expect_fail ready-flip-cadence-dropped \
-  "perl -0pi -e 's/ and the review\\s+cadence the PR calls for has actually run//' $GLOBAL_MD" "ready-flip sentence"
+  "perl -0pi -e 's/ and\\s+the review\\s+cadence the PR calls for has actually run//' $GLOBAL_MD" "ready-flip sentence"
 expect_fail ready-flip-unknown-dropped \
   "perl -0pi -e 's/, including a mergeability GitHub still\\s+reports as \`UNKNOWN\` after one re-query a few seconds later//' $GLOBAL_MD" "ready-flip sentence"
 expect_pass ready-flip-reflow \
-  "perl -0pi -e 's/once it is mergeable/once it is\\nmergeable/' $GLOBAL_MD"
-expect_fail kickoff-exception-dropped \
-  "perl -0pi -e 's/, with one exception: the spec PR\\s+after a signed-off kickoff, which planwright marks ready by configuration\\././' $GLOBAL_MD" "kickoff-flip exception"
-expect_fail operator-confirmed-clause-dropped \
-  "perl -0pi -e 's/is one I requested, not an exception/is fine/' $GLOBAL_MD" "kickoff-flip exception"
+  "perl -0pi -e 's/only once it is/only\\nonce it is/' $GLOBAL_MD"
+PIN="In a work or collaborative repo, marking a PR ready is mine to request" \
+  expect_fail ready-flip-collaborative-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN="In a solo repo," expect_fail ready-flip-everywhere 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN=", re-checking each condition and the repo's kind immediately before the flip" \
+  expect_fail ready-flip-recheck-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN="a repository whose owner you cannot tell counts as one" \
+  expect_fail ready-flip-unknown-owner-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN=" or another person's" \
+  expect_fail ready-flip-other-owner-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN="; one where you cannot tell whether another person works counts as one" \
+  expect_fail ready-flip-unknown-collaborator-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN="automated accounts are not another person" \
+  expect_fail ready-flip-own-agents-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN="moving the rewrite scope or naming its kind does not move the flip" \
+  expect_fail ready-flip-override-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN="; where a config exists without it, say so, keep configured flips from marking a PR ready" \
+  expect_fail ready-flip-policy-missing-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN=" and the repo's kind" \
+  expect_fail ready-flip-kind-recheck-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+expect_fail ready-flip-scope-duplicated \
+  "perl -0ne 'print \"\\n\$1\\n\" if /(In a solo repo, the session.*?in its reply or handoff\\.)/s' $GLOBAL_MD > solo.tmp && cat solo.tmp >> $GLOBAL_MD && rm solo.tmp" "states the solo ready flip 2 times"
+expect_fail ready-flip-never-rule-restored \
+  "printf '\\nNever flip a PR ready on your own initiative.\\n' >> $GLOBAL_MD" "forbidden never-flip rule"
+PIN="the spec PR after a signed-off kickoff, which planwright marks ready by configuration" \
+  expect_fail kickoff-exception-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "kickoff and confirmed flips"
+PIN="count as you flipping and follow the same scope" \
+  expect_fail ready-flip-planwright-scope-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "kickoff and confirmed flips"
+PIN="A flip I confirm when a run asks me is one I requested" \
+  expect_fail operator-confirmed-clause-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "kickoff and confirmed flips"
+PIN="and a no I give when asked holds: do not then flip that PR as the solo flip" \
+  expect_fail ready-flip-decline-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "kickoff and confirmed flips"
+PIN="stays confirmation-gated in every repository, never counts as the solo flip" \
+  expect_fail nested-flip-gate-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "kickoff and confirmed flips"
 expect_fail hook-denial-dropped \
   "perl -0pi -e 's/report the denial to me and never work around it/sync and retry/' $GLOBAL_MD" "hook-denial sentence"
 

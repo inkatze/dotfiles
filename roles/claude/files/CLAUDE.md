@@ -75,11 +75,10 @@ stated choice.
 
 ## Pull Request Lifecycle
 
-Open pull requests as drafts. Marking one ready is mine to request and yours to
-perform: when I ask, flip it once it is mergeable (GitHub reports
-`mergeable: MERGEABLE`: no conflicts with its base), CI is green and the review
-cadence the PR calls for has actually run. If a condition is unmet, say which
-instead of flipping.
+Open pull requests as drafts. Mark one ready only once it is mergeable (GitHub
+reports `mergeable: MERGEABLE`: no conflicts with its base), CI is green and
+the review cadence the PR calls for has actually run. If a condition is unmet,
+say which instead of flipping.
 
 Evaluate every condition against the PR's current head immediately before the
 flip; a condition you cannot confirm, including a mergeability GitHub still
@@ -87,11 +86,39 @@ reports as `UNKNOWN` after one re-query a few seconds later, counts as unmet.
 Being behind the base is not a condition: sync only when a conflict or a stale
 test result calls for it.
 
-Never flip a PR ready on your own initiative, with one exception: the spec PR
-after a signed-off kickoff, which planwright marks ready by configuration. A
-flip I confirm when a run asks me (such as `/copilot-review --nested` asking at
-convergence) is one I requested, not an exception. Once I have asked, do not
-hand the flip back to me as a manual step.
+Who flips follows the repository's ownership, judged with the rewrite scope's
+owner test but applied to the whole repository, not one branch; a repo's own
+`CLAUDE.md` moving the rewrite scope or naming its kind does not move the flip.
+
+- A **solo repo** is one I own (not an employer or another organization) where
+  no other person works; my own sessions, worktrees, dispatched agents and
+  automated accounts are not another person.
+- A **work repo** is one I do not own (an employer's, another organization's
+  or another person's); a repository whose owner you cannot tell counts as
+  one.
+- A **collaborative repo** is one I own where another person works; one where
+  you cannot tell whether another person works counts as one.
+
+In a solo repo, the session that completes the last step of the review cadence
+the PR calls for marks it ready itself once every step of that cadence has run
+to completion, CI is green on the current head and the PR is mergeable,
+re-checking each condition and the repo's kind immediately before the flip,
+and states the flip and the conditions it checked in its reply or handoff.
+
+In a work or collaborative repo, marking a PR ready is mine to request and
+yours to perform, and a planwright config there sets
+`ready_flip_policy: human`; where a config exists without it, say so, keep
+configured flips from marking a PR ready and report any that already did. Once
+I have asked, do not hand the flip back to me as a manual step.
+
+planwright's configured flips count as you flipping and follow the same scope,
+except one kept in every repository: the spec PR after a signed-off kickoff,
+which planwright marks ready by configuration. A flip I confirm when a run asks
+me is one I requested, and a no I give when asked holds: do not then flip that
+PR as the solo flip. A nested review loop's own convergence flip (such as
+`/copilot-review --nested` asking at convergence) stays confirmation-gated in
+every repository, never counts as the solo flip, and evaluates these same
+conditions first.
 
 If planwright's ready-guard hook denies a flip on a branch that meets these
 conditions, report the denial to me and never work around it: no sync to
