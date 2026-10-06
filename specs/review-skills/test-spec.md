@@ -123,7 +123,7 @@ The key sync's fixture refuses a key file at a loose mode and a blank value;
 listed in `env_allow`, its value reaches the CLI on the backend's pipe, and it
 appears on no process's argv, the `env -i` line included; a shell started
 after the sync does not export it. *(Amended at execute-task review
-2026-10-05: the key arrives on a pipe, never an argv.)*
+(Task 5) 2026-10-05: the key arrives on a pipe, never an argv.)*
 
 ### REQ-C1.4 — mise shims stripped structurally [test]
 

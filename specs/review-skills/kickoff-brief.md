@@ -378,7 +378,7 @@ Anchor: `9fb5e69210cfe7c3eb3df7c17f04be5d238bdd63` — computed as
 
 ## 9. Amendment log
 
-### 2026-10-05 — REQ-C1.3 manual check (Task 5 review)
+### 2026-10-05 — REQ-C1.3 manual check (execute-task review (Task 5))
 
 `test-spec.md`'s manual check for REQ-C1.3 described the key on the
 backend's `env -i` line; the implementation keeps it off every argv and hands
@@ -390,4 +390,15 @@ review.
 
 Class: expression-only
 Anchor: `43d79d1bf515c0ea9ee9bc357663e29657506d72` — computed as
+`scripts/spec-anchor.sh specs/review-skills`
+
+### 2026-10-06 — Event name made consistent (execute-task review (Task 5))
+
+The REQ-C1.3 amendment's annotation, its Changelog entry and the record
+above now name the event the same way, execute-task review (Task 5), so
+each is findable from the others. No requirement or check changed. Cites the
+`requirements.md` Changelog entry dated 2026-10-05.
+
+Class: expression-only
+Anchor: `0f4b82e59484248b93394e552258d3dc4b3d7890` — computed as
 `scripts/spec-anchor.sh specs/review-skills`
