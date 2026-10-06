@@ -67,7 +67,7 @@ BODY_<hex>
 ```
 
 - `--key` and `--anchor` are steps 3 and 4's, both in the helper's safe charset, so no fetched text reaches a shell argument.
-- `--head` is the full SHA of the reviewed head the finding came from (step 6), never the HEAD after a fix: a finding the bot raises again on the fix commit is then a later head, and validated afresh.
+- `--head` is the head the finding came from, never the HEAD after a fix: an inline finding's `original_commit_id`, and a description-level finding's reviewed head as the full SHA step 6 resolved (with none, the HEAD this iteration fetched). A finding the bot raises again on the fix commit is then a later head, and validated afresh.
 - `--follow-up '<record>'` goes with a deferral and `--reason '<text>'` with a suppression; both are written by this run, never copied from a fetched body, with any `'` written `'\''`.
 
 Before triage, `ledger lookup --repo '<o>/<r>' --pr '<n>' --key '<key>' --anchor '<anchor>' --head '<reviewed head>'` routes each surviving finding (step 7). A lookup or show that fails (anything but a route on stdout) stops the run, naming the ledger file; it never reads as `new`. A record that fails after its reply posted stops the run with **Ledger write failure**, naming the reply's link. A finding that already carries this skill's reply or acknowledgment but has no entry (a run that stopped in between) gets its entry recorded from that reply before anything else. Print `ledger show --repo '<o>/<r>' --pr '<n>'` into every handoff. `--dry-run` reads the ledger and records nothing.
@@ -116,7 +116,7 @@ Read `--reviewer <name>`, `--local`, `--nested`, `--dry-run`, and `--effort <val
 
 ### 1. Fetch every surface, always
 
-The bot can write on three surfaces: PR reviews, issue comments and inline review comments. **Every marker regex (`build_id_regex`, `finding_key_regex`, `reviewed_head_regex`, `errored_review_regex`) is matched on all three**, never on a surface assumed to hold it: one vendor posts its summary as a review and its run id and finding keys on inline comments, where an issue-comment-only lookup never sees them. Fetch each into a private scratch directory (`d="$(mktemp -d)"`, mode 0700), one call per endpoint:
+The bot can write on three surfaces: PR reviews, issue comments and inline review comments. **Every marker regex (`build_id_regex`, `finding_key_regex`, `reviewed_head_regex`) is matched on all three**, never on a surface assumed to hold it, and `errored_review_regex` on the two a summary lives on, since an inline finding can quote failure text: one vendor posts its summary as a review and its run id and finding keys on inline comments, where an issue-comment-only lookup never sees them. Fetch each into a private scratch directory (`d="$(mktemp -d)"`, mode 0700), one call per endpoint:
 
 ```bash
 gh api --paginate 'repos/<o>/<r>/pulls/<n>/reviews?per_page=100' > '<d>/reviews.json' || { echo "fetch failed: pulls/reviews"; exit 1; }
@@ -140,7 +140,7 @@ Fetch the review threads per [github.md](../review-shared/github.md). Map each t
 
 ### 3. Anchor every surviving inline finding
 
-Anchor = `(path, original_line, original_commit_id)` from the `pulls/comments` object, never the body and never `line`/`commit_id` (which shift as the diff moves). A bot rewords a re-raised finding well past the point text-keyed dedupe holds up. Its ledger `--anchor` is the first 16 hex characters of the SHA-256 of `<path>:<original_line>:<original_commit_id>`. Its ledger key is the finding key step 1 read off that comment, or, when it carries none, the first 12 hex characters of the SHA-256 of `<path>:<original_line>`, leaving out the commit, which moves on every new head.
+Anchor = `(path, original_line, original_commit_id)` from the `pulls/comments` object, never the body and never `line`/`commit_id` (which shift as the diff moves). A bot rewords a re-raised finding well past the point text-keyed dedupe holds up. Its ledger `--anchor` is the first 16 hex characters of the SHA-256 of `<path>:<original_line>`, with `:<comment id>` appended when the comment carries no vendor key, so two keyless findings on one line stay apart; the commit stays out, since it moves on every new head. Its ledger key is the finding key step 1 read off that comment, or, when it carries none, the first 12 hex characters of the SHA-256 of `<path>:<original_line>`, leaving out the commit, which moves on every new head.
 
 ### 4. Anchor every description-level finding
 
@@ -158,7 +158,7 @@ A bot can edit its summary in place on a re-review instead of posting a new one,
 
 **The review baseline is the reviewed head**: step 1's `reviewed_head`, the commit the bot says it reviewed, is what this drain's findings answer. It is captured from untrusted text, so use it only when it matches `^[0-9a-f]{7,64}$` and `git rev-parse --verify --quiet --end-of-options '<reviewed head>^{commit}'` resolves it; it is fresh for the current HEAD when that full SHA equals `git rev-parse HEAD`, or when `git diff --quiet <full SHA> HEAD` shows no tree change. A baseline that is missing, gone from the repository, or behind on the tree is stale: the PR has commits the bot has not seen, so a clean thread list is no clean review.
 
-**An errored review is no review.** When step 1 reports `errored`, the bot's latest summary says its review failed, which a finding-free summary otherwise looks identical to: it never refreshes the baseline, never satisfies a poll and never reads as convergence. Say so, and on a reachable bot request a review per "## Requesting a review".
+**An errored review is no review.** When step 1 reports `errored`, the bot's latest error summary carries or postdates its latest run marker, so its latest review failed, which a finding-free summary otherwise looks identical to: it never refreshes the baseline, never satisfies a poll and never reads as convergence. Say so, and on a reachable bot request a review per "## Requesting a review".
 
 ### 7. Triage every surviving finding
 

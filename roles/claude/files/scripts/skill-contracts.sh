@@ -766,7 +766,7 @@ done
 
 # The hosted-reviewer drain's generic mechanics, keyed on the reviewer config.
 require_normalized "$(skill_md bot-review)" "generic drain mechanic" \
-  "**Every marker regex (\`build_id_regex\`, \`finding_key_regex\`, \`reviewed_head_regex\`, \`errored_review_regex\`) is matched on all three**, never on a surface assumed to hold it" \
+  "**Every marker regex (\`build_id_regex\`, \`finding_key_regex\`, \`reviewed_head_regex\`) is matched on all three**, never on a surface assumed to hold it" \
   "**The review baseline is the reviewed head**" \
   "**An errored review is no review.**" \
   "it never refreshes the baseline, never satisfies a poll and never reads as convergence" \

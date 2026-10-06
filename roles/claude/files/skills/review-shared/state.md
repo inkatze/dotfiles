@@ -218,8 +218,9 @@ deferral's follow-up record or a suppression's reason); it refuses a deferral
 with no follow-up record and a suppression with no reason, writing nothing.
 Key and anchor are limited to `[A-Za-z0-9._:-]`, so a caller hashes anything
 else first. The helper serializes appends to one file itself, under a kernel
-file lock its holder's exit releases; until a skill adopts the writer lock,
-its own run lock covers the rest of its writes.
+lock on the `pr-<n>.json.lock` file beside it, which its holder's exit
+releases; until a skill adopts the writer lock, its same-PR lock
+([github.md](github.md)) covers the rest of its writes.
 `ledger lookup` routes a finding raised again by the latest entry for its key,
 and `ledger show` prints the file. **The ledger is never pruned
 automatically**: entries are only appended, and a reclaim leaves it alone.
