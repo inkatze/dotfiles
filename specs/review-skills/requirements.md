@@ -388,6 +388,9 @@ retrospective (Sources).)*
 
 ## Changelog
 
+- 2026-10-06 — Expression-only, at execute-task review (Task 5): the
+  REQ-C1.3 amendment's annotation and Changelog entry name their event the
+  same way, execute-task review (Task 5); no requirement or check changed.
 - 2026-10-05 — Expression-only, at execute-task review (Task 5):
   `test-spec.md`'s manual check for REQ-C1.3 now verifies that the key's
   value reaches the CLI on the backend's pipe and appears on no argv,

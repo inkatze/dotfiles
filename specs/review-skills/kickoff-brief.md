@@ -402,3 +402,13 @@ each is findable from the others. No requirement or check changed. Cites the
 Class: expression-only
 Anchor: `0f4b82e59484248b93394e552258d3dc4b3d7890` — computed as
 `scripts/spec-anchor.sh specs/review-skills`
+
+### 2026-10-06 — Changelog entry for the event-name edit (execute-task review (Task 5))
+
+The event-name edit recorded above changed anchored content without a
+Changelog entry of its own; it now has one. Cites the `requirements.md`
+Changelog entry dated 2026-10-06.
+
+Class: expression-only
+Anchor: `bae5a69b9b609fc8b0a9c8dc095e96797b922356` — computed as
+`scripts/spec-anchor.sh specs/review-skills`
