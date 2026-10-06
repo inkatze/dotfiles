@@ -42,9 +42,12 @@
         "env": {
           "CUBIC_DISABLE_AUTOUPDATE": "1",
           "CUBIC_DISABLE_GIT_AI": "true",
-          "CUBIC_DISABLE_LSP_DOWNLOAD": "1"
+          "CUBIC_DISABLE_LSP_DOWNLOAD": "1",
+          "CUBIC_PERMISSION": "{\"bash\":\"deny\",\"webfetch\":\"deny\"}",
+          "CUBIC_CONFIG_CONTENT": "{\"lsp\":{\"astro\":{\"disabled\":true},\"clangd\":{\"disabled\":true},\"csharp\":{\"disabled\":true},\"deno\":{\"disabled\":true},\"elixir-ls\":{\"disabled\":true},\"eslint\":{\"disabled\":true},\"gopls\":{\"disabled\":true},\"jdtls\":{\"disabled\":true},\"lua-ls\":{\"disabled\":true},\"pyright\":{\"disabled\":true},\"ruby-lsp\":{\"disabled\":true},\"rust\":{\"disabled\":true},\"sourcekit-lsp\":{\"disabled\":true},\"svelte\":{\"disabled\":true},\"typescript\":{\"disabled\":true},\"vue\":{\"disabled\":true},\"zls\":{\"disabled\":true}}}"
         },
-        "invocation_notes": "The env values are the vendor's opt-outs: no self-update or language-server download mid-review, and no git-ai commit tagger, which writes git notes. The CLI exits 1 whenever it reports issues and also on its own errors, so findings_exit_codes admits 1 and findings_jq refuses the error document. --base takes a ref name, not a SHA (a bare name gains an origin/ prefix), hence {base_ref}. The CLI loads cubic.json, cubic.jsonc and .cubic/ (plugins included) from the tree it reviews, so refuse_paths refuses a repository carrying any of them, and a PR's copy never runs with the key. The key file is written by scripts/op-key-sync.sh from the dotfiles-cubic-api-key item."
+        "require_empty": ["~/.config/cubic/AGENTS.md"],
+        "invocation_notes": "The env values are the vendor's opt-outs: no self-update or language-server download mid-review, and no git-ai commit tagger, which writes git notes. The CLI exits 1 whenever it reports issues and also on its own errors, so findings_exit_codes admits 1 and findings_jq refuses the error document. --base takes a ref name, not a SHA (a bare name gains an origin/ prefix), hence {base_ref}. The CLI loads cubic.json, cubic.jsonc and .cubic/ (plugins included) from the tree it reviews, so refuse_paths refuses a repository carrying any of them, and a PR's copy never runs with the key. CUBIC_PERMISSION takes the review agent's shell and web-fetch tools away and CUBIC_CONFIG_CONTENT disables every built-in language server, since both would run or fetch on the reviewed tree's behalf with the key in their environment. The CLI uploads the first global instruction file it finds, ~/.config/cubic/AGENTS.md before ~/.claude/CLAUDE.md, so require_empty keeps the first one present and empty; the claude role creates it. scripts/cubic-lockdown-test.sh checks all of this against the pinned binary. The key file is written by scripts/op-key-sync.sh from the dotfiles-cubic-api-key item."
       }
     },
     "copilot": {

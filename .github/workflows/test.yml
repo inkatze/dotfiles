@@ -72,6 +72,10 @@ jobs:
         run: scripts/mise-global-config-test.sh
 
       # Needs ansible-playbook, which this job installs.
+      - name: Run the cubic instruction-file suite
+        run: scripts/cubic-instructions-test.sh
+
+      # Needs ansible-playbook, which this job installs.
       - name: Run the planwright marketplace suite
         run: scripts/planwright-marketplace-test.sh
 
@@ -168,6 +172,12 @@ jobs:
       # install scripts and license; curl, openssl, tar and jq are all it needs.
       - name: Run the cubic postinstall opt-out suite
         run: scripts/cubic-postinstall-optout-test.sh
+
+      # Fetches the pinned cubic platform binary and reads, without running it,
+      # the code that honours the template's lockdown switches; curl, openssl,
+      # tar, strings and jq are all it needs.
+      - name: Run the cubic lockdown suite
+        run: scripts/cubic-lockdown-test.sh
 
       # Warnings surface as annotations.
       - name: Run the instruction word-budget checker

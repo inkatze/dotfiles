@@ -1,0 +1,45 @@
+---
+
+# The cubic.dev CLI uploads the first global instruction file it finds,
+# ~/.config/cubic/AGENTS.md before ~/.claude/CLAUDE.md. An empty one keeps
+# CLAUDE.md from being sent, and /panel-review's reviewer:cubic refuses to run
+# without it (the review config template's cli.require_empty). One with
+# content is reported, never overwritten: it is someone's own rules.
+# $XDG_CONFIG_HOME is not consulted, because the backend runs the CLI without
+# it, so the CLI always resolves ~/.config.
+- name: Ensure the cubic CLI's config directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_facts.env.HOME }}/.config/cubic"
+    state: directory
+    mode: "0700"
+  tags: [claude]
+
+- name: Create an empty global instruction file for the cubic CLI
+  ansible.builtin.copy:
+    content: ""
+    dest: "{{ ansible_facts.env.HOME }}/.config/cubic/AGENTS.md"
+    force: false
+    mode: "0600"
+  tags: [claude]
+
+- name: Inspect the cubic CLI's global instruction file
+  ansible.builtin.stat:
+    path: "{{ ansible_facts.env.HOME }}/.config/cubic/AGENTS.md"
+    follow: false
+  register: claude_cubic_instructions
+  check_mode: false
+  tags: [claude]
+
+- name: Report a cubic instruction file with content
+  ansible.builtin.debug:
+    msg: >-
+      {{ ansible_facts.env.HOME }}/.config/cubic/AGENTS.md is not an empty
+      regular file, so it was left as it is. The cubic CLI uploads it as global
+      instructions, and /panel-review's reviewer:cubic refuses to run until it
+      is empty. Move its content elsewhere and empty it.
+  when: >-
+    claude_cubic_instructions.stat.exists
+    and (claude_cubic_instructions.stat.islnk
+         or not claude_cubic_instructions.stat.isreg
+         or claude_cubic_instructions.stat.size > 0)
+  tags: [claude]

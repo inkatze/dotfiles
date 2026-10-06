@@ -167,6 +167,15 @@ if command -v jq >/dev/null 2>&1; then
       and .CUBIC_DISABLE_LSP_DOWNLOAD == "1"' "$review_tpl" >/dev/null 2>&1; then
     err "$review_tpl: the cubic entry's cli.env must carry the vendor's opt-outs (CUBIC_DISABLE_AUTOUPDATE=1, CUBIC_DISABLE_GIT_AI=true, CUBIC_DISABLE_LSP_DOWNLOAD=1)"
   fi
+  # The cubic review agent keeps no shell or web fetch, starts no language
+  # server, and uploads only the empty instruction file the claude role makes.
+  if [ -f "$review_tpl" ] && ! jq -e '.reviewers.cubic.cli
+      | (.env.CUBIC_PERMISSION | fromjson | .bash == "deny" and .webfetch == "deny")
+        and (.env.CUBIC_CONFIG_CONTENT | fromjson | .lsp | type == "object" and length > 0
+          and all(.[]; .disabled == true))
+        and (.require_empty | index("~/.config/cubic/AGENTS.md") != null)' "$review_tpl" >/dev/null 2>&1; then
+    err "$review_tpl: the cubic entry must deny bash and webfetch in CUBIC_PERMISSION, disable its language servers in CUBIC_CONFIG_CONTENT, and list ~/.config/cubic/AGENTS.md in require_empty"
+  fi
   # The cubic CLI loads configuration and plugins from the tree it reviews, so
   # the entry refuses a tree that carries them.
   if [ -f "$review_tpl" ] && ! jq -e '.reviewers.cubic.cli.refuse_paths as $r | $r | type == "array"
@@ -836,12 +845,15 @@ reviewer_backend_checks=(
   'or IN("SHELLOPTS", "BASHOPTS", "BASH_ENV", "ENV", "PS4", "IFS")) | not))'
   '**mise shims are stripped, not steered.**'
   'if [ -e "$top/$refused" ] || [ -L "$top/$refused" ]; then'
-  '    done <<< "$refuse_paths"'$'\n''  }'$'\n''  check_refused || exit 1'$'\n''  get() {'
+  '    done <<< "$refuse_paths"'$'\n''  }'$'\n''  check_refused || exit 1'$'\n''  # A CLI that uploads'
   '  check_refused || exit 1'$'\n''  started=$SECONDS'
   'elif ! check_refused 2>/dev/null; then'
   '0) echo "HOME is inside the repo under review, so the tree could supply'
   '(split("/") | all(. != "" and . != "." and . != "..")))'
   '**A tree that would steer the CLI is refused before mise or the CLI runs.**'
+  '[ ! -L "$wanted" ] && [ -f "$wanted" ] && [ -O "$wanted" ] && [ ! -s "$wanted" ] || {'
+  '  done <<< "$require_empty"'$'\n''  get() {'
+  '**The CLI'"'"'s own instruction upload is kept empty.**'
 )
 panel_consent_checks=(
   'where `<approved-binary-path>` is item 5'"'"'s `bin_real`'

@@ -270,7 +270,7 @@ for optout in CUBIC_DISABLE_AUTOUPDATE CUBIC_DISABLE_GIT_AI CUBIC_DISABLE_LSP_DO
 done
 
 reviewer_drift reviewer-backend-refusal-follows-links-only 'if [ -e "$top/$refused" ] || [ -L "$top/$refused" ]; then' 'if [ -e "$top/$refused" ]; then'
-reviewer_drift reviewer-backend-refusal-after-mise $'  }\n  check_refused || exit 1\n  get() {' $'  }\n  get() {'
+reviewer_drift reviewer-backend-refusal-after-mise $'  }\n  check_refused || exit 1\n  # A CLI that uploads' $'  }\n  # A CLI that uploads'
 reviewer_drift reviewer-backend-refusal-not-before-launch $'  check_refused || exit 1\n  started=$SECONDS' $'  started=$SECONDS'
 reviewer_drift reviewer-backend-refusal-not-after-run 'elif ! check_refused 2>/dev/null; then' 'elif false; then'
 reviewer_drift reviewer-backend-refuse-paths-climb '(split("/") | all(. != "" and . != "." and . != "..")))' 'true)'
@@ -279,6 +279,15 @@ for refused in cubic.json cubic.jsonc .cubic; do
   V="$refused" F="$SKILLS/bot-review/bot-review.json.tpl" expect_fail "template-refuse-paths-missing-$refused" \
     'jq --arg v "$V" ".reviewers.cubic.cli.refuse_paths -= [\$v]" "$F" > "$F.new" && mv "$F.new" "$F"' \
     "cli.refuse_paths must list cubic.json, cubic.jsonc and .cubic"
+done
+reviewer_drift reviewer-backend-require-empty-accepts-content '[ -O "$wanted" ] && [ ! -s "$wanted" ] || {' '[ -O "$wanted" ] || {'
+reviewer_drift reviewer-backend-require-empty-unchecked $'  done <<< "$require_empty"\n  get() {' $'  done <<< ""\n  get() {'
+for lockdown in '.env.CUBIC_PERMISSION = "{\"bash\":\"allow\",\"webfetch\":\"deny\"}"' \
+  '.env.CUBIC_PERMISSION = "{\"bash\":\"deny\"}"' '.env.CUBIC_CONFIG_CONTENT = "{\"lsp\":{}}"' \
+  '.env.CUBIC_CONFIG_CONTENT |= (fromjson | .lsp.typescript.disabled = false | tojson)' '.require_empty = []'; do
+  V="$lockdown" F="$SKILLS/bot-review/bot-review.json.tpl" expect_fail "template-lockdown-weakened: $lockdown" \
+    'jq ".reviewers.cubic.cli |= ($V)" "$F" > "$F.new" && mv "$F.new" "$F"' \
+    "the cubic entry must deny bash and webfetch"
 done
 reviewer_drift reviewer-backend-no-egress-consent \
   '6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).**' '6. **Notes.**'

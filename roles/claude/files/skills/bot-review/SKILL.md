@@ -41,7 +41,7 @@ Shape: a map of named reviewers plus a default, because one bot may not be insta
       "feedback_reaction": "...",
       "errored_review_regex": "...",
       "full_review_comment": "...", "rereview_comment": "...", "quota_refusal_regex": "...", "request_notes": "...",
-      "cli": { "binary": "...", "install_command": "...", "refuse_paths": ["..."], "local_invocation": "...", "timeout_seconds": 600, "findings_output": "...", "findings_exit_codes": [1], "findings_jq": "...", "default_effort": "...", "env_allow": ["..."], "env_files": { "...": "~/..." }, "env": { "...": "..." }, "invocation_notes": "..." }
+      "cli": { "binary": "...", "install_command": "...", "refuse_paths": ["..."], "require_empty": ["~/..."], "local_invocation": "...", "timeout_seconds": 600, "findings_output": "...", "findings_exit_codes": [1], "findings_jq": "...", "default_effort": "...", "env_allow": ["..."], "env_files": { "...": "~/..." }, "env": { "...": "..." }, "invocation_notes": "..." }
     }
   }
 }

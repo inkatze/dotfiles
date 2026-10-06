@@ -61,10 +61,11 @@ new_case() {
   sandbox="$(mktemp -d "$work/case.XXXXXX")"
   home="$sandbox/home"
   repo="$sandbox/repo"
-  mkdir -p "$home/.config/dotfiles" "$home/.local/share/mise/shims" "$sandbox/mise-bin" \
+  mkdir -p "$home/.config/dotfiles" "$home/.config/cubic" "$home/.local/share/mise/shims" "$sandbox/mise-bin" \
     "$sandbox/tools/node/bin" "$sandbox/tools/cli/bin" "$sandbox/cli-real" "$repo/steered"
   printf '%s' 'placeholder-cubic-key' >"$home/.config/dotfiles/test-key"
   chmod 600 "$home/.config/dotfiles/test-key"
+  : >"$home/.config/cubic/AGENTS.md"
   echo issues >"$sandbox/mode"
 
   cat >"$sandbox/mise-bin/mise" <<EOF
@@ -364,6 +365,32 @@ if [ "$rc" -ne 0 ] && grep -qF "appeared at the repo root while the reviewer CLI
 else
   ko "a listed path created during the run is named (rc=$rc, err=$err)"
 fi
+
+echo "8d. the CLI's global instruction file must exist and be empty"
+new_case
+rm "$home/.config/cubic/AGENTS.md"
+run_snippet
+if [ "$rc" -ne 0 ] && grep -qF "needs $home/.config/cubic/AGENTS.md to exist, be yours and be empty" <<<"$err" \
+  && [ ! -e "$sandbox/seen-mise-env" ] && [ ! -e "$sandbox/seen-node" ]; then
+  ok "a missing instruction file stops the run before mise or the CLI"
+else
+  ko "a missing instruction file stops the run (rc=$rc, err=$err)"
+fi
+new_case
+echo "personal rules" >"$home/.config/cubic/AGENTS.md"
+run_snippet
+expect_refused "a non-empty instruction file stops the run" "to exist, be yours and be empty"
+new_case
+rm "$home/.config/cubic/AGENTS.md"
+ln -s /dev/null "$home/.config/cubic/AGENTS.md"
+run_snippet
+expect_refused "a symlinked instruction file stops the run" "to exist, be yours and be empty"
+for bad in '"relative/x"' '"~/a/../b"'; do
+  new_case
+  edit_cfg ".reviewers.cubic.cli.require_empty = [$bad]"
+  run_snippet
+  expect_refused "require_empty entry $bad refused as malformed" "cli.require_empty must be a list"
+done
 
 echo "9. under a git hook's environment, the suite leaves that repository alone"
 decoy="$work/decoy"
