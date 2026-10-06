@@ -35,16 +35,23 @@ Take the same-PR lock, keyed `peer-review`, and fetch the threads per
 [github.md](../review-shared/github.md). Refresh the lock before the walk in
 step 6 and again after it, before the first push, reply or resolve; release
 it at the end of the run. Keep threads where `isResolved` is false and the
-first comment's author is not a `Bot`:
+first comment's author is not an automated reviewer as the user-global file
+defines one: GitHub reports it as a `Bot`, its login ends in `[bot]`, or a
+`login_pattern` in `~/.config/dotfiles/bot-review.json` matches the login in
+full (with no such file, the first two tests alone):
 
 ```bash
-jq '[.[].data.repository.pullRequest.reviewThreads.nodes[]
-     | select(.isResolved == false and .comments.nodes[0].author.__typename != "Bot")]'
+bots="$(jq -c '[.reviewers[]?.login_pattern // empty]' ~/.config/dotfiles/bot-review.json 2>/dev/null || echo '[]')"
+jq --argjson bots "$bots" '[.[].data.repository.pullRequest.reviewThreads.nodes[]
+     | select(.isResolved == false)
+     | .comments.nodes[0].author as $a
+     | select($a.__typename != "Bot" and ($a.login | endswith("[bot]") | not)
+         and ([$bots[] as $p | $a.login | test("^(?:" + $p + ")$")] | any | not))]'
 ```
 
-Bot threads belong to `/copilot-review` or `/bot-review`; human tone is wrong
-for a bot. A bot that neither handles (CodeQL, a dependency bot) is left to be
-handled by hand, which beats applying the wrong workflow's tone.
+Every automated-reviewer thread belongs to `/bot-review`, whichever bot wrote
+it; human tone is wrong for a bot. A bot no configured reviewer covers is left
+to be handled by hand, which beats applying the wrong workflow's tone.
 
 ### 4. Validate each thread
 

@@ -130,7 +130,7 @@ row names a writer. Keep machine-specific values here, never in tracked files.
 | `sibling-repos.json` | nothing yet; `/code-review` and `/panel-review` gain the reader | Consuming repository to its producers' clone paths (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/review-shared/sibling-repos.json.tpl` |
 | `private-identifiers` | `scripts/gitleaks-identifier-rules.sh`, `roles/claude/files/scripts/identifier-check.sh` | Names that must never reach a committed file |
 | `claude-instructions-inventory/` | the `specs/claude-instructions` tasks, by hand | Dated instruction-surface audit (directory 0700, files 0600) |
-| `review/` | `roles/claude/files/scripts/review-state.sh`, through `roles/claude/files/skills/review-shared/state.md` | Lock root for the review skills: writer locks, session registry, inboxes (directory 0700, created by the helper) |
+| `review/` | `roles/claude/files/scripts/review-state.sh`, through `roles/claude/files/skills/review-shared/state.md` | Lock root for the review skills: writer locks, session registry, inboxes, and `/bot-review`'s per-PR decision ledgers, never pruned (directory 0700, created by the helper) |
 
 Service-account items live in the `Dotfiles Service Account` vault (service
 accounts cannot read Personal or Private); moving one there reassigns its id.

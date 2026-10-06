@@ -11,7 +11,7 @@ set -euo pipefail
 SKILLS="roles/claude/files/skills"
 SHARED="$SKILLS/review-shared"
 GLOBAL_MD="roles/claude/files/CLAUDE.md"
-SKILL_NAMES=(bot-review code-review copilot-review panel-review peer-review)
+SKILL_NAMES=(bot-review code-review panel-review peer-review)
 RESOLUTION_ANCHOR="Resolve the GitHub login to a Slack user"
 errors=0
 # Set once the tree and the global file are read, below; empty until then.
@@ -207,7 +207,6 @@ expected_hint() {
   case "$1" in
     bot-review) echo '[--reviewer <name>] [--local] [--nested] [--dry-run] [--effort <value>]' ;;
     code-review) echo '<pr-number-or-url> [--backends <codex|gemini>]' ;;
-    copilot-review) echo '[--nested]' ;;
     panel-review) echo '[--nested] [--backends <a,b,c>] [--effort <value>]' ;;
     peer-review) echo '' ;;
   esac
@@ -269,10 +268,10 @@ done
 
 # The skills that apply findings to their own branch use the four tables and
 # state each drain-scope override with its reason.
-for name in panel-review copilot-review bot-review; do
+for name in panel-review bot-review; do
   require_normalized "$(skill_md "$name")" "four-bucket reference" "finding-categorization's four tables, in fixed order"
 done
-for name in panel-review copilot-review bot-review; do
+for name in panel-review bot-review; do
   f="$(skill_md "$name")"
   [ -f "$f" ] && [ -r "$f" ] || continue
   paras="$(awk 'BEGIN{RS=""} /Drain-scope override:/{gsub(/\n/," "); print}' "$f")"
@@ -336,9 +335,8 @@ done
 
 # <skill>|<shared file>: the skill uses that block, so it links the file.
 shared_links=(
-  "bot-review|workflow.md" "bot-review|github.md" "bot-review|limits.md"
+  "bot-review|workflow.md" "bot-review|github.md" "bot-review|limits.md" "bot-review|state.md"
   "code-review|workflow.md" "code-review|github.md" "code-review|backends.md" "code-review|egress.md" "code-review|slack.md"
-  "copilot-review|workflow.md" "copilot-review|github.md" "copilot-review|limits.md"
   "panel-review|workflow.md" "panel-review|github.md" "panel-review|backends.md" "panel-review|egress.md" "panel-review|limits.md"
   "peer-review|workflow.md" "peer-review|github.md" "peer-review|slack.md"
 )
@@ -353,10 +351,8 @@ for f in ${matched[@]+"${matched[@]}"}; do
 done
 
 # --- Nested loops run discovery on the first and converging iterations ---
-for name in panel-review copilot-review; do
-  require_normalized "$(skill_md "$name")" "discovery-cadence sentence" \
-    "runs on the first iteration and on the iteration that detects convergence only; middle iterations"
-done
+require_normalized "$(skill_md panel-review)" "discovery-cadence sentence" \
+  "runs on the first iteration and on the iteration that detects convergence only; middle iterations"
 require_normalized "$(skill_md bot-review)" "discovery-cadence sentence" \
   "Discovery cadence: this loop triages the bot's own findings and runs no discovery pass of its own"
 
@@ -364,16 +360,13 @@ require_normalized "$(skill_md bot-review)" "discovery-cadence sentence" \
 require_phrases "$SHARED/limits.md" "shared threshold" \
   "| Iteration cap | 10 iterations |" "| Lock staleness | 30 minutes |" "| Review-poll window | 10 minutes |" \
   "| Inbox poll window | 2 minutes |"
-# The seconds the shared lock and copilot-review's poll compute with are those
-# rows' values, so a change to limits.md cannot leave a stale literal behind.
+# The seconds the shared lock computes with are that row's value, so a change
+# to limits.md cannot leave a stale literal behind.
 minutes_of() { sed -n "s/^| $1 | \([0-9][0-9]*\) minutes |.*/\1/p" "$SHARED/limits.md" 2>/dev/null || true; }
 stale_min="$(minutes_of 'Lock staleness')"
-poll_min="$(minutes_of 'Review-poll window')"
-if [ -n "$stale_min" ] && [ -n "$poll_min" ]; then
+if [ -n "$stale_min" ]; then
   require_phrases "$SHARED/github.md" "lock-staleness seconds from limits.md" \
     "if [ \"\$age\" -lt $((stale_min * 60)) ]; then" "\`$((stale_min * 60))\` is the lock-staleness value"
-  require_phrases "$(skill_md copilot-review)" "review-poll seconds from limits.md" \
-    "deadline=\$(( push_epoch + $((poll_min * 60)) ))"
 fi
 # Outside the shared directory, a threshold named beside a number is an
 # override, and an override line is followed by its Reason: line.
@@ -588,7 +581,7 @@ if [ -n "$global_ok" ]; then
   require_normalized "$GLOBAL_MD" "kickoff and confirmed flips" \
     "planwright's configured flips count as you flipping and follow the same scope, except one kept in every repository: the spec PR after a signed-off kickoff, which planwright marks ready by configuration." \
     "A flip I confirm when a run asks me is one I requested, and a no I give when asked holds: do not then flip that PR as the solo flip." \
-    "A nested review loop's own convergence flip (such as \`/copilot-review --nested\` asking at convergence) stays confirmation-gated in every repository, never counts as the solo flip, and evaluates these same conditions first."
+    "A nested review loop's own convergence flip stays confirmation-gated in every repository, never counts as the solo flip, and evaluates these same conditions first."
   require_normalized "$GLOBAL_MD" "hook-denial sentence" \
     "If planwright's ready-guard hook denies a flip on a branch that meets these conditions, report the denial to me and never work around it: no sync to satisfy it, no bypass."
 
@@ -738,19 +731,63 @@ copilot_sweep() {
 for i in ${tree_files[@]+"${!tree_files[@]}"}; do copilot_sweep "${tree_files[$i]}" "${tree_norm[$i]}"; done
 [ -z "$global_ok" ] || copilot_sweep "$GLOBAL_MD" "$global_norm"
 
-# copilot-review's nested loop may flip a PR ready only at convergence and only
-# after an explicit per-run confirmation.
-require_phrases "$(skill_md copilot-review)" "mark-ready safety sentence" \
-  "This confirmation-gated ready-flip is the only PR-lifecycle action this loop takes, and only on this exit path." \
-  "Never automatically, never on a diminishing-returns/stop-condition/iteration-cap exit, and never for create or merge"
-# The convergence flip checks the user-global ready conditions itself and
-# reports a ready-guard denial rather than working around it.
-require_normalized "$(skill_md copilot-review)" "convergence-flip conditions" \
-  "**Only once the recheck confirms zero**, evaluate the ready conditions against the current head: GitHub reports \`mergeable: MERGEABLE\` (\`UNKNOWN\` after one re-query a few seconds later counts as unmet), CI is green, and every other step of the review cadence the PR calls for has run (this convergence completes the loop's own step)." \
-  "On an unmet or unconfirmable one, name it, do not ask, and leave the PR a draft. Otherwise, in an attended session, ask once" \
-  "On yes, immediately before the flip, re-run the \`isDraft,state\` check, the head guard above (a moved head with a changed tree runs its request-and-poll branch), the thread recount and the ready conditions, each failing as it does before the ask; a yes covers only the head it was given for, so a loop back asks again at the next convergence." \
-  "If planwright's ready-guard hook denies the flip, report the denial and leave it a draft: no sync to satisfy it, no bypass. With every check passing, run \`gh pr ready <number>\`" \
-  "Leaving it a draft ends this loop's part only; the user-global Pull Request Lifecycle rule decides any later flip."
+# Retired skill: /copilot-review folded into /bot-review. Its directory stays
+# gone, and its name appears only in the sentences recording the retirement.
+[ -e "$SKILLS/copilot-review" ] && err "$SKILLS/copilot-review exists but was retired into /bot-review"
+BOT_RETIRED="The retired \`/copilot-review\` skill folded into this one: a run naming it stops and names \`/bot-review\`."
+GLOBAL_RETIRED="\`/copilot-review\` is retired into it: a run naming it stops and names \`/bot-review\`."
+require_normalized "$(skill_md bot-review)" "retired-skill stop sentence" "$BOT_RETIRED"
+require_normalized "$GLOBAL_MD" "retired-skill stop sentence" "$GLOBAL_RETIRED"
+retired_sweep() {
+  local rest="${2//"$BOT_RETIRED"/}"
+  rest="${rest//"$GLOBAL_RETIRED"/}"
+  ! [[ "$rest" =~ copilot-review([^A-Za-z0-9_-]|$) ]] \
+    || err "$1 names the retired /copilot-review skill outside its retirement sentence; name /bot-review"
+}
+for i in ${tree_files[@]+"${!tree_files[@]}"}; do retired_sweep "${tree_files[$i]}" "${tree_norm[$i]}"; done
+[ -z "$global_ok" ] || retired_sweep "$GLOBAL_MD" "$global_norm"
+
+# No review skill marks a PR ready: /bot-review says so for every reviewer, and
+# nothing under the skills tree carries a ready flip or an offer of one.
+require_normalized "$(skill_md bot-review)" "never-mark-ready sentence" \
+  "\`/bot-review\` never marks a PR ready, for any reviewer, and offers no ready flip at convergence." \
+  "this loop never declares the PR done, and never marks it ready."
+files_matching -F 'gh pr ready'
+for f in ${matched[@]+"${matched[@]}"}; do
+  err "$f carries a ready flip; no review skill marks a PR ready"
+done
+
+# The hosted-reviewer drain's generic mechanics, keyed on the reviewer config.
+require_normalized "$(skill_md bot-review)" "generic drain mechanic" \
+  "**Every marker regex (\`build_id_regex\`, \`finding_key_regex\`, \`reviewed_head_regex\`, \`errored_review_regex\`) is matched on all three**, never on a surface assumed to hold it" \
+  "**The review baseline is the reviewed head**" \
+  "**An errored review is no review.**" \
+  "**Suppression is a ledger disposition**" \
+  "**Diminishing returns is a handoff, never a verdict**" \
+  "**no review can arrive while it stays a draft.** Say so and name \`draft_setting\`" \
+  "**Convergence is no unresolved finding and the reviewed head equal to the current HEAD, never a check-state read**" \
+  "**A thread a human has replied in is a message to that human**"
+# Review-run discipline: one ledger, linked deferrals, replies as rules.
+require_normalized "$(skill_md bot-review)" "decision-ledger sentence" \
+  "the only store of finding dispositions" \
+  "Without one, the run halts (**Unlinked deferral**) before any reply" \
+  "CI cost is never an accepted deferral reason." \
+  "**Every reply states the decision and its evidence in one paragraph**, so a reviewer that learns from replies records the rule rather than the instance"
+require_normalized "$SHARED/state.md" "decision-ledger sentence" \
+  "**The ledger is never pruned automatically**"
+
+# /peer-review hands every automated-reviewer thread to /bot-review and names
+# no vendor: the reviewers are the template's entries, never its prose.
+require_normalized "$(skill_md peer-review)" "bot-routing sentence" \
+  "Every automated-reviewer thread belongs to \`/bot-review\`, whichever bot wrote it"
+names_tpl="$SKILLS/bot-review/bot-review.json.tpl"
+if tpl_names="$(jq -r '.reviewers | keys[]' "$names_tpl" 2>/dev/null)" && [ -n "$tpl_names" ]; then
+  while IFS= read -r tpl_name; do
+    forbid_normalized "$(skill_md peer-review)" "reviewer name" "$tpl_name"
+  done <<< "$tpl_names"
+else
+  err "could not read the reviewer names from $names_tpl"
+fi
 
 # The review config's readers refuse a version they do not know.
 require_normalized "$(skill_md bot-review)" "version refusal" \
@@ -769,8 +806,8 @@ require_phrases "$(skill_md bot-review)" "safety sentence" \
 require_phrases "$(skill_md bot-review)" "metering sentence" \
   "never substitute the full comment for a missing incremental one" \
   "never retried, never reported as **No response**" \
-  "\`full_review_comment\` only for the PR's **first pass**" \
-  "\`rereview_comment\` for **every request after the first**" \
+  "\`command\` only for the PR's **first pass**" \
+  "\`incremental_command\` for **every request after the first**" \
   "| Vendor quota | The reviewer answered with a quota or plan refusal"
 
 # panel-review's reviewer:<name> backend runs a vendor CLI from the repo root.
