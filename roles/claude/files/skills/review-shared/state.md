@@ -68,7 +68,9 @@ later skill and iteration on that tree.
   `--tree`, or a command that changed the tree) or when its output could not
   be captured, and a failure to record is reported without changing that exit
   status. An entry whose output file has gone is dropped on lookup and reads
-  as a miss.
+  as a miss. `--dir <dir>` runs the program in that directory instead, keyed
+  by the `--tree` it requires and never re-checked, so the directory must hold
+  exactly that tree: it is refused inside the work tree or holding it.
 - **Full-suite key.** The repository's declared test task, as written in its
   task runner (for example `mise run test`). Local runs and CI evidence record
   under that same key, so either satisfies the other's lookup.
@@ -96,6 +98,39 @@ planwright seed note is to carry:
   own review loop;
 - a self-ignoring directory, where the bundle relies on the repository
   ignoring `.claude/`.
+
+## Evidence in a skill
+
+**Every tooling or suite run in a review skill looks up the evidence record
+first and records through it**: `evidence lookup --command <key>` before the
+run; a hit is reused, its `output_path` read in place of running and reported
+as reused with its `source`; a miss runs through `evidence run --command <key>
+-- <argv>`, which records it. The key is the command as the repository
+declares it (a `lefthook.yml` command, a task-runner task, a CI step), so two
+skills running the same tool share an entry. A tool that writes, such as a
+formatter without its check flag, never runs through the record. Bound a run
+by wrapping the program in `timeout` (`gtimeout` on macOS).
+
+- **Full suite.** Its key is the full-suite key above; a repository that
+  declares no test task has none, so its suite runs unrecorded and no CI
+  evidence is taken. Before running it on a working tree whose key equals
+  `HEAD`'s tree and whose `HEAD` is the pushed head of its PR, pipe that head's
+  check runs to `evidence ci` and look up again; only a miss runs the suite.
+- **Nested loops.** **A nested loop runs the full suite once per iteration,
+  after that iteration's fixes**, and validates each fix with diff-scoped
+  checks: the tests touching the files it changed and the linters run on
+  them, each through the record under the command as run, paths included. A
+  finding's reproduction never reads the record.
+- **An exported tree.** **A PR that is not checked out has its tooling run in
+  an archive export of its pinned head**: `git archive <head>` extracted into
+  a scratch directory outside every work tree, keyed by `git rev-parse
+  '<head>^{tree}'`, through `evidence lookup --tree <that tree>` and `evidence
+  run --tree <that tree> --dir <export>`. The record stays in the session's
+  own worktree. `git archive` leaves out `export-ignore` paths and rewrites
+  `export-subst` files, so when `git grep -q -E 'export-(ignore|subst)' <head>
+  -- ':(glob)**/.gitattributes'` finds either, or this clone's `info/attributes`
+  or `core.attributesFile` names one, the export is not that tree: run the
+  tooling without the record and say so.
 
 ## Writer lock
 

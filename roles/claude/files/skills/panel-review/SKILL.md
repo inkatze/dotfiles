@@ -53,7 +53,7 @@ Steps 1-6 are the shared discovery and validation pipeline both modes run. Steps
 
 ### 1. Run project tooling once
 
-Linters, formatters, type checkers, static analyzers, complexity and duplication meters, dead-code detectors, security scanners, discovered from `lefthook.yml`, CI workflows, `mise.toml` tasks, language config files and the SessionStart tool-discovery summary. Run each in check or dry-run mode only (a formatter's write would land in the next fix commit). Capture the output; every prompt-driven backend gets the same text, which is what keeps "tool-grounded" meaningful across backends. A `reviewer:<name>` backend takes no prompt and does not receive it.
+Linters, formatters, type checkers, static analyzers, complexity and duplication meters, dead-code detectors, security scanners, discovered from `lefthook.yml`, CI workflows, `mise.toml` tasks, language config files and the SessionStart tool-discovery summary. Run each in check or dry-run mode only (a formatter's write would land in the next fix commit), through the evidence record per [state.md](../review-shared/state.md): a tool another skill or iteration already ran on this tree is reused and reported as reused, never run again. Capture the output; every prompt-driven backend gets the same text, which is what keeps "tool-grounded" meaningful across backends. A `reviewer:<name>` backend takes no prompt and does not receive it.
 
 ### 2. Backend discovery pass
 
@@ -75,7 +75,7 @@ Re-scan the merged list assuming it is incomplete, per discovery-rigor; backends
 
 ### 5. Validate every finding
 
-validation-rigor's three passes, locally in this session, on every backend-surfaced finding. Drop or downgrade what does not converge. Route survivors per finding-categorization. A backend's `rule` or recommendation is never itself the tool-grounding Auto-applicable requires: that citation comes from the project tooling of step 1.
+validation-rigor's three passes, locally in this session, on every backend-surfaced finding. **When the diff consumes a shape a mapped producer defines, attach the producer's definition as validation pass 2's context**, per [siblings.md](../review-shared/siblings.md). Drop or downgrade what does not converge. Route survivors per finding-categorization. A backend's `rule` or recommendation is never itself the tool-grounding Auto-applicable requires: that citation comes from the project tooling of step 1.
 
 ### 6. Record results
 
@@ -120,7 +120,7 @@ Run Steps 1-6 (discovery per the cadence above). Be more conservative than stand
 
 #### c. Apply
 
-Per finding: confirm the cited rule or test still fires on the current code (drop the item if not), apply the fix, confirm it no longer fires, then run the wider suite, linters and type checkers. Any failure, including a pre-existing one surfacing for the first time, is **Test failure**.
+Per finding: confirm the cited rule or test still fires on the current code (drop the item if not), apply the fix, confirm it no longer fires, then run its diff-scoped checks (the tests touching the files it changed and the linters on them). Once this iteration's fixes are all in, run the full suite, linters and type checkers once, per [state.md](../review-shared/state.md)'s nested-loop rule. Any failure, including a pre-existing one surfacing for the first time, is **Test failure**.
 
 #### d. Commit
 
