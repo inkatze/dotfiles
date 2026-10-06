@@ -635,8 +635,6 @@ printf 'garbage\n' > "$art"
 out="$("$H" loop mark --skill panel-review --iteration 2 --phase start 2>&1)" && rc=0 || rc=$?
 [ "$rc" -eq 2 ] && [[ "$out" == *"$art"* && "$out" == *"version 'missing'"* ]] \
   || fail loop-missing-version "a loop artifact with no version was not refused by name (exit $rc): $out"
-porcelain="$(git status --porcelain --untracked-files=all)"
-[ -z "$porcelain" ] || fail porcelain-final "git status is not clean after the run: $porcelain"
 
 # --- Decision ledger -----------------------------------------------------------------
 h1=1111111111111111111111111111111111111111
@@ -670,6 +668,16 @@ jq -e '.entries[0] | .key == "k-fixed" and .anchor == "a.sh:3" and .head == "'"$
   || fail ledger-fields "an entry lacks its key, anchor, head, reply, evidence or date: $(cat "$ledger")"
 jq -e '.entries[2].follow_up == "specs/x/tasks.md Task 4" and .entries[3].reason == "low-confidence suppressed block"' \
   "$ledger" > /dev/null || fail ledger-follow-up-reason "the follow-up link or the suppression reason was not kept"
+# refused <name> <message fragment> <record args...>: the record exits 2 naming
+# the problem and leaves the ledger as it was.
+refused() {
+  local name="$1" fragment="$2" before out rc
+  shift 2
+  before="$(cksum < "$ledger")"
+  out="$(printf 'x\n' | lrec "$@" 2>&1)" && rc=0 || rc=$?
+  [ "$rc" -eq 2 ] && [[ "$out" == *"$fragment"* ]] || fail "$name" "not refused with '$fragment' (exit $rc): $out"
+  [ "$before" = "$(cksum < "$ledger")" ] || fail "$name-write" "a refused record changed the ledger"
+}
 # REQ-I1.3: a deferral with no follow-up record halts and writes nothing.
 before="$(cksum < "$ledger")"
 out="$(printf 'later\n' | lrec --key k-def2 --anchor 'e.sh:1' --disposition deferred \
@@ -677,28 +685,31 @@ out="$(printf 'later\n' | lrec --key k-def2 --anchor 'e.sh:1' --disposition defe
 [ "$rc" -eq 2 ] && [[ "$out" == *follow-up* ]] \
   || fail ledger-deferral-unlinked "a deferral without a follow-up link did not halt (exit $rc): $out"
 [ "$before" = "$(cksum < "$ledger")" ] || fail ledger-deferral-unlinked-write "a refused deferral changed the ledger"
-if printf 'x\n' | lrec --key k-sup2 --anchor f --disposition suppressed --head "$h1" \
-  --reply https://example.invalid/r/6 > /dev/null 2>&1; then
-  fail ledger-suppressed-unreasoned "a suppression without a reason was accepted"
-fi
-if lrec --key k-x --anchor f --disposition rejected --head "$h1" \
-  --reply https://example.invalid/r/7 < /dev/null > /dev/null 2>&1; then
-  fail ledger-no-evidence "an entry without evidence was accepted"
-fi
+refused ledger-suppressed-unreasoned "needs --reason" --key k-sup2 --anchor f \
+  --disposition suppressed --head "$h1" --reply https://example.invalid/r/6
+before="$(cksum < "$ledger")"
+out="$(lrec --key k-x --anchor f --disposition rejected --head "$h1" \
+  --reply https://example.invalid/r/7 < /dev/null 2>&1)" && rc=0 || rc=$?
+[ "$rc" -eq 2 ] && [[ "$out" == *"is empty"* ]] && [ "$before" = "$(cksum < "$ledger")" ] \
+  || fail ledger-no-evidence "an entry without evidence was not refused (exit $rc): $out"
+out="$(head -c 5000 /dev/zero | tr '\0' e | lrec --key k-x --anchor f --disposition rejected \
+  --head "$h1" --reply https://example.invalid/r/7 2>&1)" && rc=0 || rc=$?
+[ "$rc" -eq 2 ] && [[ "$out" == *"longer than"* ]] || fail ledger-evidence-cap "an oversized evidence summary was not refused (exit $rc): $out"
 for bad in 'k y' '../k' "$(printf 'k%.0s' $(seq 1 130))"; do
-  if printf 'x\n' | lrec --key "$bad" --anchor f --disposition fixed --head "$h1" \
-    --reply https://example.invalid/r/8 > /dev/null 2>&1; then
-    fail ledger-key-shape "an unsafe finding key was accepted: $bad"
-  fi
+  refused "ledger-key-shape ($bad)" "--key must match" --key "$bad" --anchor f \
+    --disposition fixed --head "$h1" --reply https://example.invalid/r/8
 done
-if printf 'x\n' | lrec --key k-y --anchor f --disposition wontfix --head "$h1" \
-  --reply https://example.invalid/r/9 > /dev/null 2>&1; then
-  fail ledger-disposition-shape "an unknown disposition was accepted"
-fi
-if printf 'x\n' | lrec --key k-y --anchor f --disposition fixed --head abc123 \
-  --reply https://example.invalid/r/9 > /dev/null 2>&1; then
-  fail ledger-head-shape "an abbreviated head was accepted"
-fi
+for bad in "it's here" 'a b' "\$(id)"; do
+  refused "ledger-anchor-shape ($bad)" "--anchor must match" --key k-y --anchor "$bad" \
+    --disposition fixed --head "$h1" --reply https://example.invalid/r/8
+done
+refused ledger-disposition-shape "--disposition is" --key k-y --anchor f \
+  --disposition wontfix --head "$h1" --reply https://example.invalid/r/9
+refused ledger-head-shape "--head must be a full commit hash" --key k-y --anchor f \
+  --disposition fixed --head abc123 --reply https://example.invalid/r/9
+h64="$(printf '3%.0s' $(seq 1 64))"
+printf 'sha-256 repository\n' | lrec --key k-256 --anchor f --disposition fixed --head "$h64" \
+  --reply https://example.invalid/r/13 > /dev/null || fail ledger-head-sha256 "a SHA-256 head was refused"
 # REQ-I1.2: re-raise routing.
 out="$(llook --key k-rej --anchor 'b.sh:9' --head "$h1")"
 jq -e '.route == "recorded-reply" and .entry.reply == "https://example.invalid/r/2"' <<< "$out" > /dev/null \
@@ -713,10 +724,31 @@ jq -e '.route == "new" and .prior.disposition == "fixed"' <<< "$out" > /dev/null
 out="$(llook --key k-fixed --anchor 'a.sh:3' --head "$h1")"
 jq -e '.route == "recorded-reply"' <<< "$out" > /dev/null \
   || fail ledger-fixed-same-head "a same-head re-raise of a fixed finding did not return the recorded reply: $out"
+for k in k-def:c.sh:1 k-sup:d.sh:2; do
+  out="$(llook --key "${k%%:*}" --anchor "${k#*:}" --head "$h2")"
+  jq -e '.route == "recorded-reply"' <<< "$out" > /dev/null \
+    || fail "ledger-standing-later-head (${k%%:*})" "a standing deferral or suppression did not answer its anchor on a later head: $out"
+  out="$(llook --key "${k%%:*}" --anchor 'z.sh:99' --head "$h2")"
+  jq -e '.route == "new" and .prior != null' <<< "$out" > /dev/null \
+    || fail "ledger-standing-other-anchor (${k%%:*})" "a deferral or suppression answered a finding at another anchor: $out"
+done
 printf 'fixed after all\n' | lrec --key k-rej --anchor 'b.sh:9' --disposition fixed --head "$h2" \
   --reply https://example.invalid/r/10 > /dev/null || fail ledger-append "a second entry for one key was refused"
-jq -e '(.entries | length) == 5 and .entries[1].disposition == "rejected"' "$ledger" > /dev/null \
+jq -e '(.entries | length) == 6 and .entries[1].disposition == "rejected"' "$ledger" > /dev/null \
   || fail ledger-never-pruned "an earlier entry was replaced or pruned"
+# Concurrent records on one PR all land: the append is serialized.
+pids=()
+for i in 1 2 3 4 5 6 7 8; do
+  printf 'parallel %s\n' "$i" | lrec --key "k-par$i" --anchor f --disposition fixed --head "$h2" \
+    --reply "https://example.invalid/p/$i" > /dev/null 2>&1 &
+  pids+=("$!")
+done
+for p in "${pids[@]}"; do wait "$p" || fail ledger-parallel-exit "a concurrent record failed"; done
+[ "$(jq '[.entries[] | select(.key | startswith("k-par"))] | length' "$ledger")" = 8 ] \
+  || fail ledger-parallel "concurrent records lost entries: $(jq -c '[.entries[].key]' "$ledger")"
+out="$("$H" ledger show --repo acme/widgets --pr 7)"
+jq -e '.version == 1 and (.entries | length) == 14' <<< "$out" > /dev/null \
+  || fail ledger-show "show did not print the whole ledger"
 [ "$(llook --key k-rej --anchor 'b.sh:9' --head "$h2" | jq -r .route)" = recorded-reply ] \
   || fail ledger-latest-wins "the latest entry for a key did not govern its route"
 # REQ-A1.6: an unknown or missing version is refused by name.
@@ -743,6 +775,10 @@ fi
 rm "$ledger"
 [ "$("$H" ledger show --repo acme/widgets --pr 8)" = '' ] \
   || fail ledger-show-absent "show printed something for a PR with no ledger"
+[ "$(mode_of "$REVIEW_STATE_ROOT/ledger/acme/widgets")" = 700 ] \
+  || fail ledger-dir-mode "the ledger directory is not mode 700"
+porcelain="$(git status --porcelain --untracked-files=all)"
+[ -z "$porcelain" ] || fail porcelain-final "git status is not clean after the run: $porcelain"
 
 if [ "$failures" -gt 0 ]; then
   echo ""
