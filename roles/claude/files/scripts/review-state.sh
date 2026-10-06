@@ -294,12 +294,14 @@ registration_file() {
   REG="$DIR/$token.json"
 }
 
-# own_socket <path>: this user's own socket, at an absolute path.
+# own_socket <path>: this user's own socket, at an absolute path every
+# platform can connect to. macOS holds a socket path in 104 bytes, its
+# terminating NUL included; Linux allows a few more, which macOS would refuse.
 own_socket() {
   local sock="$1"
   case "$sock" in /*) ;; *) return 1 ;; esac
   case "$sock" in *[[:cntrl:]]*) return 1 ;; esac
-  [ "${#sock}" -le 256 ] && [ ! -L "$sock" ] && [ -S "$sock" ] && [ -O "$sock" ]
+  [ "${#sock}" -le 103 ] && [ ! -L "$sock" ] && [ -S "$sock" ] && [ -O "$sock" ]
 }
 
 # The session's messaging socket, recorded so a peer whose session message

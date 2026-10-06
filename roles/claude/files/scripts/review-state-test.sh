@@ -722,6 +722,20 @@ ln -s "$sock" "$tmp/s2/$hpid.sock"
 live holder "CLAUDE_CODE_MESSAGING_SOCKET='$tmp/s2/$hpid.sock' \"\$H\" register --name linked --skill bot-review --repo o/r --pr 23 --worktree /w/l"
 jq -e 'has("socket") | not' "$REVIEW_STATE_ROOT/sessions/$(out_of holder).json" > /dev/null \
   || fail registry-socket-symlink "a symlinked messaging socket was recorded"
+# A socket path past what macOS can connect to is left out; only Linux can
+# bind one that long, so elsewhere the case is skipped.
+long_dir="$tmp/s3/$(printf 'x%.0s' $(seq 1 $((105 - ${#tmp} - 5 - ${#hpid} - 6))))"
+long_sock="$long_dir/$hpid.sock"
+mkdir -p "$long_dir"
+# shellcheck disable=SC2016
+if perl -MIO::Socket::UNIX -e 'IO::Socket::UNIX->new(Type => SOCK_STREAM(), Local => $ARGV[0], Listen => 1) or exit 1' "$long_sock" 2> /dev/null \
+  && [ -S "$long_sock" ]; then
+  live holder "CLAUDE_CODE_MESSAGING_SOCKET='$long_sock' \"\$H\" register --name long --skill bot-review --repo o/r --pr 26 --worktree /w/x"
+  jq -e 'has("socket") | not' "$REVIEW_STATE_ROOT/sessions/$(out_of holder).json" > /dev/null \
+    || fail registry-socket-length "a socket path of ${#long_sock} bytes, past macOS's limit, was recorded"
+else
+  echo "NOTE registry-socket-length: this platform cannot bind a ${#long_sock}-byte socket path; case skipped"
+fi
 # A socket named for another process is a parent session's, inherited.
 listen "$tmp/s/1.sock" "$tmp/s/parent.heard"
 live holder "CLAUDE_CODE_MESSAGING_SOCKET='$tmp/s/1.sock' \"\$H\" register --name child --skill bot-review --repo o/r --pr 25 --worktree /w/c"
