@@ -638,6 +638,112 @@ out="$("$H" loop mark --skill panel-review --iteration 2 --phase start 2>&1)" &&
 porcelain="$(git status --porcelain --untracked-files=all)"
 [ -z "$porcelain" ] || fail porcelain-final "git status is not clean after the run: $porcelain"
 
+# --- Decision ledger -----------------------------------------------------------------
+h1=1111111111111111111111111111111111111111
+h2=2222222222222222222222222222222222222222
+lrec() { "$H" ledger record --repo Acme/Widgets --pr 7 "$@"; }
+llook() { "$H" ledger lookup --repo acme/widgets --pr 7 "$@"; }
+ledger="$REVIEW_STATE_ROOT/ledger/acme/widgets/pr-7.json"
+[ "$(llook --key k-new --anchor a --head "$h1" | jq -r .route)" = new ] \
+  || fail ledger-empty "a key never recorded did not route as new"
+# REQ-I1.1: every disposition kind, with its fields, version key and mode.
+printf 'reproduced: the guard was missing\n' | lrec --key k-fixed --anchor 'a.sh:3' \
+  --disposition fixed --head "$h1" --reply https://example.invalid/r/1 > /dev/null \
+  || fail ledger-record-fixed "a fixed entry was refused"
+printf 'the caller already checks it\n' | lrec --key k-rej --anchor 'b.sh:9' \
+  --disposition rejected --head "$h1" --reply https://example.invalid/r/2 > /dev/null \
+  || fail ledger-rejection-no-follow-up "a rejection without a follow-up link was refused"
+printf 'valid, larger than this PR\n' | lrec --key k-def --anchor 'c.sh:1' \
+  --disposition deferred --head "$h1" --reply https://example.invalid/r/3 \
+  --follow-up 'specs/x/tasks.md Task 4' > /dev/null || fail ledger-record-deferred "a linked deferral was refused"
+printf 'the bot suppressed it as low confidence\n' | lrec --key k-sup --anchor 'd.sh:2' \
+  --disposition suppressed --head "$h1" --reply https://example.invalid/r/4 \
+  --reason 'low-confidence suppressed block' > /dev/null || fail ledger-record-suppressed "a suppressed entry was refused"
+[ "$(mode_of "$ledger")" = 600 ] || fail ledger-mode "the ledger is mode $(mode_of "$ledger"), not 600"
+jq -e '.version == 1 and .repo == "acme/widgets" and .pr == 7 and (.entries | length) == 4' "$ledger" > /dev/null \
+  || fail ledger-shape "the ledger does not carry its version, repo, PR and entries: $(cat "$ledger")"
+jq -e '[.entries[].disposition] == ["fixed", "rejected", "deferred", "suppressed"]' "$ledger" > /dev/null \
+  || fail ledger-dispositions "not every disposition kind was kept: $(cat "$ledger")"
+jq -e '.entries[0] | .key == "k-fixed" and .anchor == "a.sh:3" and .head == "'"$h1"'"
+    and .reply == "https://example.invalid/r/1" and (.evidence | startswith("reproduced"))
+    and (.date | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T"))' "$ledger" > /dev/null \
+  || fail ledger-fields "an entry lacks its key, anchor, head, reply, evidence or date: $(cat "$ledger")"
+jq -e '.entries[2].follow_up == "specs/x/tasks.md Task 4" and .entries[3].reason == "low-confidence suppressed block"' \
+  "$ledger" > /dev/null || fail ledger-follow-up-reason "the follow-up link or the suppression reason was not kept"
+# REQ-I1.3: a deferral with no follow-up record halts and writes nothing.
+before="$(cksum < "$ledger")"
+out="$(printf 'later\n' | lrec --key k-def2 --anchor 'e.sh:1' --disposition deferred \
+  --head "$h1" --reply https://example.invalid/r/5 2>&1)" && rc=0 || rc=$?
+[ "$rc" -eq 2 ] && [[ "$out" == *follow-up* ]] \
+  || fail ledger-deferral-unlinked "a deferral without a follow-up link did not halt (exit $rc): $out"
+[ "$before" = "$(cksum < "$ledger")" ] || fail ledger-deferral-unlinked-write "a refused deferral changed the ledger"
+if printf 'x\n' | lrec --key k-sup2 --anchor f --disposition suppressed --head "$h1" \
+  --reply https://example.invalid/r/6 > /dev/null 2>&1; then
+  fail ledger-suppressed-unreasoned "a suppression without a reason was accepted"
+fi
+if lrec --key k-x --anchor f --disposition rejected --head "$h1" \
+  --reply https://example.invalid/r/7 < /dev/null > /dev/null 2>&1; then
+  fail ledger-no-evidence "an entry without evidence was accepted"
+fi
+for bad in 'k y' '../k' "$(printf 'k%.0s' $(seq 1 130))"; do
+  if printf 'x\n' | lrec --key "$bad" --anchor f --disposition fixed --head "$h1" \
+    --reply https://example.invalid/r/8 > /dev/null 2>&1; then
+    fail ledger-key-shape "an unsafe finding key was accepted: $bad"
+  fi
+done
+if printf 'x\n' | lrec --key k-y --anchor f --disposition wontfix --head "$h1" \
+  --reply https://example.invalid/r/9 > /dev/null 2>&1; then
+  fail ledger-disposition-shape "an unknown disposition was accepted"
+fi
+if printf 'x\n' | lrec --key k-y --anchor f --disposition fixed --head abc123 \
+  --reply https://example.invalid/r/9 > /dev/null 2>&1; then
+  fail ledger-head-shape "an abbreviated head was accepted"
+fi
+# REQ-I1.2: re-raise routing.
+out="$(llook --key k-rej --anchor 'b.sh:9' --head "$h1")"
+jq -e '.route == "recorded-reply" and .entry.reply == "https://example.invalid/r/2"' <<< "$out" > /dev/null \
+  || fail ledger-same-head "a same-head re-raise did not return the recorded reply: $out"
+out="$(llook --key k-rej --anchor 'b.sh:9' --head "$h2")"
+jq -e '.route == "needs-sign-off" and .recommended == "fix" and .rejection.evidence == "the caller already checks it"' \
+  <<< "$out" > /dev/null \
+  || fail ledger-later-head-rejected "a later-head re-raise of a rejection did not route to Needs sign-off with it attached: $out"
+out="$(llook --key k-fixed --anchor 'a.sh:3' --head "$h2")"
+jq -e '.route == "new" and .prior.disposition == "fixed"' <<< "$out" > /dev/null \
+  || fail ledger-fixed-reraised "a re-raised fixed finding was not returned as new: $out"
+out="$(llook --key k-fixed --anchor 'a.sh:3' --head "$h1")"
+jq -e '.route == "recorded-reply"' <<< "$out" > /dev/null \
+  || fail ledger-fixed-same-head "a same-head re-raise of a fixed finding did not return the recorded reply: $out"
+printf 'fixed after all\n' | lrec --key k-rej --anchor 'b.sh:9' --disposition fixed --head "$h2" \
+  --reply https://example.invalid/r/10 > /dev/null || fail ledger-append "a second entry for one key was refused"
+jq -e '(.entries | length) == 5 and .entries[1].disposition == "rejected"' "$ledger" > /dev/null \
+  || fail ledger-never-pruned "an earlier entry was replaced or pruned"
+[ "$(llook --key k-rej --anchor 'b.sh:9' --head "$h2" | jq -r .route)" = recorded-reply ] \
+  || fail ledger-latest-wins "the latest entry for a key did not govern its route"
+# REQ-A1.6: an unknown or missing version is refused by name.
+cp "$ledger" "$tmp/ledger.bak"
+jq '.version = 9' "$tmp/ledger.bak" > "$ledger"
+out="$(llook --key k-rej --anchor x --head "$h1" 2>&1)" && rc=0 || rc=$?
+[ "$rc" -eq 2 ] && [[ "$out" == *"$ledger"* && "$out" == *"version '9'"* ]] \
+  || fail ledger-unknown-version "a ledger with an unknown version was not refused by name (exit $rc): $out"
+out="$(printf 'x\n' | lrec --key k-z --anchor f --disposition fixed --head "$h1" \
+  --reply https://example.invalid/r/11 2>&1)" && rc=0 || rc=$?
+[ "$rc" -eq 2 ] && [[ "$out" == *"version '9'"* ]] \
+  || fail ledger-unknown-version-write "a record onto an unknown version was not refused (exit $rc): $out"
+jq 'del(.version)' "$tmp/ledger.bak" > "$ledger"
+out="$(llook --key k-rej --anchor x --head "$h1" 2>&1)" && rc=0 || rc=$?
+[ "$rc" -eq 2 ] && [[ "$out" == *"$ledger"* && "$out" == *"version 'missing'"* ]] \
+  || fail ledger-missing-version "a ledger with no version was not refused by name (exit $rc): $out"
+cp "$tmp/ledger.bak" "$ledger"
+mv "$ledger" "$tmp/ledger.real"
+ln -s "$tmp/ledger.real" "$ledger"
+if printf 'x\n' | lrec --key k-z --anchor f --disposition fixed --head "$h1" \
+  --reply https://example.invalid/r/12 > /dev/null 2>&1; then
+  fail ledger-symlink "a symlinked ledger was written through"
+fi
+rm "$ledger"
+[ "$("$H" ledger show --repo acme/widgets --pr 8)" = '' ] \
+  || fail ledger-show-absent "show printed something for a PR with no ledger"
+
 if [ "$failures" -gt 0 ]; then
   echo ""
   echo "review-state-test: $failures case(s) failed"

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Shared state for the review skills: the per-worktree evidence record, the
-# writer lock, the session registry, the inbox and the loop artifact. The
-# contract lives in skills/review-shared/state.md; this is its one writer, so
-# no skill needs a shell redirect to touch any of it.
+# writer lock, the session registry, the inbox, the loop artifact and the
+# decision ledger. The contract lives in skills/review-shared/state.md; this is
+# its one writer, so no skill needs a shell redirect to touch any of it.
 #
 # Usage:
 #   review-state.sh key
@@ -27,6 +27,11 @@
 #   review-state.sh inbox read --session <token>
 #   review-state.sh loop mark --skill <s> --iteration <n> --phase <start|end> [--base <ref>]
 #   review-state.sh loop append --skill <s>                         (body on stdin)
+#   review-state.sh ledger record --repo <owner/repo> --pr <n> --key <k> --anchor <a>
+#       --disposition <fixed|rejected|deferred|suppressed> --head <sha> --reply <url>
+#       [--follow-up <record>] [--reason <text>]                (evidence on stdin)
+#   review-state.sh ledger lookup --repo <owner/repo> --pr <n> --key <k> --anchor <a> --head <sha>
+#   review-state.sh ledger show --repo <owner/repo> --pr <n>
 #   review-state.sh encode <segment>
 #
 # Exit status: 0 success or hit; 1 a miss, a held lock, not this session's
@@ -73,8 +78,9 @@ rand_hex() {
 
 # --- Option parsing -----------------------------------------------------------
 # parse_opts <allowed names> -- <args>: clears every opt_<name>, sets one for
-# each --<name> <value>, and leaves anything after a literal -- in rest_args.
-OPT_NAMES="base branch command ended exit from head iteration name phase pr repo session skill source started to token tree wait worktree"
+# each --<name> <value> (a hyphen in the name an underscore in the variable),
+# and leaves anything after a literal -- in rest_args.
+OPT_NAMES="anchor base branch command disposition ended exit follow_up from head iteration key name phase pr reason repo reply session skill source started to token tree wait worktree"
 for _n in $OPT_NAMES; do printf -v "opt_$_n" '%s' ""; done
 rest_args=()
 parse_opts() {
@@ -92,7 +98,7 @@ parse_opts() {
         name="${1#--}"
         case "$allowed" in *" $name "*) ;; *) die "unknown option --$name" ;; esac
         [ "$#" -ge 2 ] || die "--$name needs a value"
-        printf -v "opt_$name" '%s' "$2"
+        printf -v "opt_${name//-/_}" '%s' "$2"
         shift 2
         ;;
       *) die "unexpected argument '$1'" ;;
@@ -802,7 +808,8 @@ evidence_root() {
   EV_ROOT="$dir"
 }
 
-# sub_dir <path>: create a directory under the evidence root, refusing a symlink.
+# sub_dir <path>: create a directory under the evidence root or the lock root,
+# refusing a symlink.
 sub_dir() {
   local path="$1"
   if [ -L "$path" ]; then die "$path is a symlink; refusing it"; fi
@@ -1046,6 +1053,93 @@ cmd_loop() {
   esac
 }
 
+# --- Decision ledger ---------------------------------------------------------------------------
+# One file per repository and PR, appended to and never pruned: the latest
+# entry for a finding key governs how a re-raise of it routes.
+LEDGER=""
+ledger_file() {
+  local create="$1" owner name
+  repo_args
+  require_opt pr
+  valid_pr "$opt_pr"
+  encode_segment "${opt_repo%%/*}"; owner="$ENC"
+  encode_segment "${opt_repo#*/}"; name="$ENC"
+  if [ "$create" = create ]; then
+    root_dir ledger
+    sub_dir "$DIR/$owner"
+    sub_dir "$DIR/$owner/$name"
+  fi
+  LEDGER="$STATE_ROOT/ledger/$owner/$name/pr-$opt_pr.json"
+  if [ -L "$LEDGER" ]; then die "$LEDGER is a symlink; refusing it"; fi
+  [ ! -e "$LEDGER" ] || check_json_version "$LEDGER"
+}
+
+cmd_ledger() {
+  local sub="${1:-}" evidence entry body
+  shift || true
+  case "$sub" in
+    record)
+      parse_opts "repo pr key anchor disposition head reply follow-up reason" -- "$@"
+      require_opt key; require_opt anchor; require_opt disposition; require_opt head; require_opt reply
+      [[ "$opt_key" =~ ^[A-Za-z0-9._:-]{1,128}$ ]] || die "--key must match [A-Za-z0-9._:-]{1,128}; hash any other key first"
+      [[ "$opt_head" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] || die "--head must be a full commit hash, got '$opt_head'"
+      single_line anchor "$opt_anchor"; single_line reply "$opt_reply"
+      single_line follow-up "$opt_follow_up"; single_line reason "$opt_reason"
+      case "$opt_disposition" in
+        fixed|rejected) ;;
+        deferred) [ -n "$opt_follow_up" ] \
+          || die "a deferral needs --follow-up naming the record that re-surfaces it (an issue, a spec task or gated deferral, an Awaiting-input entry); halt the run instead of deferring without one" ;;
+        suppressed) [ -n "$opt_reason" ] || die "a suppression needs --reason" ;;
+        *) die "--disposition is fixed, rejected, deferred or suppressed, got '$opt_disposition'" ;;
+      esac
+      evidence="$(head -c 4097)" || die "cannot read the evidence summary from stdin"
+      [ -n "$evidence" ] || die "the evidence summary on stdin is empty; every entry carries one"
+      [ "${#evidence}" -le 4096 ] || die "the evidence summary is longer than 4096 bytes; summarize it"
+      ledger_file create
+      entry="$(jq -n --arg key "$opt_key" --arg anchor "$opt_anchor" --arg d "$opt_disposition" \
+        --arg reason "$opt_reason" --arg evidence "$evidence" --arg head "$opt_head" \
+        --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg reply "$opt_reply" --arg fu "$opt_follow_up" \
+        '{key: $key, anchor: $anchor, disposition: $d, evidence: $evidence, head: $head,
+          date: $date, reply: $reply}
+         + (if $reason == "" then {} else {reason: $reason} end)
+         + (if $fu == "" then {} else {follow_up: $fu} end)')" || die "cannot build the ledger entry"
+      if [ -e "$LEDGER" ]; then
+        body="$(jq --argjson e "$entry" '.entries += [$e]' "$LEDGER")" || die "cannot read $LEDGER"
+      else
+        body="$(jq -n --argjson v "$VERSION" --arg repo "$opt_repo" --argjson pr "$opt_pr" --argjson e "$entry" \
+          '{version: $v, repo: $repo, pr: $pr, entries: [$e]}')" || die "cannot build $LEDGER"
+      fi
+      printf '%s\n' "$body" | write_file "$LEDGER"
+      printf '%s\n' "$LEDGER"
+      ;;
+    lookup)
+      parse_opts "repo pr key anchor head" -- "$@"
+      require_opt key; require_opt anchor; require_opt head
+      ledger_file read
+      if [ ! -e "$LEDGER" ]; then
+        printf '{"route":"new"}\n'
+        return 0
+      fi
+      # Same head and anchor is a repeat with nothing new: the recorded reply
+      # stands. A rejection raised again otherwise goes back to the operator
+      # with fix recommended; a fixed finding raised again is new.
+      jq -c --arg key "$opt_key" --arg anchor "$opt_anchor" --arg head "$opt_head" '
+        [.entries[] | select(.key == $key)] | last as $p
+        | if $p == null then {route: "new"}
+          elif $p.head == $head and $p.anchor == $anchor then {route: "recorded-reply", entry: $p}
+          elif $p.disposition == "rejected" then {route: "needs-sign-off", recommended: "fix", rejection: $p}
+          elif $p.disposition == "fixed" then {route: "new", prior: $p}
+          else {route: "recorded-reply", entry: $p} end' "$LEDGER" || die "cannot read $LEDGER"
+      ;;
+    show)
+      parse_opts "repo pr" -- "$@"
+      ledger_file read
+      [ ! -e "$LEDGER" ] || jq . "$LEDGER" || die "cannot read $LEDGER"
+      ;;
+    *) die "ledger takes record, lookup or show" ;;
+  esac
+}
+
 # --- Dispatch ------------------------------------------------------------------------------------
 need jq
 need git
@@ -1061,6 +1155,7 @@ case "$cmd" in
   lock) cmd_lock "$@" ;;
   inbox) cmd_inbox "$@" ;;
   loop) cmd_loop "$@" ;;
+  ledger) cmd_ledger "$@" ;;
   encode) [ "$#" -eq 1 ] || die "encode takes one segment"; encode_segment "$1"; printf '%s\n' "$ENC" ;;
   *) die "unknown command '${cmd}'; see the usage at the top of this script" ;;
 esac
