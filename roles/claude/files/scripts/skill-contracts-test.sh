@@ -296,7 +296,7 @@ reviewer_drift reviewer-backend-mise-dirs-dropped '  done <<< "$(compgen -e)"' '
 reviewer_drift reviewer-backend-find-unchecked 'for tool in realpath jq printenv git find; do' 'for tool in realpath jq printenv git; do'
 reviewer_drift reviewer-backend-require-only-unchecked 'jq -e --arg e "$entry" '"'"'.[2:] | index($e) != null'"'"' <<< "$rule" > /dev/null || {' 'true || {'
 reviewer_drift reviewer-backend-key-pattern-unchecked '[ -z "$value_pattern" ] || [[ "$val" =~ $value_pattern ]] \' 'true || [[ "$val" =~ $value_pattern ]] \'
-reviewer_drift reviewer-backend-env-allow-refuse-ignored 'if endswith("*") then ($v | startswith(.[:-1])) | not else . != $v end)))' 'true)))'
+reviewer_drift reviewer-backend-env-allow-refuse-ignored 'if endswith("*") then .[:-1] as $prefix | ($v | startswith($prefix)) | not else . != $v end)))' 'true)))'
 reviewer_drift reviewer-backend-trusted-branches-unstated 'so run such a backend only on branches whose contents you trust.' 'so run it anywhere.'
 for lockdown in '.env.CUBIC_PERMISSION = "{\"bash\":\"allow\",\"webfetch\":\"deny\",\"edit\":\"deny\"}"' \
   '.env.CUBIC_PERMISSION = "{\"bash\":\"deny\",\"edit\":\"deny\"}"' \

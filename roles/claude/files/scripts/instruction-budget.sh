@@ -30,7 +30,7 @@ roles/claude/files/CLAUDE.md                               1959   2250   2750
 CLAUDE.md                                                  1591   2000   2500
 roles/claude/files/skills/bot-review/SKILL.md              5951   6250   6750
 roles/claude/files/skills/code-review/SKILL.md             4048   4500   5000
-roles/claude/files/skills/panel-review/reviewer-backend.md 7419   7750   8250
+roles/claude/files/skills/panel-review/reviewer-backend.md 7423   7750   8250
 roles/claude/files/skills/panel-review/SKILL.md            2801   3250   3750
 roles/claude/files/skills/peer-review/SKILL.md             952    1250   1750
 roles/claude/files/skills/review-shared/backends.md        1559   2000   2500

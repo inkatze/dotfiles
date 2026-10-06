@@ -1010,7 +1010,7 @@ reviewer_backend_checks=(
   '[ ! -L "$wanted" ] && [ -d "$wanted" ] && [ -O "$wanted" ] && [ -r "$wanted" ] && [ -x "$wanted" ] || {'
   '[ -z "$value_pattern" ] || [[ "$val" =~ $value_pattern ]] \'
   '[ -z "$value_pattern" ] || [[ "${pair#*=}" =~ $value_pattern ]] \'
-  'if endswith("*") then ($v | startswith(.[:-1])) | not else . != $v end)))'
+  'if endswith("*") then .[:-1] as $prefix | ($v | startswith($prefix)) | not else . != $v end)))'
   '      1) mise_env+=("$v=$val") ;;'
   '  done <<< "$(compgen -e)"'
   '    done <<< "$home_rules"'$'\n''  }'$'\n''  check_home_state || exit 1'$'\n''  get() {'

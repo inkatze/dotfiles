@@ -435,6 +435,14 @@ for refused_name in CUBIC_EXPERIMENTAL XDG_CONFIG_HOME XDG_DATA_HOME; do
   run_snippet
   expect_refused "env_allow naming $refused_name refused" "cli.env_allow_refuse"
 done
+new_case
+edit_cfg '.reviewers.cubic.cli.env_allow += ["LANG"]'
+run_snippet
+if [ "$rc" -eq 0 ] && [ -e "$sandbox/seen-node" ]; then
+  ok "env_allow naming a variable no refusal pattern covers still runs"
+else
+  ko "env_allow naming a variable no refusal pattern covers still runs (rc=$rc, err=$err)"
+fi
 for bad in '.require_empty = ["relative/x"]' '.require_empty = ["~/a/../b"]' '.require_json = {"~/x": 1}' '.require_only = {"~/x": ["a/b"]}' \
   '.require_json_if_present = {"relative": "true"}'; do
   new_case

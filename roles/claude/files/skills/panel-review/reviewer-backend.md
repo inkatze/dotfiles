@@ -207,7 +207,7 @@ reviewer CLI, configured under `reviewers.<name>.cli` in the machine-local
           or IN("SHELLOPTS", "BASHOPTS", "BASH_ENV", "ENV", "PS4", "IFS")) | not))
         and ($c.env_allow_refuse // [] | type == "array" and all(.[]; type == "string" and test("\\A[A-Za-z_][A-Za-z0-9_]*\\*?\\z")))
         and ($allow - $files | all(.[]; . as $v | ($c.env_allow_refuse // []) | all(.[];
-          if endswith("*") then ($v | startswith(.[:-1])) | not else . != $v end)))
+          if endswith("*") then .[:-1] as $prefix | ($v | startswith($prefix)) | not else . != $v end)))
         and ($c.value_patterns // {} | type == "object" and all(to_entries[];
           (.key as $k | $files + $fixed | index($k) != null) and (.value | type == "string" and . != "")))' "$cfg" > /dev/null 2>&1 \
     || { echo "cli.env_files and cli.env must map variable names to one-line strings; every env_files name must be in cli.env_allow and no cli.env name may be; neither may name PATH or HOME, and none of the three a GIT_ or __rb_ variable or a shell's SHELLOPTS, BASHOPTS, BASH_ENV, ENV, PS4 or IFS; env_allow may name nothing cli.env_allow_refuse matches unless env_files supplies it; value_patterns names only env_files or env names" >&2; exit 1; }
