@@ -6,6 +6,8 @@
 #
 # Input: {reviews, issue_comments, review_comments}, each the flat array the
 # REST endpoint returns. $cfg is one reviewer entry of the review config.
+# Order is by time, the id breaking a tie. REST reviews carry no edit time,
+# so a review summary edited in place keeps its submission time.
 
 def _surface_items($cfg):
   "^(?:\($cfg.login_pattern))$" as $login
@@ -44,7 +46,7 @@ def bot_surfaces($cfg):
       | if ($cfg.finding_key_regex // "") == "" then empty
         else $i.body | match($cfg.finding_key_regex; "g") | _value end
       | {surface: $i.surface, id: $i.id, key: ., at: $i.at,
-         key_ok: test("^[A-Za-z0-9._:-]{1,128}$")}
+         key_ok: test("\\A[A-Za-z0-9._:-]{1,128}\\z")}
         + (if $i.surface == "review_comment"
            then {path: $i.path, original_line: $i.original_line,
                  original_commit_id: $i.original_commit_id}
@@ -68,10 +70,10 @@ def bot_surfaces($cfg):
       # run marker, or carries it with no clean summary of that run after it,
       # so a later clean run, or a clean retry of the same one, clears it.
       errored: ($error != null
-        and ($build == null or $error.at >= $build.at
+        and ($build == null or [$error.at, $error.id] >= [$build.at, $build.id]
              or (([$error.body | match($cfg.build_id_regex; "g") | _value] | index([$build.value])) != null
                  and ([($reviews + $issue)[]
-                       | select(.at > $error.at and (.body | test($err) | not)
+                       | select([.at, .id] > [$error.at, $error.id] and (.body | test($err) | not)
                                 and ([.body | match($cfg.build_id_regex; "g") | _value] | index([$build.value])) != null)]
                       | length) == 0))),
       findings: $findings

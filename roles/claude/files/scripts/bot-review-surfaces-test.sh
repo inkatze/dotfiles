@@ -138,6 +138,17 @@ out="$(surfaces \
   "[{\"id\": 38, \"user\": $bot, \"updated_at\": \"2026-01-01T00:01:00Z\", \"path\": \"e.sh\", \"original_line\": 1,
      \"original_commit_id\": \"$HEAD_A\", \"body\": \"<!-- acme:run=6 -->\"}]")"
 check errored-same-run-retried "$out" '.errored == false'
+# A clean summary of the same run in the same second, posted after the error.
+out="$(surfaces \
+  "[{\"id\": 28, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:00Z\", \"body\": \"acme:run=9 unable to review\"},
+    {\"id\": 29, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:00Z\", \"body\": \"acme:run=9 All good.\"}]" '[]' '[]')"
+check errored-same-second "$out" '.errored == false'
+# A key ending in a newline is not a safe key.
+CFG_SAVED="$CFG"
+CFG="$(jq '.finding_key_regex = "<!-- key:([^>-]+)-->"' <<< "$CFG")"
+out="$(surfaces "[{\"id\": 30, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:05Z\", \"body\": \"<!-- key:abc\\n-->\"}]" '[]' '[]')"
+check key-trailing-newline "$out" '.findings[0].key == "abc\n" and .findings[0].key_ok == false'
+CFG="$CFG_SAVED"
 
 # A key repeated across summaries is one description-level finding, the latest.
 out="$(surfaces \
