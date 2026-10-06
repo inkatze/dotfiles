@@ -170,7 +170,7 @@ reviewer_drift reviewer-backend-tool-dirs-keep-repo-dirs \
   $'in_repo "$dir"; [ "$?" -eq 1 ] || continue\n    cli_path=' $':\n    cli_path='
 reviewer_drift reviewer-backend-snippet-path-unfiltered '  PATH="$safe_path"' '  :'
 reviewer_drift reviewer-backend-cli-path-unfiltered 'env_kept=("PATH=$safe_path")' 'env_kept=("PATH=$PATH")'
-reviewer_drift reviewer-backend-no-tool-probe 'for tool in realpath jq printenv git; do' 'for tool in; do'
+reviewer_drift reviewer-backend-no-tool-probe 'for tool in realpath jq printenv git find; do' 'for tool in; do'
 reviewer_drift reviewer-backend-tools-checked-after-first-git $'check_tools by-path || exit 1\n  top=' $'top='
 reviewer_drift reviewer-backend-tools-unresolved-on-filtered-path '[ "$how" != resolved ] || tool_real=' 'true || tool_real='
 reviewer_drift reviewer-backend-binary-unresolved 'bin_real="$(realpath "$bin_abs")" ||' 'bin_real="$bin_abs" ||'
@@ -196,7 +196,7 @@ reviewer_drift reviewer-backend-key-file-bypasses-allow 'and ($files - $allow | 
 reviewer_drift reviewer-backend-fixed-env-replaces-path 'and ($files + $fixed | all(.[]; . != "PATH" and . != "HOME"))' 'and true'
 reviewer_drift reviewer-backend-env-names-git '(startswith("GIT_") or startswith("__rb_")' '(false'
 reviewer_drift reviewer-backend-env-names-shell 'or IN("SHELLOPTS", "BASHOPTS", "BASH_ENV", "ENV", "PS4", "IFS")) | not))' ') | not))'
-reviewer_drift reviewer-backend-mise-sees-tokens 'case "$v" in MISE_*_DIR|XDG_*_HOME) val=' 'case "$v" in *) val='
+reviewer_drift reviewer-backend-mise-sees-tokens 'case "$v" in MISE_*_DIR|XDG_*_HOME) ;; *) continue ;; esac' 'case "$v" in *) ;; esac'
 reviewer_drift reviewer-backend-findings-exit-any-code 'for code in $findings_codes; do [ "$backend_status" -ne "$code" ] || findings_status="$code"; done' 'findings_status="$backend_status"'
 reviewer_drift reviewer-backend-findings-exit-allows-timeout 'and . > 0 and . < 124) then' 'and . > 0) then'
 reviewer_drift reviewer-backend-findings-exit-unnormalised '.[] | floor else error("") end' '.[] else error("") end'
@@ -284,7 +284,14 @@ reviewer_drift reviewer-backend-require-empty-accepts-content '          [ ! -s 
 reviewer_drift reviewer-backend-home-state-unchecked $'    done <<< "$home_rules"\n  }\n  check_home_state || exit 1\n  get() {' $'    done <<< "$home_rules"\n  }\n  get() {'
 reviewer_drift reviewer-backend-home-state-not-at-launch $'  check_refused || exit 1\n  check_home_state || exit 1\n  started=$SECONDS' $'  check_refused || exit 1\n  started=$SECONDS'
 reviewer_drift reviewer-backend-home-state-not-after-run 'elif ! check_home_state 2>/dev/null; then' 'elif false; then'
-reviewer_drift reviewer-backend-require-json-unchecked 'jq -e "$predicate" "$wanted" > /dev/null 2>&1 || {' 'true || {'
+reviewer_drift reviewer-backend-require-json-unchecked 'jq -e -s "length == 1 and (.[0] | ($predicate))" "$wanted" > /dev/null 2>&1' 'true'
+reviewer_drift reviewer-backend-require-json-if-present-skipped '[ -e "$wanted" ] || [ -L "$wanted" ] || continue' 'continue'
+reviewer_drift reviewer-backend-pattern-compile-unchecked '[[ "" =~ $value_pattern ]]' 'true'
+reviewer_drift reviewer-backend-require-only-unlisted 'listing="$(find "$wanted" -mindepth 1 -maxdepth 1 -print)" || {' 'listing="" || {'
+reviewer_drift reviewer-backend-require-only-unreadable '[ -r "$wanted" ] && [ -x "$wanted" ] || {' 'true || {'
+reviewer_drift reviewer-backend-mise-dir-in-repo '      0) echo "$v ($val) is inside the repo under review; refusing to hand it to mise" >&2; exit 1 ;;' '      0) ;;'
+reviewer_drift reviewer-backend-mise-dirs-dropped '  done <<< "$(compgen -e)"' '  done <<< ""'
+reviewer_drift reviewer-backend-find-unchecked 'for tool in realpath jq printenv git find; do' 'for tool in realpath jq printenv git; do'
 reviewer_drift reviewer-backend-require-only-unchecked 'jq -e --arg e "$entry" '"'"'.[2:] | index($e) != null'"'"' <<< "$rule" > /dev/null || {' 'true || {'
 reviewer_drift reviewer-backend-key-pattern-unchecked '[ -z "$value_pattern" ] || [[ "$val" =~ $value_pattern ]] \' 'true || [[ "$val" =~ $value_pattern ]] \'
 reviewer_drift reviewer-backend-env-allow-refuse-ignored 'if endswith("*") then ($v | startswith(.[:-1])) | not else . != $v end)))' 'true)))'
@@ -295,10 +302,11 @@ for lockdown in '.env.CUBIC_PERMISSION = "{\"bash\":\"allow\",\"webfetch\":\"den
   '.env.CUBIC_CONFIG_CONTENT |= (fromjson | .tools.grep = true | tojson)' \
   '.env.CUBIC_CONFIG_CONTENT |= (fromjson | del(.tools.websearch) | tojson)' \
   '.require_json = {}' '.require_only["~/.config/cubic"] += ["plugin"]' 'del(.value_patterns)' \
-  '.env_allow_refuse -= ["CUBIC_*"]' '.env_allow_refuse -= ["XDG_DATA_HOME"]'; do
+  '.env_allow_refuse -= ["CUBIC_*"]' '.env_allow_refuse -= ["XDG_DATA_HOME"]' \
+  '.env.CUBIC_PERMISSION = "{\"bash\":\"deny\",\"webfetch\":\"deny\"}"' 'del(.require_json_if_present)'; do
   V="$lockdown" F="$SKILLS/bot-review/bot-review.json.tpl" expect_fail "template-lockdown-weakened: $lockdown" \
     'jq ".reviewers.cubic.cli |= ($V)" "$F" > "$F.new" && mv "$F.new" "$F"' \
-    "the cubic entry must deny bash and webfetch"
+    "the cubic entry must deny bash, webfetch and edit"
 done
 reviewer_drift reviewer-backend-no-egress-consent \
   '6. **Egress consent, once per repo and reviewer (`reviewer:<name>` only).**' '6. **Notes.**'

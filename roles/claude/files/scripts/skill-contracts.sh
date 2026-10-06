@@ -170,16 +170,17 @@ if command -v jq >/dev/null 2>&1; then
   # The cubic review agent keeps no shell or web fetch, starts no language
   # server, and uploads only the empty instruction file the claude role makes.
   if [ -f "$review_tpl" ] && ! jq -e '.reviewers.cubic.cli
-      | (.env.CUBIC_PERMISSION | fromjson | .bash == "deny" and .webfetch == "deny")
+      | (.env.CUBIC_PERMISSION | fromjson | .bash == "deny" and .webfetch == "deny" and .edit == "deny")
         and (.env.CUBIC_CONFIG_CONTENT | fromjson | .lsp | type == "object" and length > 0
           and all(.[]; .disabled == true))
         and (.env.CUBIC_CONFIG_CONTENT | fromjson | .tools | .grep == false and .websearch == false and .codesearch == false)
         and (.require_empty | index("~/.config/cubic/AGENTS.md") != null)
         and (.require_json["~/.local/share/cubic/preferences.json"] == ".preferredProvider == \"cubic\"")
         and (.require_only["~/.config/cubic"] == ["AGENTS.md"])
+        and (.require_json_if_present["~/.local/share/cubic/auth.json"] | type == "string" and contains("wellknown"))
         and (.value_patterns.CUBIC_API_KEY == "^cbk_")
         and (.env_allow_refuse | index("CUBIC_*") != null and index("XDG_CONFIG_HOME") != null and index("XDG_DATA_HOME") != null)' "$review_tpl" >/dev/null 2>&1; then
-    err "$review_tpl: the cubic entry must deny bash and webfetch in CUBIC_PERMISSION, disable its language servers and the grep, websearch and codesearch tools in CUBIC_CONFIG_CONTENT, list ~/.config/cubic/AGENTS.md in require_empty, require cubic's provider in preferences.json, limit ~/.config/cubic to AGENTS.md, hold the key to ^cbk_, and refuse CUBIC_*, XDG_CONFIG_HOME and XDG_DATA_HOME in env_allow"
+    err "$review_tpl: the cubic entry must deny bash, webfetch and edit in CUBIC_PERMISSION, refuse a wellknown login in auth.json, disable its language servers and the grep, websearch and codesearch tools in CUBIC_CONFIG_CONTENT, list ~/.config/cubic/AGENTS.md in require_empty, require cubic's provider in preferences.json, limit ~/.config/cubic to AGENTS.md, hold the key to ^cbk_, and refuse CUBIC_*, XDG_CONFIG_HOME and XDG_DATA_HOME in env_allow"
   fi
   # The cubic CLI loads configuration and plugins from the tree it reviews, so
   # the entry refuses a tree that carries them.
@@ -755,7 +756,7 @@ reviewer_backend_checks=(
   'while [ -n "$x" ]; do [ "$x" -ef "$top" ] && return 0; x="${x%/*}"; done'
   'in_repo "$dir"; [ "$?" -eq 1 ] || continue'$'\n''    safe_path="${safe_path:+$safe_path:}$dir"'
   '[ "$how" != resolved ] || tool_real="$(realpath "$tool_abs")" || return 1'
-  'for tool in realpath jq printenv git; do'
+  'for tool in realpath jq printenv git find; do'
   'check_tools by-path || exit 1'$'\n''  top="$(git rev-parse --show-toplevel)"'
   '  PATH="$safe_path"'$'\n''  mise_bin="$(type -P mise)" || mise_bin=""'$'\n''  check_tools resolved || exit 1'
   '! is_mise_link "$tool_real" || { echo'
@@ -834,7 +835,8 @@ reviewer_backend_checks=(
   'in_repo "$dir"; [ "$?" -eq 1 ] || continue'$'\n''    cli_path="${cli_path:+$cli_path:}$dir"'
   'cli_path="${cli_path:+$cli_path:}$safe_path"'
   'mise_env=("PATH=$safe_path" "HOME=$HOME")'
-  'case "$v" in MISE_*_DIR|XDG_*_HOME) val="$(printenv "$v")" && mise_env+=("$v=$val") ;; esac'
+  'case "$v" in MISE_*_DIR|XDG_*_HOME) ;; *) continue ;; esac'
+  '      0) echo "$v ($val) is inside the repo under review; refusing to hand it to mise" >&2; exit 1 ;;'
   'tool_dirs="$(cd "$HOME" && /usr/bin/env -i "${mise_env[@]}" "$mise_bin" bin-paths)"'
   '|| { echo "mise bin-paths failed from HOME'
   'in_repo "${bin_abs%/*}/"; [ "$?" -eq 1 ] ||'
@@ -860,13 +862,17 @@ reviewer_backend_checks=(
   'elif [ -L "$wanted" ] || [ ! -f "$wanted" ]; then'
   'elif [ ! -O "$wanted" ]; then'
   '[ ! -s "$wanted" ] || {'
-  'jq -e "$predicate" "$wanted" > /dev/null 2>&1 || {'
+  'jq -e -s "length == 1 and (.[0] | ($predicate))" "$wanted" > /dev/null 2>&1'
+  '[ -e "$wanted" ] || [ -L "$wanted" ] || continue'
+  '[[ "" =~ $value_pattern ]]'
   'jq -e --arg e "$entry" '"'"'.[2:] | index($e) != null'"'"' <<< "$rule" > /dev/null || {'
-  'done < <(find "$wanted" -mindepth 1 -maxdepth 1 -print0)'
+  'listing="$(find "$wanted" -mindepth 1 -maxdepth 1 -print)" || {'
+  '[ ! -L "$wanted" ] && [ -d "$wanted" ] && [ -O "$wanted" ] && [ -r "$wanted" ] && [ -x "$wanted" ] || {'
   '[ -z "$value_pattern" ] || [[ "$val" =~ $value_pattern ]] \'
   '[ -z "$value_pattern" ] || [[ "${pair#*=}" =~ $value_pattern ]] \'
   'if endswith("*") then ($v | startswith(.[:-1])) | not else . != $v end)))'
-  '    case "$v" in MISE_*_DIR|XDG_*_HOME) val="$(printenv "$v")" && mise_env+=("$v=$val") ;; esac'$'\n''  done <<< "$(compgen -e)"'
+  '      1) mise_env+=("$v=$val") ;;'
+  '  done <<< "$(compgen -e)"'
   '    done <<< "$home_rules"'$'\n''  }'$'\n''  check_home_state || exit 1'$'\n''  get() {'
   '**The files the CLI reads from your home are checked before the run, at launch and after it.**'
   'so run such a backend only on branches whose contents you trust.'

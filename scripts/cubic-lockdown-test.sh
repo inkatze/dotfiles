@@ -10,8 +10,9 @@
 # as text. The platform package is fetched at the version the tracked mise
 # config pins and checked against the integrity reviewed below, so a version
 # bump fails here until someone re-reads these code paths and updates
-# reviewed_version and reviewed_integrity. Needs network; offline it fails
-# rather than passing unchecked.
+# reviewed_version and reviewed_integrity. A first run needs the network, and
+# offline it fails rather than passing unchecked; later runs use the cached
+# tarball, re-hashed every time.
 set -uo pipefail
 
 reviewed_version="1.14.2"
@@ -41,14 +42,22 @@ pinned="$(sed -n 's/^"npm:@cubic-dev-ai\/cli" = "\([^"]*\)"$/\1/p' "$pins")"
 
 echo "2. the fetched binary is the reviewed one"
 integrity_of() { printf 'sha512-%s' "$(openssl dgst -sha512 -binary "$1" | openssl base64 -A)"; }
-if [ -f "$cached" ] && [ "$(integrity_of "$cached")" = "$reviewed_integrity" ]; then
-  cp "$cached" "$work/pkg.tgz"
-else
+mode_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
+# Only a cache directory of the user's own that nobody else can write is used.
+cache_ok() {
+  local m
+  [ -d "$cache_dir" ] && [ ! -L "$cache_dir" ] && [ -O "$cache_dir" ] || return 1
+  m="00$(mode_of "$cache_dir")"
+  case "${m#"${m%??}"}" in ?[2367] | [2367]?) return 1 ;; esac
+}
+[ -f "$cached" ] && [ ! -L "$cached" ] && cache_ok && cp "$cached" "$work/pkg.tgz"
+if [ ! -f "$work/pkg.tgz" ] || [ "$(integrity_of "$work/pkg.tgz")" != "$reviewed_integrity" ]; then
   curl -fsSL --connect-timeout 10 --max-time 300 -o "$work/pkg.tgz" \
     "https://registry.npmjs.org/@cubic-dev-ai/cli-linux-x64/-/cli-linux-x64-$reviewed_version.tgz" \
-    || die "could not fetch the platform package (offline?); nothing was checked"
-  if [ "$(integrity_of "$work/pkg.tgz")" = "$reviewed_integrity" ] && mkdir -p "$cache_dir"; then
-    cp "$work/pkg.tgz" "$cache_dir/.tgz.$$" && mv -f "$cache_dir/.tgz.$$" "$cached"
+    || die "could not fetch the platform package and no reviewed copy is cached; nothing was checked"
+  if [ "$(integrity_of "$work/pkg.tgz")" = "$reviewed_integrity" ] && (umask 077; mkdir -p "$cache_dir") && cache_ok; then
+    staged="$(mktemp "$cache_dir/.tgz.XXXXXX")" && cp "$work/pkg.tgz" "$staged" && mv -f "$staged" "$cached" \
+      && find "$cache_dir" -maxdepth 1 -name 'cli-linux-x64-*.tgz' ! -name "${cached##*/}" -delete
   fi
 fi
 got="$(integrity_of "$work/pkg.tgz")"
@@ -87,11 +96,17 @@ block_has "a bare \"deny\" for bash becomes {\"*\": \"deny\"}" 'function mergeAg
 block_has "bash is removed when its only rule is \"*\": \"deny\"" 'async function enabled(_providerID, _modelID, agent) {' 8 \
   'if (agent.permission.bash["*"] === "deny" && Object.keys(agent.permission.bash).length === 1) {'
 block_has "webfetch is removed when denied" 'async function enabled(_providerID, _modelID, agent) {' 10 'if (agent.permission.webfetch === "deny") {'
+block_has "edit is removed when denied" 'async function enabled(_providerID, _modelID, agent) {' 5 'if (agent.permission.edit === "deny") {'
+has "write is never enabled" 'result["write"] = false;'
+block_has "the review agent's edit is denied by default" 'const codeReviewPermission = mergeAgentPermissions({' 1 'edit: "deny",'
+block_has "an edit publishes a file-edited event" 'var EditTool = Tool2.define("edit", {' 60 'await Bus.publish(File2.Event.Edited, {'
+block_has "a file-edited event runs the formatters" 'Bus.subscribe(File2.Event.Edited, async (payload) => {' 5 'for (const item of await getFormatter(ext)) {'
+has "one formatter runs bun x prettier --write" 'command: [BunProc.which(), "x", "prettier", "--write", "$FILE"],'
 permission="$(jq -r '.reviewers.cubic.cli.env.CUBIC_PERMISSION' "$tpl")"
-if jq -e '.bash == "deny" and .webfetch == "deny"' <<<"$permission" >/dev/null 2>&1; then
-  ok "the template denies bash and webfetch"
+if jq -e '.bash == "deny" and .webfetch == "deny" and .edit == "deny"' <<<"$permission" >/dev/null 2>&1; then
+  ok "the template denies bash, webfetch and edit"
 else
-  ko "the template's CUBIC_PERMISSION does not deny bash and webfetch: $permission"
+  ko "the template's CUBIC_PERMISSION does not deny bash, webfetch and edit: $permission"
 fi
 
 echo "4. CUBIC_CONFIG_CONTENT turns off grep, web and code search, and every built-in language server"
@@ -151,7 +166,23 @@ else
   ko "the template no longer requires cubic as the provider and a cbk_ key"
 fi
 
-echo "7. global agents, tools and plugins cannot undo the lockdown"
+echo "7. a wellknown login's remote config cannot undo the lockdown"
+block_has "a wellknown login's remote config is merged after CUBIC_CONFIG_CONTENT" \
+  'result = D2(result, JSON.parse(Flag.CUBIC_CONFIG_CONTENT));' 3 'if (value.type === "wellknown") {'
+block_has "that remote config is fetched and merged" 'if (value.type === "wellknown") {' 4 \
+  'result = D2(result, await load(JSON.stringify(wellknown.config ?? {}), process.cwd()));'
+has "a configured agent's permission overrides the global one" 'item.permission = mergeAgentPermissions(cfg.permission ?? {}, permission ?? {});'
+has "logins live in the data directory's auth.json" 'const filepath = path7.join(Global.Path.data, "auth.json");'
+pred="$(jq -r '.reviewers.cubic.cli.require_json_if_present["~/.local/share/cubic/auth.json"] // empty' "$tpl")"
+if [ -n "$pred" ] \
+  && jq -e "$pred" <<<'{"cubic":{"type":"api","key":"x"}}' >/dev/null \
+  && ! jq -e "$pred" <<<'{"https://example.invalid":{"type":"wellknown","key":"K","token":"t"}}' >/dev/null; then
+  ok "the template refuses an auth.json holding a wellknown login and accepts one without"
+else
+  ko "the template's require_json_if_present does not refuse wellknown logins in auth.json"
+fi
+
+echo "8. global agents, tools and plugins cannot undo the lockdown"
 block_has "the global config directory is scanned for agents, modes and plugins" 'const directories2 = [' 2 'Global.Path.config,'
 if [ "$(jq -c '.reviewers.cubic.cli.require_only["~/.config/cubic"]' "$tpl")" = '["AGENTS.md"]' ]; then
   ok "the template lets ~/.config/cubic hold only AGENTS.md"

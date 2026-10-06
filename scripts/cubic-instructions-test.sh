@@ -61,6 +61,12 @@ fi
 reported "is not an empty regular file" && fail quiet "a fresh host was reported" || ok quiet "a fresh host is not reported"
 run_role "$h"
 [ "$(changed)" = 0 ] && ok idempotent "a second run changes nothing" || fail idempotent "a second run reported changed=$(changed)"
+if reported "is not an empty regular file" || reported "whose preferredProvider is" || reported "/cubic holds" \
+  || reported "not yours"; then
+  fail quiet-again "a converged host was reported"
+else
+  ok quiet-again "a converged host reports nothing"
+fi
 
 h="$(fresh_home)"
 mkdir -p "$h/.config/cubic" "$h/.local/share/cubic"
@@ -72,7 +78,7 @@ run_role "$h"
 [ "$(jq -r .preferredProvider "$h/.local/share/cubic/preferences.json")" = claude-code ] \
   && ok kept-prefs "another preferred provider is left as it is" || fail kept-prefs "preferences.json was changed"
 reported "is not an empty regular file" && ok reported "AGENTS.md with content is reported" || fail reported "no report for AGENTS.md"
-reported "does not prefer cubic" && ok reported-prefs "the other provider is reported" || fail reported-prefs "no report for the provider"
+reported "whose preferredProvider is" && ok reported-prefs "the other provider is reported" || fail reported-prefs "no report for the provider"
 reported "holds cubic.json" && ok reported-extra "an extra config entry is reported" || fail reported-extra "no report for cubic.json"
 
 h="$(fresh_home)"
@@ -80,7 +86,7 @@ mkdir -p "$h/.config/cubic/AGENTS.md" "$h/.local/share/cubic"
 printf 'not json\n' >"$h/.local/share/cubic/preferences.json"
 run_role "$h" && ok dir "a directory at AGENTS.md is reported, not fatal"
 reported "is not an empty regular file" || fail dir-report "no report for a directory at AGENTS.md"
-reported "does not prefer cubic" && ok not-json "a preferences.json that is not JSON is reported, not fatal" \
+reported "whose preferredProvider is" && ok not-json "a preferences.json that is not JSON is reported, not fatal" \
   || fail not-json "no report for unparseable preferences"
 
 h="$(fresh_home)"
@@ -90,5 +96,16 @@ ln -s "$h/elsewhere" "$h/.config/cubic/AGENTS.md"
 run_role "$h"
 [ -L "$h/.config/cubic/AGENTS.md" ] && ok link "a symlinked AGENTS.md is left alone" || fail link "the symlink was replaced"
 reported "is not an empty regular file" && ok link-report "a symlinked AGENTS.md is reported" || fail link-report "no report for the symlink"
+
+h="$(fresh_home)"
+mkdir -p "$h/.local/share/cubic" "$h/real-config" "$h/.config"
+ln -s "$h/real-config" "$h/.config/cubic"
+printf '{"x":{"preferredProvider":"cubic"}}\n' >"$h/.local/share/cubic/preferences.json"
+run_role "$h"
+[ ! -e "$h/real-config/AGENTS.md" ] && ok link-dir "nothing is written through a symlinked config directory" \
+  || fail link-dir "AGENTS.md was written through the symlink"
+reported "not yours" && ok link-dir-report "a symlinked config directory is reported" || fail link-dir-report "no report for the symlinked directory"
+reported "whose preferredProvider is" && ok nested "a nested preferredProvider is reported, as the backend refuses it" \
+  || fail nested "no report for a nested preferredProvider"
 
 [ "$fails" -eq 0 ] && echo "cubic-instructions-test: all assertions hold" || { echo "cubic-instructions-test: $fails failed"; exit 1; }

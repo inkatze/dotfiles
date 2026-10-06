@@ -114,9 +114,9 @@ pre-commit:
         scripts/cubic-postinstall-optout-test.sh}"
       run: scripts/cubic-postinstall-optout-test.sh
     cubic-lockdown:
-      # Needs the network: it fetches the pinned cubic binary to read the code
-      # that honours the template's lockdown switches. A version bump fails it
-      # until that code is re-read.
+      # Reads the pinned cubic binary's code for the template's lockdown
+      # switches; the first run needs the network, later runs use a re-hashed
+      # cache. A version bump fails it until that code is re-read.
       glob: "{roles/environments/files/mise.toml,roles/claude/files/skills/bot-review/bot-review.json.tpl,\
         scripts/cubic-lockdown-test.sh}"
       run: scripts/cubic-lockdown-test.sh

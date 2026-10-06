@@ -175,7 +175,7 @@ jobs:
 
       # Fetches the pinned cubic platform binary and reads, without running it,
       # the code that honours the template's lockdown switches; curl, openssl,
-      # tar, strings and jq are all it needs.
+      # tar, tr, grep and jq are all it needs.
       - name: Run the cubic lockdown suite
         run: scripts/cubic-lockdown-test.sh
 

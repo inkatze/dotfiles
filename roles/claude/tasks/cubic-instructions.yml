@@ -10,14 +10,29 @@
 # What exists already is reported, never overwritten or removed: it is someone's
 # own rules or settings. ~/.config and ~/.local/share are used as such, because
 # the backend never passes a relocated config or data home to the CLI.
-- name: Ensure the cubic CLI's config and data directories exist
-  ansible.builtin.file:
+- name: Inspect the cubic CLI's config and data directories
+  ansible.builtin.stat:
     path: "{{ item }}"
-    state: directory
-    mode: "0700"
+    follow: false
   loop:
     - "{{ ansible_facts.env.HOME }}/.config/cubic"
     - "{{ ansible_facts.env.HOME }}/.local/share/cubic"
+  register: claude_cubic_dirs
+  check_mode: false
+  tags: [claude]
+
+# A symlink or someone else's directory is reported below and left alone.
+- name: Ensure the cubic CLI's config and data directories exist
+  ansible.builtin.file:
+    path: "{{ item.item }}"
+    state: directory
+    mode: "0700"
+  loop: "{{ claude_cubic_dirs.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: >-
+    not item.stat.exists
+    or (item.stat.isdir and not item.stat.islnk and item.stat.pw_name == ansible_facts.env.USER)
   tags: [claude]
 
 - name: Inspect the cubic CLI's instruction file and provider settings
@@ -35,26 +50,47 @@
   ansible.builtin.copy:
     content: ""
     dest: "{{ ansible_facts.env.HOME }}/.config/cubic/AGENTS.md"
+    force: false
     mode: "0600"
-  when: not claude_cubic_files.results[0].stat.exists
+  when:
+    - not claude_cubic_files.results[0].stat.exists
+    - claude_cubic_dirs.results[0].stat.exists or not ansible_check_mode
+    - >-
+      not claude_cubic_dirs.results[0].stat.exists
+      or (claude_cubic_dirs.results[0].stat.isdir and not claude_cubic_dirs.results[0].stat.islnk
+          and claude_cubic_dirs.results[0].stat.pw_name == ansible_facts.env.USER)
   tags: [claude]
 
 - name: Prefer cubic's own provider for the cubic CLI
   ansible.builtin.copy:
     content: '{"preferredProvider": "cubic"}'
     dest: "{{ ansible_facts.env.HOME }}/.local/share/cubic/preferences.json"
+    force: false
     mode: "0600"
-  when: not claude_cubic_files.results[1].stat.exists
+  when:
+    - not claude_cubic_files.results[1].stat.exists
+    - claude_cubic_dirs.results[1].stat.exists or not ansible_check_mode
+    - >-
+      not claude_cubic_dirs.results[1].stat.exists
+      or (claude_cubic_dirs.results[1].stat.isdir and not claude_cubic_dirs.results[1].stat.islnk
+          and claude_cubic_dirs.results[1].stat.pw_name == ansible_facts.env.USER)
   tags: [claude]
 
-- name: Read the cubic CLI's existing provider settings
-  ansible.builtin.slurp:
-    src: "{{ ansible_facts.env.HOME }}/.local/share/cubic/preferences.json"
-  register: claude_cubic_preferences
-  when:
-    - claude_cubic_files.results[1].stat.exists
-    - claude_cubic_files.results[1].stat.isreg | default(false)
+# The same test the backend applies, so the role reports exactly what it would
+# refuse; jq prints only true or false, never the file.
+- name: Check that the cubic CLI prefers its own provider
+  ansible.builtin.command:
+    argv:
+      - jq
+      - -e
+      - -s
+      - 'length == 1 and (.[0].preferredProvider == "cubic")'
+      - "{{ ansible_facts.env.HOME }}/.local/share/cubic/preferences.json"
+  register: claude_cubic_prefers
+  changed_when: false
   failed_when: false
+  check_mode: false
+  when: claude_cubic_files.results[1].stat.exists
   tags: [claude]
 
 - name: List the cubic CLI's config directory
@@ -64,6 +100,7 @@
     hidden: true
     excludes: [AGENTS.md]
   register: claude_cubic_config_entries
+  when: claude_cubic_dirs.results[0].stat.exists
   tags: [claude]
 
 - name: Report cubic CLI files reviewer:cubic will refuse to run with
@@ -71,23 +108,34 @@
     msg: "{{ claude_cubic_problems }}"
   vars:
     claude_cubic_agents: "{{ claude_cubic_files.results[0].stat }}"
-    claude_cubic_prefs: "{{ claude_cubic_files.results[1].stat }}"
+    claude_cubic_prefs_stat: "{{ claude_cubic_files.results[1].stat }}"
+    claude_cubic_odd_dirs: >-
+      {{ (claude_cubic_dirs.results | selectattr('stat.exists') | rejectattr('stat.isdir')
+            | map(attribute='item') | list)
+         + (claude_cubic_dirs.results | selectattr('stat.exists') | selectattr('stat.islnk')
+            | map(attribute='item') | list)
+         + (claude_cubic_dirs.results | selectattr('stat.exists')
+            | rejectattr('stat.pw_name', 'equalto', ansible_facts.env.USER)
+            | map(attribute='item') | list) }}
     claude_cubic_agents_msg: >-
       ~/.config/cubic/AGENTS.md is not an empty regular file; the cubic CLI would upload it, so move its
       content elsewhere and empty it
-    claude_cubic_extra: "{{ claude_cubic_config_entries.files | map(attribute='path') | map('basename') | join(', ') }}"
-    # A text match, so a file that is not JSON is reported rather than failing the play.
-    claude_cubic_prefers_cubic: >-
-      {{ (claude_cubic_preferences.content | default('') | b64decode)
-         is search('"preferredProvider"\s*:\s*"cubic"') }}
+    claude_cubic_prefs_msg: >-
+      ~/.local/share/cubic/preferences.json is not a regular file holding one JSON document whose
+      preferredProvider is "cubic"; fix it so the review stays on cubic's own provider
+    claude_cubic_extra: >-
+      {{ (claude_cubic_config_entries.files | default([])) | map(attribute='path') | map('basename') | join(', ') }}
     claude_cubic_problems: >-
-      {{ ([] if not claude_cubic_agents.exists
-            or (claude_cubic_agents.isreg and not claude_cubic_agents.islnk and claude_cubic_agents.size == 0)
-          else [claude_cubic_agents_msg])
-         + ([] if not claude_cubic_prefs.exists
-              or claude_cubic_prefers_cubic | bool
-            else ['~/.local/share/cubic/preferences.json does not prefer cubic; set "preferredProvider" to "cubic"'])
-         + ([] if claude_cubic_config_entries.matched == 0
+      {{ (['these are a symlink, not a directory, or not yours: ' ~ (claude_cubic_odd_dirs | unique | join(', '))]
+            if claude_cubic_odd_dirs | length > 0 else [])
+         + ([] if not claude_cubic_agents.exists
+              or (claude_cubic_agents.isreg and not claude_cubic_agents.islnk and claude_cubic_agents.size == 0)
+            else [claude_cubic_agents_msg])
+         + ([] if not claude_cubic_prefs_stat.exists
+              or (claude_cubic_prefs_stat.isreg and not claude_cubic_prefs_stat.islnk
+                  and (claude_cubic_prefers.rc | default(1)) == 0)
+            else [claude_cubic_prefs_msg])
+         + ([] if (claude_cubic_config_entries.matched | default(0)) == 0
             else ['~/.config/cubic holds ' ~ claude_cubic_extra ~ ', which the cubic CLI would load; move it out']) }}
   when: claude_cubic_problems | length > 0
   tags: [claude]

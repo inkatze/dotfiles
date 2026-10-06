@@ -38,7 +38,8 @@ ko() { echo "  FAIL: $1"; fail=$((fail + 1)); }
 scratch="$(mktemp -d)" || exit 1
 work="$(cd -- "$scratch" && pwd -P)" || exit 1
 case "$work" in / | "$root" | "$root"/*) echo "reviewer-backend-test: refusing scratch directory $work"; exit 1 ;; esac
-trap 'rm -rf "$work"' EXIT
+# A case leaves a directory it cannot list, so permissions come back before the removal.
+trap 'chmod -R u+rwx "$work" 2>/dev/null; rm -rf "$work"' EXIT
 
 # The first ```bash block, de-indented: the snippet the agent transcribes.
 snippet_src="$work/snippet.src"
@@ -304,6 +305,8 @@ ln -s "$sandbox/mise-bin/mise" "$home/md/shims/node"
 session_env=(MISE_DATA_DIR="$home/md")
 session_path="$home/md/shims:$sandbox/mise-bin:$host_dirs"
 run_snippet
+grep -qx "MISE_DATA_DIR=$home/md" "$sandbox/seen-mise-env" && ok "mise gets the session's MISE_DATA_DIR" || ko "mise did not get the session's MISE_DATA_DIR"
+grep -q '^MISE_DATA_DIR=' "$sandbox/seen-env" && ko "the CLI got MISE_DATA_DIR" || ok "the CLI does not get MISE_DATA_DIR"
 case ":$(seen PATH):" in
   *":$home/md/shims:"*) ko "a relocated MISE_DATA_DIR's shims stayed on the CLI's PATH" ;;
   *) [ "$rc" -eq 0 ] && ok "a relocated MISE_DATA_DIR's shims are stripped" || ko "relocated MISE_DATA_DIR run (rc=$rc, err=$err)" ;;
@@ -367,6 +370,17 @@ else
   ko "a listed path created during the run is named (rc=$rc, err=$err)"
 fi
 
+echo "8c2. a login that is not wellknown passes, and leaks nothing"
+new_case
+printf '{"cubic":{"type":"api","key":"placeholder-secret-value"}}\n' >"$home/.local/share/cubic/auth.json"
+chmod 600 "$home/.local/share/cubic/auth.json"
+run_snippet
+[ "$rc" -eq 0 ] && ok "an auth file with no wellknown login passes" || ko "an auth file with no wellknown login passes (rc=$rc, err=$err)"
+new_case
+printf '{"https://example.invalid":{"type":"wellknown","key":"PLACEHOLDER","token":"placeholder-secret-value"}}\n' >"$home/.local/share/cubic/auth.json"
+run_snippet
+grep -q placeholder-secret-value <<<"$err$out" && ko "auth.json contents reached the output" || ok "auth.json contents never reach the output"
+
 echo "8d. the files in HOME the CLI reads on its own"
 # home_case <label> <setup command> <message fragment>
 home_case() {
@@ -386,7 +400,15 @@ home_case "a symlinked instruction file stops the run" \
 home_case "missing provider settings stop the run" 'rm "$home/.local/share/cubic/preferences.json"' "preferences.json, which is missing"
 home_case "another preferred provider stops the run" \
   'printf "{\"preferredProvider\":\"claude-code\"}\n" >"$home/.local/share/cubic/preferences.json"' 'to satisfy .preferredProvider == "cubic"'
-home_case "unparseable provider settings stop the run" 'echo "{" >"$home/.local/share/cubic/preferences.json"' "to satisfy"
+home_case "unparseable provider settings stop the run" 'echo "{" >"$home/.local/share/cubic/preferences.json"' "could not apply"
+home_case "a second document in the provider settings stops the run" \
+  'printf "{\"preferredProvider\":\"x\"} {\"preferredProvider\":\"cubic\"}\n" >"$home/.local/share/cubic/preferences.json"' "to satisfy"
+home_case "a wellknown login stops the run" \
+  'printf "{\"https://example.invalid\":{\"type\":\"wellknown\",\"key\":\"PLACEHOLDER\",\"token\":\"placeholder-token\"}}\n" >"$home/.local/share/cubic/auth.json"' "auth.json to satisfy"
+home_case "a symlinked auth file stops the run" 'ln -s /dev/null "$home/.local/share/cubic/auth.json"' "auth.json to be a regular file"
+home_case "an unreadable config directory stops the run" 'chmod 300 "$home/.config/cubic"' "that you can list"
+home_case "a missing config directory stops the run" \
+  'rm -r "$home/.config/cubic"; edit_cfg ".reviewers.cubic.cli.require_empty = []"' "config/cubic, which is missing"
 home_case "a global config file beside AGENTS.md stops the run" 'echo "{}" >"$home/.config/cubic/cubic.json"' "holds cubic.json"
 home_case "a global plugin directory stops the run" 'mkdir "$home/.config/cubic/plugin"' "holds plugin"
 home_case "a hidden entry there stops the run" 'touch "$home/.config/cubic/.hidden"' "holds .hidden"
@@ -398,17 +420,33 @@ for refused_name in CUBIC_EXPERIMENTAL XDG_CONFIG_HOME XDG_DATA_HOME; do
   run_snippet
   expect_refused "env_allow naming $refused_name refused" "cli.env_allow_refuse"
 done
-for bad in '.require_empty = ["relative/x"]' '.require_empty = ["~/a/../b"]' '.require_json = {"~/x": 1}' '.require_only = {"~/x": ["a/b"]}'; do
+for bad in '.require_empty = ["relative/x"]' '.require_empty = ["~/a/../b"]' '.require_json = {"~/x": 1}' '.require_only = {"~/x": ["a/b"]}' \
+  '.require_json_if_present = {"relative": "true"}'; do
   new_case
   edit_cfg ".reviewers.cubic.cli |= ($bad)"
   run_snippet
   expect_refused "malformed home rule refused: $bad" "must name absolute or ~/ paths"
 done
+for bad in '.value_patterns.CUBIC_API_KEY = "("' '.value_patterns.UNLISTED = "x"' '.value_patterns.CUBIC_API_KEY = ""' \
+  '.env_allow_refuse = ["A*B"]' '.env_allow_refuse = [1]'; do
+  new_case
+  edit_cfg ".reviewers.cubic.cli |= ($bad)"
+  run_snippet
+  if [ "$rc" -ne 0 ] && [ ! -e "$sandbox/seen-node" ] && grep -qE "cli.value_patterns|cli.env_files and cli.env must map" <<<"$err"; then
+    ok "malformed pattern rule refused: $bad"
+  else
+    ko "malformed pattern rule refused: $bad (rc=$rc, err=$err)"
+  fi
+done
+new_case
+edit_cfg '.reviewers.cubic.cli |= (.env.CUBIC_PROBE = "wrong" | .value_patterns.CUBIC_PROBE = "^right")'
+run_snippet
+expect_refused "a fixed value not matching its pattern" "cli.env.CUBIC_PROBE does not match ^right"
 new_case
 # The fake CLI writes into the instruction file while it runs.
 sed -i.bak "s|^env >\"$sandbox/seen-env\"|echo changed >\"$home/.config/cubic/AGENTS.md\"; env >\"$sandbox/seen-env\"|" "$sandbox/tools/node/bin/node"
 run_snippet
-if [ "$rc" -ne 0 ] && grep -qF "changed while the reviewer CLI ran" <<<"$err"; then
+if [ "$rc" -ne 0 ] && grep -qF "guards changed while the reviewer CLI ran" <<<"$err"; then
   ok "an instruction file changed during the run is named"
 else
   ko "an instruction file changed during the run is named (rc=$rc, err=$err)"
