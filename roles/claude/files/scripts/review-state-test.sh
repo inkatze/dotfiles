@@ -623,7 +623,6 @@ printf 'x\n' | "$H" inbox send --to "$gamma" --from eta > /dev/null 2>&1 && rc=0
 # The holder's messaging socket is a listener this suite starts under its own
 # scratch directory, never a live session's.
 mkdir -p "$tmp/s"
-sock="$tmp/s/h.sock"
 heard="$tmp/s/heard"
 # listen <socket> <file>: accept one connection and copy what it sends.
 listen() {
@@ -636,9 +635,13 @@ listen() {
   bg_pids+=("$!")
   local n=0
   until [ -S "$1" ] || [ "$n" -ge 200 ]; do sleep 0.05; n=$((n + 1)); done
+  [ -S "$1" ] || { echo "review-state-test: the scratch listener at $1 never bound"; exit 1; }
 }
-listen "$sock" "$heard"
 start_session holder
+# Claude Code names a session's socket after its process.
+hpid="$(cat "$tmp/holder.pid")"
+sock="$tmp/s/$hpid.sock"
+listen "$sock" "$heard"
 live holder "CLAUDE_CODE_MESSAGING_SOCKET='$sock' \"\$H\" register --name holder --skill panel-review --repo o/r --pr 21 --worktree /w/h"
 hold="$(out_of holder)"
 "$H" sessions | jq -e -s --arg t "$hold" --arg s "$sock" 'map(select(.token == $t)) | .[0].socket == $s' > /dev/null \
@@ -684,10 +687,17 @@ qfile="$(printf 'x\n' | "$H" inbox send --to "$quiet" --from sender)"
 "$H" inbox nudge --to "$quiet" --from sender --path "$qfile" > /dev/null 2> "$tmp/nudge.err" && rc=0 || rc=$?
 [ "$rc" = 1 ] && grep -q 'no messaging socket' "$tmp/nudge.err" \
   || fail nudge-no-socket "a nudge to a session that registered no socket did not exit 1 naming why (got $rc)"
-ln -s "$sock" "$tmp/s/link.sock"
-live holder "CLAUDE_CODE_MESSAGING_SOCKET='$tmp/s/link.sock' \"\$H\" register --name linked --skill bot-review --repo o/r --pr 23 --worktree /w/l"
-"$H" sessions | jq -e -s --arg t "$(out_of holder)" 'map(select(.token == $t)) | .[0] | has("socket") | not' > /dev/null \
+mkdir -p "$tmp/s2"
+ln -s "$sock" "$tmp/s2/$hpid.sock"
+live holder "CLAUDE_CODE_MESSAGING_SOCKET='$tmp/s2/$hpid.sock' \"\$H\" register --name linked --skill bot-review --repo o/r --pr 23 --worktree /w/l"
+jq -e 'has("socket") | not' "$REVIEW_STATE_ROOT/sessions/$(out_of holder).json" > /dev/null \
   || fail registry-socket-symlink "a symlinked messaging socket was recorded"
+# A socket named for another process is a parent session's, inherited.
+listen "$tmp/s/1.sock" "$tmp/s/parent.heard"
+live holder "CLAUDE_CODE_MESSAGING_SOCKET='$tmp/s/1.sock' \"\$H\" register --name child --skill bot-review --repo o/r --pr 25 --worktree /w/c"
+jq -e 'has("socket") | not' "$REVIEW_STATE_ROOT/sessions/$(out_of holder).json" > /dev/null \
+  && grep -q 'not recording' "$tmp/holder.err" \
+  || fail registry-socket-inherited "a socket named for another process was recorded as this session's"
 in_session "HOME='$tmp' \"\$H\" register --name bare --skill bot-review --repo o/r --pr 24 --worktree /w/b > '$tmp/bare.sess'"
 jq -e 'has("socket") | not' "$REVIEW_STATE_ROOT/sessions/$(cat "$tmp/bare.sess").json" > /dev/null \
   || fail registry-socket-unset "a registration with no messaging socket in its environment recorded one"

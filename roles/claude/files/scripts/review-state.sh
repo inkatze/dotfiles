@@ -294,15 +294,28 @@ registration_file() {
   REG="$DIR/$token.json"
 }
 
+# own_socket <path>: this user's own socket, at an absolute path.
+own_socket() {
+  local sock="$1"
+  case "$sock" in /*) ;; *) return 1 ;; esac
+  case "$sock" in *[[:cntrl:]]*) return 1 ;; esac
+  [ "${#sock}" -le 256 ] && [ ! -L "$sock" ] && [ -S "$sock" ] && [ -O "$sock" ]
+}
+
 # The session's messaging socket, recorded so a peer whose session message
-# cannot reach it can still nudge it. Anything but this user's own socket at an
-# absolute path is left out rather than refused: the nudge is never required.
+# cannot reach it can still nudge it. A session that bound no socket of its
+# own still inherits its parent's variable, and Claude Code names each
+# session's socket after its process, so only one carrying this session's pid
+# is recorded. Anything else is left out rather than refused: the nudge is
+# never required.
 messaging_socket() {
   local sock="${CLAUDE_CODE_MESSAGING_SOCKET:-}"
   SOCK=""
-  case "$sock" in /*) ;; *) return 0 ;; esac
-  case "$sock" in *[[:cntrl:]]*) return 0 ;; esac
-  [ "${#sock}" -le 256 ] && [ ! -L "$sock" ] && [ -S "$sock" ] && [ -O "$sock" ] || return 0
+  [ -n "$sock" ] || return 0
+  if [ "${sock##*/}" != "$SESSION_PID.sock" ] || ! own_socket "$sock"; then
+    note "not recording $sock as this session's messaging socket; peers will rely on its inbox alone"
+    return 0
+  fi
   SOCK="$sock"
 }
 
@@ -820,7 +833,7 @@ cmd_inbox() {
         note "session $opt_to registered no messaging socket; no nudge sent, the inbox file is the record"
         return 1
       fi
-      if [ -L "$sock" ] || [ ! -S "$sock" ] || [ ! -O "$sock" ]; then
+      if ! own_socket "$sock"; then
         note "$sock is not this user's socket; no nudge sent"
         return 1
       fi
