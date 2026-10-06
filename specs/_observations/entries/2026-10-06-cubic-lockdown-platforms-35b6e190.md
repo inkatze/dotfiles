@@ -1,0 +1,1 @@
+- 2026-10-06 [dotfiles] scripts/cubic-lockdown-test.sh reads only the linux-x64 build of the pinned cubic CLI, while mise installs the macOS or ARM build on other hosts; those are separate per-platform binaries, so the lockdown is unverified for them. Pinning each platform package integrity and testing the host platform would close it.

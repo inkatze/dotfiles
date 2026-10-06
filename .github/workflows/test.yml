@@ -71,7 +71,12 @@ jobs:
       - name: Run the mise global config suite
         run: scripts/mise-global-config-test.sh
 
-      # Needs ansible-playbook, which this job installs, and jq.
+      # macOS ships no timeout; without gtimeout the suite skips its FIFO case,
+      # which bounds a play that would hang on a FIFO.
+      - name: Install GNU coreutils for gtimeout
+        run: brew install coreutils
+
+      # Needs ansible-playbook, which this job installs, jq, and gtimeout.
       - name: Run the cubic instruction-file suite
         run: scripts/cubic-instructions-test.sh
 
