@@ -704,6 +704,20 @@ qfile="$(printf 'x\n' | "$H" inbox send --to "$quiet" --from sender)"
 [ "$rc" = 1 ] && grep -q 'no messaging socket' "$tmp/nudge.err" \
   || fail nudge-no-socket "a nudge to a session that registered no socket did not exit 1 naming why (got $rc)"
 mkdir -p "$tmp/s2"
+# A holder that unregistered, or whose registration cannot be read, is gone:
+# the nudge exits 1 so the handoff carries on.
+"$H" inbox nudge --to 123-456-deadbeef --from sender --path "$REVIEW_STATE_ROOT/inbox/123-456-deadbeef/1-00000000.md" > /dev/null 2> "$tmp/nudge.err" && rc=0 || rc=$?
+[ "$rc" = 1 ] && grep -q 'no registered session' "$tmp/nudge.err" \
+  || fail nudge-unregistered "a nudge to a session with no registration did not exit 1 (got $rc)"
+chmod 000 "$REVIEW_STATE_ROOT/sessions/$quiet.json"
+if [ -r "$REVIEW_STATE_ROOT/sessions/$quiet.json" ]; then
+  echo "NOTE nudge-unreadable-registration: running as a user who reads mode-000 files; case skipped"
+else
+  "$H" inbox nudge --to "$quiet" --from sender --path "$qfile" > /dev/null 2> "$tmp/nudge.err" && rc=0 || rc=$?
+  [ "$rc" = 1 ] && grep -q 'unregistered while' "$tmp/nudge.err" \
+    || fail nudge-unreadable-registration "a nudge whose registration vanished mid-call did not exit 1 (got $rc)"
+fi
+chmod 600 "$REVIEW_STATE_ROOT/sessions/$quiet.json"
 ln -s "$sock" "$tmp/s2/$hpid.sock"
 live holder "CLAUDE_CODE_MESSAGING_SOCKET='$tmp/s2/$hpid.sock' \"\$H\" register --name linked --skill bot-review --repo o/r --pr 23 --worktree /w/l"
 jq -e 'has("socket") | not' "$REVIEW_STATE_ROOT/sessions/$(out_of holder).json" > /dev/null \

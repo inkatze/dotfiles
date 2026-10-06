@@ -203,7 +203,9 @@ naming that file, written into the socket the holder registered and read there
 as a user turn, so `--from` is a plain name (letters, digits, `.`, `_`, `-`)
 and the line only describes. It names only an unread, regular file in that
 holder's own inbox, and exits 1, delivering nothing, when that file has gone,
-the holder is gone, registered no socket, or its socket does not answer.
+the holder is gone or unregistered (even mid-call), registered no socket that
+is still this user's own, its socket does not answer, or `perl` is missing.
+Exit 0 means the line was written, not that the holder read it.
 
 ## In a run
 
