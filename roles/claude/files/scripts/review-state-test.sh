@@ -333,8 +333,8 @@ rm -rf "$repo/.claude/review-evidence/$k1"
 mkdir -p sub
 "$H" evidence run --command 'mise run lint' -- sh -c 'echo first skill' > /dev/null 2>&1 \
   || fail cross-skill-record "the first skill's run failed"
-(cd sub && "$H" evidence lookup --command 'mise run lint') > "$tmp/cross.out" 2>&1 \
-  || fail cross-skill-hit "a second skill's lookup on the same tree missed: $(cat "$tmp/cross.out")"
+(cd sub && "$H" evidence lookup --command 'mise run lint') > "$tmp/cross.out" 2> "$tmp/cross.err" \
+  || fail cross-skill-hit "a second skill's lookup on the same tree missed: $(cat "$tmp/cross.err")"
 [ "$(cat "$(jq -r .output_path "$tmp/cross.out" 2>/dev/null)" 2>/dev/null)" = 'first skill' ] \
   || fail cross-skill-output "the second skill did not get the first skill's output"
 printf 'c\n' > a.txt
@@ -346,35 +346,109 @@ rmdir sub
 
 # --- Tooling in an exported tree (REQ-E1.6, D-15) ------------------------------
 # /code-review exports the pinned head with git archive and runs tooling there,
-# keyed by that commit's own tree; the record lands in the session's worktree.
-export_dir="$tmp/export"
-mkdir -p "$export_dir"
-git archive HEAD | tar -x -C "$export_dir"
+# keyed by that commit's own tree; the record lands in the session's worktree,
+# apart from work-tree runs. The session's tree differs from the export's
+# throughout, so a hit can only come from the --dir record itself.
 htree="$(git rev-parse 'HEAD^{tree}')"
+export_at() { mkdir -p "$1" && git archive HEAD | tar -x -C "$1"; }
+export_dir="$tmp/export"
+export_at "$export_dir"
+printf 'session-only\n' > untracked.txt
 rm -rf "$repo/.claude/review-evidence/$htree"
 out="$("$H" evidence run --command 'lint-export' --tree "$htree" --dir "$export_dir" -- sh -c 'pwd -P; exit 5')" && rc=0 || rc=$?
 [ "$rc" -eq 5 ] || fail dir-run-exit "a --dir run did not pass the command's exit status through (got $rc)"
 [ "$out" = "$export_dir" ] || fail dir-run-cwd "a --dir run did not run in that directory: $out"
-"$H" evidence lookup --command 'lint-export' --tree "$htree" 2>/dev/null | jq -e '.exit == 5 and .source == "local"' > /dev/null \
-  || fail dir-run-record "a --dir run was not recorded under the given tree"
+if entry="$("$H" evidence lookup --command 'lint-export' --tree "$htree" --source export 2>/dev/null)"; then
+  jq -e '.exit == 5 and .source == "export" and .command == "lint-export"' <<< "$entry" > /dev/null \
+    || fail dir-run-fields "the --dir entry does not carry its exit, source and command: $entry"
+  [ "$(cat "$(jq -r .output_path <<< "$entry")")" = "$export_dir" ] || fail dir-run-output "the --dir entry's output is not the run's"
+else
+  fail dir-run-record "a --dir run was not recorded under the given tree"
+fi
+if "$H" evidence lookup --command 'lint-export' --tree "$htree" > /dev/null 2>&1; then
+  fail dir-run-namespace "a work-tree lookup reused a result from an export"
+fi
+if "$H" evidence lookup --command 'lint-export' --source export > /dev/null 2>&1; then
+  fail dir-run-session-tree "an export result matched the session's own, different, tree"
+fi
+"$H" evidence lookup --command 'lint-export' --tree "$htree" --source other > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" -eq 2 ] || fail dir-lookup-source "an unknown --source was not an error (exit $rc)"
 [ -z "$(ls -A "$export_dir/.claude" 2>/dev/null)" ] || fail dir-run-location "a --dir run wrote evidence into the exported tree"
-"$H" evidence run --command 'dir-no-tree' --dir "$export_dir" -- true > /dev/null 2>&1 && rc=0 || rc=$?
-[ "$rc" -eq 2 ] || fail dir-needs-tree "--dir without --tree was not an error (exit $rc)"
+# A work-tree run of the same tree serves an export lookup too.
+"$H" evidence record --command 'shared' --exit 0 --started 1 --ended 2 --tree "$htree" < /dev/null > /dev/null 2>&1 \
+  || fail dir-lookup-local-record "recording a work-tree entry failed"
+"$H" evidence lookup --command 'shared' --tree "$htree" --source export > /dev/null 2>&1 \
+  || fail dir-lookup-takes-local "an export lookup missed a work-tree run of the same tree"
+
+# What the export holds is checked, before and after the run.
+"$H" evidence run --command 'edits-export' --tree "$htree" --dir "$export_dir" -- sh -c 'echo x > made.txt' > /dev/null 2> "$tmp/dir.err" || true
+[[ "$(cat "$tmp/dir.err")" == *"no longer holds tree"* ]] || fail dir-edit-note "an edit to the export was not named: $(cat "$tmp/dir.err")"
+if "$H" evidence lookup --command 'edits-export' --tree "$htree" --source export > /dev/null 2>&1; then
+  fail dir-edit-recorded "a run that edited the export was recorded against the tree it changed"
+fi
+printf '#!/bin/sh\necho probe\n' > "$export_dir/probe.sh"
+chmod +x "$export_dir/probe.sh"
+out="$("$H" evidence run --command 'probe' --tree "$htree" --dir "$export_dir" -- ./probe.sh 2> "$tmp/dir.err")" && rc=0 || rc=$?
+[ "$rc" -eq 0 ] && [ "$out" = probe ] || fail dir-relative-program "a program relative to the export did not run there (exit $rc): $out"
+[[ "$(cat "$tmp/dir.err")" == *"does not hold tree"* ]] || fail dir-mismatch-note "an export that is not the tree was not named: $(cat "$tmp/dir.err")"
+if "$H" evidence lookup --command 'probe' --tree "$htree" --source export > /dev/null 2>&1; then
+  fail dir-mismatch-recorded "a run in an export that is not the tree was recorded"
+fi
+rm -rf "$export_dir"
+export_at "$export_dir"
+# git in the export trusts no repository: not the caller's, not one above it,
+# and not a bare layout planted at its root.
+GIT_DIR="$repo/.git" "$H" evidence run --command 'git-inherited' --tree "$htree" --dir "$export_dir" -- git rev-parse --absolute-git-dir > "$tmp/dir.out" 2>&1 && rc=0 || rc=$?
+[ "$rc" -ne 0 ] && ! grep -qxF "$repo/.git" "$tmp/dir.out" || fail dir-git-inherited "git in the export used the caller's repository: $(cat "$tmp/dir.out")"
+bare_dir="$tmp/bare-export"
+export_at "$bare_dir"
+git init -q --bare "$tmp/bare-src"
+cp -R "$tmp/bare-src/." "$bare_dir/"
+"$H" evidence run --command 'git-bare' --tree "$htree" --dir "$bare_dir" -- git rev-parse --absolute-git-dir > "$tmp/dir.out" 2>&1 && rc=0 || rc=$?
+[ "$rc" -ne 0 ] && ! grep -qxF "$bare_dir" "$tmp/dir.out" || fail dir-git-bare "git in the export trusted a planted bare repository: $(cat "$tmp/dir.out")"
+rm -rf "$bare_dir" "$tmp/bare-src"
+
+# Refusals run nothing and say why.
 mkdir -p "$repo/inside"
-"$H" evidence run --command 'dir-inside' --tree "$htree" --dir "$repo/inside" -- true > /dev/null 2>&1 && rc=0 || rc=$?
-[ "$rc" -eq 2 ] || fail dir-inside-worktree "--dir inside the work tree was not refused (exit $rc)"
 ln -s "$repo/inside" "$tmp/repo-link"
-"$H" evidence run --command 'dir-inside-link' --tree "$htree" --dir "$tmp/repo-link" -- true > /dev/null 2>&1 && rc=0 || rc=$?
-[ "$rc" -eq 2 ] || fail dir-inside-worktree-link "--dir reaching the work tree through a symlink was not refused (exit $rc)"
-rm "$tmp/repo-link"
-"$H" evidence run --command 'dir-holds' --tree "$htree" --dir "$tmp" -- true > /dev/null 2>&1 && rc=0 || rc=$?
-[ "$rc" -eq 2 ] || fail dir-holds-worktree "--dir holding the work tree was not refused (exit $rc)"
-"$H" evidence run --command 'dir-missing' --tree "$htree" --dir "$tmp/no-such-dir" -- true > /dev/null 2>&1 && rc=0 || rc=$?
-[ "$rc" -eq 2 ] || fail dir-missing "a --dir that is not a directory was not an error (exit $rc)"
-for c in dir-no-tree dir-inside dir-inside-link dir-holds dir-missing; do
-  if "$H" evidence lookup --command "$c" --tree "$htree" > /dev/null 2>&1; then fail "dir-refused-recorded-$c" "a refused --dir run was recorded"; fi
-done
-rm -rf "$export_dir" "$repo/inside" "$repo/.claude/review-evidence/$htree"
+refuse_dir() {
+  local name="$1" msg="$2" rc
+  shift 2
+  rm -f "$tmp/ran"
+  "$H" evidence run --command "$name" "$@" -- sh -c "touch '$tmp/ran'" > /dev/null 2> "$tmp/dir.err" && rc=0 || rc=$?
+  [ "$rc" -eq 2 ] || fail "dir-refuse-$name" "not refused (exit $rc)"
+  [[ "$(cat "$tmp/dir.err")" == *"$msg"* ]] || fail "dir-refuse-$name-message" "expected \"$msg\", got: $(cat "$tmp/dir.err")"
+  [ ! -e "$tmp/ran" ] || fail "dir-refuse-$name-ran" "the command ran despite the refusal"
+  if "$H" evidence lookup --command "$name" --tree "$htree" --source export > /dev/null 2>&1; then fail "dir-refuse-$name-recorded" "a refused run was recorded"; fi
+}
+refuse_dir no-tree "needs --tree" --dir "$export_dir"
+refuse_dir relative "must be an absolute path" --tree "$htree" --dir export
+refuse_dir commit-as-tree "is not a tree object" --tree "$(git rev-parse HEAD)" --dir "$export_dir"
+refuse_dir missing "is not a directory" --tree "$htree" --dir "$tmp/no-such-dir"
+refuse_dir worktree "is inside the work tree" --tree "$htree" --dir "$repo"
+refuse_dir inside "is inside the work tree" --tree "$htree" --dir "$repo/inside"
+refuse_dir inside-link "is inside the work tree" --tree "$htree" --dir "$tmp/repo-link"
+refuse_dir holds "holds the work tree" --tree "$htree" --dir "$tmp"
+mkdir "$export_dir/.git"
+refuse_dir dot-git "holds a .git" --tree "$htree" --dir "$export_dir"
+rmdir "$export_dir/.git"
+# A directory beside the work tree whose name extends it is not inside it.
+export_at "$tmp/repo-export"
+"$H" evidence run --command 'prefix-sibling' --tree "$htree" --dir "$tmp/repo-export" -- true > /dev/null 2>&1 \
+  || fail dir-prefix-sibling "a directory whose name extends the work tree's was refused"
+"$H" evidence lookup --command 'prefix-sibling' --tree "$htree" --source export > /dev/null 2>&1 \
+  || fail dir-prefix-sibling-record "a run beside the work tree was not recorded"
+rm -rf "$export_dir" "$tmp/repo-export" "$repo/inside" "$tmp/repo-link" "$repo/.claude/review-evidence/$htree" untracked.txt
+
+# A run killed by a signal or by its timeout says nothing about the tree.
+"$H" evidence run --command 'timed-out' -- timeout 1 sleep 5 > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" -eq 124 ] || fail run-timeout-exit "a timed-out run did not pass 124 through (got $rc)"
+if "$H" evidence lookup --command 'timed-out' > /dev/null 2>&1; then fail run-timeout-recorded "a timed-out run was recorded"; fi
+"$H" evidence run --command 'killed' -- sh -c 'kill -TERM $$' > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" -gt 128 ] || fail run-killed-exit "a killed run did not pass its status through (got $rc)"
+if "$H" evidence lookup --command 'killed' > /dev/null 2>&1; then fail run-killed-recorded "a run killed by a signal was recorded"; fi
+"$H" evidence run --command 'exit-124' -- sh -c 'exit 124' > /dev/null 2>&1 || true
+"$H" evidence lookup --command 'exit-124' > /dev/null 2>&1 || fail run-124-unwrapped "a tool's own exit 124, without timeout, was not recorded"
 
 # --- Plain-name encoding -------------------------------------------------------
 for seg in 'feat/x y' '..' '.hidden' '-dash' 'a#b' 'ünï' 'under_score' 'plain-Name.1'; do
