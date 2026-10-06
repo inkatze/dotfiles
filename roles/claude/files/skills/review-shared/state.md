@@ -170,8 +170,8 @@ branch must encode to a lock name. `unregister --session <token>` on exit
 releases any lock the session still holds in that repository and drops its
 registration and inbox, unread files included. `sessions` lists the live
 registrations as JSON lines (`version`, `token`, `pid`, `name`, `skill`,
-`repo`, `pr` or `branch`, `worktree`, `started`, and `socket` where one was
-recorded); one whose owner process is
+`repo`, `pr` or `branch`, `worktree`, `started`; the socket stays in the
+registration file, where only `inbox nudge` reads it); one whose owner process is
 gone reads as absent and is pruned, with a notice naming any inbox files
 removed with it.
 

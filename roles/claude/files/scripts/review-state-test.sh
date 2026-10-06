@@ -644,8 +644,10 @@ sock="$tmp/s/$hpid.sock"
 listen "$sock" "$heard"
 live holder "CLAUDE_CODE_MESSAGING_SOCKET='$sock' \"\$H\" register --name holder --skill panel-review --repo o/r --pr 21 --worktree /w/h"
 hold="$(out_of holder)"
-"$H" sessions | jq -e -s --arg t "$hold" --arg s "$sock" 'map(select(.token == $t)) | .[0].socket == $s' > /dev/null \
+jq -e --arg s "$sock" '.socket == $s' "$REVIEW_STATE_ROOT/sessions/$hold.json" > /dev/null \
   || fail registry-socket "the registration does not record the session's messaging socket"
+"$H" sessions | jq -e -s --arg t "$hold" 'map(select(.token == $t)) | length == 1 and (.[0] | has("socket") | not)' > /dev/null \
+  || fail sessions-socket-hidden "sessions lists a session's messaging socket"
 live holder "\"\$H\" lock acquire --session $hold --repo o/r --pr 21"
 htok="$(out_of holder)"
 # REQ-E1.3: the sender's findings land under the holder's name, the nudge

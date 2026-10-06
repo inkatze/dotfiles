@@ -405,7 +405,8 @@ cmd_sessions() {
     j="$(jq -c . "$f" 2> /dev/null)" || { [ -e "$f" ] || continue; die "$f is not valid JSON; refusing it"; }
     v="$(jq -r 'if type == "object" and has("version") then .version | tostring else "missing" end' <<< "$j")"
     [ "$v" = "$VERSION" ] || die "$f has unknown version '$v' (this helper reads version $VERSION); refusing it"
-    printf '%s\n' "$j"
+    # The socket stays in the registration, where only a nudge reads it.
+    jq -c 'del(.socket)' <<< "$j"
   done
 }
 
