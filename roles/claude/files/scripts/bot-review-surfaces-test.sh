@@ -131,6 +131,13 @@ out="$(surfaces \
   "[{\"id\": 37, \"user\": $bot, \"updated_at\": \"2026-01-01T00:01:00Z\", \"path\": \"e.sh\", \"original_line\": 1,
      \"original_commit_id\": \"$HEAD_A\", \"body\": \"<!-- acme:run=6 -->\"}]")"
 check errored-same-run "$out" '.errored == true'
+out="$(surfaces \
+  "[{\"id\": 26, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:01Z\", \"body\": \"acme:run=6 unable to review\"},
+    {\"id\": 27, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:09Z\", \"body\": \"acme:run=6 All good.\"}]" \
+  '[]' \
+  "[{\"id\": 38, \"user\": $bot, \"updated_at\": \"2026-01-01T00:01:00Z\", \"path\": \"e.sh\", \"original_line\": 1,
+     \"original_commit_id\": \"$HEAD_A\", \"body\": \"<!-- acme:run=6 -->\"}]")"
+check errored-same-run-retried "$out" '.errored == false'
 
 # A key repeated across summaries is one description-level finding, the latest.
 out="$(surfaces \

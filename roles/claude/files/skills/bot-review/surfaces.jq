@@ -64,10 +64,15 @@ def bot_surfaces($cfg):
                description_level_findings: ([$findings[] | select(.surface != "review_comment")] | length)},
       build_id: $build,
       reviewed_head: _latest_marker($all; $cfg.reviewed_head_regex),
-      # Errored when the latest error summary carries the latest run marker or
-      # is at least as new as it, so a later clean run clears an old failure.
+      # Errored when the latest error summary is at least as new as the latest
+      # run marker, or carries it with no clean summary of that run after it,
+      # so a later clean run, or a clean retry of the same one, clears it.
       errored: ($error != null
         and ($build == null or $error.at >= $build.at
-             or ([$error.body | match($cfg.build_id_regex; "g") | _value] | index([$build.value])) != null)),
+             or (([$error.body | match($cfg.build_id_regex; "g") | _value] | index([$build.value])) != null
+                 and ([($reviews + $issue)[]
+                       | select(.at > $error.at and (.body | test($err) | not)
+                                and ([.body | match($cfg.build_id_regex; "g") | _value] | index([$build.value])) != null)]
+                      | length) == 0))),
       findings: $findings
     };
