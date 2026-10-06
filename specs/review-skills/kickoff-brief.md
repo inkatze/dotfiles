@@ -298,7 +298,7 @@ counts.
 
 | # | Risk | Mitigation / early signal |
 | --- | --- | --- |
-| 13 | The socket nudge rests on a line format Claude Code does not document, so an update can drop it silently. | The helper reports a failed delivery and the handoff carries on; the inbox file is the record. Signal: the after-merge refused-messaging drill shows no nudge arriving. |
+| 13 | The socket nudge rests on a line format Claude Code does not document, so an update can drop it silently. | The helper reports a failed delivery and the handoff carries on; the inbox file is the record. Signal: a socket nudge from a sender with no messaging tool, to a holder that accepts messages, does not arrive. |
 
 ## 8. Sign-off
 
