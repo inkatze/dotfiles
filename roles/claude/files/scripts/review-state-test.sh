@@ -206,10 +206,14 @@ for lc in set unset; do
   fi
   [ "$seen" = "$want" ] || fail "evidence-run-locale-$lc" "the command saw LC_ALL '$seen', not the caller's '$want'"
 done
-# A cut-off output stream records nothing.
+# A reader that closes early never leaves a truncated record. Where SIGPIPE
+# kills tee the capture is short and nothing is recorded; where SIGPIPE is
+# ignored (as on CI runners) tee keeps writing the capture, so a record, if
+# any, must hold the whole output.
 "$H" evidence run --command 'cut-off' -- sh -c 'i=0; while [ $i -lt 20000 ]; do echo line; i=$((i+1)); done' 2>/dev/null | head -1 > /dev/null || true
-if "$H" evidence lookup --command 'cut-off' > /dev/null 2>&1; then
-  fail evidence-run-cut-off "a run whose output was cut off was recorded"
+if entry="$("$H" evidence lookup --command 'cut-off' 2>/dev/null)"; then
+  [ "$(jq -r .exit <<< "$entry")" = 0 ] && [ "$(wc -l < "$(jq -r .output_path <<< "$entry")" | tr -d ' ')" = 20000 ] \
+    || fail evidence-run-cut-off "a run whose output was cut off was recorded truncated: $entry"
 fi
 "$H" evidence run --command 'missing' -- no-such-program-review-state > /dev/null 2>&1 && rc=0 || rc=$?
 [ "$rc" -eq 2 ] || fail evidence-run-missing "a program that is not on PATH was not an error (exit $rc)"
