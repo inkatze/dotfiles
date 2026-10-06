@@ -777,6 +777,24 @@ rm "$ledger"
   || fail ledger-show-absent "show printed something for a PR with no ledger"
 [ "$(mode_of "$REVIEW_STATE_ROOT/ledger/acme/widgets")" = 700 ] \
   || fail ledger-dir-mode "the ledger directory is not mode 700"
+[ "$(mode_of "$ledger.lock")" = 600 ] || fail ledger-lock-mode "the ledger lock file is not mode 600"
+for bad in "--head aaaaaaa" "--anchor x;y" "--key k?"; do
+  # shellcheck disable=SC2086 # each case is an option and its value
+  out="$(llook --key k-rej --anchor f --head "$h1" $bad 2>&1)" && rc=0 || rc=$?
+  [ "$rc" -eq 2 ] || fail "ledger-lookup-shape ($bad)" "lookup accepted a malformed value (exit $rc): $out"
+done
+mv "$ledger.lock" "$tmp/lock.real"
+ln -s "$tmp/lock.real" "$ledger.lock"
+out="$(printf 'x\n' | lrec --key k-l --anchor f --disposition fixed --head "$h1" \
+  --reply https://example.invalid/r/14 2>&1)" && rc=0 || rc=$?
+[ "$rc" -eq 2 ] && [[ "$out" == *symlink* ]] || fail ledger-lock-symlink "a symlinked ledger lock was used (exit $rc): $out"
+rm "$ledger.lock"
+mkdir -p "$tmp/elsewhere"
+ln -s "$tmp/elsewhere" "$REVIEW_STATE_ROOT/ledger/linked"
+if printf 'x\n' | "$H" ledger record --repo linked/widgets --pr 1 --key k-l --anchor f --disposition fixed \
+  --head "$h1" --reply https://example.invalid/r/15 > /dev/null 2>&1 || [ -e "$tmp/elsewhere/widgets" ]; then
+  fail ledger-owner-symlink "a symlinked owner directory was followed"
+fi
 porcelain="$(git status --porcelain --untracked-files=all)"
 [ -z "$porcelain" ] || fail porcelain-final "git status is not clean after the run: $porcelain"
 

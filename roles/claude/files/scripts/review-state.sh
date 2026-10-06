@@ -1068,6 +1068,7 @@ ledger_file() {
   dir="$STATE_ROOT/ledger/$owner/$name"
   if [ "$create" = create ]; then
     root_dir ledger
+    sub_dir "$DIR/$owner"
     sub_dir "$dir"
   fi
   LEDGER="$dir/pr-$opt_pr.json"
@@ -1076,16 +1077,16 @@ ledger_file() {
 }
 
 # ledger_append <ledger> <repo> <pr> <entry json>: the read-modify-write, run
-# only under the ledger's file lock (below), so a concurrent append is never
-# lost. The version is checked again inside the lock.
+# only under the ledger's file lock (see `ledger record`), so a concurrent
+# append is never lost. The version is checked again inside the lock.
 ledger_append() {
   local file="$1" repo="$2" pr="$3" entry="$4" body
   if [ -e "$file" ]; then
     check_json_version "$file"
-    body="$(jq --argjson e "$entry" '.entries += [$e]' "$file")" || die "cannot read $file"
+    body="$(printf '%s' "$entry" | jq --slurpfile e /dev/stdin '.entries += $e' "$file")" || die "cannot read $file"
   else
-    body="$(jq -n --argjson v "$VERSION" --arg repo "$repo" --argjson pr "$pr" --argjson e "$entry" \
-      '{version: $v, repo: $repo, pr: $pr, entries: [$e]}')" || die "cannot build $file"
+    body="$(printf '%s' "$entry" | jq -n --argjson v "$VERSION" --arg repo "$repo" --argjson pr "$pr" \
+      --slurpfile e /dev/stdin '{version: $v, repo: $repo, pr: $pr, entries: $e}')" || die "cannot build $file"
   fi
   printf '%s\n' "$body" | write_file "$file"
 }
@@ -1095,6 +1096,7 @@ cmd_ledger() {
   shift || true
   case "$sub" in
     record)
+      local args=("$@")
       parse_opts "repo pr key anchor disposition head reply follow-up reason" -- "$@"
       require_opt key; require_opt anchor; require_opt disposition; require_opt head; require_opt reply
       [[ "$opt_key" =~ ^[A-Za-z0-9._:-]{1,128}$ ]] || die "--key must match [A-Za-z0-9._:-]{1,128}; hash any other key first"
@@ -1109,29 +1111,39 @@ cmd_ledger() {
         suppressed) [ -n "$opt_reason" ] || die "a suppression needs --reason" ;;
         *) die "--disposition is fixed, rejected, deferred or suppressed, got '$opt_disposition'" ;;
       esac
+      need perl
+      ledger_file create
+      if [ -z "${REVIEW_LEDGER_LOCKED:-}" ]; then
+        # The same record again, stdin included, under the ledger's file lock:
+        # perl's flock rather than flock(1), which macOS does not ship, and the
+        # kernel drops the lock with its holder, so a killed writer leaves none.
+        umask 077
+        exec perl -MFcntl=:flock -e 'open(my $l, ">>", shift) or die "cannot open the ledger lock: $!\n";
+          flock($l, LOCK_EX) or die "cannot lock the ledger: $!\n"; system(@ARGV);
+          exit($? == -1 || ($? & 127) ? 2 : $? >> 8)' \
+          "$LEDGER.lock" env REVIEW_LEDGER_LOCKED=1 "$BASH" "$0" ledger record "${args[@]}"
+      fi
       evidence="$(head -c "$((EVIDENCE_CAP + 1))")" || die "cannot read the evidence summary from stdin"
       [ -n "$evidence" ] || die "the evidence summary on stdin is empty; every entry carries one"
       [ "${#evidence}" -le "$EVIDENCE_CAP" ] || die "the evidence summary is longer than $EVIDENCE_CAP bytes; summarize it"
-      need perl
-      ledger_file create
-      entry="$(jq -n --arg key "$opt_key" --arg anchor "$opt_anchor" --arg disposition "$opt_disposition" \
-        --arg reason "$opt_reason" --arg evidence "$evidence" --arg head "$opt_head" \
+      # The evidence reaches jq on stdin, never argv, where any local user's
+      # ps could read it.
+      entry="$(printf '%s' "$evidence" | jq -R -s --arg key "$opt_key" --arg anchor "$opt_anchor" \
+        --arg disposition "$opt_disposition" --arg reason "$opt_reason" --arg head "$opt_head" \
         --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg reply "$opt_reply" --arg follow_up "$opt_follow_up" \
-        '{key: $key, anchor: $anchor, disposition: $disposition, evidence: $evidence, head: $head,
+        '{key: $key, anchor: $anchor, disposition: $disposition, evidence: ., head: $head,
           date: $date, reply: $reply}
          + (if $reason == "" then {} else {reason: $reason} end)
          + (if $follow_up == "" then {} else {follow_up: $follow_up} end)')" || die "cannot build the ledger entry"
-      # perl's flock rather than flock(1), which macOS does not ship; the
-      # kernel drops the lock with its holder, so a killed writer leaves none.
-      (umask 077 && perl -MFcntl=:flock -e 'open(my $l, ">>", shift) or die "cannot open the ledger lock: $!\n";
-          flock($l, LOCK_EX) or die "cannot lock the ledger: $!\n"; exit(system(@ARGV) == 0 ? 0 : 2)' \
-        "$LEDGER.lock" "$BASH" "$0" __ledger-append "$LEDGER" "$opt_repo" "$opt_pr" "$entry") \
-        || die "could not append to $LEDGER"
+      ledger_append "$LEDGER" "$opt_repo" "$opt_pr" "$entry"
       printf '%s\n' "$LEDGER"
       ;;
     lookup)
       parse_opts "repo pr key anchor head" -- "$@"
       require_opt key; require_opt anchor; require_opt head
+      [[ "$opt_key" =~ ^[A-Za-z0-9._:-]{1,128}$ ]] || die "--key must match [A-Za-z0-9._:-]{1,128}; hash any other key first"
+      [[ "$opt_anchor" =~ ^[A-Za-z0-9._:-]{1,128}$ ]] || die "--anchor must match [A-Za-z0-9._:-]{1,128}; hash any other anchor first"
+      [[ "$opt_head" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] || die "--head must be a full commit hash, got '$opt_head'"
       ledger_file read
       if [ ! -e "$LEDGER" ]; then
         printf '{"route":"new"}\n'
@@ -1176,8 +1188,6 @@ case "$cmd" in
   inbox) cmd_inbox "$@" ;;
   loop) cmd_loop "$@" ;;
   ledger) cmd_ledger "$@" ;;
-  # Internal: re-entered by `ledger record` under the ledger's lock.
-  __ledger-append) [ "$#" -eq 4 ] || die "__ledger-append is internal"; ledger_append "$@" ;;
   encode) [ "$#" -eq 1 ] || die "encode takes one segment"; encode_segment "$1"; printf '%s\n' "$ENC" ;;
   *) die "unknown command '${cmd}'; see the usage at the top of this script" ;;
 esac
