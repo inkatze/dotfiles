@@ -50,7 +50,8 @@ check reviewed-head-review-only "$out" ".reviewed_head.value == \"$HEAD_A\" and 
 check finding-key-inline-only "$out" '.findings | length == 1 and .[0].key == "k1" and .[0].surface == "review_comment"
   and .[0].id == 30 and .[0].path == "a.sh" and .[0].original_line == 3 and .[0].key_ok'
 check human-markers-ignored "$out" '.build_id.value != "999" and (.reviewed_head.value // "" | startswith("b") | not)'
-check counts-every-surface "$out" '.counts == {reviews: 1, issue_comments: 0, review_comments: 1}'
+check counts-every-surface "$out" '.counts == {reviews: 1, issue_comments: 0, review_comments: 1,
+  inline_findings: 1, description_level_findings: 0}'
 
 # The opposite placement: run marker on a review, reviewed head on an inline
 # comment, keys on a review body (a description-level finding).
@@ -95,6 +96,61 @@ check empty "$out" '.build_id == null and .reviewed_head == null and .findings =
 # A bot body that is null (a review with no summary) is read as empty text.
 out="$(surfaces "[{\"id\": 15, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:05Z\", \"body\": null}]" '[]' '[]')"
 check null-body "$out" '.build_id == null and .counts.reviews == 1'
+
+# A key on an issue comment is a description-level finding; the same key on a
+# summary and on its inline comment is one finding, the inline one.
+out="$(surfaces \
+  "[{\"id\": 17, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:05Z\", \"body\": \"Summary lists acme:v=k5\"}]" \
+  "[{\"id\": 22, \"user\": $bot, \"updated_at\": \"2026-01-01T00:00:06Z\", \"body\": \"Also acme:v=k6\"}]" \
+  "[{\"id\": 34, \"user\": $bot, \"updated_at\": \"2026-01-01T00:00:04Z\", \"path\": \"d.sh\", \"original_line\": 4,
+     \"original_commit_id\": \"$HEAD_A\", \"body\": \"acme:v=k5\"}]")"
+check key-on-issue-comment "$out" '[.findings[] | select(.surface == "issue_comment") | .key] == ["k6"]'
+check summary-key-deduped "$out" '[.findings[] | select(.key == "k5") | .surface] == ["review_comment"]
+  and .counts.description_level_findings == 1 and .counts.inline_findings == 1'
+
+# A later clean run clears an older errored summary, wherever the new run
+# marker lands; error text newer than the run marker, on any surface, sets it.
+out="$(surfaces \
+  "[{\"id\": 18, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:01Z\", \"body\": \"acme:run=1 unable to review\"},
+    {\"id\": 19, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:09Z\", \"body\": \"All good.\"}]" \
+  '[]' \
+  "[{\"id\": 35, \"user\": $bot, \"updated_at\": \"2026-01-01T00:00:08Z\", \"path\": \"e.sh\", \"original_line\": 1,
+     \"original_commit_id\": \"$HEAD_A\", \"body\": \"<!-- acme:run=2 -->\"}]")"
+check errored-cleared-by-later-run "$out" '.errored == false and .build_id.value == "2"'
+out="$(surfaces \
+  "[{\"id\": 20, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:01Z\", \"body\": \"acme:run=3\"}]" \
+  '[]' \
+  "[{\"id\": 36, \"user\": $bot, \"updated_at\": \"2026-01-01T00:00:08Z\", \"path\": \"e.sh\", \"original_line\": 1,
+     \"original_commit_id\": \"$HEAD_A\", \"body\": \"I was unable to review this file\"}]")"
+check errored-inline-only "$out" '.errored == true'
+
+# An alternation whose group did not take part yields no key, never the
+# surrounding text.
+CFG_SAVED="$CFG"
+CFG="$(jq '.finding_key_regex = "acme:v=([a-z0-9]+)|acme:none"' <<< "$CFG")"
+out="$(surfaces "[{\"id\": 21, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:05Z\", \"body\": \"acme:none acme:v=k7\"}]" '[]' '[]')"
+check alternation-group "$out" '[.findings[].key] == ["k7"]'
+CFG="$CFG_SAVED"
+
+# A reviewer missing from the config is an error, never an empty PR.
+if jq -n -L "$LIB" 'include "surfaces"; {reviews: [], issue_comments: [], review_comments: []} | bot_surfaces(null)' \
+  > /dev/null 2>&1; then
+  fail unknown-reviewer "a missing reviewer entry read as a PR with no activity"
+fi
+
+# The command the skill runs: paginated pages slurped per surface, the config
+# read from its file.
+scratch="$(mktemp -d)"
+trap 'rm -rf "$scratch"' EXIT
+printf '[{"id": 40, "user": %s, "submitted_at": "2026-01-01T00:00:05Z", "body": "acme:run=5"}][]' "$bot" > "$scratch/reviews.json"
+printf '[]' > "$scratch/issue_comments.json"
+printf '[{"id": 41, "user": %s, "updated_at": "2026-01-01T00:00:01Z", "path": "f.sh", "original_line": 2, "original_commit_id": "%s", "body": "acme:v=k8"}][{"id": 42, "user": %s, "updated_at": "2026-01-01T00:00:02Z", "path": "f.sh", "original_line": 3, "original_commit_id": "%s", "body": "acme:v=k9"}]' \
+  "$bot" "$HEAD_A" "$bot" "$HEAD_A" > "$scratch/review_comments.json"
+jq -n --argjson e "$CFG" '{version: 1, default: "acme", reviewers: {acme: $e}}' > "$scratch/bot-review.json"
+out="$(jq -n -L "$LIB" --slurpfile rv "$scratch/reviews.json" --slurpfile ic "$scratch/issue_comments.json" \
+  --slurpfile rc "$scratch/review_comments.json" --slurpfile cfg "$scratch/bot-review.json" --arg name acme \
+  'include "surfaces"; {reviews: ($rv | add // []), issue_comments: ($ic | add // []), review_comments: ($rc | add // [])} | bot_surfaces($cfg[0].reviewers[$name])')"
+check skill-command-pages "$out" '.build_id.value == "5" and [.findings[].key] == ["k8", "k9"]'
 
 # No errored pattern configured: errored is false, never an error.
 CFG="$(jq 'del(.errored_review_regex)' <<< "$CFG")"
