@@ -117,8 +117,8 @@ the next role run; see `docs/machine-local-files.md`). The contract checker's
 retired-backend sweep keeps the name out of the skills.
 
 With the last consumer gone, the OAuth credential under
-`~/.config/github-copilot/` was left world-readable on every host that ever
-signed in. `roles/claude/tasks/copilot-credential.yml` deletes that directory
+`~/.config/github-copilot/` was left on disk on every host that ever signed
+in, world-readable where it was found (the Linux host). `roles/claude/tasks/copilot-credential.yml` deletes that directory
 and nothing else (the Copilot CLI's own `~/.copilot/` stays), and is temporary:
 once every host has run the role it can go. Deleting the directory does not
 revoke the token, so also revoke the Copilot entries on GitHub, under Settings →

@@ -680,7 +680,7 @@ require_normalized "$(skill_md panel-review)" "retired-backend stop sentence" "$
 # must not be followed by a hyphen or letter, which keeps Copilot's own
 # reviewer login (`reviewers[]=copilot-pull-request-reviewer`) legal.
 COPILOT_PATTERNS=('*`copilot`*' '*backends[ =][Cc]opilot*' '*,copilot[!-a-z]*' '*, copilot[!-a-z]*'
-  '*[Cc]opilot backend*' '*copilot_bin*' '*copilot-cli*' '*gh copilot*' '*gh/copilot*'
+  '*[Cc]opilot backend*' '*Copilot CLI*' '*copilot_bin*' '*copilot-cli*' '*gh copilot*' '*gh-copilot*' '*gh/copilot*'
   '*mise which copilot*' '*command -v copilot*')
 copilot_sweep() {
   local rest="${2//"$COPILOT_STOP"/}" pat hits=""

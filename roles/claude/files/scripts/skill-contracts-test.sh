@@ -515,6 +515,10 @@ expect_fail retired-copilot-backend-flag-capital \
   "echo 'Run /panel-review --backends Copilot.' >> $(md copilot-review)" "names the retired Copilot CLI backend ('"
 expect_fail retired-copilot-backend-probe \
   "echo 'Probe with command -v copilot first.' >> $SHARED/backends.md" "names the retired Copilot CLI backend ('"
+expect_fail retired-copilot-cli-name \
+  "echo 'Install the Copilot CLI first.' >> $(md copilot-review)" "names the retired Copilot CLI backend ('"
+expect_fail retired-copilot-gh-extension-name \
+  "echo 'Uses the gh-copilot extension.' >> $(md copilot-review)" "names the retired Copilot CLI backend ('"
 expect_fail retired-copilot-backend-prose \
   "echo 'The opt-in Copilot backend is never chosen.' >> $(md panel-review)" "names the retired Copilot CLI backend ('"
 expect_fail retired-copilot-backend-binary \
