@@ -97,7 +97,8 @@
       - jq
       - -e
       - -s
-      - 'length == 1 and (.[0].preferredProvider == "cubic")'
+      # The template's require_json predicate, wrapped as the backend wraps it.
+      - 'length == 1 and (.[0] | (.preferredProvider == "cubic"))'
       - "{{ ansible_facts.env.HOME }}/.local/share/cubic/preferences.json"
   register: claude_cubic_prefers
   changed_when: false
@@ -124,7 +125,8 @@
       - jq
       - -e
       - -s
-      - 'length == 1 and ([.[0][]? | objects | select(.type == "wellknown")] | length == 0)'
+      # The template's require_json_if_present predicate, wrapped as the backend wraps it.
+      - 'length == 1 and (.[0] | ([.[]? | objects | select(.type == "wellknown")] | length == 0))'
       - "{{ ansible_facts.env.HOME }}/.local/share/cubic/auth.json"
   register: claude_cubic_no_wellknown
   changed_when: false

@@ -158,4 +158,17 @@ reported "could not run jq" && reported "whose preferredProvider is" && ok no-jq
   || fail no-jq-link "without jq, the symlinked preferences.json went unreported"
 reported "holds a wellknown login" && fail no-jq-auth "without jq, auth.json was blamed" || ok no-jq-auth "without jq, auth.json is not blamed"
 
+# The role reports what the backend refuses only while it applies the template's own rules.
+tpl="$repo/roles/claude/files/skills/bot-review/bot-review.json.tpl"
+role="$repo/roles/claude/tasks/cubic-instructions.yml"
+for rule in require_json require_json_if_present; do
+  predicate="$(jq -r --arg r "$rule" '.reviewers.cubic.cli[$r] | to_entries[0].value' "$tpl")"
+  grep -qF -- "length == 1 and (.[0] | ($predicate))" "$role" \
+    && ok "template-$rule" "the role applies the template's $rule predicate" \
+    || fail "template-$rule" "the role's check no longer matches the template's $rule predicate"
+done
+[ "$(jq -c '.reviewers.cubic.cli.require_only["~/.config/cubic"]' "$tpl")" = '["AGENTS.md"]' ] && grep -qF 'excludes: [AGENTS.md]' "$role" \
+  && ok template-only "the role lists the entries the template allows" \
+  || fail template-only "the role's allowed config entries no longer match the template's require_only"
+
 [ "$fails" -eq 0 ] && echo "cubic-instructions-test: all assertions hold" || { echo "cubic-instructions-test: $fails failed"; exit 1; }

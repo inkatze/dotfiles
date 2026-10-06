@@ -122,7 +122,8 @@ pre-commit:
       run: scripts/cubic-lockdown-test.sh
     cubic-instructions:
       # The suite is what notices the role overwriting a file with content.
-      glob: "{roles/claude/tasks/cubic-instructions.yml,roles/claude/tasks/main.yml,scripts/cubic-instructions-test.sh}"
+      glob: "{roles/claude/tasks/cubic-instructions.yml,roles/claude/tasks/main.yml,scripts/cubic-instructions-test.sh,\
+        roles/claude/files/skills/bot-review/bot-review.json.tpl}"
       run: scripts/cubic-instructions-test.sh
     fish-tower:
       # The suite is what notices the launcher losing its fail-closed refusal;
