@@ -776,6 +776,10 @@ require_normalized "$(skill_md bot-review)" "generic drain mechanic" \
   "**no review can arrive while it stays a draft.** Say so and name \`draft_setting\`" \
   "**Convergence is no unresolved finding and the reviewed head equal to the current HEAD, never a check-state read**" \
   "**A thread a human has replied in is a message to that human**"
+# The filter call bot-review-surfaces-test.sh runs as the skill's own; a
+# change here must change the suite's copy too.
+require_phrases "$(skill_md bot-review)" "surfaces command" \
+  "'include \"surfaces\"; {reviews: (\$rv | add // []), issue_comments: (\$ic | add // []), review_comments: (\$rc | add // [])} | bot_surfaces(\$cfg[0].reviewers[\$name])'"
 # Review-run discipline: one ledger, linked deferrals, replies as rules.
 require_normalized "$(skill_md bot-review)" "decision-ledger sentence" \
   "the only store of finding dispositions" \

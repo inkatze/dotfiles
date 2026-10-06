@@ -632,6 +632,8 @@ for pin in \
   "**Every reply states the decision and its evidence in one paragraph**"; do
   PIN="$pin" expect_fail "bot-review-ledger-dropped ($pin)" 'drop_pin "$PIN" "$(md bot-review)"' "decision-ledger sentence"
 done
+expect_fail bot-review-surfaces-command-drift \
+  'swap_fixed "issue_comments: (\$ic | add // [])" "issue_comments: (\$ic | add)" "$(md bot-review)"' "surfaces command"
 PIN="**The ledger is never pruned automatically**" \
   expect_fail ledger-never-pruned-dropped 'drop_pin "$PIN" "$SHARED/state.md"' "decision-ledger sentence"
 expect_fail bot-review-state-link-dropped \

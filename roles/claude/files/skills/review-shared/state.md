@@ -23,9 +23,9 @@ or through `evidence run`, which captures a command's output itself.
 Every evidence entry, registry entry, loop artifact and decision ledger
 carries `version` (the loop artifact in its first line). The helper refuses a
 file whose version it does not know, or that has none, naming the file and the
-version, and so does any skill that reads one directly. A dead session's registration is pruned
-without being read. Lock holder records and inbox files are the
-helper's own and short-lived, and carry none.
+version, and so does any skill that reads one directly. A dead session's
+registration is pruned without being read. Lock holder records and inbox
+files are the helper's own and short-lived, and carry none.
 
 ## Evidence record
 
@@ -220,7 +220,8 @@ Key and anchor are limited to `[A-Za-z0-9._:-]`, so a caller hashes anything
 else first. The helper serializes appends to one file itself, under a kernel
 lock on the `pr-<n>.json.lock` file beside it, which its holder's exit
 releases; until a skill adopts the writer lock, its same-PR lock
-([github.md](github.md)) covers the rest of its writes.
-`ledger lookup` routes a finding raised again by the latest entry for its key,
-and `ledger show` prints the file. **The ledger is never pruned
+([github.md](github.md)) covers the rest of its writes. Each entry names its
+reviewer, since two vendors can share a key, and `ledger lookup` routes a
+finding raised again by that reviewer's latest entry for its key, and
+`ledger show` prints the file. **The ledger is never pruned
 automatically**: entries are only appended, and a reclaim leaves it alone.
