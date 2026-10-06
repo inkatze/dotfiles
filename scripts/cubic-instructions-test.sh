@@ -7,7 +7,8 @@ set -uo pipefail
 here="$(cd -- "$(dirname "$0")" && pwd -P)"
 repo="$(cd -- "$here/.." && pwd -P)"
 work="$(cd -- "$(mktemp -d)" && pwd -P)" || exit 1
-trap 'rm -rf "$work"' EXIT
+# A hung play's workers, or a jq blocked on a FIFO, must not outlive the suite.
+trap 'pkill -f "$work" 2>/dev/null; rm -rf "$work"' EXIT
 fails=0
 
 ok()   { printf 'ok[%s]: %s\n' "$1" "$2"; }
@@ -142,8 +143,16 @@ printf '{"preferredProvider":"cubic"}\n' >"$h/.local/share/cubic/preferences.jso
 printf '#!/bin/sh\nexit 127\n' >"$work/nojq/jq"
 chmod +x "$work/nojq/jq"
 PATH="$work/nojq:$PATH" run_role "$h"
-reported "jq is not installed" && ok no-jq "a missing jq is reported as such" || fail no-jq "no report for a missing jq"
+reported "could not run jq" && ok no-jq "a missing jq is reported as such" || fail no-jq "no report for a missing jq"
 reported "whose preferredProvider is" && fail no-jq-blame "a missing jq was blamed on preferences.json" \
   || ok no-jq-blame "a missing jq is not blamed on the files"
+h="$(fresh_home)"
+mkdir -p "$h/.local/share/cubic"
+ln -s /dev/null "$h/.local/share/cubic/preferences.json"
+printf '{"cubic":{"type":"api","key":"placeholder"}}\n' >"$h/.local/share/cubic/auth.json"
+PATH="$work/nojq:$PATH" run_role "$h"
+reported "could not run jq" && reported "whose preferredProvider is" && ok no-jq-link "without jq, a symlinked preferences.json is still reported" \
+  || fail no-jq-link "without jq, the symlinked preferences.json went unreported"
+reported "holds a wellknown login" && fail no-jq-auth "without jq, auth.json was blamed" || ok no-jq-auth "without jq, auth.json is not blamed"
 
 [ "$fails" -eq 0 ] && echo "cubic-instructions-test: all assertions hold" || { echo "cubic-instructions-test: $fails failed"; exit 1; }

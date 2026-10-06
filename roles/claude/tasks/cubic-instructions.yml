@@ -158,15 +158,20 @@
          + (claude_cubic_dirs.results | selectattr('stat.exists') | selectattr('stat.islnk')
             | map(attribute='item') | list)
          + (claude_cubic_dirs.results | selectattr('stat.exists')
-            | rejectattr('stat.uid', 'equalto', ansible_facts.effective_user_id)
+            | rejectattr('stat.uid', 'equalto', claude_cubic_mine)
             | map(attribute='item') | list) }}
     claude_cubic_agents_msg: >-
       ~/.config/cubic/AGENTS.md is not an empty regular file; the cubic CLI would upload it, so move its
       content elsewhere and empty it
     claude_cubic_prefs_rc: "{{ claude_cubic_prefers.rc | default(1) }}"
     claude_cubic_auth_rc: "{{ claude_cubic_no_wellknown.rc | default(0) }}"
-    claude_cubic_no_jq: "{{ claude_cubic_jq.rc != 0 }}"
     claude_cubic_mine: "{{ ansible_facts.effective_user_id }}"
+    claude_cubic_foreign: >-
+      {{ ([claude_cubic_files.results[0], claude_cubic_files.results[1]]
+          | selectattr('stat.exists') | rejectattr('stat.uid', 'equalto', claude_cubic_mine)
+          | map(attribute='item') | list)
+         + ([claude_cubic_auth.stat.path] if claude_cubic_auth.stat.exists
+            and claude_cubic_auth.stat.uid != claude_cubic_mine else []) }}
     claude_cubic_prefs_msg: >-
       ~/.local/share/cubic/preferences.json is not a regular file holding one JSON document whose
       preferredProvider is "cubic"; fix it so the review stays on cubic's own provider
@@ -175,20 +180,21 @@
     claude_cubic_problems: >-
       {{ (['these are a symlink, not a directory, or not yours: ' ~ (claude_cubic_odd_dirs | unique | join(', '))]
             if claude_cubic_odd_dirs | length > 0 else [])
-         + (['jq is not installed, so preferences.json and auth.json could not be checked']
-            if claude_cubic_no_jq | bool and (claude_cubic_prefs_stat.exists or claude_cubic_auth.stat.exists) else [])
-         + (['~/.config/cubic/AGENTS.md, preferences.json or auth.json is not yours; reviewer:cubic refuses it']
-            if [claude_cubic_agents, claude_cubic_prefs_stat, claude_cubic_auth.stat]
-               | selectattr('exists') | rejectattr('uid', 'equalto', claude_cubic_mine) | list | length > 0 else [])
+         + (['could not run jq, so preferences.json and auth.json could not be checked']
+            if (claude_cubic_jq.rc | default(1)) != 0
+               and (claude_cubic_prefs_stat.exists or claude_cubic_auth.stat.exists) else [])
+         + (['these are not yours, so reviewer:cubic refuses them: ' ~ (claude_cubic_foreign | join(', '))]
+            if claude_cubic_foreign | length > 0 else [])
          + ([] if not claude_cubic_agents.exists
               or (claude_cubic_agents.isreg and not claude_cubic_agents.islnk and claude_cubic_agents.size == 0)
             else [claude_cubic_agents_msg])
          + ([] if not claude_cubic_prefs_stat.exists
-              or (claude_cubic_no_jq | bool and claude_cubic_prefs_stat.isreg)
+              or ((claude_cubic_jq.rc | default(1)) != 0 and claude_cubic_prefs_stat.isreg)
               or (claude_cubic_prefs_stat.isreg and not claude_cubic_prefs_stat.islnk
                   and claude_cubic_prefs_rc | int == 0)
             else [claude_cubic_prefs_msg])
-         + ([] if not claude_cubic_auth.stat.exists or claude_cubic_no_jq | bool or claude_cubic_auth_rc | int == 0
+         + ([] if not claude_cubic_auth.stat.exists or (claude_cubic_jq.rc | default(1)) != 0
+              or claude_cubic_auth_rc | int == 0
             else ['~/.local/share/cubic/auth.json holds a wellknown login or is not one JSON document; the cubic CLI'
                   ~ ' merges the remote config of a wellknown login after its lockdown, so log out of it'])
          + (['~/.local/share/cubic/auth.json is not a regular file'] if claude_cubic_auth.stat.exists

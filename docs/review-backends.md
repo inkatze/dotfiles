@@ -55,8 +55,8 @@ so run it only on branches whose contents you trust.
 `scripts/cubic-lockdown-test.sh` reads the pinned binary's code for each of
 these, keeping the reviewed tarball (about 50 MB) under
 `dotfiles/cubic-lockdown` in an absolute `XDG_CACHE_HOME`, else `~/.cache`,
-so later runs need no network; a cache directory that is not yours, or that
-group or other can write, is ignored. The package is
+so later runs need no network; a cache directory that is a symlink, is not
+yours, or that group or other can write, is ignored. The package is
 proprietary (its license field is `UNLICENSED`, so use is on the vendor's
 terms), and its optional dependencies carry one native binary per platform
 variant, of which npm may fetch several on one host; `mise prune` reclaims
