@@ -15,6 +15,9 @@ if [ -n "${GIT_DIR:-}${GIT_INDEX_FILE:-}${GIT_WORK_TREE:-}${GIT_COMMON_DIR:-}${G
   echo "review-state-test: git's repository environment is still set; refusing to run"
   exit 1
 fi
+# Run from a Claude Code session, these name that live session's inbox, and a
+# registration below would record it as the stand-in's and nudge it.
+unset CLAUDE_CODE_MESSAGING_SOCKET CLAUDE_CODE_MESSAGING_TOKEN
 
 ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 [ -f "$ROOT/lefthook.yml" ] || {
@@ -615,6 +618,89 @@ printf 'x\n' | "$H" inbox send --to 123-456-deadbeef --from eta > /dev/null 2>&1
 stop_session gamma
 printf 'x\n' | "$H" inbox send --to "$gamma" --from eta > /dev/null 2>&1 && rc=0 || rc=$?
 [ "$rc" -eq 1 ] || fail inbox-dead-recipient "a send to a session whose process is gone did not exit 1 (got $rc)"
+
+# --- Handoff to the lock holder: inbox, nudge, bounded wait -------------------
+# The holder's messaging socket is a listener this suite starts under its own
+# scratch directory, never a live session's.
+mkdir -p "$tmp/s"
+sock="$tmp/s/h.sock"
+heard="$tmp/s/heard"
+# listen <socket> <file>: accept one connection and copy what it sends.
+listen() {
+  rm -f "$1" "$2"
+  # shellcheck disable=SC2016
+  perl -MIO::Socket::UNIX -e '
+    my $l = IO::Socket::UNIX->new(Type => SOCK_STREAM(), Local => $ARGV[0], Listen => 1) or die "listen: $!";
+    open(my $o, ">", "$ARGV[1].tmp") or die; my $c = $l->accept; print $o $_ while <$c>; close $o;
+    rename("$ARGV[1].tmp", $ARGV[1])' "$1" "$2" &
+  bg_pids+=("$!")
+  local n=0
+  until [ -S "$1" ] || [ "$n" -ge 200 ]; do sleep 0.05; n=$((n + 1)); done
+}
+listen "$sock" "$heard"
+start_session holder
+live holder "CLAUDE_CODE_MESSAGING_SOCKET='$sock' \"\$H\" register --name holder --skill panel-review --repo o/r --pr 21 --worktree /w/h"
+hold="$(out_of holder)"
+"$H" sessions | jq -e -s --arg t "$hold" --arg s "$sock" 'map(select(.token == $t)) | .[0].socket == $s' > /dev/null \
+  || fail registry-socket "the registration does not record the session's messaging socket"
+live holder "\"\$H\" lock acquire --session $hold --repo o/r --pr 21"
+htok="$(out_of holder)"
+# REQ-E1.3: the sender's findings land under the holder's name, the nudge
+# names the file, and the sender gives up within one bounded wait.
+handoff="$(printf 'finding from the sender\n' | "$H" inbox send --to "$hold" --from sender)" \
+  || fail handoff-send "the handoff send failed"
+case "$handoff" in "$REVIEW_STATE_ROOT/inbox/$hold/"*) ;; *) fail handoff-location "the handoff landed at $handoff, not under the holder's inbox" ;; esac
+"$H" inbox nudge --to "$hold" --from sender --path "$handoff" > /dev/null 2> "$tmp/nudge.err" && rc=0 || rc=$?
+n=0; until [ -e "$heard" ] || [ "$n" -ge 100 ]; do sleep 0.05; n=$((n + 1)); done
+[ "$rc" = 0 ] || fail handoff-nudge "the nudge was not delivered (exit $rc): $(cat "$tmp/nudge.err")"
+jq -e --arg p "$handoff" '.type == "user" and .message.role == "user" and (.message.content | contains($p))' "$heard" > /dev/null 2>&1 \
+  || fail handoff-nudge-line "the socket did not get one user line naming the inbox file: $(cat "$heard" 2>/dev/null)"
+[ -e "$heard" ] && [ "$(wc -l < "$heard" | tr -d ' ')" = 1 ] || fail handoff-nudge-one-line "the nudge was not exactly one line"
+t0="$(date +%s)"
+in_session "\"\$H\" register --name sender --skill bot-review --repo o/r --pr 21 --worktree /w/s > '$tmp/snd.sess' && \"\$H\" lock acquire --session \"\$(cat '$tmp/snd.sess')\" --repo o/r --pr 21 --wait 2 > '$tmp/snd.out' 2>/dev/null; echo \$? > '$tmp/snd.rc'"
+[ "$(cat "$tmp/snd.rc")" = 1 ] && [ "$(( $(date +%s) - t0 ))" -le 6 ] \
+  || fail handoff-bounded "the sender did not give up within its window (exit $(cat "$tmp/snd.rc"), $(( $(date +%s) - t0 ))s)"
+live holder "sleep 2; \"\$H\" lock release --session $hold --token $htok --repo o/r --pr 21" &
+releaser=$!
+in_session "\"\$H\" register --name sender --skill bot-review --repo o/r --pr 21 --worktree /w/s > '$tmp/snd.sess' && \"\$H\" lock acquire --session \"\$(cat '$tmp/snd.sess')\" --repo o/r --pr 21 --wait 20 > '$tmp/snd.out' 2>/dev/null; echo \$? > '$tmp/snd.rc'"
+wait "$releaser"
+[ "$(cat "$tmp/snd.rc")" = 0 ] || fail handoff-takes-freed "the sender did not take a lock freed within its window"
+# REQ-E1.4: the holder reads the file at its boundary, once.
+live holder "\"\$H\" inbox read --session $hold"
+[[ "$(out_of holder)" == *"finding from the sender"* ]] || fail handoff-read "the holder did not read the handed-off findings"
+live holder "\"\$H\" inbox read --session $hold"
+[ -z "$(out_of holder)" ] || fail handoff-read-once "the handed-off findings were returned twice"
+# A nudge names only a file in the recipient's own inbox, reaches only a
+# socket the recipient registered, and reports what it could not deliver.
+"$H" inbox nudge --to "$hold" --from sender --path /etc/passwd > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" = 2 ] || fail nudge-foreign-path "a nudge naming a file outside the holder's inbox was not refused (exit $rc)"
+"$H" inbox nudge --to "$hold" --from $'x\ny' --path "$handoff" > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" = 2 ] || fail nudge-from-shape "a sender name carrying a newline was accepted (exit $rc)"
+"$H" inbox nudge --to "$hold" --from sender --path "$handoff" > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" = 1 ] || fail nudge-no-listener "a nudge to a socket nobody listens on did not exit 1 (got $rc)"
+live holder '"$H" register --name quiet --skill bot-review --repo o/r --pr 22 --worktree /w/q'
+quiet="$(out_of holder)"
+qfile="$(printf 'x\n' | "$H" inbox send --to "$quiet" --from sender)"
+"$H" inbox nudge --to "$quiet" --from sender --path "$qfile" > /dev/null 2> "$tmp/nudge.err" && rc=0 || rc=$?
+[ "$rc" = 1 ] && grep -q 'no messaging socket' "$tmp/nudge.err" \
+  || fail nudge-no-socket "a nudge to a session that registered no socket did not exit 1 naming why (got $rc)"
+ln -s "$sock" "$tmp/s/link.sock"
+live holder "CLAUDE_CODE_MESSAGING_SOCKET='$tmp/s/link.sock' \"\$H\" register --name linked --skill bot-review --repo o/r --pr 23 --worktree /w/l"
+"$H" sessions | jq -e -s --arg t "$(out_of holder)" 'map(select(.token == $t)) | .[0] | has("socket") | not' > /dev/null \
+  || fail registry-socket-symlink "a symlinked messaging socket was recorded"
+in_session "HOME='$tmp' \"\$H\" register --name bare --skill bot-review --repo o/r --pr 24 --worktree /w/b > '$tmp/bare.sess'"
+jq -e 'has("socket") | not' "$REVIEW_STATE_ROOT/sessions/$(cat "$tmp/bare.sess").json" > /dev/null \
+  || fail registry-socket-unset "a registration with no messaging socket in its environment recorded one"
+# No registration this suite made may name a socket outside its scratch
+# directory: one that did would nudge a live session.
+for f in "$REVIEW_STATE_ROOT"/sessions/*.json; do
+  s="$(jq -r '.socket // empty' "$f")"
+  case "$s" in ''|"$tmp/"*) ;; *) fail registry-socket-scope "$f records a socket outside the suite's scratch directory: $s" ;; esac
+done
+stop_session holder
+listen "$sock" "$heard"
+"$H" inbox nudge --to "$hold" --from sender --path "$handoff" > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" = 1 ] && [ ! -e "$heard" ] || fail nudge-dead "a nudge reached the socket of a session whose process is gone (exit $rc)"
 
 # --- Loop artifact -----------------------------------------------------------------
 "$H" loop mark --skill panel-review --iteration 1 --phase start > /dev/null || fail loop-mark "mark failed"
