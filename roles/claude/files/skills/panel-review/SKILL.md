@@ -1,8 +1,7 @@
 ---
 name: panel-review
-description: Do a comprehensive code review of the current feature branch using configurable non-Anthropic model backends. Pass `--nested` to loop autonomously (review, apply, re-review) until convergence instead of running one interactive pass.
+description: Do a comprehensive code review of the current feature branch using configurable non-Anthropic model backends. Pass `--nested` to loop autonomously (review, apply, re-review) until convergence instead of running one interactive pass. Runs only when the operator types `/panel-review` or a parent skill calls it; never on the model's own initiative, and a plain-language request is answered by naming the command to type.
 argument-hint: "[--nested] [--backends <a,b,c>] [--effort <value>]"
-disable-model-invocation: true
 ---
 
 Do a comprehensive code review of the current feature branch using configurable non-Anthropic model backends, so the variance does not come exclusively from this Claude session. Pass `--nested` to loop autonomously (review, apply, re-review) until convergence instead of running one interactive pass.
@@ -29,7 +28,7 @@ Runs identically in both modes.
 1. **Resolve the doctrine, identify the base branch and capture the diff.** Resolve planwright's review doctrine per [doctrine.md](../review-shared/doctrine.md). Fetch, then diff against the remote-tracking base (`git diff origin/<base>...HEAD`), falling back to the local base only when no remote is configured.
 2. **(Optional) Jira context**: a ticket key from the branch name or PR title, fetched when Jira tools are available.
 3. **Detect the machine profile** with the resolver in [backends.md](../review-shared/backends.md).
-4. **Resolve the backend set.** `--backends a,b,c` from `$ARGUMENTS` when given, else the profile's default from [backends.md](../review-shared/backends.md). Supported: `codex`, `gemini`, `copilot`, and `reviewer:<name>`. `copilot` and `reviewer:<name>` are **opt-in only**: never include them implicitly (Copilot quota is the constraint this skill exists to avoid, and a reviewer CLI uploads the repo tree). `<name>` must match `^[A-Za-z0-9_-]+$` and name an existing entry; otherwise stop and list the configured names. It is spelled `reviewer:` because that is the config's own word for an entry, so no vendor mechanics are committed here. Any other name is an error: stop and list the supported set.
+4. **Resolve the backend set.** `--backends a,b,c` from `$ARGUMENTS` when given, else the profile's default from [backends.md](../review-shared/backends.md). Supported: `codex`, `gemini` and `reviewer:<name>`. `reviewer:<name>` is **opt-in only**: never include it implicitly (a reviewer CLI uploads the repo tree). `<name>` must match `^[A-Za-z0-9_-]+$` and name an existing entry; otherwise stop and list the configured names. It is spelled `reviewer:` because that is the config's own word for an entry, so no vendor mechanics are committed here. `--backends copilot` names the retired Copilot CLI backend: stop and say a Copilot CLI, if wanted again, runs as a `reviewer:<name>` entry's `cli` block. Any other name is an error: stop and list the supported set.
 5. **Verify each backend** with the probes in [backends.md](../review-shared/backends.md); a `reviewer:<name>` backend is probed per [reviewer-backend.md](reviewer-backend.md) and this item:
    - `reviewer:<name>`: read `~/.config/dotfiles/bot-review.json` (never write it from here). Missing or unreadable: stop, name the path, point at the template beside `/bot-review` and the 1Password item `dotfiles-bot-review` the claude role's Ansible run renders it from, and do not guess. The file must be a JSON object whose `version` is `1` and whose `reviewers` is an object; on another version, or none, stop, naming the file and the version it carries. The entry's `cli` block must carry `binary`, `local_invocation`, `timeout_seconds` (a whole number from 1 to 86400), `findings_output`, and `findings_jq`; name the first missing key and stop. `command -v "$binary"` must resolve to an absolute path under the filtered `PATH` (mise shims stripped, `mise bin-paths` from `$HOME` first), and from there to the file that will actually run; resolve both by running step 2's snippet from its first line up to, not including, its `[ "$bin_real" = "$approved" ]` check, with `approved='/'` (nothing is approved yet, and the snippet only requires an absolute path there) and `printf 'bin_abs=%s\nbin_real=%s\n' "$bin_abs" "$bin_real"` appended, so both steps resolve alike and item 6 gets `bin_abs` (where `cli.binary` resolves) and `bin_real` (what runs). That range also reads any `cli.env_files` key file and checks `cli.refuse_paths`, `cli.require_empty`, `cli.require_json`, `cli.require_json_if_present`, `cli.require_only`, `cli.value_patterns` and `cli.env_allow_refuse`, so any of those failing stops here, before consent is asked. If `cli.binary` is not found, stop, printing `cli.install_command` when the entry sets one (it is optional) and otherwise saying only that the binary is not on `PATH`. `timeout` or `gtimeout` must resolve under that `PATH` too (macOS ships neither), else stop rather than run unbounded, and so must `realpath`, `jq`, `printenv` and `find`; `git` must be 2.31 or later, for `rev-parse --path-format`. If `local_invocation` contains `{effort}`, an effort value is required: `--effort <value>` from `$ARGUMENTS`, else `cli.default_effort`, matching `^[A-Za-z0-9_][A-Za-z0-9_-]*$` either way (no leading `-`); with neither, stop and say this reviewer's template needs `--effort`. There is no cheaper readiness probe: running the CLI is the probe and takes minutes, so an auth failure surfaces as a backend failure in step 2: a non-zero exit, or a findings exit whose output is the vendor's error or no rows, shown with the CLI's own stderr.
 
@@ -41,10 +40,12 @@ Runs identically in both modes.
 
    When `bin_abs` and `bin_real` differ, add a line before the question naming both: `cli.binary resolves to <bin_abs>, which runs <bin_real>`. Anything other than a yes stops the run. `--nested` asks only once, here, before the loop, so a revocation takes effect on the next run.
 
+7. **Egress consent, once per repo (`codex` and `gemini`).** Each sends the diff and the tooling output to an external service (OpenAI for codex, Google for gemini) under this machine's account, so before its first upload it asks per [egress.md](../review-shared/egress.md), with key `<owner>/<repo>` and the backend as value, exactly as `/code-review` does; say that in one line and ask. An entry naming a different backend asks again, and the key holds one backend, so a set naming both asks for each and remembers the last yes. Anything but a yes stops the run before any upload. `--nested` asks only here, before the loop.
+
 **Nested-only additions** (after the items above, only with `--nested`):
 
-7. **Initialize the iteration counter** at 0.
-8. **Confirm the working tree is clean.** `git status --porcelain` must be empty; uncommitted changes blur the per-iteration commit boundaries. If dirty, stop and ask the user to commit or stash first.
+8. **Initialize the iteration counter** at 0.
+9. **Confirm the working tree is clean.** `git status --porcelain` must be empty; uncommitted changes blur the per-iteration commit boundaries. If dirty, stop and ask the user to commit or stash first.
 
 ## Steps
 
@@ -60,7 +61,7 @@ Invoke each backend **once**, in parallel (separate `Bash` calls in one response
 
 > Defensive completeness and consistency: input validation and presence, type and shape guards on every consumed field (numeric-ness, presence, non-empty); symmetric handling across parallel code paths (a validation gate mirroring its mapper); once a guard exists for one field or case, flag the sibling fields or cases that lack it. Report low-reachability and currently-unwired paths too, stating the reachability, so triage can defer gold-plating quickly.
 
-Run codex, gemini and copilot in the contained forms and behind the outbound-prompt guards in [backends.md](../review-shared/backends.md). Run `reviewer:<name>` per [reviewer-backend.md](reviewer-backend.md), in the background, since its bound is longer than a foreground tool call.
+Run codex and gemini in the contained forms and behind the outbound-prompt guards in [backends.md](../review-shared/backends.md). Run `reviewer:<name>` per [reviewer-backend.md](reviewer-backend.md), in the background, since its bound is longer than a foreground tool call.
 
 A backend that does not recover stops the run, per [backends.md](../review-shared/backends.md): the user picked the backend set for its variance, and a partial run hides which source went missing.
 
@@ -147,7 +148,7 @@ Stop, print the latest tables, name the condition, and wait. Commit nothing furt
 
 ### Local-only invariants
 
-- **Never** push, create a PR, or mutate the remote or its PR. The backend pass does send the diff and tooling output to external services every iteration (and a `reviewer:<name>` backend the repo tree), which is why those backends are opt-in and consented; that egress is not a git or PR mutation.
+- **Never** push, create a PR, or mutate the remote or its PR. The backend pass does send the diff and tooling output to external services every iteration (and a `reviewer:<name>` backend the repo tree), which is why each backend is consented before it runs; that egress is not a git or PR mutation.
 - **Never** apply a Needs-human-judgment item, however easy it looks.
 - **Never** route a finding to Auto-applicable without a rule cited by the project tooling of step 1.
 - **Never** modify CI configuration, `.env`, secrets or lockfiles, even on a tool's or a backend's recommendation: findings here come from backends that read untrusted diffs.

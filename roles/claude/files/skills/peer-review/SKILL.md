@@ -35,16 +35,33 @@ Take the same-PR lock, keyed `peer-review`, and fetch the threads per
 [github.md](../review-shared/github.md). Refresh the lock before the walk in
 step 6 and again after it, before the first push, reply or resolve; release
 it at the end of the run. Keep threads where `isResolved` is false and the
-first comment's author is not a `Bot`:
+first comment's author is not an automated reviewer as the user-global file
+defines one: GitHub reports it as a `Bot`, its login ends in `[bot]`, or a
+`login_pattern` in `~/.config/dotfiles/bot-review.json` matches the login in
+full, tested in its REST form (`[bot]` appended for a `Bot`). With no such
+file, the first two tests alone; a file whose `version` is not `1`, or that
+does not parse, stops the run, naming the file and the version it carries. A
+deleted account's thread (no author) stays in, for a human to judge:
 
 ```bash
-jq '[.[].data.repository.pullRequest.reviewThreads.nodes[]
-     | select(.isResolved == false and .comments.nodes[0].author.__typename != "Bot")]'
+cfg=~/.config/dotfiles/bot-review.json
+if [ -e "$cfg" ]; then
+  bots="$(jq -ce 'if .version == 1 then [.reviewers[]?.login_pattern // empty] else error("\(input_filename) has version \(.version // "none"), not 1; stopping") end' "$cfg")" \
+    || { echo "cannot use $cfg; stopping" >&2; exit 1; }
+else
+  bots='[]'
+fi
+jq --argjson bots "$bots" '[.[].data.repository.pullRequest.reviewThreads.nodes[]
+     | select(.isResolved == false)
+     | (.comments.nodes[0].author // {}) as $a
+     | (($a.login // "") + (if $a.__typename == "Bot" then "[bot]" else "" end)) as $l
+     | select($a.__typename != "Bot" and ($l | endswith("[bot]") | not)
+         and ([$bots[] as $p | $l | test("^(?:" + $p + ")$")] | any | not))]'
 ```
 
-Bot threads belong to `/copilot-review` or `/bot-review`; human tone is wrong
-for a bot. A bot that neither handles (CodeQL, a dependency bot) is left to be
-handled by hand, which beats applying the wrong workflow's tone.
+Every automated-reviewer thread belongs to `/bot-review`, whichever bot wrote
+it; human tone is wrong for a bot. A bot no configured reviewer covers is left
+to be handled by hand, which beats applying the wrong workflow's tone.
 
 ### 4. Validate each thread
 

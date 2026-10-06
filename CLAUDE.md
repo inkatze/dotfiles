@@ -45,8 +45,8 @@ near-empty. See [docs/claude-config.md](docs/claude-config.md).
 
 1. Create `roles/claude/files/skills/<name>/SKILL.md` with front matter
    (`name`, `description`, and `disable-model-invocation: true` for a
-   slash-invoked review skill). Mechanics more than one skill uses go in
-   `roles/claude/files/skills/review-shared/`, linked by relative path.
+   review skill without a `--nested` mode). Mechanics more than one skill uses
+   go in `roles/claude/files/skills/review-shared/`, linked by relative path.
 2. A review skill also joins `SKILL_NAMES` and `expected_hint` in
    `roles/claude/files/scripts/skill-contracts.sh`, with a fixture.
 3. Declare its word budget (below), commit, and run Ansible from the main
@@ -103,9 +103,9 @@ The resolver and every prompt-driven backend invocation are stated once, in
 `roles/claude/files/skills/review-shared/backends.md`; change them there. An
 unresolved host alias must fall back to `work`, matching `scripts/playbook.sh`.
 The Gemini key sync addresses its 1Password item with an explicit `--vault`,
-and the item id in that script is the id in that vault. Ollama and its
-backends are retired; restoring them is in [docs/ollama.md](docs/ollama.md).
-See [docs/review-backends.md](docs/review-backends.md).
+and the item id in that script is the id in that vault. Ollama is retired
+([docs/ollama.md](docs/ollama.md)), as is the Copilot CLI backend, so revoke
+its GitHub OAuth apps ([docs/review-backends.md](docs/review-backends.md)).
 
 ## Machine-local files under `~/.config/dotfiles/`
 
@@ -126,15 +126,15 @@ row names a writer. Keep machine-specific values here, never in tracked files.
 | `slack-users.json` | `roles/claude/files/skills/review-shared/slack.md` | GitHub login to Slack user ID (0600), written by the skills |
 | `cubic-api-key` | `roles/claude/files/skills/panel-review/reviewer-backend.md`, through the cubic entry's `cli.env_files` | The cubic.dev CLI's API key (0600), written by `scripts/op-key-sync.sh` from the `dotfiles-cubic-api-key` item |
 | `code-review-egress.json` | `roles/claude/files/skills/review-shared/egress.md` | Per-repo (and per-reviewer) upload consents (0600), written by the skills |
-| `bot-review.json` | the `/bot-review` skill, `/panel-review`'s `reviewer:<name>` backend | Named third-party reviewers, one schema (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/bot-review/bot-review.json.tpl` |
+| `bot-review.json` | the `/bot-review` skill, `/panel-review`'s `reviewer:<name>` backend, `/peer-review` (its login patterns) | Named third-party reviewers, one schema (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/bot-review/bot-review.json.tpl` |
 | `sibling-repos.json` | nothing yet; `/code-review` and `/panel-review` gain the reader | Consuming repository to its producers' clone paths (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/review-shared/sibling-repos.json.tpl` |
 | `private-identifiers` | `scripts/gitleaks-identifier-rules.sh`, `roles/claude/files/scripts/identifier-check.sh` | Names that must never reach a committed file |
 | `claude-instructions-inventory/` | the `specs/claude-instructions` tasks, by hand | Dated instruction-surface audit (directory 0700, files 0600) |
+| `review/` | `roles/claude/files/scripts/review-state.sh`, through `roles/claude/files/skills/review-shared/state.md` | Lock root for the review skills: writer locks, session registry, inboxes, and `/bot-review`'s per-PR decision ledgers, never pruned (directory 0700, created by the helper) |
 
 Service-account items live in the `Dotfiles Service Account` vault (service
-accounts cannot read Personal or Private); moving an item there reassigns its
-id. See [docs/machine-local-files.md](docs/machine-local-files.md) for the why,
-the rendering rules and the rotation procedure.
+accounts cannot read Personal or Private); moving one there reassigns its id.
+[docs/machine-local-files.md](docs/machine-local-files.md) has the rest.
 
 ## Identifier check
 

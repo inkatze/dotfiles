@@ -80,6 +80,10 @@ jobs:
         run: scripts/planwright-marketplace-test.sh
 
       # Needs ansible-playbook, which this job installs.
+      - name: Run the Copilot retirement suite
+        run: scripts/copilot-retirement-test.sh
+
+      # Needs ansible-playbook, which this job installs.
       - name: Run the Claude skills link suite
         run: scripts/claude-skills-link-test.sh
 
@@ -143,6 +147,15 @@ jobs:
       # needs; lint runs it on macOS as well.
       - name: Run the playbook alias suite
         run: scripts/playbook-alias-test.sh
+
+      # bash, git, jq and procps are all it needs; it stands in for a Claude
+      # Code session with a renamed bash.
+      - name: Run the review-state helper suite
+        run: roles/claude/files/scripts/review-state-test.sh
+
+      # bash and jq are all it needs.
+      - name: Run the bot-review surfaces suite
+        run: roles/claude/files/scripts/bot-review-surfaces-test.sh
 
       # Here rather than in lint: bash, jq and git are all it needs.
       - name: Run the status line fixture suite

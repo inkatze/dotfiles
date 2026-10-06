@@ -10,8 +10,7 @@ def required_hosted:
 def optional_hosted:
   ["draft_setting", "opt_in_label", "gating_checks", "requirement_level_hint",
    "repo_config_path", "reply_suffix", "feedback_reaction",
-   "errored_review_regex", "full_review_comment", "rereview_comment",
-   "quota_refusal_regex", "request_notes"];
+   "errored_review_regex", "quota_refusal_regex", "request_notes"];
 def rerequest_methods: ["request", "comment", "push"];
 def draft_policies: ["reviews-drafts", "skips-drafts"];
 # The template reference syntax, for scripts/op-render.sh too: `f` captures

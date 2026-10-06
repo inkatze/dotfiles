@@ -42,6 +42,16 @@ pre-commit:
         specs/claude-context/requirements.md,\
         roles/claude/files/{skills/*/*.md,CLAUDE.md,scripts/instruction-budget{.sh,-test.sh}}}"
       run: roles/claude/files/scripts/instruction-budget.sh && roles/claude/files/scripts/instruction-budget-test.sh
+    review-state:
+      # The suite is what notices the lock reclaiming a live holder or the
+      # evidence key ignoring untracked files; the helper alone still exits 0.
+      glob: "roles/claude/files/scripts/review-state{.sh,-test.sh}"
+      run: roles/claude/files/scripts/review-state-test.sh
+    bot-review-surfaces:
+      # The suite is what notices a marker read off one surface only; the
+      # filter alone still returns well-formed output that finds nothing.
+      glob: "roles/claude/files/{skills/bot-review/surfaces.jq,scripts/bot-review-surfaces-test.sh}"
+      run: roles/claude/files/scripts/bot-review-surfaces-test.sh
     claude-skills-link:
       # The suite is what notices the ownership guard being dropped; the role
       # alone still converges on a host whose skills directory holds nothing
@@ -72,6 +82,14 @@ pre-commit:
       glob: "{roles/git/tasks/main.yml,roles/git/defaults/main.yml,\
         scripts/git-unattended-auth-test.sh}"
       run: scripts/git-unattended-auth-test.sh
+    copilot-retirement:
+      # The suite is what notices the credential removal reaching past its one
+      # directory, or a host declaration bringing the Copilot CLI back.
+      glob: "{Brewfile*,mise.toml,main.yml,CLAUDE.md,roles/environments/defaults/main.yml,\
+        roles/environments/files/{mise.toml,default-npm-packages,default-python-packages,default-gems,default-mix-commands},\
+        roles/linux/files/mise/linux.toml,roles/linux/defaults/main.yml,\
+        roles/claude/tasks/{main,copilot-credential}.yml,scripts/copilot-retirement-test.sh}"
+      run: scripts/copilot-retirement-test.sh
     planwright-marketplace:
       # The suite is what notices the stale-source removal being dropped or
       # loosened; the role alone still converges on a host already migrated.
