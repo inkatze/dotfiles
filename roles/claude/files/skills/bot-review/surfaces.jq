@@ -15,19 +15,19 @@ def _surface_items($cfg):
       | {surface: "review_comment", at: (.updated_at // .created_at // "")} + .])
   | map(select((.user.login // "") | test($login)) | .body = (.body // ""));
 
-# The value a match yields: its first capture group, or the whole match when
-# the regex has no group. A group that exists but did not take part yields
-# nothing, so an alternation never hands back its surrounding text.
+# The value a match yields: the first capture group that took part, or the
+# whole match when the regex has no group, so an alternation never hands back
+# its surrounding text and never loses a branch.
 def _value:
-  if (.captures | length) == 0 then .string else .captures[0].string // empty end;
+  if (.captures | length) == 0 then .string
+  else [.captures[].string | select(. != null)] | first // empty end;
 
-# The latest item whose body the regex matches, with its value.
+# The latest item a regex yields a value on, with that value.
 def _latest_marker($items; $re):
   if ($re // "") == "" then null
-  else [$items[] | select(.body | test($re))] | sort_by(.at, .id) | last
-    | if . == null then null
-      else ([.body | match($re; "g") | _value] | last) as $v
-        | if $v == null then null else {value: $v, surface, id, at} end end
+  else [$items[] | ([.body | match($re; "g") | _value] | last) as $v
+        | select($v != null) | {value: $v, surface, id, at}]
+    | sort_by(.at, .id) | last
   end;
 
 def bot_surfaces($cfg):
@@ -36,7 +36,10 @@ def bot_surfaces($cfg):
   | [_surface_items($cfg)] as [$reviews, $issue, $inline]
   | ($reviews + $issue + $inline) as $all
   | _latest_marker($all; $cfg.build_id_regex) as $build
-  | _latest_marker($all; $cfg.errored_review_regex) as $error
+  # Error text is read off summaries only: an inline finding can quote it.
+  | ($cfg.errored_review_regex // "") as $err
+  | (if $err == "" then null
+     else [($reviews + $issue)[] | select(.body | test($err))] | sort_by(.at, .id) | last end) as $error
   | [ $all[] as $i
       | if ($cfg.finding_key_regex // "") == "" then empty
         else $i.body | match($cfg.finding_key_regex; "g") | _value end
@@ -46,11 +49,14 @@ def bot_surfaces($cfg):
            then {path: $i.path, original_line: $i.original_line,
                  original_commit_id: $i.original_commit_id}
            else {} end) ] as $keyed
-  # A summary that lists a key its inline comment also carries is the same
-  # finding, kept once, as the inline one.
+  # A key a summary repeats (twice in one body, or across re-reviews) is one
+  # description-level finding, the latest; one its inline comment also
+  # carries is the inline finding alone.
   | ([$keyed[] | select(.surface == "review_comment") | .key]) as $inline_keys
-  | ([$keyed[] | select(.surface == "review_comment"
-                        or (.key as $k | $inline_keys | index([$k]) | not))]) as $findings
+  | ([$keyed[] | select(.surface == "review_comment")]
+     + ([$keyed[] | select(.surface != "review_comment"
+                          and (.key as $k | $inline_keys | index([$k]) | not))]
+        | group_by(.key) | map(sort_by(.at, .id) | last))) as $findings
   | {
       counts: {reviews: ($reviews | length), issue_comments: ($issue | length),
                review_comments: ($inline | length),
@@ -58,8 +64,10 @@ def bot_surfaces($cfg):
                description_level_findings: ([$findings[] | select(.surface != "review_comment")] | length)},
       build_id: $build,
       reviewed_head: _latest_marker($all; $cfg.reviewed_head_regex),
-      # Errored when the error text is at least as new as the latest run
-      # marker, so a later clean run clears an old failure.
-      errored: ($error != null and ($build == null or $error.at >= $build.at)),
+      # Errored when the latest error summary carries the latest run marker or
+      # is at least as new as it, so a later clean run clears an old failure.
+      errored: ($error != null
+        and ($build == null or $error.at >= $build.at
+             or ([$error.body | match($cfg.build_id_regex; "g") | _value] | index([$build.value])) != null)),
       findings: $findings
     };

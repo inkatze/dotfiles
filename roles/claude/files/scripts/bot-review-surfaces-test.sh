@@ -109,7 +109,7 @@ check summary-key-deduped "$out" '[.findings[] | select(.key == "k5") | .surface
   and .counts.description_level_findings == 1 and .counts.inline_findings == 1'
 
 # A later clean run clears an older errored summary, wherever the new run
-# marker lands; error text newer than the run marker, on any surface, sets it.
+# marker lands; error text on an inline finding is never a failed review.
 out="$(surfaces \
   "[{\"id\": 18, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:01Z\", \"body\": \"acme:run=1 unable to review\"},
     {\"id\": 19, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:09Z\", \"body\": \"All good.\"}]" \
@@ -122,21 +122,37 @@ out="$(surfaces \
   '[]' \
   "[{\"id\": 36, \"user\": $bot, \"updated_at\": \"2026-01-01T00:00:08Z\", \"path\": \"e.sh\", \"original_line\": 1,
      \"original_commit_id\": \"$HEAD_A\", \"body\": \"I was unable to review this file\"}]")"
-check errored-inline-only "$out" '.errored == true'
+check errored-inline-ignored "$out" '.errored == false'
+# The errored summary carries the latest run marker, which an inline comment
+# of the same run repeats later: still errored.
+out="$(surfaces \
+  "[{\"id\": 23, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:01Z\", \"body\": \"acme:run=6 unable to review\"}]" \
+  '[]' \
+  "[{\"id\": 37, \"user\": $bot, \"updated_at\": \"2026-01-01T00:01:00Z\", \"path\": \"e.sh\", \"original_line\": 1,
+     \"original_commit_id\": \"$HEAD_A\", \"body\": \"<!-- acme:run=6 -->\"}]")"
+check errored-same-run "$out" '.errored == true'
+
+# A key repeated across summaries is one description-level finding, the latest.
+out="$(surfaces \
+  "[{\"id\": 24, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:01Z\", \"body\": \"acme:v=k10 and again acme:v=k10\"},
+    {\"id\": 25, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:09Z\", \"body\": \"acme:v=k10\"}]" '[]' '[]')"
+check summary-key-once "$out" '[.findings[] | [.key, .id]] == [["k10", 25]] and .counts.description_level_findings == 1'
 
 # An alternation whose group did not take part yields no key, never the
 # surrounding text.
 CFG_SAVED="$CFG"
-CFG="$(jq '.finding_key_regex = "acme:v=([a-z0-9]+)|acme:none"' <<< "$CFG")"
-out="$(surfaces "[{\"id\": 21, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:05Z\", \"body\": \"acme:none acme:v=k7\"}]" '[]' '[]')"
-check alternation-group "$out" '[.findings[].key] == ["k7"]'
+CFG="$(jq '.finding_key_regex = "acme:v=([a-z0-9]+)|acme:none|acme:id=([0-9]+)"' <<< "$CFG")"
+out="$(surfaces "[{\"id\": 21, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:05Z\", \"body\": \"acme:none acme:v=k7 acme:id=42\"}]" '[]' '[]')"
+check alternation-group "$out" '[.findings[].key] == ["42", "k7"]'
 CFG="$CFG_SAVED"
 
 # A reviewer missing from the config is an error, never an empty PR.
-if jq -n -L "$LIB" 'include "surfaces"; {reviews: [], issue_comments: [], review_comments: []} | bot_surfaces(null)' \
-  > /dev/null 2>&1; then
-  fail unknown-reviewer "a missing reviewer entry read as a PR with no activity"
-fi
+for entry in null '{"build_id_regex": "x"}'; do
+  if jq -n -L "$LIB" --argjson e "$entry" 'include "surfaces"; {reviews: [], issue_comments: [], review_comments: []} | bot_surfaces($e)' \
+    > /dev/null 2>&1; then
+    fail "unknown-reviewer ($entry)" "a missing reviewer, or one with no login_pattern, read as a PR with no activity"
+  fi
+done
 
 # The command the skill runs: paginated pages slurped per surface, the config
 # read from its file.
