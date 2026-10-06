@@ -1,18 +1,18 @@
 # Shared review state
 
 What the review skills share across passes and sessions: the evidence record,
-the writer lock, the session registry, the inbox and the loop artifact. One
-helper writes all of it, `~/.claude/scripts/review-state.sh` (tracked at
-`roles/claude/files/scripts/review-state.sh`); its usage block lists every
-operation and its exit codes. Invoke it by that literal path with literal
-arguments, one call per command.
+the writer lock, the session registry, the inbox, the loop artifact and the
+decision ledger. One helper writes all of it, `~/.claude/scripts/review-state.sh`
+(tracked at `roles/claude/files/scripts/review-state.sh`); its usage block
+lists every operation and its exit codes. Invoke it by that literal path with
+literal arguments, one call per command.
 
 Operations that act as a session (`session-pid`, `register`, `unregister`,
 `lock acquire`, `lock release`, `lock handover`, `inbox read`) must run from
 the Claude Code session they act for: the helper finds that session process
-in its own ancestry and exits 2 anywhere else. `sessions`, `lock status` and
-`inbox send` run from anywhere. A session token identifies a session; it is
-printed to peers on purpose and is not a secret.
+in its own ancestry and exits 2 anywhere else. `sessions`, `lock status`,
+`inbox send` and `ledger` run from anywhere. A session token identifies a
+session; it is printed to peers on purpose and is not a secret.
 
 **No skill writes any of this state with a shell redirect.** Content goes to
 the helper on stdin (`printf '%s\n' "$body" | ~/.claude/scripts/review-state.sh inbox send ...`)
@@ -20,12 +20,12 @@ or through `evidence run`, which captures a command's output itself.
 
 ## Version key
 
-Every evidence entry, registry entry and loop artifact carries `version` (the
-loop artifact in its first line). The helper refuses a file whose version it
-does not know, or that has none, naming the file and the version, and so does
-any skill that reads one directly. A dead session's registration is pruned
-without being read. Lock holder records and inbox files are the
-helper's own and short-lived, and carry none.
+Every evidence entry, registry entry, loop artifact and decision ledger
+carries `version` (the loop artifact in its first line). The helper refuses a
+file whose version it does not know, or that has none, naming the file and the
+version, and so does any skill that reads one directly. A dead session's
+registration is pruned without being read. Lock holder records and inbox
+files are the helper's own and short-lived, and carry none.
 
 ## Evidence record
 
@@ -206,3 +206,22 @@ merge-base=<sha> -->`, with `-` for a head that does not resolve and for the
 merge-base when `--base` is absent or does not resolve,
 and `loop append --skill <skill>` adds the iteration's body (its lens table,
 findings, and evidence reuse) from stdin.
+
+## Decision ledger
+
+`/bot-review`'s record of every finding disposition it posted, one file per
+repository and PR at `ledger/<owner>/<repo>/pr-<n>.json` under the lock root,
+mode 0600, so any session reviewing that PR reads it and it outlives the
+worktree. `ledger record` appends an entry (finding key, anchor, disposition,
+evidence summary on stdin, head, date, the posted reply's link, and a
+deferral's follow-up record or a suppression's reason); it refuses a deferral
+with no follow-up record and a suppression with no reason, writing nothing.
+Key and anchor are limited to `[A-Za-z0-9._:-]`, so a caller hashes anything
+else first. The helper serializes appends to one file itself, under a kernel
+lock on the `pr-<n>.json.lock` file beside it, which its holder's exit
+releases; until a skill adopts the writer lock, its same-PR lock
+([github.md](github.md)) covers the rest of its writes. Each entry names its
+reviewer, since two vendors can share a key, and `ledger lookup` routes a
+finding raised again by that reviewer's latest entry for its key, and
+`ledger show` prints the file. **The ledger is never pruned
+automatically**: entries are only appended, and a reclaim leaves it alone.

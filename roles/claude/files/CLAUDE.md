@@ -115,10 +115,9 @@ planwright's configured flips count as you flipping and follow the same scope,
 except one kept in every repository: the spec PR after a signed-off kickoff,
 which planwright marks ready by configuration. A flip I confirm when a run asks
 me is one I requested, and a no I give when asked holds: do not then flip that
-PR as the solo flip. A nested review loop's own convergence flip (such as
-`/copilot-review --nested` asking at convergence) stays confirmation-gated in
-every repository, never counts as the solo flip, and evaluates these same
-conditions first.
+PR as the solo flip. A nested review loop's own convergence flip stays
+confirmation-gated in every repository, never counts as the solo flip, and
+evaluates these same conditions first.
 
 If planwright's ready-guard hook denies a flip on a branch that meets these
 conditions, report the denial to me and never work around it: no sync to
@@ -173,8 +172,7 @@ When reviewing code or addressing review feedback:
 - `/self-review`: planwright's `self-review` skill, a review of my branch that ends in a draft PR.
 - `/polish`: planwright's `polish` skill. `/polish` applies Auto-applicable, Agent-resolvable and Needs-sign-off fixes on the branch, pausing first on planwright's hard-disqualifier zones and stopping at Needs human judgment, and never pushes.
 - `/panel-review`: `~/.claude/skills/panel-review/SKILL.md`, a review of my branch through non-Anthropic backends.
-- `/copilot-review`: `~/.claude/skills/copilot-review/SKILL.md`, GitHub Copilot's review threads on my PR.
-- `/bot-review`: `~/.claude/skills/bot-review/SKILL.md`, a third-party review bot's findings on my PR.
+- `/bot-review`: `~/.claude/skills/bot-review/SKILL.md`, a third-party review bot's findings on my PR. `/copilot-review` is retired into it: a run naming it stops and names `/bot-review`.
 - `/peer-review`: `~/.claude/skills/peer-review/SKILL.md`, human reviewers' threads on my PR.
 - `/code-review`: `~/.claude/skills/code-review/SKILL.md`, a review of someone else's PR.
 

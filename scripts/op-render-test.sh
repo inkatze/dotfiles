@@ -88,8 +88,6 @@ full_review_fields() {
       "${v}_reply_suffix=" \
       "${v}_feedback_reaction=" \
       "${v}_errored_review_regex=" \
-      "${v}_full_review_comment=" \
-      "${v}_rereview_comment=" \
       "${v}_quota_refusal_regex=" \
       "${v}_request_notes="
   done
@@ -505,16 +503,15 @@ done
 (umask 0477 && "$subject" "$review_tpl" dotfiles-bot-review "$out" >/dev/null 2>&1) || true
 [ -f "$out" ] && [ "$(mode_of "$out")" = 600 ] && ok "mode 0600 under a restrictive umask" || ko "mode 0600 under a restrictive umask ($( [ -e "$out" ] && mode_of "$out"))"
 
-echo "24. the incremental re-review and quota-stop keys"
+echo "24. the quota-stop keys"
 new_sandbox
-full_review_item "cubic_full_review_comment=@reviewer full" "cubic_rereview_comment=@reviewer again" \
-  "cubic_quota_refusal_regex=(usage|review) limit" "cubic_request_notes=first pass full, later ones incremental"
+full_review_item "cubic_quota_refusal_regex=(usage|review) limit" "cubic_request_notes=first pass full, later ones incremental"
 run "$review_tpl" dotfiles-bot-review "$out"
-[ "$rc" -eq 0 ] && ok "renders the four keys" || ko "renders the four keys ($log)"
-[ "$(jq -r '.reviewers.cubic | [.full_review_comment, .rereview_comment, .quota_refusal_regex, .request_notes] | join("|")' "$out" 2>/dev/null)" \
-  = '@reviewer full|@reviewer again|(usage|review) limit|first pass full, later ones incremental' ] \
+[ "$rc" -eq 0 ] && ok "renders the two keys" || ko "renders the two keys ($log)"
+[ "$(jq -r '.reviewers.cubic | [.quota_refusal_regex, .request_notes] | join("|")' "$out" 2>/dev/null)" \
+  = '(usage|review) limit|first pass full, later ones incremental' ] \
   && ok "each lands as a string" || ko "each lands as a string"
-if jq -e '.reviewers.copilot | has("rereview_comment")' "$out" >/dev/null 2>&1; then ko "left empty, a key drops"; else ok "left empty, a key drops"; fi
+if jq -e '.reviewers.copilot | has("quota_refusal_regex")' "$out" >/dev/null 2>&1; then ko "left empty, a key drops"; else ok "left empty, a key drops"; fi
 full_review_item "cubic_quota_refusal_regex=limit (["
 run "$review_tpl" dotfiles-bot-review "$out"
 expect_failed "a quota pattern that does not compile" "reviewers.cubic.quota_refusal_regex: does not compile"

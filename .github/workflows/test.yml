@@ -145,6 +145,10 @@ jobs:
       - name: Run the review-state helper suite
         run: roles/claude/files/scripts/review-state-test.sh
 
+      # bash and jq are all it needs.
+      - name: Run the bot-review surfaces suite
+        run: roles/claude/files/scripts/bot-review-surfaces-test.sh
+
       # Here rather than in lint: bash, jq and git are all it needs.
       - name: Run the status line fixture suite
         run: scripts/claude-statusline-test.sh
