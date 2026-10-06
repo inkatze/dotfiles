@@ -58,7 +58,7 @@ PR-drain modes require `login_pattern`, `rerequest` with its `method`, `reviewed
 
 ## The decision ledger
 
-Every disposition this skill posts is recorded in the per-PR decision ledger kept by `~/.claude/scripts/review-state.sh ledger` ([state.md](../review-shared/state.md)), the only store of finding dispositions: `fixed`, `rejected`, `deferred`, or `suppressed` with its reason. Record after the reply posts, the evidence summary through a quoted heredoc with a fresh random delimiter, as a posted body is built ([github.md](../review-shared/github.md)), never through a shell redirect:
+Every disposition this skill posts is recorded in the per-PR decision ledger kept by `~/.claude/scripts/review-state.sh ledger` ([state.md](../review-shared/state.md)), the only store of finding dispositions: `fixed`, `rejected`, `deferred`, or `suppressed` with its reason. Record after the reply posts, the evidence summary through a quoted heredoc with a fresh random delimiter, as a posted body is built ([github.md](../review-shared/github.md)), never through an output redirect into the ledger:
 
 ```bash
 ~/.claude/scripts/review-state.sh ledger record --repo '<o>/<r>' --pr '<n>' --reviewer '<reviewer>' --key '<key>' --anchor '<anchor>' --disposition '<disposition>' --head '<finding head>' --reply '<reply url>' <<'BODY_<hex>'

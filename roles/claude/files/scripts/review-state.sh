@@ -1127,7 +1127,8 @@ cmd_ledger() {
         # perl's flock rather than flock(1), which macOS does not ship, and the
         # kernel drops the lock with its holder, so a killed writer leaves none.
         umask 077
-        exec perl -MFcntl=:flock -e 'open(my $l, ">>", shift) or die "cannot open the ledger lock: $!\n";
+        exec perl -MFcntl=:DEFAULT,:flock -e 'sysopen(my $l, shift, O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW, 0600)
+          or die "cannot open the ledger lock: $!\n";
           flock($l, LOCK_EX) or die "cannot lock the ledger: $!\n"; system(@ARGV);
           exit($? == -1 || ($? & 127) ? 2 : $? >> 8)' \
           "$LEDGER.lock" env REVIEW_LEDGER_LOCKED=1 "$BASH" "$0" ledger record "${args[@]}"
