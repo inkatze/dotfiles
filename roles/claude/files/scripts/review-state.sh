@@ -1122,20 +1122,30 @@ cmd_ledger() {
       esac
       need perl
       ledger_file create
-      if [ -z "${REVIEW_LEDGER_LOCKED:-}" ]; then
+      # Held only when the descriptor the locking parent hands down is open on
+      # this ledger's lock file itself, so no inherited variable can skip it.
+      local lock_fd="${REVIEW_LEDGER_LOCK_FD:-}"
+      if ! [[ "$lock_fd" =~ ^[0-9]{1,4}$ ]] || ! [ "/dev/fd/$lock_fd" -ef "$LEDGER.lock" ]; then
         # The same record again, stdin included, under the ledger's file lock:
         # perl's flock rather than flock(1), which macOS does not ship, and the
         # kernel drops the lock with its holder, so a killed writer leaves none.
         umask 077
         exec perl -MFcntl=:DEFAULT,:flock -e 'sysopen(my $l, shift, O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW, 0600)
           or die "cannot open the ledger lock: $!\n";
-          flock($l, LOCK_EX) or die "cannot lock the ledger: $!\n"; system(@ARGV);
+          flock($l, LOCK_EX) or die "cannot lock the ledger: $!\n";
+          fcntl($l, F_SETFD, 0) or die "cannot hand the ledger lock down: $!\n";
+          $ENV{REVIEW_LEDGER_LOCK_FD} = fileno($l); system(@ARGV);
           exit($? == -1 || ($? & 127) ? 2 : $? >> 8)' \
-          "$LEDGER.lock" env REVIEW_LEDGER_LOCKED=1 "$BASH" "$0" ledger record "${args[@]}"
+          "$LEDGER.lock" "$BASH" "$0" ledger record "${args[@]}"
       fi
-      evidence="$(head -c "$((EVIDENCE_CAP + 1))")" || die "cannot read the evidence summary from stdin"
+      # A sentinel keeps the capture from stripping newlines, so input whose
+      # byte past the cap is a newline is still seen as too long.
+      evidence="$(head -c "$((EVIDENCE_CAP + 2))"; printf x)" || die "cannot read the evidence summary from stdin"
+      evidence="${evidence%x}"
+      [ "${#evidence}" -le "$((EVIDENCE_CAP + 1))" ] && { [ "${#evidence}" -le "$EVIDENCE_CAP" ] || [ "${evidence: -1}" = "$NL" ]; } \
+        || die "the evidence summary is longer than $EVIDENCE_CAP bytes; summarize it"
+      while [ "${evidence%"$NL"}" != "$evidence" ]; do evidence="${evidence%"$NL"}"; done
       [ -n "$evidence" ] || die "the evidence summary on stdin is empty; every entry carries one"
-      [ "${#evidence}" -le "$EVIDENCE_CAP" ] || die "the evidence summary is longer than $EVIDENCE_CAP bytes; summarize it"
       # The evidence reaches jq on stdin, never argv, where any local user's
       # ps could read it.
       entry="$(printf '%s' "$evidence" | jq -R -s --arg reviewer "$opt_reviewer" --arg key "$opt_key" --arg anchor "$opt_anchor" \

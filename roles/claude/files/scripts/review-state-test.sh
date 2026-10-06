@@ -749,8 +749,24 @@ done
 for p in "${pids[@]}"; do wait "$p" || fail ledger-parallel-exit "a concurrent record failed"; done
 [ "$(jq '[.entries[] | select(.key | startswith("k-par"))] | length' "$ledger")" = 8 ] \
   || fail ledger-parallel "concurrent records lost entries: $(jq -c '[.entries[].key]' "$ledger")"
+# A caller's environment cannot claim the lock is already held.
+pids=()
+for i in 1 2 3 4 5 6 7 8; do
+  printf 'inherited %s\n' "$i" | REVIEW_LEDGER_LOCKED=1 REVIEW_LEDGER_LOCK_FD=0 lrec --key "k-env$i" --anchor f \
+    --disposition fixed --head "$h2" --reply "https://example.invalid/e/$i" > /dev/null 2>&1 &
+  pids+=("$!")
+done
+for p in "${pids[@]}"; do wait "$p" || fail ledger-env-lock-exit "a record with a planted lock variable failed"; done
+[ "$(jq '[.entries[] | select(.key | startswith("k-env"))] | length' "$ledger")" = 8 ] \
+  || fail ledger-env-lock "a planted lock variable skipped the lock and lost entries"
+# The cap holds when its last byte is a newline: the rest is never dropped.
+out="$({ head -c 4096 /dev/zero | tr '\0' e; printf '\nmore\n'; } | lrec --key k-cap --anchor f --disposition fixed \
+  --head "$h2" --reply https://example.invalid/r/16 2>&1)" && rc=0 || rc=$?
+[ "$rc" -eq 2 ] && [[ "$out" == *"longer than"* ]] || fail ledger-evidence-cap-newline "an oversized summary whose cap byte is a newline was accepted (exit $rc): $out"
+{ head -c 4096 /dev/zero | tr '\0' e; printf '\n'; } | lrec --key k-cap2 --anchor f --disposition fixed \
+  --head "$h2" --reply https://example.invalid/r/17 > /dev/null || fail ledger-evidence-at-cap "a summary at the cap with its trailing newline was refused"
 out="$("$H" ledger show --repo acme/widgets --pr 7)"
-jq -e '.version == 1 and (.entries | length) == 14' <<< "$out" > /dev/null \
+jq -e '.version == 1 and (.entries | length) == 23' <<< "$out" > /dev/null \
   || fail ledger-show "show did not print the whole ledger"
 [ "$(llook --key k-rej --anchor 'b.sh:9' --head "$h2" | jq -r .route)" = recorded-reply ] \
   || fail ledger-latest-wins "the latest entry for a key did not govern its route"
