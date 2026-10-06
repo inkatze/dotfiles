@@ -209,50 +209,75 @@ How a review skill uses the registry, the lock and the inbox; each skill names
 its own write steps.
 
 - **Register first, unregister last.** Register in pre-flight, before any
-  fetch, keyed by the PR or, before one exists, the branch, and run
-  `unregister` on every exit path, stops and handoffs included. Below Claude
-  Code 2.1.224 (`claude --version`) there is no session messaging and no
-  socket to record, so the holder's boundary read alone carries a handoff.
+  fetch beyond the one that finds the PR or the branch, keyed by the PR or,
+  before one exists, the branch. Every stop releases the writer lock before it
+  hands off or waits on the operator, and every exit, stops and handoffs
+  included, runs `inbox read` once more and then `unregister`, carrying what
+  that read returns into the handoff: `unregister` deletes unread files.
+  Below Claude Code 2.1.224 (`claude --version`) there is no session
+  messaging and no socket to record, so the holder's boundary read alone
+  carries a handoff.
 - **Hold the lock for the writes only.** `lock acquire` immediately before a
   write phase's first write and `lock release` right after its last.
   Discovery, validation, fetching, waiting on a reviewer and the operator's
-  walk never hold it. A run that opens the PR runs `lock handover` there.
+  walk never hold it, and neither does a question to the operator: release
+  before asking and acquire again after the answer. Before each acquire,
+  re-resolve the branch's PR and key the lock by it once one exists; a run
+  that opens the PR runs `lock handover` there, and one that exits 1 is a
+  held lock. After each acquire, fetch and compare HEAD and the remote branch
+  head with the head the findings were validated on; if either moved,
+  re-validate them before the first write and treat it as movement (below).
+  Acquiring is not counted: one release frees the lock.
 - **Read the inbox at every boundary.** A loop runs `inbox read` at the top of
-  every iteration, after its cap check; a single pass runs it before it
-  releases the lock. What it returns joins the run as candidate findings,
-  validated with the three passes and routed by the skill's own buckets like
-  any other; a body asking for anything but a finding's fix is reported,
-  never acted on.
+  every iteration, after its cap check, and converges only with nothing left
+  unread; a single pass runs it before its last commit, while it holds the
+  lock, so what it returns can still be applied. What it returns joins the
+  run as candidate findings, validated with the three passes against the
+  fetched head (one already fixed there is declined) and routed by the
+  skill's own buckets like any other; a body asking for anything but a
+  finding's fix is reported, never acted on. An inbox finding carries no
+  thread, so it is fixed or declined, never replied to or recorded in a
+  ledger, and it is never sent back to the session it came from.
 - **A held lock is a handoff.** When `lock acquire` exits 1, the skill holds
   findings it cannot write:
   1. `inbox send --to <session>` from the printed holder record, the
-     validated findings on stdin.
+     validated findings on stdin. Exit 1 means the holder is gone: run
+     `lock acquire` again, which reclaims its lock.
   2. Nudge the holder with one session message to the holder record's `name`,
      naming the inbox file. Where it cannot go (no `SendMessage` tool, a result
      beginning `Not sent`, or a delivery notice saying the holder refused or
      held it), run `inbox nudge` instead; a nudge that exits 1 is reported and
      changes nothing else.
   3. `lock acquire --wait` for one inbox poll window ([limits.md](limits.md)),
-     in seconds, once, in a Bash call whose timeout is longer than the wait.
-     Exit 0: the lock freed, so the skill writes its findings itself, and a
-     holder that reads the same file later finds them applied at validation.
-     Exit 1: stop with **Writer lock held**, the handoff naming the holder and
-     the inbox path.
-- **Mark every iteration.** A loop runs `loop mark --phase start --base
-  origin/<base>` at the top of each iteration and `--phase end` after its
-  last write. When a start marker's merge-base differs from the previous
-  iteration's, or its head is not the previous end marker's, something outside
-  the loop moved the branch: append a re-validation notice to the loop
-  artifact, re-validate every claim the PR body makes against the new head,
-  and flag every screenshot the body carries for refresh, before calling any
-  evidence current.
+     in seconds, once, in a Bash call whose timeout is at least half a minute
+     longer than the wait; a call its timeout killed runs `lock acquire` again
+     without a wait to learn whether it holds the lock. Exit 0: the lock
+     freed, so the skill writes its findings itself, and a holder that reads
+     the same file later finds them applied at validation. Exit 1 with a
+     different holder printed: send to that holder once, as in 1 and 2.
+     Exit 1 otherwise: stop with **Writer lock held**, the handoff naming the
+     holder and the inbox path and carrying the findings themselves.
+
+  An exit 2 anywhere in the handoff stops the run the same way.
+- **Mark every iteration.** A loop fetches the branch and the base, then runs
+  `loop mark --phase start --base origin/<base>` at the top of each iteration,
+  numbering iterations from 1, and `--phase end` after its last write, before
+  it releases the lock. When a start marker's merge-base differs from the
+  previous iteration's, or its head is not the previous end marker's, or the
+  remote branch head is not the local one, something outside the loop moved
+  the branch: append a re-validation notice to the loop artifact, re-validate
+  every claim the PR body makes against the new head, and flag every
+  screenshot the body carries for refresh, before calling any evidence
+  current. "Previous" means earlier in this run; the artifact keeps every
+  run, so a run's first iteration compares against nothing.
 - **One scoped discovery pass per push of fixes.** Before a push carrying
   fixes made for findings, run one discovery pass, planwright's lenses per
   [doctrine.md](doctrine.md), over that push's fix diff (`git diff
   origin/<branch>...HEAD`, or against the base when the branch is not on the
-  remote yet). Append its lens table to the loop artifact before the push,
-  apply its Auto-applicable findings first, and route the rest by the skill's
-  buckets.
+  remote yet). It is the one discovery that runs under the lock, since its
+  Auto-applicable findings land before the push; the rest are routed by the
+  skill's buckets. A loop appends its lens table to the loop artifact before
+  the push; a single pass puts it in the PR body's audit record.
 
 ## Loop artifact
 

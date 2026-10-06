@@ -13,6 +13,10 @@ are public and follow the same rule.
 
 ## The same-PR lock
 
+`/code-review` and `/peer-review` take this lock until they adopt the writer
+lock in [state.md](state.md); `/bot-review` and `/panel-review` take the
+writer lock instead and never this one.
+
 Two runs against one PR (two worktrees, two sessions, a standalone run beside
 a nested one) would otherwise both act on the same finding. Take the same-PR
 lock before the first fetch, keyed by skill, repo and PR:
