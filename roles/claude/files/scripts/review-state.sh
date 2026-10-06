@@ -27,10 +27,11 @@
 #   review-state.sh inbox read --session <token>
 #   review-state.sh loop mark --skill <s> --iteration <n> --phase <start|end> [--base <ref>]
 #   review-state.sh loop append --skill <s>                         (body on stdin)
-#   review-state.sh ledger record --repo <owner/repo> --pr <n> --key <k> --anchor <a>
+#   review-state.sh ledger record --repo <owner/repo> --pr <n> --reviewer <r> --key <k> --anchor <a>
 #       --disposition <fixed|rejected|deferred|suppressed> --head <sha> --reply <url>
 #       [--follow-up <record>] [--reason <text>]                (evidence on stdin)
-#   review-state.sh ledger lookup --repo <owner/repo> --pr <n> --key <k> --anchor <a> --head <sha>
+#   review-state.sh ledger lookup --repo <owner/repo> --pr <n> --reviewer <r> --key <k> --anchor <a>
+#       --head <sha>
 #   review-state.sh ledger show --repo <owner/repo> --pr <n>
 #   review-state.sh encode <segment>
 #
@@ -81,7 +82,7 @@ rand_hex() {
 # parse_opts <allowed names> -- <args>: clears every opt_<name>, sets one for
 # each --<name> <value> (a hyphen in the name becomes an underscore in the variable),
 # and leaves anything after a literal -- in rest_args.
-OPT_NAMES="anchor base branch command disposition ended exit follow_up from head iteration key name phase pr reason repo reply session skill source started to token tree wait worktree"
+OPT_NAMES="anchor base branch command disposition ended exit follow_up from head iteration key name phase pr reason repo reply reviewer session skill source started to token tree wait worktree"
 for _n in $OPT_NAMES; do printf -v "opt_$_n" '%s' ""; done
 rest_args=()
 parse_opts() {
@@ -1070,6 +1071,13 @@ ledger_file() {
     root_dir ledger
     sub_dir "$DIR/$owner"
     sub_dir "$dir"
+  else
+    # Read as strictly as written: a symlink anywhere on the path could
+    # hand a lookup a forged entry.
+    local level
+    for level in "$STATE_ROOT" "$STATE_ROOT/ledger" "$STATE_ROOT/ledger/$owner" "$dir"; do
+      if [ -L "$level" ]; then die "$level is a symlink; refusing it"; fi
+    done
   fi
   LEDGER="$dir/pr-$opt_pr.json"
   if [ -L "$LEDGER" ] || [ -L "$LEDGER.lock" ]; then die "$LEDGER or its lock is a symlink; refusing it"; fi
@@ -1097,8 +1105,9 @@ cmd_ledger() {
   case "$sub" in
     record)
       local args=("$@")
-      parse_opts "repo pr key anchor disposition head reply follow-up reason" -- "$@"
-      require_opt key; require_opt anchor; require_opt disposition; require_opt head; require_opt reply
+      parse_opts "repo pr reviewer key anchor disposition head reply follow-up reason" -- "$@"
+      require_opt reviewer; require_opt key; require_opt anchor; require_opt disposition; require_opt head; require_opt reply
+      [[ "$opt_reviewer" =~ ^[A-Za-z0-9_-]{1,64}$ ]] || die "--reviewer must be a config reviewer name, got '$opt_reviewer'"
       [[ "$opt_key" =~ ^[A-Za-z0-9._:-]{1,128}$ ]] || die "--key must match [A-Za-z0-9._:-]{1,128}; hash any other key first"
       [[ "$opt_anchor" =~ ^[A-Za-z0-9._:-]{1,128}$ ]] || die "--anchor must match [A-Za-z0-9._:-]{1,128}; hash any other anchor first"
       [[ "$opt_head" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] || die "--head must be a full commit hash, got '$opt_head'"
@@ -1128,10 +1137,10 @@ cmd_ledger() {
       [ "${#evidence}" -le "$EVIDENCE_CAP" ] || die "the evidence summary is longer than $EVIDENCE_CAP bytes; summarize it"
       # The evidence reaches jq on stdin, never argv, where any local user's
       # ps could read it.
-      entry="$(printf '%s' "$evidence" | jq -R -s --arg key "$opt_key" --arg anchor "$opt_anchor" \
+      entry="$(printf '%s' "$evidence" | jq -R -s --arg reviewer "$opt_reviewer" --arg key "$opt_key" --arg anchor "$opt_anchor" \
         --arg disposition "$opt_disposition" --arg reason "$opt_reason" --arg head "$opt_head" \
         --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg reply "$opt_reply" --arg follow_up "$opt_follow_up" \
-        '{key: $key, anchor: $anchor, disposition: $disposition, evidence: ., head: $head,
+        '{reviewer: $reviewer, key: $key, anchor: $anchor, disposition: $disposition, evidence: ., head: $head,
           date: $date, reply: $reply}
          + (if $reason == "" then {} else {reason: $reason} end)
          + (if $follow_up == "" then {} else {follow_up: $follow_up} end)')" || die "cannot build the ledger entry"
@@ -1139,8 +1148,9 @@ cmd_ledger() {
       printf '%s\n' "$LEDGER"
       ;;
     lookup)
-      parse_opts "repo pr key anchor head" -- "$@"
-      require_opt key; require_opt anchor; require_opt head
+      parse_opts "repo pr reviewer key anchor head" -- "$@"
+      require_opt reviewer; require_opt key; require_opt anchor; require_opt head
+      [[ "$opt_reviewer" =~ ^[A-Za-z0-9_-]{1,64}$ ]] || die "--reviewer must be a config reviewer name, got '$opt_reviewer'"
       [[ "$opt_key" =~ ^[A-Za-z0-9._:-]{1,128}$ ]] || die "--key must match [A-Za-z0-9._:-]{1,128}; hash any other key first"
       [[ "$opt_anchor" =~ ^[A-Za-z0-9._:-]{1,128}$ ]] || die "--anchor must match [A-Za-z0-9._:-]{1,128}; hash any other anchor first"
       [[ "$opt_head" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] || die "--head must be a full commit hash, got '$opt_head'"
@@ -1154,8 +1164,10 @@ cmd_ledger() {
       # with fix recommended. A deferral or suppression still stands for the
       # same anchor on a later head; anywhere else, like a fixed finding raised
       # again, the finding is new, its prior entry attached.
-      jq -c --arg key "$opt_key" --arg anchor "$opt_anchor" --arg head "$opt_head" '
-        [.entries[] | select(.key == $key)] | last as $p
+      # Keys are the vendor's, so two reviewers can share one; each reviewer
+      # reads only its own entries.
+      jq -c --arg reviewer "$opt_reviewer" --arg key "$opt_key" --arg anchor "$opt_anchor" --arg head "$opt_head" '
+        [.entries[] | select(.reviewer == $reviewer and .key == $key)] | last as $p
         | if $p == null then {route: "new"}
           elif $p.head == $head and $p.anchor == $anchor then {route: "recorded-reply", entry: $p}
           elif $p.disposition == "rejected" then {route: "needs-sign-off", recommended: "fix", rejection: $p}

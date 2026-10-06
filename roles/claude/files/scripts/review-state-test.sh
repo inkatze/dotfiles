@@ -639,8 +639,8 @@ out="$("$H" loop mark --skill panel-review --iteration 2 --phase start 2>&1)" &&
 # --- Decision ledger -----------------------------------------------------------------
 h1=1111111111111111111111111111111111111111
 h2=2222222222222222222222222222222222222222
-lrec() { "$H" ledger record --repo Acme/Widgets --pr 7 "$@"; }
-llook() { "$H" ledger lookup --repo acme/widgets --pr 7 "$@"; }
+lrec() { "$H" ledger record --repo Acme/Widgets --pr 7 --reviewer acme "$@"; }
+llook() { "$H" ledger lookup --repo acme/widgets --pr 7 --reviewer acme "$@"; }
 ledger="$REVIEW_STATE_ROOT/ledger/acme/widgets/pr-7.json"
 [ "$(llook --key k-new --anchor a --head "$h1" | jq -r .route)" = new ] \
   || fail ledger-empty "a key never recorded did not route as new"
@@ -662,7 +662,7 @@ jq -e '.version == 1 and .repo == "acme/widgets" and .pr == 7 and (.entries | le
   || fail ledger-shape "the ledger does not carry its version, repo, PR and entries: $(cat "$ledger")"
 jq -e '[.entries[].disposition] == ["fixed", "rejected", "deferred", "suppressed"]' "$ledger" > /dev/null \
   || fail ledger-dispositions "not every disposition kind was kept: $(cat "$ledger")"
-jq -e '.entries[0] | .key == "k-fixed" and .anchor == "a.sh:3" and .head == "'"$h1"'"
+jq -e '.entries[0] | .reviewer == "acme" and .key == "k-fixed" and .anchor == "a.sh:3" and .head == "'"$h1"'"
     and .reply == "https://example.invalid/r/1" and (.evidence | startswith("reproduced"))
     and (.date | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T"))' "$ledger" > /dev/null \
   || fail ledger-fields "an entry lacks its key, anchor, head, reply, evidence or date: $(cat "$ledger")"
@@ -724,6 +724,9 @@ jq -e '.route == "new" and .prior.disposition == "fixed"' <<< "$out" > /dev/null
 out="$(llook --key k-fixed --anchor 'a.sh:3' --head "$h1")"
 jq -e '.route == "recorded-reply"' <<< "$out" > /dev/null \
   || fail ledger-fixed-same-head "a same-head re-raise of a fixed finding did not return the recorded reply: $out"
+out="$("$H" ledger lookup --repo acme/widgets --pr 7 --reviewer other --key k-rej --anchor 'b.sh:9' --head "$h1")"
+jq -e '.route == "new" and .prior == null' <<< "$out" > /dev/null \
+  || fail ledger-other-reviewer "another reviewer's finding with the same key read this reviewer's entry: $out"
 for k in k-def:c.sh:1 k-sup:d.sh:2; do
   out="$(llook --key "${k%%:*}" --anchor "${k#*:}" --head "$h2")"
   jq -e '.route == "recorded-reply"' <<< "$out" > /dev/null \
@@ -791,10 +794,16 @@ out="$(printf 'x\n' | lrec --key k-l --anchor f --disposition fixed --head "$h1"
 rm "$ledger.lock"
 mkdir -p "$tmp/elsewhere"
 ln -s "$tmp/elsewhere" "$REVIEW_STATE_ROOT/ledger/linked"
-if printf 'x\n' | "$H" ledger record --repo linked/widgets --pr 1 --key k-l --anchor f --disposition fixed \
+if printf 'x\n' | "$H" ledger record --repo linked/widgets --pr 1 --reviewer acme --key k-l --anchor f --disposition fixed \
   --head "$h1" --reply https://example.invalid/r/15 > /dev/null 2>&1 || [ -e "$tmp/elsewhere/widgets" ]; then
   fail ledger-owner-symlink "a symlinked owner directory was followed"
 fi
+mkdir -p "$tmp/elsewhere/widgets"
+jq -n --arg h "$h1" '{version: 1, repo: "linked/widgets", pr: 1, entries: [{reviewer: "acme", key: "k-l",
+  anchor: "f", disposition: "rejected", evidence: "forged", head: $h, date: "x", reply: "x"}]}' \
+  > "$tmp/elsewhere/widgets/pr-1.json"
+out="$("$H" ledger lookup --repo linked/widgets --pr 1 --reviewer acme --key k-l --anchor f --head "$h1" 2>&1)" && rc=0 || rc=$?
+[ "$rc" -eq 2 ] && [[ "$out" == *symlink* ]] || fail ledger-read-symlink "a lookup read through a symlinked owner directory (exit $rc): $out"
 porcelain="$(git status --porcelain --untracked-files=all)"
 [ -z "$porcelain" ] || fail porcelain-final "git status is not clean after the run: $porcelain"
 
