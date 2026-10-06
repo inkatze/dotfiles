@@ -110,19 +110,22 @@ reported "whose preferredProvider is" && ok nested "a nested preferredProvider i
 
 h="$(fresh_home)"
 mkdir -p "$h/.config/cubic" "$h/.local/share/cubic"
-if (unset USER; run_role "$h"); then ok no-user "an unset USER does not fail the play"; fi
+if (unset USER; run_role "$h"); then ok no-user "an unset USER does not fail the play"; else fail no-user "an unset USER failed the play"; fi
 [ -f "$h/.config/cubic/AGENTS.md" ] && ok no-user-created "the user's own directories are still used" \
   || fail no-user-created "nothing was created with USER unset"
 
 h="$(fresh_home)"
 mkdir -p "$h/.local/share/cubic"
 mkfifo "$h/.local/share/cubic/preferences.json"
-if timeout 120 bash -c 'source /dev/stdin' <<<"$(declare -f run_role fail); play='$play' work='$work' fails=0; run_role '$h'"; then
+tbin="$(command -v timeout || command -v gtimeout)" || tbin=""
+if [ -z "$tbin" ]; then
+  echo "SKIP[fifo]: no timeout or gtimeout to bound a hung play"
+elif "$tbin" 120 bash -c 'source /dev/stdin' <<<"$(declare -f run_role fail); play='$play' work='$work' fails=0; run_role '$h'"; then
   ok fifo "a FIFO at preferences.json neither hangs nor fails the play"
+  reported "whose preferredProvider is" && ok fifo-report "the FIFO is reported" || fail fifo-report "no report for the FIFO"
 else
   fail fifo "a FIFO at preferences.json hung or failed the play"
 fi
-reported "whose preferredProvider is" && ok fifo-report "the FIFO is reported" || fail fifo-report "no report for the FIFO"
 
 h="$(fresh_home)"
 mkdir -p "$h/.local/share/cubic"
@@ -132,5 +135,15 @@ run_role "$h"
 reported "holds a wellknown login" && ok wellknown "a wellknown login is reported" || fail wellknown "no report for a wellknown login"
 reported "placeholder-secret-value" && fail wellknown-leak "auth.json contents reached the output" \
   || ok wellknown-leak "auth.json contents never reach the output"
+
+h="$(fresh_home)"
+mkdir -p "$h/.local/share/cubic" "$work/nojq"
+printf '{"preferredProvider":"cubic"}\n' >"$h/.local/share/cubic/preferences.json"
+printf '#!/bin/sh\nexit 127\n' >"$work/nojq/jq"
+chmod +x "$work/nojq/jq"
+PATH="$work/nojq:$PATH" run_role "$h"
+reported "jq is not installed" && ok no-jq "a missing jq is reported as such" || fail no-jq "no report for a missing jq"
+reported "whose preferredProvider is" && fail no-jq-blame "a missing jq was blamed on preferences.json" \
+  || ok no-jq-blame "a missing jq is not blamed on the files"
 
 [ "$fails" -eq 0 ] && echo "cubic-instructions-test: all assertions hold" || { echo "cubic-instructions-test: $fails failed"; exit 1; }

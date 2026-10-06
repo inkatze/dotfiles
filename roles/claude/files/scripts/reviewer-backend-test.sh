@@ -411,6 +411,14 @@ home_case "an entry whose name has a line break stops the run" \
   'touch "$home/.config/cubic/AGENTS.md"$'"'"'\n'"'"'"AGENTS.md"' "name has a line break"
 home_case "a mise directory inside the repo stops the run" \
   'session_env=(MISE_CACHE_DIR="$repo/steered")' "is inside the repo under review; refusing to hand it to mise"
+new_case
+session_env=(MISE_DATA_DIR=relative-mise-dir)
+run_snippet
+if [ "$rc" -eq 0 ] && ! grep -q '^MISE_DATA_DIR=' "$sandbox/seen-mise-env"; then
+  ok "a relative mise directory is never handed to mise"
+else
+  ko "a relative mise directory is never handed to mise (rc=$rc, err=$err)"
+fi
 home_case "an unreadable config directory stops the run" 'chmod 300 "$home/.config/cubic"' "that you can list"
 home_case "a missing config directory stops the run" \
   'rm -r "$home/.config/cubic"; edit_cfg ".reviewers.cubic.cli.require_empty = []"' "config/cubic, which is missing"

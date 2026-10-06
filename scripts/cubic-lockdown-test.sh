@@ -61,6 +61,9 @@ if [ -f "$cached" ] && [ ! -L "$cached" ] && cache_ok && cp "$cached" "$work/pkg
 fi
 if [ "$got" != "$reviewed_integrity" ]; then
   cache_ok || [ ! -e "$cache_dir" ] || echo "  note: ignoring $cache_dir, which is not a private directory of yours"
+  if { [ -e "$cached" ] || [ -L "$cached" ]; } && { [ -L "$cached" ] || [ ! -f "$cached" ]; }; then
+    echo "  note: $cached is not a plain file, so it is neither used nor replaced; remove it"
+  fi
   curl -fsSL --connect-timeout 10 --max-time 300 -o "$work/pkg.tgz" \
     "https://registry.npmjs.org/@cubic-dev-ai/cli-linux-x64/-/cli-linux-x64-$reviewed_version.tgz" \
     || die "could not fetch the platform package and no usable reviewed copy is cached; nothing was checked"
@@ -69,7 +72,9 @@ if [ "$got" != "$reviewed_integrity" ]; then
     && { [ ! -e "$cached" ] && [ ! -L "$cached" ] || { [ -f "$cached" ] && [ ! -L "$cached" ]; }; }; then
     staged="$(mktemp "$cache_dir/.tgz.XXXXXX")" || staged=""
     if [ -n "$staged" ] && cp "$work/pkg.tgz" "$staged" && mv -f "$staged" "$cached"; then
-      find "$cache_dir" -maxdepth 1 -type f \( -name 'cli-linux-x64-*.tgz' ! -name "${cached##*/}" -o -name '.tgz.*' \) -delete
+      # A staged copy younger than this run's may belong to another run still writing it.
+      find "$cache_dir" -maxdepth 1 -type f \( -name 'cli-linux-x64-*.tgz' ! -name "${cached##*/}" \
+        -o -name '.tgz.*' -mmin +60 \) -delete
     else
       [ -z "$staged" ] || rm -f "$staged"
     fi

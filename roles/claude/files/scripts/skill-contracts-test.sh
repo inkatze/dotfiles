@@ -304,6 +304,7 @@ for lockdown in '.env.CUBIC_PERMISSION = "{\"bash\":\"allow\",\"webfetch\":\"den
   '.env.CUBIC_CONFIG_CONTENT |= (fromjson | .lsp.typescript.disabled = false | tojson)' '.require_empty = []' \
   '.env.CUBIC_CONFIG_CONTENT |= (fromjson | .tools.grep = true | tojson)' \
   '.env.CUBIC_CONFIG_CONTENT |= (fromjson | del(.tools.websearch) | tojson)' \
+  '.env.CUBIC_CONFIG_CONTENT |= (fromjson | .tools.codesearch = true | tojson)' \
   '.require_json = {}' '.require_only["~/.config/cubic"] += ["plugin"]' 'del(.value_patterns)' \
   '.env_allow_refuse -= ["CUBIC_*"]' '.env_allow_refuse -= ["XDG_DATA_HOME"]' \
   '.env.CUBIC_PERMISSION = "{\"bash\":\"deny\",\"webfetch\":\"deny\"}"' 'del(.require_json_if_present)'; do
