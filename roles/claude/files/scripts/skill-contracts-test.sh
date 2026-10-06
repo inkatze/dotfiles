@@ -595,6 +595,8 @@ PIN=", re-checking each condition and the repo's kind immediately before the fli
   expect_fail ready-flip-recheck-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN="a repository whose owner you cannot tell counts as one" \
   expect_fail ready-flip-unknown-owner-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN=" or another person's" \
+  expect_fail ready-flip-other-owner-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN="; one where you cannot tell whether another person works counts as one" \
   expect_fail ready-flip-unknown-collaborator-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN="automated accounts are not another person" \

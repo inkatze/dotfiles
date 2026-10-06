@@ -93,8 +93,9 @@ owner test but applied to the whole repository, not one branch; a repo's own
 - A **solo repo** is one I own (not an employer or another organization) where
   no other person works; my own sessions, worktrees, dispatched agents and
   automated accounts are not another person.
-- A **work repo** is owned by an employer or another organization; a
-  repository whose owner you cannot tell counts as one.
+- A **work repo** is one I do not own (an employer's, another organization's
+  or another person's); a repository whose owner you cannot tell counts as
+  one.
 - A **collaborative repo** is one I own where another person works; one where
   you cannot tell whether another person works counts as one.
 

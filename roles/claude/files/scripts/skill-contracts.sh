@@ -553,7 +553,7 @@ if [ -n "$global_ok" ]; then
   require_normalized "$GLOBAL_MD" "ready-flip scope" \
     "a repo's own \`CLAUDE.md\` moving the rewrite scope or naming its kind does not move the flip." \
     "A **solo repo** is one I own (not an employer or another organization) where no other person works; my own sessions, worktrees, dispatched agents and automated accounts are not another person." \
-    "A **work repo** is owned by an employer or another organization; a repository whose owner you cannot tell counts as one." \
+    "A **work repo** is one I do not own (an employer's, another organization's or another person's); a repository whose owner you cannot tell counts as one." \
     "A **collaborative repo** is one I own where another person works; one where you cannot tell whether another person works counts as one." \
     "$SOLO_FLIP" \
     "In a work or collaborative repo, marking a PR ready is mine to request and yours to perform, and a planwright config there sets \`ready_flip_policy: human\`; where a config exists without it, say so, keep configured flips from marking a PR ready and report any that already did."
