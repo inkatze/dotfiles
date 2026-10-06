@@ -140,6 +140,11 @@ jobs:
       - name: Run the playbook alias suite
         run: scripts/playbook-alias-test.sh
 
+      # bash, git, jq and procps are all it needs; it stands in for a Claude
+      # Code session with a renamed bash.
+      - name: Run the review-state helper suite
+        run: roles/claude/files/scripts/review-state-test.sh
+
       # Here rather than in lint: bash, jq and git are all it needs.
       - name: Run the status line fixture suite
         run: scripts/claude-statusline-test.sh
