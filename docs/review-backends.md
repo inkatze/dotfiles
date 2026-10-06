@@ -38,7 +38,15 @@ and upload the first global instruction file it finds; the entry's `cli.env`
 denies the shell and web fetch through `CUBIC_PERMISSION` and disables every
 built-in server through `CUBIC_CONFIG_CONTENT`, and `cli.require_empty` keeps
 `~/.config/cubic/AGENTS.md`, which it reads before `~/.claude/CLAUDE.md`,
-present and empty (the claude role creates it).
+present and empty (the claude role creates it). The grep tool, whose path
+argument reaches ripgrep as an option, and the web and code search tools are
+off too; `preferences.json` must prefer cubic's own provider and the key carry
+its `cbk_` prefix, or the CLI hands the review to Claude Code, Cursor or Codex
+with their own settings; `~/.config/cubic` may hold nothing but that empty
+file, since global agents, tools and plugins load after the lockdown; and
+`cli.env_allow` may not name a `CUBIC_` switch or a relocated config or data
+home. The agent can still read any file you can read and send it to cubic,
+so run it only on branches whose contents you trust.
 `scripts/cubic-lockdown-test.sh` reads the pinned binary's code for each of
 these. The package is
 proprietary (its license field is `UNLICENSED`, so use is on the vendor's

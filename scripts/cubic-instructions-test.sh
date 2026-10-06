@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Fixture suite for the claude role's cubic instruction-file tasks, driven
-# through ansible-playbook against scratch HOMEs, as
+# Fixture suite for the claude role's cubic instruction-file and provider
+# tasks, driven through ansible-playbook against scratch HOMEs, as
 # mise-global-config-test.sh drives the environments role.
 set -uo pipefail
 
@@ -20,49 +20,75 @@ cat >"$play" <<'YAML'
   hosts: localhost
   connection: local
   gather_facts: true
+  gather_subset: [min]
   tasks:
-    - name: Run only the tasks that own the cubic instruction file
+    - name: Run only the tasks that own the cubic CLI's files
       ansible.builtin.include_role:
         name: claude
         tasks_from: cubic-instructions
 YAML
 
+# run_role <home> [ansible-playbook flags...]: a run that fails the play is a
+# failure of the role, which must report and carry on.
 run_role() {
-  HOME="$1" ansible-playbook "$play" >"$work/out" 2>&1
-  if ! grep -q 'PLAY RECAP' "$work/out" || grep -qE '^fatal' "$work/out"; then
-    printf 'FAIL[harness]: the playbook did not complete\n'
+  local home="$1"
+  shift
+  HOME="$home" ansible-playbook "$play" "$@" >"$work/out" 2>&1
+  if ! grep -q 'PLAY RECAP' "$work/out" || grep -qE '^fatal|failed=[1-9]' "$work/out"; then
+    fail play "the play failed"
     sed 's/^/    /' "$work/out" | tail -12
-    exit 1
+    return 1
   fi
 }
 changed() { grep -oE 'changed=[0-9]+' "$work/out" | head -1 | cut -d= -f2; }
+reported() { grep -qF -- "$1" "$work/out"; }
 fresh_home() { h="$(mktemp -d "$work/h.XXXXXX")" || exit 1; printf '%s\n' "$h"; }
 mode_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
 
 h="$(fresh_home)"
+run_role "$h" --check && [ ! -e "$h/.config/cubic" ] && ok check "a --check run on a fresh host writes nothing" \
+  || fail check "a --check run wrote files or failed"
 run_role "$h"
 f="$h/.config/cubic/AGENTS.md"
-if [ -f "$f" ] && [ ! -s "$f" ] && [ "$(mode_of "$f")" = 600 ]; then
-  ok created "an empty 0600 file on a fresh host"
+p="$h/.local/share/cubic/preferences.json"
+if [ -f "$f" ] && [ ! -s "$f" ] && [ "$(mode_of "$f")" = 600 ]; then ok created "an empty 0600 AGENTS.md"; else fail created "no empty 0600 AGENTS.md"; fi
+if [ "$(jq -r .preferredProvider "$p" 2>/dev/null)" = cubic ] && [ "$(mode_of "$p")" = 600 ]; then
+  ok prefs "a 0600 preferences.json preferring cubic"
 else
-  fail created "no empty 0600 file at $f"
+  fail prefs "no 0600 preferences.json preferring cubic"
 fi
+[ "$(mode_of "$h/.config/cubic")" = 700 ] && ok dirmode "the cubic config directory is 0700" || fail dirmode "the cubic config directory is not 0700"
+reported "is not an empty regular file" && fail quiet "a fresh host was reported" || ok quiet "a fresh host is not reported"
 run_role "$h"
 [ "$(changed)" = 0 ] && ok idempotent "a second run changes nothing" || fail idempotent "a second run reported changed=$(changed)"
 
 h="$(fresh_home)"
-mkdir -p "$h/.config/cubic"
+mkdir -p "$h/.config/cubic" "$h/.local/share/cubic"
 printf 'my own rules\n' >"$h/.config/cubic/AGENTS.md"
+printf '{"preferredProvider":"claude-code"}\n' >"$h/.local/share/cubic/preferences.json"
+echo '{}' >"$h/.config/cubic/cubic.json"
 run_role "$h"
-if [ "$(cat "$h/.config/cubic/AGENTS.md")" = "my own rules" ]; then
-  ok kept "a file with content is left as it is"
-else
-  fail kept "a file with content was changed"
-fi
-grep -q 'is not an empty' "$work/out" && ok reported "the file with content is reported" || fail reported "no report for a file with content"
+[ "$(cat "$h/.config/cubic/AGENTS.md")" = "my own rules" ] && ok kept "an AGENTS.md with content is left as it is" || fail kept "AGENTS.md was changed"
+[ "$(jq -r .preferredProvider "$h/.local/share/cubic/preferences.json")" = claude-code ] \
+  && ok kept-prefs "another preferred provider is left as it is" || fail kept-prefs "preferences.json was changed"
+reported "is not an empty regular file" && ok reported "AGENTS.md with content is reported" || fail reported "no report for AGENTS.md"
+reported "does not prefer cubic" && ok reported-prefs "the other provider is reported" || fail reported-prefs "no report for the provider"
+reported "holds cubic.json" && ok reported-extra "an extra config entry is reported" || fail reported-extra "no report for cubic.json"
 
 h="$(fresh_home)"
+mkdir -p "$h/.config/cubic/AGENTS.md" "$h/.local/share/cubic"
+printf 'not json\n' >"$h/.local/share/cubic/preferences.json"
+run_role "$h" && ok dir "a directory at AGENTS.md is reported, not fatal"
+reported "is not an empty regular file" || fail dir-report "no report for a directory at AGENTS.md"
+reported "does not prefer cubic" && ok not-json "a preferences.json that is not JSON is reported, not fatal" \
+  || fail not-json "no report for unparseable preferences"
+
+h="$(fresh_home)"
+mkdir -p "$h/.config/cubic"
+: >"$h/elsewhere"
+ln -s "$h/elsewhere" "$h/.config/cubic/AGENTS.md"
 run_role "$h"
-grep -q 'is not an empty' "$work/out" && fail quiet "an empty file was reported" || ok quiet "an empty file is not reported"
+[ -L "$h/.config/cubic/AGENTS.md" ] && ok link "a symlinked AGENTS.md is left alone" || fail link "the symlink was replaced"
+reported "is not an empty regular file" && ok link-report "a symlinked AGENTS.md is reported" || fail link-report "no report for the symlink"
 
 [ "$fails" -eq 0 ] && echo "cubic-instructions-test: all assertions hold" || { echo "cubic-instructions-test: $fails failed"; exit 1; }

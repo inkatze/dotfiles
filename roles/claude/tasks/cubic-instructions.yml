@@ -1,45 +1,93 @@
 ---
 
 # The cubic.dev CLI uploads the first global instruction file it finds,
-# ~/.config/cubic/AGENTS.md before ~/.claude/CLAUDE.md. An empty one keeps
-# CLAUDE.md from being sent, and /panel-review's reviewer:cubic refuses to run
-# without it (the review config template's cli.require_empty). One with
-# content is reported, never overwritten: it is someone's own rules.
-# $XDG_CONFIG_HOME is not consulted, because the backend runs the CLI without
-# it, so the CLI always resolves ~/.config.
-- name: Ensure the cubic CLI's config directory exists
+# ~/.config/cubic/AGENTS.md before ~/.claude/CLAUDE.md, and hands its review to
+# whichever provider ~/.local/share/cubic/preferences.json prefers. An empty
+# AGENTS.md keeps CLAUDE.md from being sent, and preferring cubic keeps the
+# review on cubic's own locked-down agent; /panel-review's reviewer:cubic
+# refuses to run without both (the review config template's require_empty and
+# require_json) and while ~/.config/cubic holds anything else (require_only).
+# What exists already is reported, never overwritten or removed: it is someone's
+# own rules or settings. ~/.config and ~/.local/share are used as such, because
+# the backend never passes a relocated config or data home to the CLI.
+- name: Ensure the cubic CLI's config and data directories exist
   ansible.builtin.file:
-    path: "{{ ansible_facts.env.HOME }}/.config/cubic"
+    path: "{{ item }}"
     state: directory
     mode: "0700"
+  loop:
+    - "{{ ansible_facts.env.HOME }}/.config/cubic"
+    - "{{ ansible_facts.env.HOME }}/.local/share/cubic"
+  tags: [claude]
+
+- name: Inspect the cubic CLI's instruction file and provider settings
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop:
+    - "{{ ansible_facts.env.HOME }}/.config/cubic/AGENTS.md"
+    - "{{ ansible_facts.env.HOME }}/.local/share/cubic/preferences.json"
+  register: claude_cubic_files
+  check_mode: false
   tags: [claude]
 
 - name: Create an empty global instruction file for the cubic CLI
   ansible.builtin.copy:
     content: ""
     dest: "{{ ansible_facts.env.HOME }}/.config/cubic/AGENTS.md"
-    force: false
     mode: "0600"
+  when: not claude_cubic_files.results[0].stat.exists
   tags: [claude]
 
-- name: Inspect the cubic CLI's global instruction file
-  ansible.builtin.stat:
-    path: "{{ ansible_facts.env.HOME }}/.config/cubic/AGENTS.md"
-    follow: false
-  register: claude_cubic_instructions
-  check_mode: false
+- name: Prefer cubic's own provider for the cubic CLI
+  ansible.builtin.copy:
+    content: '{"preferredProvider": "cubic"}'
+    dest: "{{ ansible_facts.env.HOME }}/.local/share/cubic/preferences.json"
+    mode: "0600"
+  when: not claude_cubic_files.results[1].stat.exists
   tags: [claude]
 
-- name: Report a cubic instruction file with content
+- name: Read the cubic CLI's existing provider settings
+  ansible.builtin.slurp:
+    src: "{{ ansible_facts.env.HOME }}/.local/share/cubic/preferences.json"
+  register: claude_cubic_preferences
+  when:
+    - claude_cubic_files.results[1].stat.exists
+    - claude_cubic_files.results[1].stat.isreg | default(false)
+  failed_when: false
+  tags: [claude]
+
+- name: List the cubic CLI's config directory
+  ansible.builtin.find:
+    paths: "{{ ansible_facts.env.HOME }}/.config/cubic"
+    file_type: any
+    hidden: true
+    excludes: [AGENTS.md]
+  register: claude_cubic_config_entries
+  tags: [claude]
+
+- name: Report cubic CLI files reviewer:cubic will refuse to run with
   ansible.builtin.debug:
-    msg: >-
-      {{ ansible_facts.env.HOME }}/.config/cubic/AGENTS.md is not an empty
-      regular file, so it was left as it is. The cubic CLI uploads it as global
-      instructions, and /panel-review's reviewer:cubic refuses to run until it
-      is empty. Move its content elsewhere and empty it.
-  when: >-
-    claude_cubic_instructions.stat.exists
-    and (claude_cubic_instructions.stat.islnk
-         or not claude_cubic_instructions.stat.isreg
-         or claude_cubic_instructions.stat.size > 0)
+    msg: "{{ claude_cubic_problems }}"
+  vars:
+    claude_cubic_agents: "{{ claude_cubic_files.results[0].stat }}"
+    claude_cubic_prefs: "{{ claude_cubic_files.results[1].stat }}"
+    claude_cubic_agents_msg: >-
+      ~/.config/cubic/AGENTS.md is not an empty regular file; the cubic CLI would upload it, so move its
+      content elsewhere and empty it
+    claude_cubic_extra: "{{ claude_cubic_config_entries.files | map(attribute='path') | map('basename') | join(', ') }}"
+    # A text match, so a file that is not JSON is reported rather than failing the play.
+    claude_cubic_prefers_cubic: >-
+      {{ (claude_cubic_preferences.content | default('') | b64decode)
+         is search('"preferredProvider"\s*:\s*"cubic"') }}
+    claude_cubic_problems: >-
+      {{ ([] if not claude_cubic_agents.exists
+            or (claude_cubic_agents.isreg and not claude_cubic_agents.islnk and claude_cubic_agents.size == 0)
+          else [claude_cubic_agents_msg])
+         + ([] if not claude_cubic_prefs.exists
+              or claude_cubic_prefers_cubic | bool
+            else ['~/.local/share/cubic/preferences.json does not prefer cubic; set "preferredProvider" to "cubic"'])
+         + ([] if claude_cubic_config_entries.matched == 0
+            else ['~/.config/cubic holds ' ~ claude_cubic_extra ~ ', which the cubic CLI would load; move it out']) }}
+  when: claude_cubic_problems | length > 0
   tags: [claude]

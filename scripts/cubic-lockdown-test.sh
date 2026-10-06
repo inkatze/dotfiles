@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Proves, from the pinned cubic CLI binary's own code, that the switches the
 # review config template sets for reviewer:cubic are honoured: the review
-# agent loses its shell and web-fetch tools, every built-in language server
-# is disabled, and the global instruction file the CLI uploads is the empty
-# one the claude role creates, not ~/.claude/CLAUDE.md.
+# agent loses its shell, grep, web-fetch and search tools, every built-in
+# language server is disabled, the review runs on cubic's own provider, and
+# the global instruction file the CLI uploads is the empty one the claude
+# role creates, not ~/.claude/CLAUDE.md.
 #
 # The binary is not run (it needs an account); its bundled JavaScript is read
 # as text. The platform package is fetched at the version the tracked mise
@@ -28,6 +29,10 @@ die() { echo "cubic-lockdown-test: $1"; exit 1; }
 
 work="$(mktemp -d)" || die "could not create a scratch directory"
 trap 'rm -rf "$work"' EXIT
+# The reviewed tarball is cached by version and re-hashed on every run, so a
+# hit is as trustworthy as a fresh fetch and a template edit needs no network.
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/cubic-lockdown"
+cached="$cache_dir/cli-linux-x64-$reviewed_version.tgz"
 
 echo "1. the pinned version is the reviewed one"
 pinned="$(sed -n 's/^"npm:@cubic-dev-ai\/cli" = "\([^"]*\)"$/\1/p' "$pins")"
@@ -35,12 +40,20 @@ pinned="$(sed -n 's/^"npm:@cubic-dev-ai\/cli" = "\([^"]*\)"$/\1/p' "$pins")"
   || ko "mise pins ${pinned:-nothing} but the lockdown was reviewed at $reviewed_version; re-read the code paths below and update this test"
 
 echo "2. the fetched binary is the reviewed one"
-curl -fsSL --connect-timeout 10 --max-time 300 -o "$work/pkg.tgz" \
-  "https://registry.npmjs.org/@cubic-dev-ai/cli-linux-x64/-/cli-linux-x64-$reviewed_version.tgz" \
-  || die "could not fetch the platform package (offline?); nothing was checked"
-got="sha512-$(openssl dgst -sha512 -binary "$work/pkg.tgz" | openssl base64 -A)"
+integrity_of() { printf 'sha512-%s' "$(openssl dgst -sha512 -binary "$1" | openssl base64 -A)"; }
+if [ -f "$cached" ] && [ "$(integrity_of "$cached")" = "$reviewed_integrity" ]; then
+  cp "$cached" "$work/pkg.tgz"
+else
+  curl -fsSL --connect-timeout 10 --max-time 300 -o "$work/pkg.tgz" \
+    "https://registry.npmjs.org/@cubic-dev-ai/cli-linux-x64/-/cli-linux-x64-$reviewed_version.tgz" \
+    || die "could not fetch the platform package (offline?); nothing was checked"
+  if [ "$(integrity_of "$work/pkg.tgz")" = "$reviewed_integrity" ] && mkdir -p "$cache_dir"; then
+    cp "$work/pkg.tgz" "$cache_dir/.tgz.$$" && mv -f "$cache_dir/.tgz.$$" "$cached"
+  fi
+fi
+got="$(integrity_of "$work/pkg.tgz")"
 [ "$got" = "$reviewed_integrity" ] && ok "integrity matches" || ko "integrity $got is not the reviewed $reviewed_integrity"
-tar -xzOf "$work/pkg.tgz" package/bin/cubic | strings -n 6 >"$work/code" \
+tar -xzOf "$work/pkg.tgz" package/bin/cubic | LC_ALL=C tr -c '\11\40-\176' '\n' | LC_ALL=C grep -E '.{6}' >"$work/code" \
   || die "could not read package/bin/cubic"
 code="$work/code"
 
@@ -66,8 +79,11 @@ has "it is merged into the config's permission" 'result.permission = D2(result.p
 block_has "the code-review agent's permission is merged with the config's" \
   'const codeReviewPermission = mergeAgentPermissions({' 6 '}, cfg.permission ?? {});'
 block_has "the code-review agent uses that permission" '"code-review": {' 6 'permission: codeReviewPermission,'
+has "the subagents' permission is merged with the config's too" 'const agentPermission = mergeAgentPermissions(defaultPermission, cfg.permission ?? {});'
+block_has "the general subagent uses it" '      general: {' 12 'permission: agentPermission,'
+block_has "the design-quality subagent uses it" '"design-quality": {' 12 'permission: agentPermission,'
+has "review runs the code-review agent" 'agent: "code-review",'
 block_has "a bare \"deny\" for bash becomes {\"*\": \"deny\"}" 'function mergeAgentPermissions(basePermission, overridePermission) {' 10 '"*": overridePermission.bash'
-block_has "the merged bash keeps the override's \"*\"" 'function mergeAgentPermissions(basePermission, overridePermission) {' 22 'mergedBash = D2({'
 block_has "bash is removed when its only rule is \"*\": \"deny\"" 'async function enabled(_providerID, _modelID, agent) {' 8 \
   'if (agent.permission.bash["*"] === "deny" && Object.keys(agent.permission.bash).length === 1) {'
 block_has "webfetch is removed when denied" 'async function enabled(_providerID, _modelID, agent) {' 10 'if (agent.permission.webfetch === "deny") {'
@@ -78,12 +94,29 @@ else
   ko "the template's CUBIC_PERMISSION does not deny bash and webfetch: $permission"
 fi
 
-echo "4. CUBIC_CONFIG_CONTENT disables every built-in language server"
+echo "4. CUBIC_CONFIG_CONTENT turns off grep, web and code search, and every built-in language server"
+has "the config's tools seed every agent's tools" 'const defaultTools = cfg.tools ?? {};'
+block_has "the code-review agent takes them" '"code-review": {' 4 'tools: { ...defaultTools },'
+has "an agent's tools set a session's enabled tools" 'const enabledTools = C3(input.agent.tools, D2(await ToolRegistry.enabled("cubic", "cubic", input.agent)), D2(input.tools ?? {}));'
+has "a tool set to false is skipped" 'if (Wildcard.all(item.id, enabledTools) === false) {'
+block_has "review passes no tool override" 'agent: "code-review",' 3 'parts: texts.map((text2) => ({ type: "text", text: text2 }))'
+for tool in grep websearch codesearch; do
+  has "the $tool tool's id is $tool" "Tool2.define(\"$tool\", {"
+  if [ "$(jq -r --arg t "$tool" '.reviewers.cubic.cli.env.CUBIC_CONFIG_CONTENT | fromjson | .tools[$t]' "$tpl")" = false ]; then
+    ok "the template turns $tool off"
+  else
+    ko "the template leaves $tool on"
+  fi
+done
+block_has "grep hands its path to ripgrep after the pattern, with no --" 'const args2 = ["-nH", "--field-match-separator=|", "--regexp", params.pattern];' 3 'args2.push(searchPath);'
 has "the variable is read as a flag" 'Flag.CUBIC_CONFIG_CONTENT = env3("CONFIG_CONTENT");'
 has "it is merged into the config" 'result = D2(result, JSON.parse(Flag.CUBIC_CONFIG_CONTENT));'
 block_has "a disabled server is dropped" 'for (const [name2, item] of Object.entries(cfg.lsp ?? {})) {' 4 'delete servers[name2];'
 servers="$(awk '/^  LSPServer\.[A-Za-z]+ = \{$/ { getline; if (match($0, /id: "[a-z-]+"/)) print substr($0, RSTART + 5, RLENGTH - 6) }' "$code" | sort -u)"
 [ -n "$servers" ] || ko "no built-in language server found; the code changed shape"
+assigned="$(grep -oE '^  LSPServer\.[A-Za-z]+ = ' "$code" | sort -u | wc -l | tr -d ' ')"
+[ "$assigned" = "$(printf '%s\n' "$servers" | wc -l | tr -d ' ')" ] && ok "every built-in server's id was read" \
+  || ko "$assigned servers are defined but only some ids were read; the code changed shape"
 disabled="$(jq -r '.reviewers.cubic.cli.env.CUBIC_CONFIG_CONTENT | fromjson | .lsp | to_entries[] | select(.value.disabled == true) | .key' "$tpl" | sort -u)"
 missing="$(comm -23 <(printf '%s\n' "$servers") <(printf '%s\n' "$disabled") | tr '\n' ' ')"
 if [ -n "$servers" ] && [ -z "$missing" ]; then
@@ -94,12 +127,41 @@ fi
 
 echo "5. the global instruction file read first is the one the role empties"
 block_has "the CLI's config directory is XDG config's cubic" 'var app = "cubic", data, cache, config, state' 6 'config = path2.join(xdgConfig, app);'
-block_has "its AGENTS.md is read before ~/.claude/CLAUDE.md" 'const GLOBAL_RULE_FILES = [' 2 'path19.join(Global.Path.config, "AGENTS.md"),'
+block_has "its AGENTS.md is read before ~/.claude/CLAUDE.md" 'const GLOBAL_RULE_FILES = [' 1 'path19.join(Global.Path.config, "AGENTS.md"),'
 block_has "only the first global file found is read" 'for (const globalRuleFile of GLOBAL_RULE_FILES) {' 4 'break;'
 if [ "$(jq -r '.reviewers.cubic.cli.require_empty | index("~/.config/cubic/AGENTS.md") != null' "$tpl")" = true ]; then
   ok "the template requires that file to exist and be empty"
 else
   ko "the template's cli.require_empty does not name ~/.config/cubic/AGENTS.md"
+fi
+
+echo "6. the review runs on cubic's own provider"
+has "the provider setting lives in the data directory's preferences.json" 'const filepath = path8.join(Global.Path.data, "preferences.json");'
+block_has "the data directory is XDG data's cubic" 'var app = "cubic", data, cache, config, state' 4 'data = path2.join(xdgData, app);'
+block_has "a stored preferred provider wins" 'async function preferredProvider() {' 2 'if (data2.preferredProvider)'
+block_has "with none stored, cubic is the default only for a cbk_ key" 'async function preferredProvider() {' 5 'if (process.env.CUBIC_API_KEY?.trim().startsWith("cbk_"))'
+block_has "a preferred cubic is used whenever its auth is available" 'function resolveAvailableProvider(preferredProvider, availability) {' 4 'return "cubic";'
+block_has "the environment's key is cubic's auth" 'async function getCliAuth() {' 2 'const fromEnv = apiKeyAuth();'
+block_has "a key without the cbk_ prefix is ignored" 'function apiKeyAuth() {' 5 'if (!key.startsWith(Auth.API_KEY_PREFIX)) {'
+has "the prefix is cbk_" 'Auth.API_KEY_PREFIX = "cbk_";'
+if jq -e '.reviewers.cubic.cli | (.require_json["~/.local/share/cubic/preferences.json"] == ".preferredProvider == \"cubic\"")
+    and (.value_patterns.CUBIC_API_KEY == "^cbk_")' "$tpl" >/dev/null; then
+  ok "the template requires cubic as the preferred provider and a cbk_ key"
+else
+  ko "the template no longer requires cubic as the provider and a cbk_ key"
+fi
+
+echo "7. global agents, tools and plugins cannot undo the lockdown"
+block_has "the global config directory is scanned for agents, modes and plugins" 'const directories2 = [' 2 'Global.Path.config,'
+if [ "$(jq -c '.reviewers.cubic.cli.require_only["~/.config/cubic"]' "$tpl")" = '["AGENTS.md"]' ]; then
+  ok "the template lets ~/.config/cubic hold only AGENTS.md"
+else
+  ko "the template's require_only no longer limits ~/.config/cubic to AGENTS.md"
+fi
+if jq -e '.reviewers.cubic.cli.env_allow_refuse | (index("CUBIC_*") != null) and (index("XDG_CONFIG_HOME") != null) and (index("XDG_DATA_HOME") != null)' "$tpl" >/dev/null; then
+  ok "the template refuses CUBIC_ switches and relocated config and data homes in env_allow"
+else
+  ko "the template's env_allow_refuse no longer covers CUBIC_*, XDG_CONFIG_HOME and XDG_DATA_HOME"
 fi
 
 echo

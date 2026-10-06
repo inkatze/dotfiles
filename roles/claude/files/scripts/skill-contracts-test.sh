@@ -270,8 +270,8 @@ for optout in CUBIC_DISABLE_AUTOUPDATE CUBIC_DISABLE_GIT_AI CUBIC_DISABLE_LSP_DO
 done
 
 reviewer_drift reviewer-backend-refusal-follows-links-only 'if [ -e "$top/$refused" ] || [ -L "$top/$refused" ]; then' 'if [ -e "$top/$refused" ]; then'
-reviewer_drift reviewer-backend-refusal-after-mise $'  }\n  check_refused || exit 1\n  # A CLI that uploads' $'  }\n  # A CLI that uploads'
-reviewer_drift reviewer-backend-refusal-not-before-launch $'  check_refused || exit 1\n  started=$SECONDS' $'  started=$SECONDS'
+reviewer_drift reviewer-backend-refusal-after-mise $'  }\n  check_refused || exit 1\n  # Files in HOME' $'  }\n  # Files in HOME'
+reviewer_drift reviewer-backend-refusal-not-before-launch $'  check_refused || exit 1\n  check_home_state || exit 1\n  started=$SECONDS' $'  check_home_state || exit 1\n  started=$SECONDS'
 reviewer_drift reviewer-backend-refusal-not-after-run 'elif ! check_refused 2>/dev/null; then' 'elif false; then'
 reviewer_drift reviewer-backend-refuse-paths-climb '(split("/") | all(. != "" and . != "." and . != "..")))' 'true)'
 reviewer_drift reviewer-backend-key-pipe-extra-fd '      3<&0 < /dev/null > "$work/stdout"' '      3<&0 > "$work/stdout"'
@@ -280,11 +280,22 @@ for refused in cubic.json cubic.jsonc .cubic; do
     'jq --arg v "$V" ".reviewers.cubic.cli.refuse_paths -= [\$v]" "$F" > "$F.new" && mv "$F.new" "$F"' \
     "cli.refuse_paths must list cubic.json, cubic.jsonc and .cubic"
 done
-reviewer_drift reviewer-backend-require-empty-accepts-content '[ -O "$wanted" ] && [ ! -s "$wanted" ] || {' '[ -O "$wanted" ] || {'
-reviewer_drift reviewer-backend-require-empty-unchecked $'  done <<< "$require_empty"\n  get() {' $'  done <<< ""\n  get() {'
+reviewer_drift reviewer-backend-require-empty-accepts-content '          [ ! -s "$wanted" ] || {' '          true || {'
+reviewer_drift reviewer-backend-home-state-unchecked $'    done <<< "$home_rules"\n  }\n  check_home_state || exit 1\n  get() {' $'    done <<< "$home_rules"\n  }\n  get() {'
+reviewer_drift reviewer-backend-home-state-not-at-launch $'  check_refused || exit 1\n  check_home_state || exit 1\n  started=$SECONDS' $'  check_refused || exit 1\n  started=$SECONDS'
+reviewer_drift reviewer-backend-home-state-not-after-run 'elif ! check_home_state 2>/dev/null; then' 'elif false; then'
+reviewer_drift reviewer-backend-require-json-unchecked 'jq -e "$predicate" "$wanted" > /dev/null 2>&1 || {' 'true || {'
+reviewer_drift reviewer-backend-require-only-unchecked 'jq -e --arg e "$entry" '"'"'.[2:] | index($e) != null'"'"' <<< "$rule" > /dev/null || {' 'true || {'
+reviewer_drift reviewer-backend-key-pattern-unchecked '[ -z "$value_pattern" ] || [[ "$val" =~ $value_pattern ]] \' 'true || [[ "$val" =~ $value_pattern ]] \'
+reviewer_drift reviewer-backend-env-allow-refuse-ignored 'if endswith("*") then ($v | startswith(.[:-1])) | not else . != $v end)))' 'true)))'
+reviewer_drift reviewer-backend-trusted-branches-unstated 'so run such a backend only on branches whose contents you trust.' 'so run it anywhere.'
 for lockdown in '.env.CUBIC_PERMISSION = "{\"bash\":\"allow\",\"webfetch\":\"deny\"}"' \
   '.env.CUBIC_PERMISSION = "{\"bash\":\"deny\"}"' '.env.CUBIC_CONFIG_CONTENT = "{\"lsp\":{}}"' \
-  '.env.CUBIC_CONFIG_CONTENT |= (fromjson | .lsp.typescript.disabled = false | tojson)' '.require_empty = []'; do
+  '.env.CUBIC_CONFIG_CONTENT |= (fromjson | .lsp.typescript.disabled = false | tojson)' '.require_empty = []' \
+  '.env.CUBIC_CONFIG_CONTENT |= (fromjson | .tools.grep = true | tojson)' \
+  '.env.CUBIC_CONFIG_CONTENT |= (fromjson | del(.tools.websearch) | tojson)' \
+  '.require_json = {}' '.require_only["~/.config/cubic"] += ["plugin"]' 'del(.value_patterns)' \
+  '.env_allow_refuse -= ["CUBIC_*"]' '.env_allow_refuse -= ["XDG_DATA_HOME"]'; do
   V="$lockdown" F="$SKILLS/bot-review/bot-review.json.tpl" expect_fail "template-lockdown-weakened: $lockdown" \
     'jq ".reviewers.cubic.cli |= ($V)" "$F" > "$F.new" && mv "$F.new" "$F"' \
     "the cubic entry must deny bash and webfetch"

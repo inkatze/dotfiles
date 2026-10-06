@@ -61,11 +61,12 @@ new_case() {
   sandbox="$(mktemp -d "$work/case.XXXXXX")"
   home="$sandbox/home"
   repo="$sandbox/repo"
-  mkdir -p "$home/.config/dotfiles" "$home/.config/cubic" "$home/.local/share/mise/shims" "$sandbox/mise-bin" \
+  mkdir -p "$home/.config/dotfiles" "$home/.config/cubic" "$home/.local/share/cubic" "$home/.local/share/mise/shims" "$sandbox/mise-bin" \
     "$sandbox/tools/node/bin" "$sandbox/tools/cli/bin" "$sandbox/cli-real" "$repo/steered"
-  printf '%s' 'placeholder-cubic-key' >"$home/.config/dotfiles/test-key"
+  printf '%s' 'cbk_placeholder-cubic-key' >"$home/.config/dotfiles/test-key"
   chmod 600 "$home/.config/dotfiles/test-key"
   : >"$home/.config/cubic/AGENTS.md"
+  printf '{"preferredProvider":"cubic"}\n' >"$home/.local/share/cubic/preferences.json"
   echo issues >"$sandbox/mode"
 
   cat >"$sandbox/mise-bin/mise" <<EOF
@@ -184,7 +185,7 @@ case "$cli_path" in
 esac
 [ -e "$sandbox/seen-node" ] && ok "the CLI's interpreter resolved from HOME" || ko "the CLI's interpreter resolved from HOME"
 [ -e "$sandbox/steered-ran" ] && ko "a repo-steered binary ran" || ok "no repo-steered binary ran"
-[ "$(seen CUBIC_API_KEY)" = placeholder-cubic-key ] && ok "the key comes from its file, not the session" || ko "the key comes from its file ($(seen CUBIC_API_KEY))"
+[ "$(seen CUBIC_API_KEY)" = cbk_placeholder-cubic-key ] && ok "the key comes from its file, not the session" || ko "the key comes from its file ($(seen CUBIC_API_KEY))"
 for v in $(jq -r '.reviewers.cubic.cli.env | keys[]' "$tpl"); do
   want="$(jq -r --arg v "$v" '.reviewers.cubic.cli.env[$v]' "$tpl")"
   [ "$(seen "$v")" = "$want" ] && ok "$v=$want reaches the CLI" || ko "$v reaches the CLI as $want ($(seen "$v"))"
@@ -267,7 +268,7 @@ expect_refused "missing key file refused" "is missing"
 new_case
 chmod 400 "$home/.config/dotfiles/test-key"
 run_snippet
-[ "$rc" -eq 0 ] && [ "$(seen CUBIC_API_KEY)" = placeholder-cubic-key ] && ok "0400 key file accepted" || ko "0400 key file accepted (rc=$rc, err=$err)"
+[ "$rc" -eq 0 ] && [ "$(seen CUBIC_API_KEY)" = cbk_placeholder-cubic-key ] && ok "0400 key file accepted" || ko "0400 key file accepted (rc=$rc, err=$err)"
 
 echo "7. env_files and env stay inside their rules"
 new_case
@@ -328,7 +329,7 @@ run_snippet
 
 echo "8b. without env_files, nothing is piped and the CLI still runs"
 new_case
-edit_cfg '.reviewers.cubic.cli |= (del(.env_files) | .env_allow = [])'
+edit_cfg '.reviewers.cubic.cli |= (del(.env_files, .value_patterns) | .env_allow = [])'
 run_snippet
 [ "$rc" -eq 0 ] && [ -z "$(seen CUBIC_API_KEY)" ] && ok "no key, no pipe, CLI ran" || ko "no env_files (rc=$rc, err=$err)"
 
@@ -366,31 +367,52 @@ else
   ko "a listed path created during the run is named (rc=$rc, err=$err)"
 fi
 
-echo "8d. the CLI's global instruction file must exist and be empty"
-new_case
-rm "$home/.config/cubic/AGENTS.md"
-run_snippet
-if [ "$rc" -ne 0 ] && grep -qF "needs $home/.config/cubic/AGENTS.md to exist, be yours and be empty" <<<"$err" \
-  && [ ! -e "$sandbox/seen-mise-env" ] && [ ! -e "$sandbox/seen-node" ]; then
-  ok "a missing instruction file stops the run before mise or the CLI"
-else
-  ko "a missing instruction file stops the run (rc=$rc, err=$err)"
-fi
-new_case
-echo "personal rules" >"$home/.config/cubic/AGENTS.md"
-run_snippet
-expect_refused "a non-empty instruction file stops the run" "to exist, be yours and be empty"
-new_case
-rm "$home/.config/cubic/AGENTS.md"
-ln -s /dev/null "$home/.config/cubic/AGENTS.md"
-run_snippet
-expect_refused "a symlinked instruction file stops the run" "to exist, be yours and be empty"
-for bad in '"relative/x"' '"~/a/../b"'; do
+echo "8d. the files in HOME the CLI reads on its own"
+# home_case <label> <setup command> <message fragment>
+home_case() {
   new_case
-  edit_cfg ".reviewers.cubic.cli.require_empty = [$bad]"
+  eval "$2"
   run_snippet
-  expect_refused "require_empty entry $bad refused as malformed" "cli.require_empty must be a list"
+  if [ "$rc" -ne 0 ] && grep -qF -- "$3" <<<"$err" && [ ! -e "$sandbox/seen-mise-env" ] && [ ! -e "$sandbox/seen-node" ]; then
+    ok "$1, before mise or the CLI runs"
+  else
+    ko "$1 (rc=$rc, err=$err)"
+  fi
+}
+home_case "a missing instruction file stops the run" 'rm "$home/.config/cubic/AGENTS.md"' "AGENTS.md, which is missing"
+home_case "a non-empty instruction file stops the run" 'echo "personal rules" >"$home/.config/cubic/AGENTS.md"' "AGENTS.md to be empty"
+home_case "a symlinked instruction file stops the run" \
+  'rm "$home/.config/cubic/AGENTS.md"; ln -s /dev/null "$home/.config/cubic/AGENTS.md"' "to be a regular file, not a symlink"
+home_case "missing provider settings stop the run" 'rm "$home/.local/share/cubic/preferences.json"' "preferences.json, which is missing"
+home_case "another preferred provider stops the run" \
+  'printf "{\"preferredProvider\":\"claude-code\"}\n" >"$home/.local/share/cubic/preferences.json"' 'to satisfy .preferredProvider == "cubic"'
+home_case "unparseable provider settings stop the run" 'echo "{" >"$home/.local/share/cubic/preferences.json"' "to satisfy"
+home_case "a global config file beside AGENTS.md stops the run" 'echo "{}" >"$home/.config/cubic/cubic.json"' "holds cubic.json"
+home_case "a global plugin directory stops the run" 'mkdir "$home/.config/cubic/plugin"' "holds plugin"
+home_case "a hidden entry there stops the run" 'touch "$home/.config/cubic/.hidden"' "holds .hidden"
+home_case "a key the CLI would ignore stops the run" \
+  'printf %s placeholder-without-prefix >"$home/.config/dotfiles/test-key"' "does not match ^cbk_"
+for refused_name in CUBIC_EXPERIMENTAL XDG_CONFIG_HOME XDG_DATA_HOME; do
+  new_case
+  edit_cfg ".reviewers.cubic.cli.env_allow += [\"$refused_name\"]"
+  run_snippet
+  expect_refused "env_allow naming $refused_name refused" "cli.env_allow_refuse"
 done
+for bad in '.require_empty = ["relative/x"]' '.require_empty = ["~/a/../b"]' '.require_json = {"~/x": 1}' '.require_only = {"~/x": ["a/b"]}'; do
+  new_case
+  edit_cfg ".reviewers.cubic.cli |= ($bad)"
+  run_snippet
+  expect_refused "malformed home rule refused: $bad" "must name absolute or ~/ paths"
+done
+new_case
+# The fake CLI writes into the instruction file while it runs.
+sed -i.bak "s|^env >\"$sandbox/seen-env\"|echo changed >\"$home/.config/cubic/AGENTS.md\"; env >\"$sandbox/seen-env\"|" "$sandbox/tools/node/bin/node"
+run_snippet
+if [ "$rc" -ne 0 ] && grep -qF "changed while the reviewer CLI ran" <<<"$err"; then
+  ok "an instruction file changed during the run is named"
+else
+  ko "an instruction file changed during the run is named (rc=$rc, err=$err)"
+fi
 
 echo "9. under a git hook's environment, the suite leaves that repository alone"
 decoy="$work/decoy"
