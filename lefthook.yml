@@ -116,7 +116,7 @@ pre-commit:
     op-key-sync:
       # The suite is what notices a mode or blank-value guard being dropped;
       # the script alone still writes a key file, just one nothing checked.
-      glob: "{scripts/op-key-sync.sh,scripts/op-key-sync-test.sh,scripts/op-token.sh}"
+      glob: "{scripts/op-key-sync.sh,scripts/op-key-sync-test.sh,scripts/op-token.sh,roles/fish/**}"
       run: scripts/op-key-sync-test.sh
     reviewer-backend:
       # The template is in the glob because the suite runs the cubic entry's

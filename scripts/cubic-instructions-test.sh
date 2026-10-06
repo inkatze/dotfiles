@@ -124,7 +124,7 @@ mkfifo "$h/.local/share/cubic/preferences.json"
 tbin="$(command -v timeout || command -v gtimeout)" || tbin=""
 if [ -z "$tbin" ]; then
   echo "SKIP[fifo]: no timeout or gtimeout to bound a hung play"
-elif "$tbin" 120 bash -c 'source /dev/stdin' <<<"$(declare -f run_role fail); play='$play' work='$work' fails=0; run_role '$h'"; then
+elif "$tbin" 120 env play="$play" work="$work" bash -c 'source /dev/stdin; fails=0; run_role "$1"' _ "$h" <<<"$(declare -f run_role fail)"; then
   ok fifo "a FIFO at preferences.json neither hangs nor fails the play"
   reported "whose preferredProvider is" && ok fifo-report "the FIFO is reported" || fail fifo-report "no report for the FIFO"
 else

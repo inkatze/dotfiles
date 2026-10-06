@@ -85,8 +85,16 @@ if grep -q placeholder-key "$OP_STUB_ARGV"; then ko "op was called with the key"
 if [ -n "$(find "$(dirname "$out")" -name '.*' -type f)" ]; then ko "a temp file was left behind"; else ok "no temp file left behind"; fi
 
 echo "2. a second run is a no-op"
+inode_before="$(ls -i "$out" | awk '{print $1}')"
 run test-item "$out"
 if [ "$rc" -eq 0 ] && grep -q '^OK' <<<"$stdout"; then ok "prints OK on stdout"; else ko "prints OK on stdout ($log)"; fi
+# The script replaces a file by rename, so a rewrite shows as a new inode.
+if [ "$(ls -i "$out" | awk '{print $1}')" = "$inode_before" ] && [ "$(cat "$out")" = placeholder-key-0001 ] \
+  && [ "$(mode_of "$out")" = 600 ]; then
+  ok "the file is left untouched"
+else
+  ko "the file is left untouched"
+fi
 
 echo "3. a changed key in 1Password rewrites the file"
 printf '%s' 'placeholder-key-0002' >"$OP_STUB_VALUE"
