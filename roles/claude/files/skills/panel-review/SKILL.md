@@ -26,7 +26,7 @@ Also read `--backends a,b,c` (Pre-flight item 4) and `--effort <value>`, which o
 Runs identically in both modes.
 
 1. **Resolve the doctrine, identify the base branch and capture the diff.** Resolve planwright's review doctrine per [doctrine.md](../review-shared/doctrine.md). Fetch, then diff against the remote-tracking base (`git diff origin/<base>...HEAD`), falling back to the local base only when no remote is configured.
-2. **(Optional) Jira context**: a ticket key from the branch name or PR title, fetched when Jira tools are available.
+2. **(Optional) Jira context**: a ticket key from the branch name or PR title, fetched when Jira tools are available. Read the sibling map now too, per [siblings.md](../review-shared/siblings.md).
 3. **Detect the machine profile** with the resolver in [backends.md](../review-shared/backends.md).
 4. **Resolve the backend set.** `--backends a,b,c` from `$ARGUMENTS` when given, else the profile's default from [backends.md](../review-shared/backends.md). Supported: `codex`, `gemini` and `reviewer:<name>`. `reviewer:<name>` is **opt-in only**: never include it implicitly (a reviewer CLI uploads the repo tree). `<name>` must match `^[A-Za-z0-9_-]+$` and name an existing entry; otherwise stop and list the configured names. It is spelled `reviewer:` because that is the config's own word for an entry, so no vendor mechanics are committed here. `--backends copilot` names the retired Copilot CLI backend: stop and say a Copilot CLI, if wanted again, runs as a `reviewer:<name>` entry's `cli` block. Any other name is an error: stop and list the supported set.
 5. **Verify each backend** with the probes in [backends.md](../review-shared/backends.md); a `reviewer:<name>` backend is probed per [reviewer-backend.md](reviewer-backend.md) and this item:
@@ -155,7 +155,7 @@ Stop, print the latest tables, name the condition, and wait. Commit nothing furt
 - **Never** drop a failed backend silently.
 - **Never** fold iteration commits together, force-push, or push to a protected branch.
 - **Never** post to chat platforms, tickets or any remote system.
-- **Never** skip the wider check at (c).
+- **Never** skip the diff-scoped checks or the full-suite run at (c).
 
 ### After the loop
 

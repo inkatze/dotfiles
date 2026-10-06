@@ -28,19 +28,19 @@ COVERED=(
 SURFACES="
 roles/claude/files/CLAUDE.md                               1959   2250   2750
 CLAUDE.md                                                  1568   2000   2500
-roles/claude/files/skills/bot-review/SKILL.md              5962   6250   6750
-roles/claude/files/skills/code-review/SKILL.md             3914   4250   4750
+roles/claude/files/skills/bot-review/SKILL.md              5939   6250   6750
+roles/claude/files/skills/code-review/SKILL.md             4263   4750   5250
 roles/claude/files/skills/panel-review/reviewer-backend.md 4405   4750   5250
-roles/claude/files/skills/panel-review/SKILL.md            2741   3000   3500
-roles/claude/files/skills/peer-review/SKILL.md             1093   1500   2000
+roles/claude/files/skills/panel-review/SKILL.md            2753   3250   3750
+roles/claude/files/skills/peer-review/SKILL.md             1295   1750   2250
 roles/claude/files/skills/review-shared/backends.md        1559   2000   2500
 roles/claude/files/skills/review-shared/doctrine.md        434    750    1250
 roles/claude/files/skills/review-shared/egress.md          626    1000   1500
-roles/claude/files/skills/review-shared/github.md          1620   2000   2500
-roles/claude/files/skills/review-shared/limits.md          144    500    1000
-roles/claude/files/skills/review-shared/siblings.md        316    750    1250
+roles/claude/files/skills/review-shared/github.md          1649   2000   2500
+roles/claude/files/skills/review-shared/limits.md          154    500    1000
+roles/claude/files/skills/review-shared/siblings.md        413    750    1250
 roles/claude/files/skills/review-shared/slack.md           730    1000   1500
-roles/claude/files/skills/review-shared/state.md           2634   3000   3500
+roles/claude/files/skills/review-shared/state.md           2842   3250   3750
 roles/claude/files/skills/review-shared/workflow.md        378    750    1250
 "
 

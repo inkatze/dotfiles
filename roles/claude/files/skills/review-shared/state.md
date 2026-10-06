@@ -65,12 +65,20 @@ later skill and iteration on that tree.
   locale, streams that output, records it, and exits with the command's own
   status. It
   records nothing when the tree afterwards differs from the key (a stale
-  `--tree`, or a command that changed the tree) or when its output could not
-  be captured, and a failure to record is reported without changing that exit
-  status. An entry whose output file has gone is dropped on lookup and reads
-  as a miss. `--dir <dir>` runs the program in that directory instead, keyed
-  by the `--tree` it requires and never re-checked, so the directory must hold
-  exactly that tree: it is refused inside the work tree or holding it.
+  `--tree`, or a command that changed the tree), when its output could not
+  be captured, or when the command was killed by a signal or by a `timeout`
+  or `gtimeout` wrapper (124 to 127), and a failure to record is reported
+  without changing that exit status. An entry whose output file has gone is
+  dropped on lookup and reads as a miss.
+- **Running in an export.** `evidence run --command <key> --tree <hash> --dir
+  <absolute dir> -- <argv>` runs the program in that directory, keyed by the
+  `--tree` it requires (a tree object in this repository), and records only
+  when the directory hashes to exactly that tree before the run and after it.
+  It is refused inside the work tree, holding it, or holding a `.git`. In it
+  git trusts no repository: none inherited from the caller, none above the
+  directory, and no bare layout found there. Its entry is kept apart from
+  work-tree entries: `evidence lookup --source export` reads it (and a
+  work-tree run of the same tree), a plain lookup never does.
 - **Full-suite key.** The repository's declared test task, as written in its
   task runner (for example `mise run test`). Local runs and CI evidence record
   under that same key, so either satisfies the other's lookup.
@@ -102,35 +110,44 @@ planwright seed note is to carry:
 ## Evidence in a skill
 
 **Every tooling or suite run in a review skill looks up the evidence record
-first and records through it**: `evidence lookup --command <key>` before the
-run; a hit is reused, its `output_path` read in place of running and reported
-as reused with its `source`; a miss runs through `evidence run --command <key>
--- <argv>`, which records it. The key is the command as the repository
-declares it (a `lefthook.yml` command, a task-runner task, a CI step), so two
-skills running the same tool share an entry. A tool that writes, such as a
-formatter without its check flag, never runs through the record. Bound a run
-by wrapping the program in `timeout` (`gtimeout` on macOS).
+first and records through it**: compute `key` once per tree state, then
+`evidence lookup --command <key> --tree <that key>` before the run; a hit is
+reused, its `output_path` read in place of running and reported as reused
+with its `source`; a miss runs through `evidence run --command <key> --tree
+<that key> -- <argv>`, which records it. A lookup that exits 2 names the entry
+it refused: run the tool without the record and report that file. The key is
+the command as the repository declares it (a `lefthook.yml` command, a
+task-runner task, a CI step), so two skills running the same tool share an
+entry. A tool that writes, such as a formatter without its check flag, never
+runs through the record, and a secret scanner runs through it only with its
+redaction flag (`gitleaks --redact`), so the record never stores a credential;
+one without such a flag runs outside it. Bound a run by wrapping the program
+in `timeout` (`gtimeout` on macOS).
 
 - **Full suite.** Its key is the full-suite key above; a repository that
   declares no test task has none, so its suite runs unrecorded and no CI
   evidence is taken. Before running it on a working tree whose key equals
-  `HEAD`'s tree and whose `HEAD` is the pushed head of its PR, pipe that head's
-  check runs to `evidence ci` and look up again; only a miss runs the suite.
+  `HEAD`'s tree and whose `HEAD` is the pushed head of its PR, once every
+  check suite on that head that has check runs has completed (the head's
+  `check-suites` listing, ignoring suites whose `latest_check_runs_count` is
+  0), so a workflow not yet started cannot leave one fast check standing for
+  the suite, pipe the head's check runs to `evidence ci` and look up again
+  with `--tree` that key; only a miss runs the suite.
 - **Nested loops.** **A nested loop runs the full suite once per iteration,
   after that iteration's fixes**, and validates each fix with diff-scoped
   checks: the tests touching the files it changed and the linters run on
-  them, each through the record under the command as run, paths included. A
-  finding's reproduction never reads the record.
+  them, each through the record under the command as run, paths included.
 - **An exported tree.** **A PR that is not checked out has its tooling run in
   an archive export of its pinned head**: `git archive <head>` extracted into
   a scratch directory outside every work tree, keyed by `git rev-parse
-  '<head>^{tree}'`, through `evidence lookup --tree <that tree>` and `evidence
-  run --tree <that tree> --dir <export>`. The record stays in the session's
-  own worktree. `git archive` leaves out `export-ignore` paths and rewrites
-  `export-subst` files, so when `git grep -q -E 'export-(ignore|subst)' <head>
-  -- ':(glob)**/.gitattributes'` finds either, or this clone's `info/attributes`
-  or `core.attributesFile` names one, the export is not that tree: run the
-  tooling without the record and say so.
+  '<head>^{tree}'`, through `evidence lookup --tree <that tree> --source
+  export` and `evidence run --tree <that tree> --dir <export>`, every tool
+  going through `evidence run` so the export's git protections hold. The
+  record stays in the session's own worktree. An export that is not that tree
+  (`export-ignore` or `export-subst` attributes, a submodule) still runs, and
+  the helper says it recorded nothing. An export holds no `.git` and no
+  ignored dependencies, so a tool failing for want of either is reported as
+  not run, never as a finding.
 
 ## Writer lock
 

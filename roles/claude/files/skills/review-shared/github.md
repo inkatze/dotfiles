@@ -13,6 +13,10 @@ are public and follow the same rule.
 
 ## The same-PR lock
 
+Only a skill that has not yet adopted the shared writer lock in
+[state.md](state.md) takes this one; `/code-review` and `/peer-review` take
+the writer lock instead, around their writes only.
+
 Two runs against one PR (two worktrees, two sessions, a standalone run beside
 a nested one) would otherwise both act on the same finding. Take the same-PR
 lock before the first fetch, keyed by skill, repo and PR:

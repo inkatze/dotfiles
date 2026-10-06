@@ -679,34 +679,53 @@ expect_fail submit-gate \
   "perl -0pi -e 's/never choose approval on my behalf/choose approval freely/' $(md code-review)" "missing expected submit-gate sentence"
 expect_fail submit-gate-wrapped \
   "perl -0pi -e 's/never\\s+submit\\s+any\\s+review\\s+without\\s+an\\s+explicitly\\s+chosen\\s+verdict/submit whatever/s' $(md code-review)" "missing expected submit-gate sentence"
+expect_pass submit-gate-reflow \
+  "perl -0pi -e 's/explicitly chosen verdict/explicitly\\nchosen verdict/s' $(md code-review)"
 # /code-review runs worktree-free from any session (REQ-E1.6)
-PIN="Tooling runs in an archive export of the pinned head, never a worktree" \
-  expect_fail code-review-archive-export-dropped 'drop_pin "$PIN" "$(md code-review)"' "archive-export sentence"
+for pin in \
+  "Tooling runs in an archive export of the pinned head, never a worktree" \
+  "The PR is never checked out, here or in a second worktree" \
+  "a miss run through \`evidence run --tree <pr_tree> --dir '<tmp>/tree'\`"; do
+  PIN="$pin" expect_fail "code-review-archive-export-dropped ($pin)" 'drop_pin "$PIN" "$(md code-review)"' "archive-export sentence"
+done
 expect_fail code-review-archive-command-dropped \
   "perl -pi -e 's{git archive \"\\\$pr_head\" \\| tar -x -C \"\\\$tmp/tree\"}{git worktree list}' $(md code-review)" "archive-export sentence"
-expect_fail code-review-isolated-stop-planted \
-  "echo \"If this session's environment says it is isolated in a worktree, stop before anything else and tell me to rerun from a session in the main checkout.\" >> $(md code-review)" \
-  "retired isolated-session stop or review worktree"
-expect_fail code-review-review-worktree-planted \
-  "printf '%s\n' 'git worktree add --detach \"\$wt\" \"\$pr_head\" || exit 1' >> $(md code-review)" \
-  "retired isolated-session stop or review worktree"
-expect_fail code-review-same-pr-lock-planted \
-  "echo 'Take the same-PR lock, keyed code-review.' >> $(md code-review)" "retired isolated-session stop or review worktree"
+RETIRED="retired isolated-session stop, review worktree or same-PR lock"
+for planted in \
+  "If this session's environment says it is isolated in a worktree, stop here." \
+  "Tell me to rerun from a session in the main checkout." \
+  'git worktree add --detach "$wt" "$pr_head" || exit 1' \
+  'wt="$(git config --local --get code-review.worktree-<number>)"' \
+  "Take the same-PR lock, keyed code-review."; do
+  LINE="$planted" expect_fail "code-review-retired-planted ($planted)" \
+    'printf "%s\n" "$LINE" >> "$(md code-review)"' "$RETIRED"
+done
+for pin in \
+  'case "$t" in *..* | *[!A-Za-z0-9._/-]*) echo "refusing to remove $t"; exit 1 ;; esac' \
+  'case "${t##*/}" in code-review-pr-<number>.*) ;;' \
+  '[ -d "$t" ] && [ ! -L "$t" ] && [ -O "$t" ]'; do
+  PIN="$pin" expect_fail "code-review-teardown-guard-dropped ($pin)" 'swap_fixed "$PIN" "true" "$(md code-review)"' "teardown guard"
+done
 # The writer lock around writes only, the registration and the inbox read
 # before release, in the single-pass skills (REQ-E1.1, REQ-E1.4, REQ-E1.7)
 for pin in \
   "Take the writer lock immediately before submitting the review" \
-  "Nothing before step 9 writes anything another session shares, so this run holds no lock until then." \
-  "--skill code-review --repo <owner>/<repo> --pr <number>" \
-  "review-state.sh unregister --session <token>"; do
+  "Nothing before step 9 writes the branch, the PR or the decision ledger, so this run holds no lock until then." \
+  "--skill code-review --repo <owner>/<repo> --pr <number> --worktree '<that top level>'" \
+  "review-state.sh unregister --session <token>" \
+  "keeping the printed lock token"; do
   PIN="$pin" expect_fail "code-review-writer-lock-dropped ($pin)" 'drop_pin "$PIN" "$(md code-review)"' "writer-lock sentence"
 done
 for pin in \
-  "Take the writer lock immediately before the commit" \
-  "Hold it through the commit, the push and step 8's replies and resolves." \
+  "Take the writer lock immediately before the first fix is applied" \
+  "Hold it through applying, the commit, the push and step 8's replies and resolves." \
+  "nothing is applied to the branch until step 7 holds the writer lock" \
+  "re-fetch the approved threads and drop any another session resolved or replied to meanwhile" \
   "then resolve each thread, all under the writer lock step 7 took" \
   "fetching, validation and the walk run without the writer lock" \
-  "--skill peer-review --repo <owner>/<repo> --pr <number>"; do
+  "--skill peer-review --repo <owner>/<repo> --pr <number> --worktree '<that top level>'" \
+  "review-state.sh unregister --session <token>" \
+  "keeping the printed lock token"; do
   PIN="$pin" expect_fail "peer-review-writer-lock-dropped ($pin)" 'drop_pin "$PIN" "$(md peer-review)"' "writer-lock sentence"
 done
 expect_fail peer-review-same-pr-lock-planted \
@@ -727,16 +746,17 @@ PIN="every test, linter or suite run going through the evidence record" \
   expect_fail bot-review-evidence-dropped 'drop_pin "$PIN" "$(md bot-review)"' "evidence-reuse sentence"
 PIN="run the full suite, linters and type checkers once" \
   expect_fail panel-review-suite-cadence-dropped 'drop_pin "$PIN" "$(md panel-review)"' "suite-cadence sentence"
-PIN="then run the full suite once for the iteration" \
+PIN="then run the project tooling and the full suite once for the iteration" \
   expect_fail bot-review-suite-cadence-dropped 'drop_pin "$PIN" "$(md bot-review)"' "suite-cadence sentence"
-PIN="pipe them to \`evidence ci --head <push_head>\`" \
-  expect_fail bot-review-ci-evidence-dropped 'drop_pin "$PIN" "$(md bot-review)"' "CI-evidence sentence"
-PIN="Every tooling or suite run in a review skill looks up the evidence record first" \
-  expect_fail evidence-in-skill-anchor-dropped 'drop_pin "$PIN" "$SHARED/state.md"' "shared block anchor missing"
-PIN="A nested loop runs the full suite once per iteration" \
-  expect_fail suite-cadence-anchor-dropped 'drop_pin "$PIN" "$SHARED/state.md"' "shared block anchor missing"
-PIN="A PR that is not checked out has its tooling run in an archive export" \
-  expect_fail exported-tree-anchor-dropped 'drop_pin "$PIN" "$SHARED/state.md"' "shared block anchor missing"
+for pin in \
+  "Every tooling or suite run in a review skill looks up the evidence record first" \
+  "A nested loop runs the full suite once per iteration" \
+  "A PR that is not checked out has its tooling run in an archive export" \
+  "a secret scanner runs through it only with its redaction flag" \
+  "In it git trusts no repository: none inherited from the caller, none above the directory, and no bare layout found there." \
+  "once every check suite on that head that has check runs has completed"; do
+  PIN="$pin" expect_fail "state-evidence-anchor-dropped ($pin)" 'drop_pin "$PIN" "$SHARED/state.md"' "shared block anchor missing"
+done
 # Producer code as validation pass 2's context, kept local (REQ-I1.7)
 for name in code-review panel-review; do
   PIN="attach the producer's definition as validation pass 2's context" \
@@ -744,14 +764,19 @@ for name in code-review panel-review; do
   expect_fail "$name-siblings-link-dropped" \
     "perl -pi -e 's{\\]\\(\\.\\./review-shared/siblings\\.md\\)}{]}g' $(md $name)" "link to the shared siblings.md"
 done
-PIN="The producer's code stays local: it is never sent to a backend" \
-  expect_fail siblings-local-anchor-dropped 'drop_pin "$PIN" "$SHARED/siblings.md"' "shared block anchor missing"
+for pin in \
+  "A mapped producer's code is validation pass 2's context" \
+  "The producer's code stays local: it is never sent to a backend"; do
+  PIN="$pin" expect_fail "siblings-anchor-dropped ($pin)" 'drop_pin "$PIN" "$SHARED/siblings.md"' "shared block anchor missing"
+done
 for name in code-review panel-review peer-review; do
   expect_fail "$name-state-link-dropped" \
     "perl -pi -e 's{\\]\\(\\.\\./review-shared/state\\.md\\)}{]}g' $(md $name)" "link to the shared state.md"
 done
-expect_pass submit-gate-reflow \
-  "perl -0pi -e 's/explicitly chosen verdict/explicitly\\nchosen verdict/s' $(md code-review)"
+for name in code-review peer-review; do
+  expect_fail "$name-limits-link-dropped" \
+    "perl -pi -e 's{\\]\\(\\.\\./review-shared/limits\\.md\\)}{]}g' $(md $name)" "link to the shared limits.md"
+done
 expect_fail signoff-decoration \
   "perl -0pi -e 's/– clanky\\n/– clanky the bot\\n/' $(md code-review)" "decoration after clanky"
 expect_fail signoff-wrong-dash \
