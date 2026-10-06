@@ -676,6 +676,7 @@ for pin in \
   "Hold the lock for the writes only." \
   "Read the inbox at every boundary." \
   "A held lock is a handoff." \
+  "gets no socket nudge after it: its inbox read at the next boundary carries the handoff" \
   "Every stop releases the writer lock" \
   "runs \`inbox read\` once more and then \`unregister\`" \
   "a run that opens the PR runs \`lock handover\` there" \

@@ -245,10 +245,11 @@ its own write steps.
      validated findings on stdin. Exit 1 means the holder is gone: run
      `lock acquire` again, which reclaims its lock.
   2. Nudge the holder with one session message to the holder record's `name`,
-     naming the inbox file. Where it cannot go (no `SendMessage` tool, a result
-     beginning `Not sent`, or a delivery notice saying the holder refused or
-     held it), run `inbox nudge` instead; a nudge that exits 1 is reported and
-     changes nothing else.
+     naming the inbox file. Where it could not be sent (no `SendMessage` tool,
+     or a result beginning `Not sent`), run `inbox nudge` instead; a nudge
+     that exits 1 is reported and changes nothing else. A holder that refused
+     or held the message gets no socket nudge after it: its inbox read at the
+     next boundary carries the handoff.
   3. `lock acquire --wait` for one inbox poll window ([limits.md](limits.md)),
      in seconds, once, in a Bash call whose timeout is at least half a minute
      longer than the wait; a call its timeout killed runs `lock acquire` again
