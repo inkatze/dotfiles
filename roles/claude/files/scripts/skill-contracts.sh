@@ -725,12 +725,14 @@ require_phrases "$(skill_md bot-review)" "metering sentence" \
 # Each anchor pins a guard itself, not only its message.
 reviewer_backend_checks=(
   '/usr/bin/env -i "${env_kept[@]}" "$tbin" -k 30 "$secs" /bin/sh -c "$loader" sh "${argv[@]}"'
-  '3< <(printf '"'"'%s\n'"'"' ${secret_pairs[@]+"${secret_pairs[@]}"})'
+  'printf '"'"'%s\n'"'"' ${secret_pairs[@]+"${secret_pairs[@]}"} | ( cd "$top" \'
+  '3<&0 < /dev/null > "$work/stdout" 2> "$work/stderr" )'
   "IFS=\$' \\t' read -r -a words <<< \"\$tpl\""
   "trap 'rm -rf \"\$work\"' EXIT"
   "jq -e -s 'length == 1' \"\$src\""
   'cli.findings_jq must yield one array of {file, line, finding, severity, rule}'
-  'set +x; while IFS= read -r __rb_pair <&3; do [ -z "$__rb_pair" ] || export "$__rb_pair"; done; unset __rb_pair; exec "$@" 3<&-'
+  'set +x; while IFS= read -r __rb_pair <&3; do [ -z "$__rb_pair" ] || export "$__rb_pair" || exit 125; done'
+  'unset __rb_pair; exec "$@" 3<&-'
   'unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR GIT_NAMESPACE \'
   'secret_pairs+=("$v=$val")'
   'and test("\\A[A-Za-z_][A-Za-z0-9_]*\\z")) then .[] else error("") end'
@@ -738,10 +740,10 @@ reviewer_backend_checks=(
   '|| { echo "cli.env_allow must be a list of variable names" >&2; exit 1; }'
   'while [ -n "$x" ]; do [ "$x" -ef "$top" ] && return 0; x="${x%/*}"; done'
   'in_repo "$dir"; [ "$?" -eq 1 ] || continue'$'\n''    safe_path="${safe_path:+$safe_path:}$dir"'
-  'tool_abs="$(type -P realpath)" && ! is_mise_link "$tool_abs" \'
-  'for tool in jq printenv git; do'
-  'check_tools || exit 1'$'\n''  top="$(git rev-parse --show-toplevel)"'
-  '  PATH="$safe_path"'$'\n''  mise_bin="$(type -P mise)" || mise_bin=""'$'\n''  check_tools || exit 1'
+  '[ "$how" != resolved ] || tool_real="$(realpath "$tool_abs")" || return 1'
+  'for tool in realpath jq printenv git; do'
+  'check_tools by-path || exit 1'$'\n''  top="$(git rev-parse --show-toplevel)"'
+  '  PATH="$safe_path"'$'\n''  mise_bin="$(type -P mise)" || mise_bin=""'$'\n''  check_tools resolved || exit 1'
   '! is_mise_link "$tool_real" || { echo'
   '! is_mise_link "$tbin_real" || { echo'
   '[ "${probe##*/}" = mise ] || { [ -n "$mise_bin" ] && [ "$probe" -ef "$mise_bin" ]; }'
@@ -834,9 +836,12 @@ reviewer_backend_checks=(
   'or IN("SHELLOPTS", "BASHOPTS", "BASH_ENV", "ENV", "PS4", "IFS")) | not))'
   '**mise shims are stripped, not steered.**'
   'if [ -e "$top/$refused" ] || [ -L "$top/$refused" ]; then'
-  '  done <<< "$refuse_paths"'$'\n''  get() {'
-  '(split("/") | index("..") | not))'
-  '**A tree that would steer the CLI is refused before anything runs.**'
+  '    done <<< "$refuse_paths"'$'\n''  }'$'\n''  check_refused || exit 1'$'\n''  get() {'
+  '  check_refused || exit 1'$'\n''  started=$SECONDS'
+  'elif ! check_refused 2>/dev/null; then'
+  '0) echo "HOME is inside the repo under review, so the tree could supply'
+  '(split("/") | all(. != "" and . != "." and . != "..")))'
+  '**A tree that would steer the CLI is refused before mise or the CLI runs.**'
 )
 panel_consent_checks=(
   'where `<approved-binary-path>` is item 5'"'"'s `bin_real`'

@@ -170,8 +170,9 @@ reviewer_drift reviewer-backend-tool-dirs-keep-repo-dirs \
   $'in_repo "$dir"; [ "$?" -eq 1 ] || continue\n    cli_path=' $':\n    cli_path='
 reviewer_drift reviewer-backend-snippet-path-unfiltered '  PATH="$safe_path"' '  :'
 reviewer_drift reviewer-backend-cli-path-unfiltered 'env_kept=("PATH=$safe_path")' 'env_kept=("PATH=$PATH")'
-reviewer_drift reviewer-backend-no-tool-probe 'for tool in jq printenv git; do' 'for tool in; do'
-reviewer_drift reviewer-backend-tools-checked-after-first-git $'check_tools || exit 1\n  top=' $'top='
+reviewer_drift reviewer-backend-no-tool-probe 'for tool in realpath jq printenv git; do' 'for tool in; do'
+reviewer_drift reviewer-backend-tools-checked-after-first-git $'check_tools by-path || exit 1\n  top=' $'top='
+reviewer_drift reviewer-backend-tools-unresolved-on-filtered-path '[ "$how" != resolved ] || tool_real=' 'true || tool_real='
 reviewer_drift reviewer-backend-binary-unresolved 'bin_real="$(realpath "$bin_abs")" ||' 'bin_real="$bin_abs" ||'
 reviewer_drift reviewer-backend-binary-in-repo 'in_repo "${bin_real%/*}/"; [ "$?" -eq 1 ] || { echo "cli.binary resolves inside' 'true || { echo "cli.binary resolves inside'
 reviewer_drift reviewer-backend-binary-not-approved '[ "$bin_real" = "$approved" ] ||' 'true ||'
@@ -269,8 +270,11 @@ for optout in CUBIC_DISABLE_AUTOUPDATE CUBIC_DISABLE_GIT_AI CUBIC_DISABLE_LSP_DO
 done
 
 reviewer_drift reviewer-backend-refusal-follows-links-only 'if [ -e "$top/$refused" ] || [ -L "$top/$refused" ]; then' 'if [ -e "$top/$refused" ]; then'
-reviewer_drift reviewer-backend-refusal-after-mise $'  done <<< "$refuse_paths"\n  get() {' $'  done <<< ""\n  get() {'
-reviewer_drift reviewer-backend-refuse-paths-climb '(split("/") | index("..") | not))' 'true)'
+reviewer_drift reviewer-backend-refusal-after-mise $'  }\n  check_refused || exit 1\n  get() {' $'  }\n  get() {'
+reviewer_drift reviewer-backend-refusal-not-before-launch $'  check_refused || exit 1\n  started=$SECONDS' $'  started=$SECONDS'
+reviewer_drift reviewer-backend-refusal-not-after-run 'elif ! check_refused 2>/dev/null; then' 'elif false; then'
+reviewer_drift reviewer-backend-refuse-paths-climb '(split("/") | all(. != "" and . != "." and . != "..")))' 'true)'
+reviewer_drift reviewer-backend-key-pipe-extra-fd '      3<&0 < /dev/null > "$work/stdout"' '      3<&0 > "$work/stdout"'
 for refused in cubic.json cubic.jsonc .cubic; do
   V="$refused" F="$SKILLS/bot-review/bot-review.json.tpl" expect_fail "template-refuse-paths-missing-$refused" \
     'jq --arg v "$V" ".reviewers.cubic.cli.refuse_paths -= [\$v]" "$F" > "$F.new" && mv "$F.new" "$F"' \

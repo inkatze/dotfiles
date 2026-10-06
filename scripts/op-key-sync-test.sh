@@ -175,11 +175,18 @@ run test-item "$out"
 expect_failed "sticky other-writable directory refused" "writable by other"
 chmod 775 "$(dirname "$out")"
 run test-item "$out"
-if [ "$rc" -eq 0 ]; then ok "a directory writable only by your own primary group is accepted"; else ko "user-private group directory ($log)"; fi
-chmod 2775 "$(dirname "$out")" 2>/dev/null && [ "$(mode_of "$(dirname "$out")")" != 775 ] && {
+if [ "$(stat -c '%G' "$(dirname "$out")" 2>/dev/null || stat -f '%Sg' "$(dirname "$out")")" = "$(id -un)" ]; then
+  if [ "$rc" -eq 0 ]; then ok "a directory writable only by a group named after you is accepted"; else ko "user-private group directory ($log)"; fi
+else
+  expect_failed "a group-writable directory in a shared group refused" "not a group of your own"
+fi
+chmod 2777 "$(dirname "$out")" 2>/dev/null
+if [ "$(mode_of "$(dirname "$out")")" = 2777 ]; then
   run test-item "$out"
-  [ "$rc" -eq 0 ] && ok "setgid on your own group's directory is read past" || ko "setgid own-group directory ($log)"
-}
+  expect_failed "setgid other-writable directory refused" "writable by other"
+else
+  echo "  SKIP: this stat does not print setgid"
+fi
 chmod 777 "$(dirname "$out")"
 run test-item "$out"
 expect_failed "an existing matching key in an other-writable directory is not OK" "writable by other"
@@ -191,9 +198,20 @@ if [ "$(id -G | wc -w)" -gt 1 ]; then
   other_group="$(id -G | tr ' ' '\n' | grep -vx "$(id -g)" | head -n 1)"
   if chgrp "$other_group" "$(dirname "$out")" 2>/dev/null && chmod 775 "$(dirname "$out")"; then
     run test-item "$out"
-    expect_failed "a directory writable by another group refused" "which is not your own"
+    expect_failed "a directory writable by another group refused" "not a group of your own"
+  else
+    echo "  SKIP: could not move the directory to another group"
   fi
+else
+  echo "  SKIP: this user belongs to one group only"
 fi
+new_sandbox
+mkdir -p "$sandbox/real"
+chmod 777 "$sandbox/real"
+mkdir -p "$HOME/.config"
+ln -s "$sandbox/real" "$HOME/.config/dotfiles"
+run test-item "$out"
+expect_failed "a symlinked directory is judged by its target" "writable by other"
 
 echo "12. no shell config exports the key"
 if grep -rq CUBIC "$script_dir/../roles/fish"; then ko "roles/fish mentions CUBIC"; else ok "roles/fish never mentions CUBIC"; fi

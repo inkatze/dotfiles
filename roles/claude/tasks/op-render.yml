@@ -1,8 +1,8 @@
 ---
 
 # Machine-local files rendered from 1Password items in the service-account
-# vault by scripts/op-render.sh, which validates each before it lands, and API
-# keys synced by scripts/op-key-sync.sh. Behind
+# vault by scripts/op-render.sh, which validates each before it lands, and
+# API keys synced by scripts/op-key-sync.sh. Behind
 # the same `op` probe split as the Gemini key sync in main.yml: a host without
 # op is skipped with a notice, a host with op that still fails is an error.
 # No host guard: every host, work included, runs the review skills.
@@ -59,7 +59,8 @@
 
 # The cubic.dev CLI's API key, which /panel-review's reviewer:cubic backend
 # reads from this file and hands the CLI at invocation only (the template's
-# cli.env_files), so no shell ever exports it.
+# cli.env_files), so no login or interactive shell exports it and no argv
+# carries it.
 - name: Sync the cubic.dev CLI's API key from 1Password
   ansible.builtin.command:
     argv:

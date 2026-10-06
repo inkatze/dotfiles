@@ -30,10 +30,9 @@ pre-commit:
       # The fixture suite is what notices a check class being deleted from the
       # checker (the checker alone still reports "all invariants hold"). It is
       # slow, so it runs here only when the checker, the suite or the
-      # identifier check it runs changes, or a file holding its fixtures'
-      # anchors; CI (.github/workflows/test.yml) runs it on every PR.
-      glob: "{roles/claude/files/scripts/{skill-contracts.sh,skill-contracts-test.sh,identifier-check.sh},\
-        roles/claude/files/skills/{panel-review/{SKILL,reviewer-backend},review-shared/egress}.md}"
+      # identifier check it runs changes; CI (.github/workflows/test.yml) runs
+      # it on every PR.
+      glob: "roles/claude/files/scripts/{skill-contracts.sh,skill-contracts-test.sh,identifier-check.sh}"
       run: roles/claude/files/scripts/skill-contracts-test.sh
     instruction-budget:
       # lefthook.yml and the workflow too: the suite asserts both wire the checker.

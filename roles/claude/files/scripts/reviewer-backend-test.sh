@@ -275,12 +275,17 @@ run_snippet
 expect_refused "a key file not listed in env_allow" "must be in cli.env_allow"
 for bad in '.env.PATH = "/tmp"' '.env.HOME = "/tmp"' '.env.CUBIC_API_KEY = "x"' \
   '.env_files.PATH = "~/x" | .env_allow += ["PATH"]' '.env.GIT_DIR = "/tmp"' \
-  '.env_allow += ["GIT_INDEX_FILE"]' '.env.X = "a\nb"'; do
+  '.env_allow += ["GIT_INDEX_FILE"]' '.env.X = "a\nb"' '.env.SHELLOPTS = "xtrace"'; do
   new_case
   edit_cfg ".reviewers.cubic.cli |= ($bad)"
   run_snippet
   expect_refused "refused: $bad" "cli.env_files and cli.env must map"
 done
+
+new_case
+edit_cfg '.reviewers.cubic.cli.env_allow += ["FOO\n"]'
+run_snippet
+expect_refused "a variable name with a trailing newline" "cli.env_allow must be a list of variable names"
 
 echo "8. no mise shim runs"
 new_case
@@ -304,13 +309,17 @@ esac
 
 new_case
 mkdir -p "$sandbox/odd"
-ln -s "$sandbox/mise-bin/mise" "$sandbox/odd/jq"
+ln -s "$sandbox/mise-bin/mise" "$sandbox/odd/git"
 session_path="$sandbox/odd:$session_path"
 run_snippet
-expect_refused "a helper tool linked to mise from an unrecognised directory" "is a mise shim outside mise's shims directory"
+if [ "$rc" -ne 0 ] && grep -qF "git ($sandbox/odd/git) is a mise shim outside mise's shims directory" <<<"$err" \
+  && [ ! -e "$sandbox/seen-mise-env" ]; then
+  ok "a git linked to mise is refused before it runs"
+else
+  ko "a git linked to mise is refused before it runs (rc=$rc, err=$err)"
+fi
 new_case
-session_path="::$session_path"
-mkdir -p "$repo/bin"
+session_path="$home::$session_path"
 printf '#!/bin/sh\necho steered >"%s/steered-ran"\nexit 1\n' "$sandbox" >"$repo/git"
 chmod +x "$repo/git"
 run_snippet
@@ -321,10 +330,6 @@ new_case
 edit_cfg '.reviewers.cubic.cli |= (del(.env_files) | .env_allow = [])'
 run_snippet
 [ "$rc" -eq 0 ] && [ -z "$(seen CUBIC_API_KEY)" ] && ok "no key, no pipe, CLI ran" || ko "no env_files (rc=$rc, err=$err)"
-new_case
-edit_cfg '.reviewers.cubic.cli |= (.env.SHELLOPTS = "xtrace")'
-run_snippet
-expect_refused "refused: a shell option variable" "cli.env_files and cli.env must map"
 
 echo "8c. a tree carrying a path the CLI would load is refused before mise or the CLI runs"
 for planted in cubic.json cubic.jsonc .cubic .cubic-link .cubic-dangling; do
@@ -344,10 +349,21 @@ for planted in cubic.json cubic.jsonc .cubic .cubic-link .cubic-dangling; do
     ko "$planted refused before mise or the CLI ran (rc=$rc, err=$err)"
   fi
 done
+for bad in '"../outside"' '"."' '"cubic.json/"' '""'; do
+  new_case
+  edit_cfg ".reviewers.cubic.cli.refuse_paths = [$bad]"
+  run_snippet
+  expect_refused "refuse_paths entry $bad refused as malformed" "cli.refuse_paths must be a list"
+done
 new_case
-edit_cfg '.reviewers.cubic.cli.refuse_paths = ["../outside"]'
+# The fake CLI plants a listed path while it runs.
+sed -i.bak "s|^env >\"$sandbox/seen-env\"|mkdir -p \"$repo/.cubic\"; env >\"$sandbox/seen-env\"|" "$sandbox/tools/node/bin/node"
 run_snippet
-expect_refused "a refuse_paths entry climbing out of the repo" "cli.refuse_paths must be a list"
+if [ "$rc" -ne 0 ] && grep -qF "appeared at the repo root while the reviewer CLI ran" <<<"$err"; then
+  ok "a listed path created during the run is named"
+else
+  ko "a listed path created during the run is named (rc=$rc, err=$err)"
+fi
 
 echo "9. under a git hook's environment, the suite leaves that repository alone"
 decoy="$work/decoy"

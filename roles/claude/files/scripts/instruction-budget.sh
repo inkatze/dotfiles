@@ -31,8 +31,8 @@ CLAUDE.md                                                  1557   2000   2500
 roles/claude/files/skills/bot-review/SKILL.md              4122   4500   5000
 roles/claude/files/skills/code-review/SKILL.md             4050   4500   5000
 roles/claude/files/skills/copilot-review/SKILL.md          4985   5250   5750
-roles/claude/files/skills/panel-review/reviewer-backend.md 5685   6000   6500
-roles/claude/files/skills/panel-review/SKILL.md            2595   3000   3500
+roles/claude/files/skills/panel-review/reviewer-backend.md 5863   6250   6750
+roles/claude/files/skills/panel-review/SKILL.md            2605   3000   3500
 roles/claude/files/skills/peer-review/SKILL.md             778    1250   1750
 roles/claude/files/skills/review-shared/backends.md        1903   2250   2750
 roles/claude/files/skills/review-shared/doctrine.md        434    750    1250

@@ -14,8 +14,9 @@
 # tightened: if group or other could read it, the key may already have been
 # read, and the fix is a rotation, which a chmod would hide. So is a directory
 # for it that someone else owns or could write, where the file could be
-# swapped under the reader; group write counts only when the group is not the
-# user's own primary group (a user-private group shares nothing).
+# swapped under the reader. Group write is accepted only for a group named
+# after the user, the user-private-group convention; a shared primary group
+# such as macOS's staff counts as anyone's.
 
 set -eu
 umask 077
@@ -38,20 +39,23 @@ case "$output" in
 esac
 
 mode_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null || echo ''; }
-group_of() { stat -c '%g' "$1" 2>/dev/null || stat -f '%g' "$1" 2>/dev/null || echo ''; }
+group_of() { stat -c '%G' "$1" 2>/dev/null || stat -f '%Sg' "$1" 2>/dev/null || echo ''; }
 
 check_dir() {
-  local dir="$1" mode
-  [ -O "$dir" ] || fail "$dir is not owned by this user; refusing to write a key there"
+  # The trailing slash makes stat describe a symlinked directory's target.
+  local dir="$1/" mode
+  [ -O "$dir" ] || fail "$1 is not owned by this user; refusing to write a key there"
   mode="$(mode_of "$dir")"
-  [ -n "$mode" ] || fail "could not stat $dir"
-  # Only the permission digits: stat prints setgid and sticky as a leading fourth.
+  [ -n "$mode" ] || fail "could not stat $1"
+  # Only the permission digits, zero-padded: stat drops leading zeros and
+  # prints setgid and sticky as a leading fourth.
+  mode="00$mode"
   mode="${mode#"${mode%???}"}"
   case "$mode" in
-    ??[2367]) fail "$dir is writable by other; tighten it (chmod o-w) and re-run" ;;
+    ??[2367]) fail "$1 is writable by other; tighten it (chmod o-w) and re-run" ;;
     ?[2367]?)
-      [ "$(group_of "$dir")" = "$(id -g)" ] \
-        || fail "$dir is writable by its group, which is not your own; tighten it (chmod g-w) and re-run" ;;
+      [ "$(group_of "$dir")" = "$(id -un)" ] \
+        || fail "$1 is writable by its group, which is not a group of your own; tighten it (chmod g-w) and re-run" ;;
   esac
 }
 
