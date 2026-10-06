@@ -53,8 +53,9 @@ later skill and iteration on that tree.
   `started`, `ended`, `source`, `output`) beside the captured output it names.
   `<id>` is the command string's git blob hash (an export run's hashes the
   command behind an `export` line, its `command` field still the plain
-  command); `source` is `local`, `export`, the CI source below, or whatever
-  one line `evidence record --source` was given. Two
+  command); `source` is `local`, `export` (set only by an export run), the CI
+  source below, or whatever other one line `evidence record --source` was
+  given. Two
   runs that both miss on one tree both run; the first to finish records and
   the later one is dropped.
 - **Lookup before running.** `evidence lookup --command <key>` prints the entry
@@ -69,7 +70,7 @@ later skill and iteration on that tree.
   records nothing when the tree afterwards differs from the key (a stale
   `--tree`, or a command that changed the tree), when its output could not
   be captured, when the command could not be started, or when it was killed
-  by a signal or runs under `timeout` or `gtimeout` and that wrapper reports a
+  by a signal or `timeout` or `gtimeout` is the program run and reports a
   timeout or a failure of its own, and a failure to record is reported without
   changing that exit status. An entry whose output file has gone is dropped on
   lookup and reads as a miss.
@@ -81,9 +82,10 @@ later skill and iteration on that tree.
   filters and with hooks off. It needs git 2.38 or later and is refused inside
   the work tree, holding it, holding a `.git`, or on a path with a `:`. In it
   git trusts no repository: none inherited from the caller, none above the
-  directory, and no bare layout found there. The caller's git config does not
-  reach it either, and a tool's own git calls see the same, so a test that
-  opens a bare repository by discovery fails there. Its entry is kept apart
+  directory, and no bare layout found there. Git config passed through the
+  environment does not reach it either (global and system config still do),
+  and a tool's own git calls see the same, so a test that opens a bare
+  repository by discovery fails there. Its entry is kept apart
   from work-tree entries: `evidence lookup --source export` reads it (and a
   work-tree run of the same tree), a plain lookup never does.
 - **Full-suite key.** The repository's declared test task, as written in its

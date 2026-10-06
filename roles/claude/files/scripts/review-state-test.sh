@@ -484,6 +484,41 @@ chmod +x "$tmp/bin/badinterp"
 [ "$rc" -eq 127 ] && [[ "$(cat "$tmp/run.err")" == *"could not be started"* ]] \
   || fail run-no-start "a command that could not start was not named as such (exit $rc): $(cat "$tmp/run.err")"
 if "$H" evidence lookup --command 'no-start' > /dev/null 2>&1; then fail run-no-start-recorded "a command that never started was recorded"; fi
+# The shell that starts the command inherits neither the helper's errexit,
+# through an exported SHELLOPTS, nor a BASH_ENV to source.
+env SHELLOPTS=braceexpand:hashall:interactive-comments "$H" evidence run --command 'no-start-shellopts' -- "$tmp/bin/badinterp" > /dev/null 2>&1 || true
+if "$H" evidence lookup --command 'no-start-shellopts' > /dev/null 2>&1; then
+  fail run-no-start-shellopts "an exported SHELLOPTS let a command that never started be recorded"
+fi
+# A relative BASH_ENV resolves inside the export, where the reviewed tree
+# could plant it.
+export_at "$tmp/ns-export"
+printf 'echo FROM_BASH_ENV\n' > "$tmp/ns-export/.benv"
+out="$(BASH_ENV=.benv "$H" evidence run --command 'bash-env' --tree "$(git rev-parse 'HEAD^{tree}')" --dir "$tmp/ns-export" -- sh -c 'echo real' 2>/dev/null)" || true
+[ "$out" = real ] || fail run-bash-env "a BASH_ENV planted in the export was sourced before the command: $out"
+rm "$tmp/ns-export/.benv"
+# The --dir path detects a command that never started too.
+cp "$tmp/bin/badinterp" "$tmp/ns-bad"
+"$H" evidence run --command 'no-start-dir' --tree "$(git rev-parse 'HEAD^{tree}')" --dir "$tmp/ns-export" -- "$tmp/ns-bad" > /dev/null 2>&1 || true
+if "$H" evidence lookup --command 'no-start-dir' --tree "$(git rev-parse 'HEAD^{tree}')" --source export > /dev/null 2>&1; then
+  fail run-no-start-dir "a command that never started in an export was recorded"
+fi
+# --dir needs git 2.38, read from Apple's version string as well as git's own.
+mkdir -p "$tmp/oldgit"
+real_git="$(type -P git)"
+for v in '2.37.1 (Apple Git-137.1)' '2.39.5 (Apple Git-154)'; do
+  printf '#!/bin/sh\nif [ "$1" = version ]; then echo "git version %s"; else exec "%s" "$@"; fi\n' "$v" "$real_git" > "$tmp/oldgit/git"
+  chmod +x "$tmp/oldgit/git"
+  PATH="$tmp/oldgit:$PATH" "$H" evidence run --command 'git-version' --tree "$(git rev-parse 'HEAD^{tree}')" --dir "$tmp/ns-export" -- true > /dev/null 2> "$tmp/run.err" && rc=0 || rc=$?
+  case "$v" in
+    2.37*) [ "$rc" -eq 2 ] && grep -q 'needs git 2.38' "$tmp/run.err" || fail git-version-old "git $v was not refused (exit $rc)" ;;
+    *) [ "$rc" -eq 0 ] || fail git-version-apple "git $v was refused (exit $rc): $(cat "$tmp/run.err")" ;;
+  esac
+done
+rm -rf "$tmp/oldgit" "$tmp/ns-export" "$tmp/ns-bad"
+# The export source is the helper's own; a recorded entry cannot claim it.
+"$H" evidence record --command 'claims-export' --exit 0 --started 1 --ended 2 --source export < /dev/null > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" -eq 2 ] || fail record-source-export "a record claiming the export source was accepted (exit $rc)"
 timeout_bin="$(type -P timeout || type -P gtimeout || true)"
 if [ -n "$timeout_bin" ]; then
   "$H" evidence run --command 'timed-out' -- "${timeout_bin##*/}" 1 sleep 5 > /dev/null 2>&1 && rc=0 || rc=$?

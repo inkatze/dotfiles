@@ -75,9 +75,10 @@ now() { date +%s; }
 
 # git_at_least <major> <minor>: the git on PATH is that version or later.
 git_at_least() {
-  local want_major="$1" want_minor="$2" version major minor
+  local want_major="$1" want_minor="$2" version major minor re
   version="$(git version)" || return 1
-  [[ "$version" =~ ^git\ version\ ([0-9]+)\.([0-9]+) ]] || return 1
+  re='^git version ([0-9]+)\.([0-9]+)'
+  [[ "$version" =~ $re ]] || return 1
   major="${BASH_REMATCH[1]}"; minor="${BASH_REMATCH[2]}"
   [ "$major" -gt "$want_major" ] || { [ "$major" -eq "$want_major" ] && [ "$minor" -ge "$want_minor" ]; }
 }
@@ -908,6 +909,7 @@ dir_git() {
   GIT_DIR="$DIR_GITDIR" GIT_WORK_TREE="$DIR_RUN" GIT_INDEX_FILE="$DIR_SCRATCH/index" \
     GIT_OBJECT_DIRECTORY="$DIR_SCRATCH/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$DIR_OBJECTS" \
     git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c core.untrackedCache=false \
+      -c core.trustctime=true -c core.checkStat=default \
       -c core.sparseCheckout=false "$@"
 }
 dir_hash_setup() {
@@ -987,6 +989,7 @@ cmd_evidence() {
       [[ "$opt_exit" =~ ^[0-9]{1,3}$ ]] && [ "$opt_exit" -le 255 ] || die "--exit must be an exit status, 0 to 255, got '$opt_exit'"
       int_opt started "$opt_started"; int_opt ended "$opt_ended"
       single_line source "$opt_source"
+      [ "$opt_source" != export ] || die "--source export is reserved for runs in an export (evidence run --dir)"
       if [ -n "$opt_tree" ]; then tree="$opt_tree"; else tree_key; tree="$TREE_KEY"; fi
       valid_tree "$tree"
       record_entry "$opt_command" "$tree" "$opt_exit" "$opt_started" "$opt_ended" "${opt_source:-local}"
@@ -1008,7 +1011,7 @@ cmd_evidence() {
         case "$opt_dir" in /*) ;; *) die "--dir must be an absolute path, got '$opt_dir'" ;; esac
         git_at_least 2 38 || die "--dir needs git 2.38 or later, for safe.bareRepository"
         worktree_top
-        [ "$(git cat-file -t "$tree")" = tree ] || die "--tree $tree is not a tree object in this repository"
+        [ "$(git cat-file -t "$tree" 2> /dev/null)" = tree ] || die "--tree $tree is not a tree object in this repository"
         rundir="$(cd -- "$opt_dir" 2> /dev/null && pwd -P)" || die "--dir $opt_dir is not a directory"
         case "$rundir" in *:*) die "--dir $opt_dir has a ':' in its path, which git's ceiling list cannot carry" ;; esac
         top_real="$(cd -- "$TOP" && pwd -P)" || die "cannot resolve the work tree"
@@ -1032,14 +1035,14 @@ cmd_evidence() {
         fi
       fi
       CAPTURE="$(mktemp -t review-state-run.XXXXXX)" || die "cannot create a capture file"
-      MARKER="$(mktemp -t review-state-run.XXXXXX)" || die "cannot create a marker file"
+      MARKER="$(mktemp -t review-state-marker.XXXXXX)" || die "cannot create a marker file"
       started="$(now)"
       rc=0
       pipe=(0 0)
       # exec runs only a program, never one of this helper's functions or a
       # builtin, and in the caller's locale rather than this helper's C. In an
       # export, git must not trust a repository layout the reviewed tree
-      # planted: no inherited repository or config, no discovery above the
+      # planted: no inherited repository or environment config, no discovery above the
       # export, and no bare repository found by discovery at all. The marker
       # is removed just before exec and put back if exec fails, so a command
       # that never started is never recorded as a result.
@@ -1052,11 +1055,15 @@ cmd_evidence() {
           export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.bareRepository GIT_CONFIG_VALUE_0=explicit
           cd -- "$rundir" || exit 2
         fi
-        rm -f "$MARKER"
         # A subshell exits on a failed exec whatever execfail says, so the
-        # exec happens in a shell of its own, which then replaces itself.
+        # exec happens in a shell of its own, which then replaces itself. That
+        # shell must not source BASH_ENV (relative to the export, the reviewed
+        # tree could supply it) or inherit this helper's errexit through
+        # SHELLOPTS, which would end it before the marker is put back.
+        # SHELLOPTS is readonly here, so env drops it.
         # shellcheck disable=SC2016
-        exec "$BASH" -c 'shopt -s execfail; exec -- "$@"; : > "$0"; exit 127' "$MARKER" "${rest_args[@]}" ) \
+        exec env -u BASH_ENV -u ENV -u SHELLOPTS "$BASH" -c 'set +e +u +o pipefail; shopt -s execfail; m="$1"; shift
+          rm -f -- "$m"; exec -- "$@"; : > "$m"; exit 127' review-state "$MARKER" "${rest_args[@]}" ) \
         < /dev/null 2>&1 | tee "$CAPTURE" \
         || { pipe=("${PIPESTATUS[@]}"); rc="${pipe[0]}"; }
       ended="$(now)"
