@@ -104,9 +104,9 @@ The resolver and every prompt-driven backend invocation are stated once, in
 `roles/claude/files/skills/review-shared/backends.md`; change them there. An
 unresolved host alias must fall back to `work`, matching `scripts/playbook.sh`.
 The Gemini key sync addresses its 1Password item with an explicit `--vault`,
-and the item id in that script is the id in that vault. Ollama and its
-backends are retired; restoring them is in [docs/ollama.md](docs/ollama.md).
-See [docs/review-backends.md](docs/review-backends.md).
+and the item id in that script is the id in that vault. Ollama is retired
+([docs/ollama.md](docs/ollama.md)), as is the Copilot CLI backend, so revoke
+its GitHub OAuth apps ([docs/review-backends.md](docs/review-backends.md)).
 
 ## Machine-local files under `~/.config/dotfiles/`
 

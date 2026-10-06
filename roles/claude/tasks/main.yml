@@ -176,6 +176,9 @@
     state: absent
   tags: [claude]
 
+- name: Remove the stale Copilot credential
+  ansible.builtin.import_tasks: copilot-credential.yml
+
 - name: Install the planwright plugin
   ansible.builtin.import_tasks: planwright.yml
 
