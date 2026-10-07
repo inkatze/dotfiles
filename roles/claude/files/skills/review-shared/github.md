@@ -13,6 +13,10 @@ are public and follow the same rule.
 
 ## The same-PR lock
 
+A skill takes this lock only where its own text says so; a skill on the
+shared writer lock in [state.md](state.md) takes that instead, around its
+writes only.
+
 Two runs against one PR (two worktrees, two sessions, a standalone run beside
 a nested one) would otherwise both act on the same finding. Take the same-PR
 lock before the first fetch, keyed by skill, repo and PR:
@@ -130,8 +134,8 @@ delimiter in advance; still read the body over once and confirm the delimiter
 line does not appear inside it.
 
 A body may instead be written to a file under a private `mktemp -d` directory
-(mode 0700) and posted later, as `/code-review` does for its batched review,
-provided it still reaches the posting command on stdin (`--rawfile`,
+(mode 0700) and posted later, as `/code-review` does for its batched review
+and `/peer-review` for its approved replies, provided it still reaches the posting command on stdin (`--rawfile`,
 `--body-file -`, `-F body=@-`) and never through argv.
 
 ## Reply, rescue, resolve

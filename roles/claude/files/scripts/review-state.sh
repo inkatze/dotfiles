@@ -6,10 +6,11 @@
 #
 # Usage:
 #   review-state.sh key
-#   review-state.sh evidence lookup --command <key> [--tree <hash>]
+#   review-state.sh evidence lookup --command <key> [--tree <hash>] [--source export]
 #   review-state.sh evidence record --command <key> --exit <n> --started <epoch>
 #       --ended <epoch> [--source <text>] [--tree <hash>]      (output on stdin)
 #   review-state.sh evidence run --command <key> [--tree <hash>] -- <argv>...
+#   review-state.sh evidence run --command <key> --tree <hash> --dir <absolute-dir> -- <argv>...
 #   review-state.sh evidence ci --head <sha> --command <key>   (check runs on stdin)
 #   review-state.sh session-pid
 #   review-state.sh register --name <n> --skill <s> --repo <owner/repo>
@@ -38,7 +39,7 @@
 # Exit status: 0 success or hit; 1 a miss, a held lock, not this session's
 # lock, no CI evidence, or an inbox recipient whose process is gone; 2 an
 # error. `evidence run` is the exception: it exits with the wrapped command's
-# own status once the command has run.
+# own status once the command has run, and 127 when it could not be started.
 #
 # Bash 3.2 compatible: the Macs run it under /bin/bash, which has no
 # inherit_errexit. So a function that can fail hands its result back in a
@@ -72,6 +73,16 @@ need() {
 
 now() { date +%s; }
 
+# git_at_least <major> <minor>: the git on PATH is that version or later.
+git_at_least() {
+  local want_major="$1" want_minor="$2" version major minor re
+  version="$(git version)" || return 1
+  re='^git version ([0-9]+)\.([0-9]+)'
+  [[ "$version" =~ $re ]] || return 1
+  major="${BASH_REMATCH[1]}"; minor="${BASH_REMATCH[2]}"
+  [ "$major" -gt "$want_major" ] || { [ "$major" -eq "$want_major" ] && [ "$minor" -ge "$want_minor" ]; }
+}
+
 HEX=""
 rand_hex() {
   HEX="$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')" || HEX=""
@@ -82,7 +93,7 @@ rand_hex() {
 # parse_opts <allowed names> -- <args>: clears every opt_<name>, sets one for
 # each --<name> <value> (a hyphen in the name becomes an underscore in the variable),
 # and leaves anything after a literal -- in rest_args.
-OPT_NAMES="anchor base branch command disposition ended exit follow_up from head iteration key name phase pr reason repo reply reviewer session skill source started to token tree wait worktree"
+OPT_NAMES="anchor base branch command dir disposition ended exit follow_up from head iteration key name phase pr reason repo reply reviewer session skill source started to token tree wait worktree"
 for _n in $OPT_NAMES; do printf -v "opt_$_n" '%s' ""; done
 rest_args=()
 parse_opts() {
@@ -847,20 +858,137 @@ valid_tree() {
   [[ "$tree" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] || die "'$tree' is not a tree hash"
 }
 
+# An export run's entry has its own id, so a work-tree lookup never reuses a
+# result from a tree that had no .git, no ignored dependencies and no
+# machine-local config.
 ENTRY_DIR=""
 ENTRY_ID=""
 entry_paths() {
-  local cmd="$1" tree="$2"
+  local cmd="$1" tree="$2" ns="${3:-}"
   evidence_root
   ENTRY_DIR="$EV_ROOT/$tree"
+  [ -z "$ns" ] || cmd="$ns$NL$cmd"
   ENTRY_ID="$(printf '%s' "$cmd" | git hash-object --stdin)" || die "cannot hash the command key"
 }
 
-# record_entry <cmd> <tree> <exit> <started> <ended> <source>, output on stdin.
+# lookup_entry <cmd> <tree> [<ns>]: print the entry and return 0 on a hit, 1 on a miss.
+lookup_entry() {
+  local cmd="$1" tree="$2" ns="${3:-}" file out
+  entry_paths "$cmd" "$tree" "$ns"
+  file="$ENTRY_DIR/$ENTRY_ID.json"
+  [ -f "$file" ] || return 1
+  if [ -L "$ENTRY_DIR" ] || [ -L "$file" ]; then die "$file or its directory is a symlink; refusing it"; fi
+  check_json_version "$file"
+  jq -e --arg c "$cmd" --arg t "$tree" --arg ns "$ns" \
+    '.command == $c and .tree == $t and ((.source == "export") == ($ns == "export"))
+     and (.output | test("^[0-9a-f]{40,64}\\.[0-9a-f]{8}\\.out$"))' \
+    "$file" > /dev/null 2>&1 || die "$file does not describe this tree and command; refusing it"
+  out="$ENTRY_DIR/$(jq -r .output "$file")"
+  if [ ! -f "$out" ] || [ -L "$out" ]; then
+    rm -f "$file"
+    note "$file named an output that is missing or not a regular file; dropped it"
+    return 1
+  fi
+  jq -c --arg d "$ENTRY_DIR" '. + {output_path: ($d + "/" + .output)}' "$file"
+}
+
+# The tree an exported directory actually holds, so an export-ignore or
+# export-subst attribute, a missing submodule, or a tool that edited the export
+# shows as a different tree. The scratch index is seeded from the claimed tree
+# before each hash, so a tracked path stays tracked whatever the ignore rules
+# and line-ending settings say, and every file is read again rather than
+# trusted by its stat data: an edit in the same second as the last hash, its
+# size kept and its mtime put back, leaves no trace the session's stat
+# settings are sure to see. File modes are compared strictly. Hooks, fsmonitor
+# and the untracked cache are off: a relative core.hooksPath resolves inside
+# the work tree, here the export, and would run a hook the reviewed tree
+# carries.
+DIR_KEY=""
+DIR_SCRATCH=""
+DIR_GITDIR=""
+DIR_OBJECTS=""
+DIR_RUN=""
+DIR_TREE=""
+dir_git() {
+  GIT_DIR="$DIR_GITDIR" GIT_WORK_TREE="$DIR_RUN" GIT_INDEX_FILE="$DIR_SCRATCH/index" \
+    GIT_OBJECT_DIRECTORY="$DIR_SCRATCH/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$DIR_OBJECTS" \
+    git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c core.untrackedCache=false \
+      -c core.ignoreStat=false -c core.fileMode=true \
+      -c core.sparseCheckout=false "$@"
+}
+dir_hash_setup() {
+  local dir="$1" tree="$2"
+  worktree_top
+  DIR_RUN="$dir"
+  DIR_GITDIR="$(git -C "$TOP" rev-parse --path-format=absolute --git-dir)" || die "cannot locate the git directory"
+  DIR_OBJECTS="$(git -C "$TOP" rev-parse --path-format=absolute --git-path objects)" || die "cannot locate the object store"
+  DIR_SCRATCH="$(mktemp -d -t review-state-scratch.XXXXXX)" || die "cannot create a scratch directory"
+  mkdir "$DIR_SCRATCH/objects" || die "cannot create a scratch directory"
+  DIR_TREE="$tree"
+}
+# tree_links <tree>: LINK_OUT names the first symlink whose target leaves the
+# tree, or that its text cannot settle because it passes through another
+# symlink (a .. after a link resolves from the link's target, not its name);
+# HAS_GITLINK is set when the tree holds a submodule, whose contents an
+# archive leaves out.
+LINK_OUT=""
+HAS_GITLINK=""
+tree_links() {
+  local tree="$1" ent meta path links="" target cur part i n
+  local -a parts
+  LINK_OUT=""
+  HAS_GITLINK=""
+  while IFS= read -r -d '' ent; do
+    meta="${ent%%$'\t'*}"
+    path="${ent#*$'\t'}"
+    case "${meta%% *}" in
+      160000) HAS_GITLINK=1 ;;
+      120000)
+        case "$path" in *"$NL"*) LINK_OUT="$path"; return 0 ;; esac
+        links="$links$path$NL"
+        ;;
+    esac
+  done < <(git ls-tree -r -z "$tree")
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    target="$(git cat-file blob "$tree:$path")" || { LINK_OUT="$path"; return 0; }
+    case "$target" in /* | '' | *"$NL"*) LINK_OUT="$path"; return 0 ;; esac
+    cur="${path%/*}"
+    [ "$cur" != "$path" ] || cur=""
+    IFS=/ read -r -a parts <<< "$target"
+    n="${#parts[@]}"
+    i=0
+    for part in "${parts[@]}"; do
+      i=$((i + 1))
+      case "$part" in
+        '' | .) ;;
+        ..)
+          [ -n "$cur" ] || { LINK_OUT="$path"; return 0; }
+          case "$cur" in */*) cur="${cur%/*}" ;; *) cur="" ;; esac
+          ;;
+        *)
+          cur="${cur:+$cur/}$part"
+          if [ "$i" -lt "$n" ]; then
+            case "$NL$links" in *"$NL$cur$NL"*) LINK_OUT="$path"; return 0 ;; esac
+          fi
+          ;;
+      esac
+    done
+  done <<< "$links"
+}
+
+# dir_tree_key: 0 with DIR_KEY set, or non-zero with git's message in DIR_SCRATCH/err.
+dir_tree_key() {
+  dir_git read-tree "$DIR_TREE" 2> "$DIR_SCRATCH/err" \
+    && dir_git -C "$DIR_RUN" add -A -- . 2>> "$DIR_SCRATCH/err" \
+    && DIR_KEY="$(dir_git write-tree 2>> "$DIR_SCRATCH/err")"
+}
+
+# record_entry <cmd> <tree> <exit> <started> <ended> <source> [<ns>], output on stdin.
 # The first writer for a tree and command wins; a later one is dropped.
 record_entry() {
-  local cmd="$1" tree="$2" code="$3" started="$4" ended="$5" source="$6" dir id out tmp
-  entry_paths "$cmd" "$tree"; dir="$ENTRY_DIR"; id="$ENTRY_ID"
+  local cmd="$1" tree="$2" code="$3" started="$4" ended="$5" source="$6" ns="${7:-}" dir id out tmp
+  entry_paths "$cmd" "$tree" "$ns"; dir="$ENTRY_DIR"; id="$ENTRY_ID"
   sub_dir "$dir"
   rand_hex
   out="$id.$HEX.out"
@@ -885,69 +1013,178 @@ int_opt() {
   [[ "$val" =~ ^-?[0-9]{1,12}$ ]] || die "--$name must be a whole number, got '$val'"
 }
 
+# A timeout or gtimeout anywhere in the wrapped argv, so `env timeout` and
+# `nice timeout` count too; a tool that merely shares the name costs a missed
+# record, never a wrong one.
+argv_has_timeout() {
+  local arg
+  for arg in "${rest_args[@]}"; do
+    case "${arg##*/}" in timeout | gtimeout) return 0 ;; esac
+  done
+  return 1
+}
+
 CAPTURE=""
-cleanup_capture() { [ -z "$CAPTURE" ] || rm -f "$CAPTURE"; }
+MARKER=""
+MARKER_DIR=""
+cleanup_capture() {
+  [ -z "$CAPTURE" ] || rm -f "$CAPTURE"
+  [ -z "$MARKER_DIR" ] || rm -rf "$MARKER_DIR"
+  [ -z "$DIR_SCRATCH" ] || rm -rf "$DIR_SCRATCH"
+}
 
 cmd_evidence() {
-  local sub="${1:-}" tree file started rc ended out pipe after
+  local sub="${1:-}" tree started rc ended pipe after rundir top_real keep src_norm run_path path_parts path_part
   shift || true
   case "$sub" in
     lookup)
-      parse_opts "command tree" -- "$@"
-      require_opt command
+      parse_opts "command tree source" -- "$@"
+      require_opt command; single_line command "$opt_command"
+      case "$opt_source" in '' | export) ;; *) die "--source takes only export" ;; esac
       if [ -n "$opt_tree" ]; then tree="$opt_tree"; else tree_key; tree="$TREE_KEY"; fi
       valid_tree "$tree"
-      entry_paths "$opt_command" "$tree"
-      file="$ENTRY_DIR/$ENTRY_ID.json"
-      [ -f "$file" ] || return 1
-      if [ -L "$ENTRY_DIR" ] || [ -L "$file" ]; then die "$file or its directory is a symlink; refusing it"; fi
-      check_json_version "$file"
-      jq -e --arg c "$opt_command" --arg t "$tree" \
-        '.command == $c and .tree == $t and (.output | test("^[0-9a-f]{40,64}\\.[0-9a-f]{8}\\.out$"))' \
-        "$file" > /dev/null 2>&1 || die "$file does not describe this tree and command; refusing it"
-      out="$ENTRY_DIR/$(jq -r .output "$file")"
-      if [ ! -f "$out" ] || [ -L "$out" ]; then
-        rm -f "$file"
-        note "$file named an output that is missing or not a regular file; dropped it"
-        return 1
+      # An export lookup takes a work-tree run of the same tree too; a work-tree
+      # lookup never takes an export run.
+      if [ "$opt_source" = export ]; then
+        lookup_entry "$opt_command" "$tree" export || lookup_entry "$opt_command" "$tree"
+      else
+        lookup_entry "$opt_command" "$tree"
       fi
-      jq -c --arg d "$ENTRY_DIR" '. + {output_path: ($d + "/" + .output)}' "$file"
       ;;
     record)
       parse_opts "command exit started ended source tree" -- "$@"
       require_opt command; require_opt exit; require_opt started; require_opt ended
+      single_line command "$opt_command"
       [[ "$opt_exit" =~ ^[0-9]{1,3}$ ]] && [ "$opt_exit" -le 255 ] || die "--exit must be an exit status, 0 to 255, got '$opt_exit'"
       int_opt started "$opt_started"; int_opt ended "$opt_ended"
       single_line source "$opt_source"
+      src_norm="$(printf '%s' "$opt_source" | tr '[:upper:]' '[:lower:]')"
+      src_norm="${src_norm#"${src_norm%%[![:space:]]*}"}"
+      src_norm="${src_norm%"${src_norm##*[![:space:]]}"}"
+      case "$src_norm" in export | ci:*) die "--source $opt_source is reserved for the helper's own export and CI records" ;; esac
       if [ -n "$opt_tree" ]; then tree="$opt_tree"; else tree_key; tree="$TREE_KEY"; fi
       valid_tree "$tree"
       record_entry "$opt_command" "$tree" "$opt_exit" "$opt_started" "$opt_ended" "${opt_source:-local}"
       ;;
     run)
-      parse_opts "command tree --" -- "$@"
-      require_opt command
+      parse_opts "command tree dir --" -- "$@"
+      require_opt command; single_line command "$opt_command"
       [ "${#rest_args[@]}" -gt 0 ] || die "run needs a command after --"
       if [ -n "$opt_tree" ]; then tree="$opt_tree"; else tree_key; tree="$TREE_KEY"; fi
       valid_tree "$tree"
+      # An exported directory is keyed by the caller's --tree and hashed before
+      # and after the run, so it records only while it holds exactly that tree.
+      # It may neither sit inside the work tree nor hold it, since the run could
+      # then change the work tree unseen.
+      rundir=""
+      keep=1
+      if [ -n "$opt_dir" ]; then
+        [ -n "$opt_tree" ] || die "--dir needs --tree, the tree the directory was exported from"
+        case "$opt_dir" in /*) ;; *) die "--dir must be an absolute path, got '$opt_dir'" ;; esac
+        git_at_least 2 38 || die "--dir needs git 2.38 or later, for safe.bareRepository"
+        worktree_top
+        [ "$(git cat-file -t "$tree" 2> /dev/null)" = tree ] || die "--tree $tree is not a tree object in this repository"
+        rundir="$(cd -- "$opt_dir" 2> /dev/null && pwd -P)" || die "--dir $opt_dir is not a directory"
+        # pwd -P may keep a leading //, which no prefix comparison would match.
+        rundir="/${rundir#"${rundir%%[!/]*}"}"
+        case "$rundir" in *:*) die "--dir $opt_dir has a ':' in its path, which git's ceiling list cannot carry" ;; esac
+        [ "$rundir" != / ] || die "--dir $opt_dir is the filesystem root; export the tree into a directory of its own"
+        top_real="$(cd -- "$TOP" && pwd -P)" || die "cannot resolve the work tree"
+        top_real="/${top_real#"${top_real%%[!/]*}"}"
+        case "$rundir/" in "$top_real/"*) die "--dir $opt_dir is inside the work tree; export the tree outside it" ;; esac
+        case "$top_real/" in "$rundir/"*) die "--dir $opt_dir holds the work tree; export the tree outside it" ;; esac
+        if [ -e "$rundir/.git" ] || [ -L "$rundir/.git" ]; then die "--dir $opt_dir holds a .git; an export carries none"; fi
+        tree_links "$tree"
+        [ -z "$LINK_OUT" ] || die "tree $tree holds a symlink that leads out of the export or through another link ($(printf '%q' "$LINK_OUT")); nothing run"
+        # An empty or relative PATH entry would resolve inside the export.
+        run_path=""
+        IFS=: read -r -a path_parts <<< "$PATH"
+        for path_part in ${path_parts[@]+"${path_parts[@]}"}; do
+          case "$path_part" in /*) run_path="${run_path:+$run_path:}$path_part" ;; esac
+        done
+      fi
       # type -P looks on PATH only: command -v also finds this helper's own
       # functions and the shell's builtins, which exec cannot run.
-      type -P -- "${rest_args[0]}" > /dev/null 2>&1 \
+      ( if [ -n "$rundir" ]; then cd -- "$rundir" || exit 1; PATH="$run_path"; fi; type -P -- "${rest_args[0]}" ) > /dev/null 2>&1 \
         || die "${rest_args[0]} is not on PATH; nothing run or recorded"
-      CAPTURE="$(mktemp -t review-state-run.XXXXXX)" || die "cannot create a capture file"
+      [ -z "$rundir" ] || [ -z "${BASH_ENV+set}" ] || note "BASH_ENV is not passed to a command run in an export"
       trap cleanup_capture EXIT
+      if [ -n "$rundir" ]; then
+        dir_hash_setup "$rundir" "$tree"
+        if [ -n "$HAS_GITLINK" ]; then
+          note "tree $tree holds a submodule, whose contents an archive leaves out; running without recording"
+          keep=0
+        elif ! dir_tree_key; then
+          note "could not hash --dir $opt_dir ($(tr '\n' ' ' < "$DIR_SCRATCH/err")); running without recording"
+          keep=0
+        elif [ "$DIR_KEY" != "$tree" ]; then
+          note "--dir $opt_dir does not hold tree $tree (an export-ignore or export-subst attribute, a submodule, an edit, or file modes the filesystem cannot carry); running without recording"
+          keep=0
+        fi
+      fi
+      CAPTURE="$(mktemp -t review-state-run.XXXXXX)" || die "cannot create a capture file"
+      MARKER_DIR="$(mktemp -d -t review-state-marker.XXXXXX)" || die "cannot create a marker directory"
+      MARKER="$MARKER_DIR/not-started"
+      : > "$MARKER" || die "cannot create a marker file"
       started="$(now)"
       rc=0
       pipe=(0 0)
       # exec runs only a program, never one of this helper's functions or a
-      # builtin, and in the caller's locale rather than this helper's C.
+      # builtin, and in the caller's locale rather than this helper's C. In an
+      # export, git must not trust a repository layout the reviewed tree
+      # planted: no inherited repository or command-line config, no discovery
+      # above the export, and no bare repository found by discovery. The marker
+      # is removed just before exec and put back if exec fails, so a command
+      # that never started is never recorded as a result.
       ( if [ -n "$CALLER_LC_ALL_SET" ]; then export LC_ALL="$CALLER_LC_ALL"; else unset LC_ALL; fi
-        exec -- "${rest_args[@]}" ) < /dev/null 2>&1 | tee "$CAPTURE" \
+        if [ -n "$rundir" ]; then
+          # shellcheck disable=SC2046
+          unset $(git rev-parse --local-env-vars)
+          ceiling="${rundir%/*}"
+          export GIT_CEILING_DIRECTORIES="${ceiling:-/}"
+          export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.bareRepository GIT_CONFIG_VALUE_0=explicit
+          # mise reads a version file the reviewed tree carries without asking for
+          # trust, and a path: version there would put its own binaries first.
+          export MISE_PARANOID=1 MISE_CEILING_PATHS="${ceiling:-/}" PATH="$run_path"
+          cd -- "$rundir" || exit 2
+        fi
+        # A subshell exits on a failed exec whatever execfail says, so the
+        # exec happens in a shell of its own, which then replaces itself. That
+        # shell starts with BASH_ENV empty, so it sources nothing, and hands
+        # the caller's value back to the command, except in an export: bash
+        # expands the value and resolves it from the export, so no test of
+        # the text can rule out a file the reviewed tree supplies. It drops
+        # the errexit an exported SHELLOPTS carries in, which would end it
+        # before the marker is put back.
+        be_set="${BASH_ENV+set}"
+        be="${BASH_ENV-}"
+        [ -z "$rundir" ] || be_set=""
+        # shellcheck disable=SC2016
+        BASH_ENV='' exec "$BASH" -c 'set +e +u +o pipefail; shopt -s execfail; m="$1"
+          if [ "$2" = set ]; then export BASH_ENV="$3"; else unset BASH_ENV; fi
+          shift 3; rm -f -- "$m"; exec -- "$@"; : > "$m"; exit 127' \
+          review-state "$MARKER" "$be_set" "$be" "${rest_args[@]}" ) \
+        < /dev/null 2>&1 | tee "$CAPTURE" \
         || { pipe=("${PIPESTATUS[@]}"); rc="${pipe[0]}"; }
       ended="$(now)"
       # From here on a failure is reported, never allowed to replace the
       # command's own exit status.
       if [ "${pipe[1]:-0}" != 0 ]; then
         note "the output could not be captured or streamed (tee exited ${pipe[1]}); nothing recorded"
+      elif [ -e "$MARKER" ]; then
+        note "the command could not be started; nothing recorded"
+      elif [ "$rc" -gt 128 ] || { [ "$rc" -ge 124 ] && [ "$rc" -le 127 ] && argv_has_timeout; }; then
+        note "the command was killed or timed out (exit $rc), which says nothing about the tree; nothing recorded"
+      elif [ -n "$rundir" ]; then
+        if [ "$keep" = 0 ]; then
+          :
+        elif ! dir_tree_key; then
+          note "could not hash --dir $opt_dir after the run ($(tr '\n' ' ' < "$DIR_SCRATCH/err")); nothing recorded"
+        elif [ "$DIR_KEY" != "$tree" ]; then
+          note "the command changed --dir $opt_dir, so it no longer holds tree $tree; nothing recorded"
+        elif ! (record_entry "$opt_command" "$tree" "$rc" "$started" "$ended" export export < "$CAPTURE" > /dev/null); then
+          note "the run could not be recorded"
+        fi
       elif ! after="$(tree_key && printf '%s' "$TREE_KEY")"; then
         note "could not recompute the tree key after the run; nothing recorded"
       elif [ "$after" != "$tree" ]; then
@@ -959,7 +1196,7 @@ cmd_evidence() {
       ;;
     ci)
       parse_opts "head command" -- "$@"
-      require_opt head; require_opt command
+      require_opt head; require_opt command; single_line command "$opt_command"
       [[ "$opt_head" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] || die "--head must be a full commit hash"
       local runs verdict summary first last
       runs="$(jq -c -s 'if length == 0 then "" elif length == 1 then .[0] else error("several documents") end | if . == "" then . elif type == "array" then map(if type == "object" and has("check_runs") then .check_runs[] else . end)

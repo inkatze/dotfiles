@@ -25,7 +25,7 @@ Also read `--backends a,b,c` (Pre-flight item 4) and `--effort <value>`, which o
 
 Runs identically in both modes.
 
-1. **Resolve the doctrine, identify the base branch and capture the diff.** Resolve planwright's review doctrine per [doctrine.md](../review-shared/doctrine.md). Fetch, then diff against the remote-tracking base (`git diff origin/<base>...HEAD`), falling back to the local base only when no remote is configured.
+1. **Resolve the doctrine, identify the base branch and capture the diff.** Resolve planwright's review doctrine per [doctrine.md](../review-shared/doctrine.md). Fetch, then diff against the remote-tracking base (`git diff origin/<base>...HEAD`), falling back to the local base only when no remote is configured. Read the sibling map, per [siblings.md](../review-shared/siblings.md).
 2. **(Optional) Jira context**: a ticket key from the branch name or PR title, fetched when Jira tools are available.
 3. **Detect the machine profile** with the resolver in [backends.md](../review-shared/backends.md).
 4. **Resolve the backend set.** `--backends a,b,c` from `$ARGUMENTS` when given, else the profile's default from [backends.md](../review-shared/backends.md). Supported: `codex`, `gemini` and `reviewer:<name>`. `reviewer:<name>` is **opt-in only**: never include it implicitly (a reviewer CLI uploads the repo tree). `<name>` must match `^[A-Za-z0-9_-]+$` and name an existing entry; otherwise stop and list the configured names. It is spelled `reviewer:` because that is the config's own word for an entry, so no vendor mechanics are committed here. `--backends copilot` names the retired Copilot CLI backend: stop and say a Copilot CLI, if wanted again, runs as a `reviewer:<name>` entry's `cli` block. Any other name is an error: stop and list the supported set.
@@ -53,7 +53,7 @@ Steps 1-6 are the shared discovery and validation pipeline both modes run. Steps
 
 ### 1. Run project tooling once
 
-Linters, formatters, type checkers, static analyzers, complexity and duplication meters, dead-code detectors, security scanners, discovered from `lefthook.yml`, CI workflows, `mise.toml` tasks, language config files and the SessionStart tool-discovery summary. Run each in check or dry-run mode only (a formatter's write would land in the next fix commit). Capture the output; every prompt-driven backend gets the same text, which is what keeps "tool-grounded" meaningful across backends. A `reviewer:<name>` backend takes no prompt and does not receive it.
+Linters, formatters, type checkers, static analyzers, complexity and duplication meters, dead-code detectors, security scanners, discovered from `lefthook.yml`, CI workflows, `mise.toml` tasks, language config files and the SessionStart tool-discovery summary. Run each in check or dry-run mode only (a formatter's write would land in the next fix commit), through the evidence record per [state.md](../review-shared/state.md): a tool another skill or iteration already ran on this tree is reused and reported as reused, never run again. Capture the output; every prompt-driven backend gets the same text, which is what keeps "tool-grounded" meaningful across backends. A `reviewer:<name>` backend takes no prompt and does not receive it.
 
 ### 2. Backend discovery pass
 
@@ -75,7 +75,7 @@ Re-scan the merged list assuming it is incomplete, per discovery-rigor; backends
 
 ### 5. Validate every finding
 
-validation-rigor's three passes, locally in this session, on every backend-surfaced finding. Drop or downgrade what does not converge. Route survivors per finding-categorization. A backend's `rule` or recommendation is never itself the tool-grounding Auto-applicable requires: that citation comes from the project tooling of step 1.
+validation-rigor's three passes, locally in this session, on every backend-surfaced finding. **When the diff consumes a shape a mapped producer defines, attach the producer's definition as validation pass 2's context**, per [siblings.md](../review-shared/siblings.md). Drop or downgrade what does not converge. Route survivors per finding-categorization. A backend's `rule` or recommendation is never itself the tool-grounding Auto-applicable requires: that citation comes from the project tooling of step 1.
 
 ### 6. Record results
 
@@ -120,7 +120,7 @@ Run Steps 1-6 (discovery per the cadence above). Be more conservative than stand
 
 #### c. Apply
 
-Per finding: confirm the cited rule or test still fires on the current code (drop the item if not), apply the fix, confirm it no longer fires, then run the wider suite, linters and type checkers. Any failure, including a pre-existing one surfacing for the first time, is **Test failure**.
+Per finding: confirm the cited rule or test still fires on the current code (drop the item if not), apply the fix, confirm it no longer fires, then run its diff-scoped checks (the tests touching the files it changed and the linters on them). Once this iteration's fixes are all in, run the full suite, linters and type checkers once, per [state.md](../review-shared/state.md)'s nested-loop rule. Any failure, including a pre-existing one surfacing for the first time, is **Test failure**.
 
 #### d. Commit
 
@@ -155,7 +155,7 @@ Stop, print the latest tables, name the condition, and wait. Commit nothing furt
 - **Never** drop a failed backend silently.
 - **Never** fold iteration commits together, force-push, or push to a protected branch.
 - **Never** post to chat platforms, tickets or any remote system.
-- **Never** skip the wider check at (c).
+- **Never** skip the diff-scoped checks or the full-suite run at (c).
 
 ### After the loop
 
