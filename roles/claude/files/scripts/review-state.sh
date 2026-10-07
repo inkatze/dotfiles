@@ -1361,8 +1361,14 @@ cmd_ledger() {
       ledger_file create
       # Held only when the descriptor the locking parent hands down is open on
       # this ledger's lock file itself, so no inherited variable can skip it.
+      # fstat the descriptor rather than `[ /dev/fd/N -ef ]`: macOS reports
+      # /dev/fd/N on its own device, so that test never matches there and the
+      # re-run waits on its parent's lock forever.
       local lock_fd="${REVIEW_LEDGER_LOCK_FD:-}"
-      if ! [[ "$lock_fd" =~ ^[0-9]{1,4}$ ]] || ! [ "/dev/fd/$lock_fd" -ef "$LEDGER.lock" ]; then
+      if ! [[ "$lock_fd" =~ ^[0-9]{1,4}$ ]] \
+        || ! perl -e 'open(my $f, ">>&=", $ARGV[0]) or exit 1; my @d = stat($f) or exit 1;
+            my @p = lstat($ARGV[1]) or exit 1; exit !($d[0] == $p[0] && $d[1] == $p[1])' \
+          "$lock_fd" "$LEDGER.lock"; then
         # The same record again, stdin included, under the ledger's file lock:
         # perl's flock rather than flock(1), which macOS does not ship, and the
         # kernel drops the lock with its holder, so a killed writer leaves none.
