@@ -327,7 +327,9 @@ messaging_socket() {
   SOCK=""
   [ -n "$sock" ] || return 0
   if [ "${sock##*/}" != "$SESSION_PID.sock" ] || ! own_socket "$sock"; then
-    note "not recording $sock as this session's messaging socket; peers will rely on its inbox alone"
+    # The rejected value is never echoed: it may carry text meant to pass for
+    # this helper's own output.
+    note "not recording CLAUDE_CODE_MESSAGING_SOCKET as this session's messaging socket; peers will rely on its inbox alone"
     return 0
   fi
   SOCK="$sock"
@@ -866,7 +868,7 @@ cmd_inbox() {
         return 1
       fi
       if ! own_socket "$sock"; then
-        note "$sock is not this user's socket; no nudge sent"
+        note "the registered messaging socket is not this user's own; no nudge sent"
         return 1
       fi
       if ! command -v perl > /dev/null 2>&1; then
@@ -884,7 +886,7 @@ cmd_inbox() {
             local $/; my $line = <STDIN>;
             print {$s} $line or exit 1;
             close $s or exit 1' "$sock" 2> /dev/null; then
-        note "could not deliver the nudge to $sock; the inbox file is the record"
+        note "could not deliver the nudge to the registered socket; the inbox file is the record"
         return 1
       fi
       printf 'nudged %s\n' "$opt_to"
