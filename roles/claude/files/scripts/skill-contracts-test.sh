@@ -756,6 +756,8 @@ for pin in \
   "Read the inbox at every boundary." \
   "A held lock is a handoff." \
   "gets no socket nudge after it: its inbox read at the next boundary carries the handoff" \
+  "A \"Not sent\" result naming the holder's inbound controls (its \`crossSessionInbound\` setting) counts as a refusal." \
+  "the sender's handoff says no socket nudge was sent" \
   "Every stop releases the writer lock" \
   "runs \`inbox read\` once more and then \`unregister\`" \
   "a run that opens the PR runs \`lock handover\` there" \

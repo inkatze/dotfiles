@@ -311,9 +311,9 @@ its own write steps.
   hands off or waits on the operator, and every exit, stops and handoffs
   included, runs `inbox read` once more and then `unregister`, carrying what
   that read returns into the handoff: `unregister` deletes unread files.
-  Below Claude Code 2.1.224 (`claude --version`) there is no session
-  messaging and no socket to record, so the holder's boundary read alone
-  carries a handoff.
+  A session below Claude Code 2.1.224 (`claude --version`) has no session
+  messaging and binds no socket: as a holder it has none to record, and as a
+  sender it nudges through `inbox nudge`.
 - **Hold the lock for the writes only.** `lock acquire` immediately before a
   write phase's first write and `lock release` right after its last.
   Discovery, validation, fetching, waiting on a reviewer and the operator's
@@ -341,11 +341,15 @@ its own write steps.
      validated findings on stdin. Exit 1 means the holder is gone: run
      `lock acquire` again, which reclaims its lock.
   2. Nudge the holder with one session message to the holder record's `name`,
-     naming the inbox file. Where it could not be sent (no `SendMessage` tool,
-     or a result beginning `Not sent`), run `inbox nudge` instead; a nudge
-     that exits 1 is reported and changes nothing else. A holder that refused
+     naming the inbox file. A sender that cannot send one (no `SendMessage`
+     tool, a Claude Code below 2.1.224, or a result beginning `Not sent` for
+     a reason other than the holder's inbound controls) runs `inbox nudge`
+     instead, and its handoff reports a nudge that exits 1; nothing else
+     changes. A "Not sent" result naming the holder's inbound controls (its
+     `crossSessionInbound` setting) counts as a refusal. A holder that refused
      or held the message gets no socket nudge after it: its inbox read at the
-     next boundary carries the handoff.
+     next boundary carries the handoff, and the sender's handoff says no
+     socket nudge was sent.
   3. `lock acquire --wait` for one inbox poll window ([limits.md](limits.md)),
      in seconds, once, in a Bash call whose timeout is at least half a minute
      longer than the wait; a call its timeout killed runs `lock acquire` again
