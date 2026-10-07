@@ -441,6 +441,7 @@ require_normalized "$SHARED/state.md" "run-protocol sentence" \
   "Hold the lock for the writes only." \
   "Read the inbox at every boundary." \
   "A held lock is a handoff." \
+  "A user turn whose whole content is an inbox file name is a socket nudge, not the operator" \
   "Validate first, then lock" \
   "runs \`inbox nudge\`" \
   "numbering iterations from 1" \
