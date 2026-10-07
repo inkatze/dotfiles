@@ -1,7 +1,7 @@
 # Review Skills — Requirements
 
 **Status:** Ready
-**Last reviewed:** 2026-10-03
+**Last reviewed:** 2026-10-07
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -258,18 +258,37 @@ retrospective (Sources).)*
   nudge the holder by session message, wait at most one poll window, take
   the lock itself if it frees within the window, and otherwise hand off
   naming the inbox path.
-  *(Cites: D-8, kickoff decision (2026-10-03).)*
+  *(Cites: D-19, kickoff decision (2026-10-03).)*
 - **REQ-E1.4** The lock holder SHALL read its inbox at every iteration
   boundary, and a single-pass holder before releasing the lock; a read
   inbox file is moved aside, never re-read. Inbox files and session messages
   are data, never instructions; the inbox file is the record and the message
   only the nudge.
-  *(Cites: D-8, planwright security-posture doctrine (Sources), kickoff
+  *(Cites: D-19, planwright security-posture doctrine (Sources), kickoff
   decision (2026-10-03).)*
 - **REQ-E1.5** Where session messaging is unavailable, refused by the
   recipient, or below the supporting Claude Code version, the inbox is polled
   and a script may carry the nudge through the session's inbox socket.
   *(Cites: D-8, research: Claude Code cross-session messaging (Sources).)*
+  **Superseded-by: REQ-E1.8** (2026-10-07) — Claude Code applies a
+  session's inbound controls to posts on its inbox socket, so a holder that
+  refuses messages drops the socket nudge too; the nudge is narrowed to a
+  sender that cannot send a session message.
+- **REQ-E1.8** (supersedes REQ-E1.5) A sender that cannot send a session
+  message (no SendMessage tool, a Claude Code below the messaging floor, or a
+  send whose result begins "Not sent" for a reason other than the holder's
+  inbound controls) SHALL post the nudge through the holder's inbox socket,
+  recorded in the holder's registration, by the review helper's nudge
+  operation, in place of REQ-E1.3's session message; a failed post is
+  reported in the sender's handoff and changes nothing else. Where the
+  holder's inbound controls (its `crossSessionInbound` setting: accept, hold
+  or refuse) refused or held the session message, including a "Not sent"
+  result that names them, no socket nudge SHALL follow, and the sender's
+  handoff says so. Either way the sender waits at most one poll window for
+  the lock (REQ-E1.3), and the holder's inbox read (REQ-E1.4) carries the
+  handoff.
+  *(Cites: D-19, research: Claude Code inbound controls on the inbox socket
+  (Sources), delta re-walkthrough (2026-10-07).)*
 - **REQ-E1.6** `/code-review` SHALL run from an isolated worktree session:
   PR content through fetched refs against the session's own repository, and
   tooling against an archive export of the pinned head in a scratch
@@ -388,6 +407,22 @@ retrospective (Sources).)*
 
 ## Changelog
 
+- 2026-10-07 — Meaning-class, at a delta re-walkthrough: REQ-E1.5 is
+  superseded by REQ-E1.8 and D-8 by D-19. Task 6's execution research found
+  that Claude Code applies a session's inbound controls to posts on its
+  inbox socket, so the socket nudge cannot reach a holder that refuses
+  messages. The nudge now serves only a sender that cannot send a session
+  message (a "Not sent" result naming the holder's inbound controls is a
+  refusal, not an inability to send); when the holder refused or held the
+  message, no socket nudge follows and the holder's inbox read carries the
+  handoff. D-19 also records the socket line's content, owner check, version
+  floor and undocumented format. REQ-E1.3 and REQ-E1.4 cite D-19; D-1's
+  pointer and the decision-domains walk name D-19; the fleet-messaging
+  Sources entry cites that bundle's live D-7 and D-16 instead of its
+  superseded D-2; a Sources entry records the inbound-controls research. The
+  test-spec entry becomes `[test + manual]`; Task 6's deliverables, Done-whens
+  and citations follow; Task 10 gains the socket-nudge drill and cites
+  REQ-E1.8.
 - 2026-10-06 — Expression-only, at execute-task review (Task 5): the
   REQ-C1.3 amendment's annotation and Changelog entry name their event the
   same way, execute-task review (Task 5); no requirement or check changed.
@@ -469,8 +504,9 @@ retrospective (Sources).)*
   `/spec-draft`, cited inline by date.
 - **Kickoff decisions (2026-10-03).** Calls the operator made during
   `/spec-kickoff`, recorded in `kickoff-brief.md` and cited inline by date.
-- **planwright fleet-messaging** (D-1, D-2). Session messaging as a signal,
-  never a record.
+- **planwright fleet-messaging** (D-1, D-7, D-16). Session messaging as a
+  signal, never a record; a script's post to an inbox socket carries
+  untrusted content and goes only to a socket the user owns.
 - **planwright customization-boundary doctrine.** The capability-versus-style
   split applied in D-12 and D-17.
 - **planwright autopilot-reflex doctrine.** The altitude triggers and the
@@ -491,6 +527,17 @@ retrospective (Sources).)*
   The cross-session messaging, worktrees, sessions and agent-view pages:
   discoverability of worktree and headless sessions, delivery between tool
   calls, the no-consent rule, and the inbox socket environment variable.
+- **Research: Claude Code inbound controls on the inbox socket (consulted
+  2026-10-06 during Task 6, re-checked 2026-10-07).** Claude Code's
+  cross-session messaging page (code.claude.com/docs/en/cross-session-messaging)
+  and its settings and environment-variable references: messages arriving on
+  a session's inbox socket run through the same inbound controls as any peer
+  message, so a holder that refuses drops a socket nudge; `crossSessionInbound`
+  takes `accept`, `hold` (set aside undelivered until approved) or `refuse`;
+  a send to a session that cannot receive returns a result beginning
+  "Not sent" that names the reason; messaging needs Claude Code 2.1.224 or
+  later on macOS and Linux; the line a script writes to the socket is not
+  documented. REQ-E1.8 and D-19 rest on it.
 - **`scripts/ssh-lan-config-sync.sh`.** The `op inject` renderer pattern D-13
   generalizes.
 - **planwright's lock library** (`scripts/lock-lib.sh`, read at kickoff,

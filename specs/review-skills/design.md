@@ -1,7 +1,7 @@
 # Review Skills — Design
 
 **Status:** Ready
-**Last reviewed:** 2026-10-03
+**Last reviewed:** 2026-10-07
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -18,7 +18,7 @@ configuration. The invocation's "communicate with each other with their
 session" is a capability claim, and planwright already holds the signed-off
 contract that capability belongs to (review-effectiveness's handoff bundle
 and fresh-context passes; fleet-messaging's signal-versus-record split). So
-the dotfiles side ships a local stand-in shaped to that contract (D-6, D-8)
+the dotfiles side ships a local stand-in shaped to that contract (D-6, D-19)
 and seeds the capability upstream (D-17). An altitude trigger fired during
 seed gathering, so this call is recorded here and cited from the goal.
 
@@ -34,6 +34,8 @@ seed gathering, so this call is recorded here and cited from the goal.
 **Chosen because:** the local stand-in delivers the operator's gain now, the
 shape constraint keeps the swap to planwright's contract a rename rather than
 a rewrite, and the record is what a kickoff lens pass can verify.
+*(Amended at delta re-walkthrough 2026-10-07: the stand-in pointer names
+D-19, which supersedes D-8.)*
 
 ### D-2: One generic hosted-reviewer schema; vendor mechanics stay machine-local  (N)
 
@@ -226,6 +228,11 @@ socket; the sender takes the lock itself if it frees within the poll window.
 2.1.224 with the exact properties needed (worktree and headless sessions
 discoverable, delivery between tool calls, messages never count as consent),
 and the file keeps correctness independent of it.
+
+**Superseded-by: D-19** (2026-10-07) — Claude Code applies a session's
+inbound controls to posts on its inbox socket, so the socket nudge cannot
+reach a holder that refuses messages; the fallback is narrowed to a sender
+that cannot send a session message.
 
 ### D-9: A machine-local decision ledger, kept decisions, follow-up-linked deferrals, operator-owned stop  (N)
 
@@ -441,12 +448,66 @@ against a baseline run on `main` before the change.
 sessions not colliding) are measurable by timestamps and lock files, which
 fixtures and one real run can pin.
 
+### D-19: Session message as nudge, inbox file as record, socket nudge only for a sender that cannot send  (N, supersedes D-8)
+
+**Decision:** A session that holds findings while another holds the writer
+lock writes them to the holder's inbox directory under the lock root and
+sends the holder a session message naming the file. The file is the record
+and is read at the holder's next iteration boundary (a single-pass holder
+reads before releasing the lock); a read file is moved aside, never re-read,
+and the files of a holder that died are named in the reclaim notice and
+removed with its lock. The message is only a nudge. Both are data, never
+instructions.
+
+A sender that cannot send a session message (no SendMessage tool, a Claude
+Code below 2.1.224, or a send whose result begins "Not sent" for a reason
+other than the holder's inbound controls) posts the nudge instead through
+the holder's inbox socket, by the review helper's nudge operation. The
+holder records its socket path in its registration; the helper posts only to
+an existing socket the invoking user owns, and the line carries only the
+inbox file name, which the holder treats as data and acts on only through its
+inbox read. The line's format lives in one place in the shared state
+reference, with the Claude Code version it was verified on; a failed post is
+reported in the sender's handoff and changes nothing else.
+
+When the holder's inbound controls (`crossSessionInbound`: accept, hold or
+refuse) refused or held the session message, a "Not sent" result naming them
+included, no socket nudge follows and the sender's handoff says so; the
+holder's inbox read carries the handoff alone. A refusal or hold the sender
+cannot see leaves it with a sent message and nothing to nudge. In every case
+the sender takes the lock itself if it frees within the poll window.
+
+**Alternatives considered:**
+- Keep D-8's fallback, a socket nudge whenever messaging is refused.
+  Rejected because: Claude Code applies the same inbound controls to a
+  socket post as to a peer message, so a refusing holder drops it, and a
+  bundle that answered a refusal by trying another channel would be treating
+  a control the holder set as an obstacle; the bundle never retries a
+  refusal.
+- Drop the socket nudge altogether. Rejected because: a sender that cannot
+  send a session message would then have no push at all, and the nudge is
+  what turns the handoff into a push for a holder that accepts messages.
+- Message-only or file-only, as D-8 weighed. Rejected because: a message is
+  a one-line preview with no durability, and polling alone is the memory
+  burden the autopilot reflex names.
+
+**Chosen because:** Claude Code's cross-session messaging is official from
+2.1.224 with the properties D-8 relied on (worktree and headless sessions
+discoverable, delivery between tool calls, messages never count as consent),
+and the inbox read already makes delivery independent of any nudge, so
+narrowing the socket path costs a refusing holder nothing it was going to
+receive. It mirrors planwright fleet-messaging's signal-versus-record split
+(D-16) and its script doorbell to an inbox socket (D-7: owner check,
+untrusted content, one notice and no retry); the divergence is that a
+review session has no tower to re-read state, so the holder's inbox read is
+the record's only consumer.
+
 ## Cross-cutting concerns
 
 ### Decision-domains walk
 
 Domains the bundle touches and where each is decided: concurrency (the
-writer lock, registry and inbox: D-7, D-8); caching (the evidence record and
+writer lock, registry and inbox: D-7, D-19); caching (the evidence record and
 its exact-key invalidation: D-6); secrets and configuration (the API key,
 the 1Password-rendered files, the no-vendor-mechanics rule: D-2, D-5, D-13);
 auth (the CLI's key path, escalated and decided by the operator: D-5); API
@@ -455,15 +516,17 @@ existing machine-local surface: D-2); dependency adoption (the cubic.dev
 CLI, checklist recorded in D-5); deploy and migration (removing a skill, a
 backend and a credential, each a revert plus a role run away except the
 credential, which needs a re-login: D-3, D-4, D-14); observability (stale
-locks named, evidence sources recorded, convergence reported as a fact: D-7,
-D-9); existing-seam reuse (planwright's handoff bundle and messaging named
+locks named, evidence sources recorded, convergence reported as a fact, a
+failed or skipped socket nudge reported in the sender's handoff: D-7, D-9,
+D-19); existing-seam reuse (planwright's handoff bundle and messaging named
 as the seams, with the stand-in's divergence recorded in the seed note:
-D-1, D-6, D-17); human comprehension (the handoff projection follows the
+D-1, D-6, D-17, D-19); human comprehension (the handoff projection follows the
 shared workflow file; nothing novel: D-9); versioning (a version key on
 every file the skills read, readers refusing an unknown one: D-13,
-REQ-A1.6); data storage and retention (ledgers kept, dead inboxes and
-registrations pruned at reclaim: D-7, D-8, D-9); queues (inbox files
-consumed once, dead-holder files named and removed: D-8); API surface
+REQ-A1.6; the undocumented inbox-socket line kept in one place with the
+Claude Code version it was verified on, and the messaging floor: D-19); data storage and retention (ledgers kept, dead inboxes and
+registrations pruned at reclaim: D-7, D-19, D-9); queues (inbox files
+consumed once, dead-holder files named and removed: D-19); API surface
 deprecation (a retired name stops naming the replacement: D-3). Product
 strategy, packaging, knowledge engineering, org design, IP posture (the
 cubic license is confirmed at pin time, D-5) and LLM output quality do not
