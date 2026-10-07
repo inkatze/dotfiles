@@ -378,4 +378,37 @@ Anchor: `9fb5e69210cfe7c3eb3df7c17f04be5d238bdd63` — computed as
 
 ## 9. Amendment log
 
-(none yet)
+### 2026-10-05 — REQ-C1.3 manual check (execute-task review (Task 5))
+
+`test-spec.md`'s manual check for REQ-C1.3 described the key on the
+backend's `env -i` line; the implementation keeps it off every argv and hands
+it to the CLI on a pipe, which REQ-C1.3's "only through `env_allow` at
+invocation" still holds, since the name stays listed there. The check now
+verifies the pipe and the absence from every argv. Cites the `requirements.md`
+Changelog entry dated 2026-10-05. Requested by the operator during the task's
+review.
+
+Class: expression-only
+Anchor: `43d79d1bf515c0ea9ee9bc357663e29657506d72` — computed as
+`scripts/spec-anchor.sh specs/review-skills`
+
+### 2026-10-06 — Event name made consistent (execute-task review (Task 5))
+
+The REQ-C1.3 amendment's annotation, its Changelog entry and the record
+above now name the event the same way, execute-task review (Task 5), so
+each is findable from the others. No requirement or check changed. Cites the
+`requirements.md` Changelog entry dated 2026-10-05.
+
+Class: expression-only
+Anchor: `0f4b82e59484248b93394e552258d3dc4b3d7890` — computed as
+`scripts/spec-anchor.sh specs/review-skills`
+
+### 2026-10-06 — Changelog entry for the event-name edit (execute-task review (Task 5))
+
+The event-name edit recorded above changed anchored content without a
+Changelog entry of its own; it now has one. Cites the `requirements.md`
+Changelog entry dated 2026-10-06.
+
+Class: expression-only
+Anchor: `bae5a69b9b609fc8b0a9c8dc095e96797b922356` — computed as
+`scripts/spec-anchor.sh specs/review-skills`

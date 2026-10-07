@@ -176,6 +176,9 @@
     state: absent
   tags: [claude]
 
+- name: Keep the cubic CLI's global instruction file empty
+  ansible.builtin.import_tasks: cubic-instructions.yml
+
 - name: Remove the stale Copilot credential
   ansible.builtin.import_tasks: copilot-credential.yml
 

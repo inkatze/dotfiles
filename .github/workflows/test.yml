@@ -71,6 +71,15 @@ jobs:
       - name: Run the mise global config suite
         run: scripts/mise-global-config-test.sh
 
+      # macOS ships no timeout; without gtimeout the suite skips its FIFO case,
+      # which bounds a play that would hang on a FIFO.
+      - name: Install GNU coreutils for gtimeout
+        run: brew install coreutils
+
+      # Needs ansible-playbook, which this job installs, jq, and gtimeout.
+      - name: Run the cubic instruction-file suite
+        run: scripts/cubic-instructions-test.sh
+
       # Needs ansible-playbook, which this job installs.
       - name: Run the planwright marketplace suite
         run: scripts/planwright-marketplace-test.sh
@@ -110,6 +119,10 @@ jobs:
       # adds.
       - name: Run the 1Password renderer suite (macOS)
         run: scripts/op-render-test.sh
+
+      # Also runs on Ubuntu below: BSD stat and mktemp are what this leg adds.
+      - name: Run the API key sync suite (macOS)
+        run: scripts/op-key-sync-test.sh
 
       # Also runs on Ubuntu below: the word count must match under BSD tr/grep.
       - name: Run the instruction word-budget fixture suite (macOS)
@@ -162,6 +175,27 @@ jobs:
       # macOS as well.
       - name: Run the 1Password renderer suite
         run: scripts/op-render-test.sh
+
+      # Stubs op, so bash, coreutils and find are all it needs; lint runs it
+      # on macOS as well.
+      - name: Run the API key sync suite
+        run: scripts/op-key-sync-test.sh
+
+      # Runs the reviewer:<name> snippet against a fake mise and CLI. Ubuntu
+      # only: macOS runners ship no timeout, which the snippet requires.
+      - name: Run the reviewer backend suite
+        run: roles/claude/files/scripts/reviewer-backend-test.sh
+
+      # Fetches the pinned cubic package from the npm registry and reads its
+      # install scripts and license; curl, openssl, tar and jq are all it needs.
+      - name: Run the cubic postinstall opt-out suite
+        run: scripts/cubic-postinstall-optout-test.sh
+
+      # Fetches the pinned cubic platform binary and reads, without running it,
+      # the code that honours the template's lockdown switches; curl, openssl,
+      # tar, coreutils, grep, sed, awk and jq are all it needs.
+      - name: Run the cubic lockdown suite
+        run: scripts/cubic-lockdown-test.sh
 
       # Warnings surface as annotations.
       - name: Run the instruction word-budget checker
