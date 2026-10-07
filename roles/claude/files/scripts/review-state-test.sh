@@ -503,41 +503,29 @@ rm "$tmp/ns-export/.benv"
 printf '[ "$0" != review-state ] || echo START_SHELL_SOURCED\n' > "$tmp/benv-abs"
 out="$(BASH_ENV="$tmp/benv-abs" "$H" evidence run --command 'bash-env-kept' -- sh -c 'echo "$BASH_ENV"' 2>/dev/null)" || true
 [ "$out" = "$tmp/benv-abs" ] || fail run-bash-env-kept "the command lost the caller's BASH_ENV, or the start shell sourced it: $out"
-# In an export, a BASH_ENV that reaches into it by expansion, by the
-# process's own cwd or through a symlink is dropped; one outside it is kept.
+# In an export, no BASH_ENV reaches the command, whatever its form: bash
+# expands the value and resolves it from the export, so even one naming a
+# file outside it is dropped, and the helper says so.
 printf 'case "$PWD" in %s*) echo PLANTED ;; esac\n' "$tmp/ns-export" > "$tmp/ns-export/.benv"
 ln -s "$tmp/ns-export" "$tmp/export-link"
 benv_case() {
-  local name="$1" value="$2" want="$3" out
+  local name="$1" value="$2" out
   out="$(BASH_ENV="$value" "$H" evidence run --command "bash-env-$name" --tree "$(git rev-parse 'HEAD^{tree}')" \
-    --dir "$tmp/ns-export" -- bash -c 'echo "real ${BASH_ENV-unset}"' 2>/dev/null)" || true
-  case "$want" in
-    dropped) [ "$out" = 'real unset' ] || fail "dir-bash-env-$name" "BASH_ENV $value reached the command in the export: $out" ;;
-    kept) [ "$out" = "real $value" ] || fail "dir-bash-env-$name" "BASH_ENV $value was dropped or sourced from the export: $out" ;;
-  esac
+    --dir "$tmp/ns-export" -- bash -c 'echo "real ${BASH_ENV-unset}"' 2> "$tmp/run.err")" || true
+  [ "$out" = 'real unset' ] || fail "dir-bash-env-$name" "BASH_ENV $value reached the command in the export: $out"
+  grep -q 'BASH_ENV is not passed' "$tmp/run.err" || fail "dir-bash-env-$name-note" "dropping BASH_ENV $value was not named"
 }
-# Each expansion form names a directory that exists literally outside the
-# export, so only the expansion filter can drop it.
 # shellcheck disable=SC2016
-mkdir -p "$tmp/\${E-}ns-export" "$tmp/\`true\`ns-export"
-# shellcheck disable=SC2016
-benv_case dollar "$tmp/\${E-}ns-export/.benv" dropped
-# shellcheck disable=SC2016
-benv_case backtick "$tmp/\`true\`ns-export/.benv" dropped
-benv_case link "$tmp/export-link/.benv" dropped
-benv_case slashes "/$tmp/ns-export/.benv" dropped
-ln -s "$tmp/ns-export/.benv" "$tmp/benv-link"
-benv_case final-link "$tmp/benv-link" dropped
-[ ! -d /proc/self/cwd ] || benv_case proc-cwd /proc/self/cwd/.benv dropped
-benv_case outside "$tmp/benv-abs" kept
-# shellcheck disable=SC2016
-rm -rf "$tmp/ns-export/.benv" "$tmp/export-link" "$tmp/benv-link" "$tmp/\${E-}ns-export" "$tmp/\`true\`ns-export"
-# A --dir given with a doubled leading slash is still compared as the path it is.
-out="$(BASH_ENV="$tmp/ns-export/.benv" "$H" evidence run --command 'bash-env-dir-slashes' --tree "$(git rev-parse 'HEAD^{tree}')" \
-  --dir "/$tmp/ns-export" -- bash -c 'echo "real ${BASH_ENV-unset}"' 2>/dev/null)" || true
-[ "$out" = 'real unset' ] || fail dir-bash-env-dir-slashes "a --dir with a doubled slash let BASH_ENV into the export: $out"
-"$H" evidence run --command 'dir-inside-slashes' --tree "$(git rev-parse 'HEAD^{tree}')" --dir "/$repo/.git" -- true > /dev/null 2> "$tmp/run.err" && rc=0 || rc=$?
-[ "$rc" -eq 2 ] && grep -q 'inside the work tree' "$tmp/run.err" || fail dir-inside-slashes "a --dir inside the work tree with a doubled slash was not refused (exit $rc)"
+benv_case dollar '/${PWD#/}/.benv'
+benv_case link "$tmp/export-link/.benv"
+benv_case slashes "/$tmp/ns-export/.benv"
+[ ! -d /proc/self/cwd ] || benv_case proc-cwd /proc/self/cwd/.benv
+benv_case outside "$tmp/benv-abs"
+rm -f "$tmp/ns-export/.benv" "$tmp/export-link"
+# A --dir with a doubled leading slash is compared as the path it is, and the
+# filesystem root is no export.
+refuse_dir inside-slashes "is inside the work tree" --tree "$htree" --dir "/$repo/.git"
+refuse_dir root "is the filesystem root" --tree "$htree" --dir //
 # A mode change in the export is seen whatever the session's core.fileMode.
 git config core.fileMode false
 "$H" evidence run --command 'mode-edit' --tree "$(git rev-parse 'HEAD^{tree}')" --dir "$tmp/ns-export" -- chmod -x run.sh > /dev/null 2> "$tmp/run.err" || true

@@ -81,10 +81,10 @@ later skill and iteration on that tree.
   when the directory hashes to exactly that tree before the run and after it,
   hashed from an index seeded with that tree, every file read again and modes
   compared strictly, through the session's clean filters and with hooks off.
-  The command keeps the caller's `BASH_ENV` only when it is a literal
-  absolute path, not itself a symlink, whose directory resolves from inside
-  the export to a place outside it and outside `/proc` and `/dev`. It needs git 2.38 or later and is refused inside
-  the work tree, holding it, holding a `.git`, or on a path with a `:`. In it
+  The caller's `BASH_ENV` is not passed to the command, since bash would
+  expand and resolve it from the export, and the helper says so. It needs git
+  2.38 or later and is refused at the filesystem root, inside the work tree,
+  holding it, holding a `.git`, or on a path with a `:`. In it
   git trusts no repository: none inherited from the caller, none above the
   directory, and no bare layout found there. Config given through `git -c`
   or `GIT_CONFIG_COUNT` does not reach it either; global and system config,

@@ -1025,11 +1025,13 @@ cmd_evidence() {
         # pwd -P may keep a leading //, which no prefix comparison would match.
         rundir="/${rundir#"${rundir%%[!/]*}"}"
         case "$rundir" in *:*) die "--dir $opt_dir has a ':' in its path, which git's ceiling list cannot carry" ;; esac
+        [ "$rundir" != / ] || die "--dir $opt_dir is the filesystem root; export the tree into a directory of its own"
         top_real="$(cd -- "$TOP" && pwd -P)" || die "cannot resolve the work tree"
         top_real="/${top_real#"${top_real%%[!/]*}"}"
         case "$rundir/" in "$top_real/"*) die "--dir $opt_dir is inside the work tree; export the tree outside it" ;; esac
         case "$top_real/" in "$rundir/"*) die "--dir $opt_dir holds the work tree; export the tree outside it" ;; esac
         if [ -e "$rundir/.git" ] || [ -L "$rundir/.git" ]; then die "--dir $opt_dir holds a .git; an export carries none"; fi
+        [ -z "${BASH_ENV+set}" ] || note "BASH_ENV is not passed to a command run in an export"
       fi
       # type -P looks on PATH only: command -v also finds this helper's own
       # functions and the shell's builtins, which exec cannot run.
@@ -1072,25 +1074,14 @@ cmd_evidence() {
         # A subshell exits on a failed exec whatever execfail says, so the
         # exec happens in a shell of its own, which then replaces itself. That
         # shell starts with BASH_ENV empty, so it sources nothing, and hands
-        # the caller's value back to the command. In an export it hands back
-        # only a literal absolute path that is not itself a symlink, whose
-        # directory, resolved from inside the export, lies outside it and
-        # outside the per-process trees under /proc and /dev: bash expands the
-        # value, and a relative path, $PWD, /proc/self/cwd or a symlink would
-        # reach a file the reviewed tree supplies. It drops the errexit an
-        # exported SHELLOPTS carries in, which would end it before the marker
-        # is put back.
+        # the caller's value back to the command, except in an export: bash
+        # expands the value and resolves it from the export, so no test of
+        # the text can rule out a file the reviewed tree supplies. It drops
+        # the errexit an exported SHELLOPTS carries in, which would end it
+        # before the marker is put back.
         be_set="${BASH_ENV+set}"
         be="${BASH_ENV-}"
-        if [ -n "$rundir" ] && [ "$be_set" = set ]; then
-          case "$be" in /*) ;; *) be_set="" ;; esac
-          case "$be" in *'$'* | *'`'*) be_set="" ;; esac
-          [ ! -L "$be" ] || be_set=""
-          be_dir=""
-          [ "$be_set" != set ] || be_dir="$(cd -P -- "${be%/*}/" 2> /dev/null && pwd -P)" || be_dir=""
-          [ -z "$be_dir" ] || be_dir="/${be_dir#"${be_dir%%[!/]*}"}"
-          case "$be_dir/" in "/" | "$rundir/"* | /proc/* | /dev/*) be_set="" ;; esac
-        fi
+        [ -z "$rundir" ] || be_set=""
         # shellcheck disable=SC2016
         BASH_ENV='' exec "$BASH" -c 'set +e +u +o pipefail; shopt -s execfail; m="$1"
           if [ "$2" = set ]; then export BASH_ENV="$3"; else unset BASH_ENV; fi
