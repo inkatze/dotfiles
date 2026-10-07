@@ -38,8 +38,8 @@
 #   review-state.sh encode <segment>
 #
 # Exit status: 0 success or hit; 1 a miss, a held lock, not this session's
-# lock, no CI evidence, an inbox recipient whose process is gone, or a nudge
-# not delivered; 2 an error. `evidence run` is the exception: it exits with
+# lock, no CI evidence, an inbox recipient that is gone or unregistered, or a
+# nudge not delivered; 2 an error. `evidence run` is the exception: it exits with
 # the wrapped command's own status once the command has run, and 127 when it
 # could not be started.
 #
