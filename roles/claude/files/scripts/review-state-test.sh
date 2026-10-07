@@ -1101,6 +1101,16 @@ for f in "$REVIEW_STATE_ROOT"/sessions/*.json; do
   s="$(jq -r '.socket // empty' "$f")"
   case "$s" in ''|"$tmp/"*) ;; *) fail registry-socket-scope "$f records a socket outside the suite's scratch directory: $s" ;; esac
 done
+# A registration whose socket was edited to one named for another process
+# gets no nudge, even though that socket is this user's.
+listen "$tmp/s/other.sock" "$tmp/s/other.heard"
+cp "$REVIEW_STATE_ROOT/sessions/$hold.json" "$tmp/hold.json"
+jq --arg s "$tmp/s/other.sock" '.socket = $s' "$tmp/hold.json" > "$REVIEW_STATE_ROOT/sessions/$hold.json"
+other="$(printf 'edited\n' | "$H" inbox send --to "$hold" --from sender)" || fail nudge-edited-send "send failed"
+"$H" inbox nudge --to "$hold" --path "$other" > /dev/null 2> "$tmp/nudge.err" && rc=0 || rc=$?
+[ "$rc" = 1 ] && grep -q "not session $hold's own" "$tmp/nudge.err" && [ ! -e "$tmp/s/other.heard" ] \
+  || fail nudge-edited-socket "a nudge followed a socket edited into the holder's registration (exit $rc)"
+cp "$tmp/hold.json" "$REVIEW_STATE_ROOT/sessions/$hold.json"
 stop_session holder
 listen "$sock" "$heard"
 "$H" inbox nudge --to "$hold" --path "$fresh" > /dev/null 2> "$tmp/nudge.err" && rc=0 || rc=$?

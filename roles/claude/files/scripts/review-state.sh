@@ -762,7 +762,7 @@ cmd_lock() {
 
 # --- Inbox --------------------------------------------------------------------------------
 cmd_inbox() {
-  local sub="${1:-}" box f name sent nonce claimed body sock reg_json got
+  local sub="${1:-}" box f name sent nonce claimed body sock reg_json got reg_pid
   shift || true
   case "$sub" in
     send)
@@ -871,12 +871,26 @@ cmd_inbox() {
         note "session $opt_to registered no messaging socket; no nudge sent, the inbox file is the record"
         return 1
       fi
+      # Registration records only a socket named for the session's own pid;
+      # one named for any other process was edited in since, and would reach
+      # some other session.
+      reg_pid="$(jq -r '.pid // empty' <<< "$reg_json")" || die "cannot read $REG"
+      if [ "$reg_pid" != "${opt_to%%-*}" ] || [ "${sock##*/}" != "$reg_pid.sock" ]; then
+        note "the registered messaging socket is not session $opt_to's own; no nudge sent"
+        return 1
+      fi
       if ! own_socket "$sock"; then
         note "the registered messaging socket is not this user's own; no nudge sent"
         return 1
       fi
       if ! command -v perl > /dev/null 2>&1; then
         note "perl is not on PATH; no nudge sent, the inbox file is the record"
+        return 1
+      fi
+      # Checked again at the last moment: a holder that left meanwhile has
+      # deleted the file this line would name.
+      if [ ! -f "$REG" ] || ! owner_alive "$opt_to"; then
+        note "session $opt_to went away while the nudge was prepared; no nudge sent"
         return 1
       fi
       # The holder reads this line as a user turn, so it carries nothing a
