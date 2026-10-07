@@ -351,6 +351,7 @@ shared_blocks=(
   "state.md|A nested loop runs the full suite once per iteration, after that iteration's fixes"
   "state.md|A PR that is not checked out has its tooling run in an archive export of its pinned head"
   "siblings.md|A mapped producer's code is validation pass 2's context"
+  "siblings.md|Read it at pre-flight, before anything is uploaded or anyone is told a review started."
   "siblings.md|The producer's code stays local: it is never sent to a backend"               # safety: egress consent
   "state.md|a secret scanner runs through it only with its redaction flag"                 # safety: no stored credential
   "state.md|In it git trusts no repository: none inherited from the caller, none above the directory, and no bare layout found there." # safety: untrusted export
@@ -1106,7 +1107,8 @@ require_normalized "$(skill_md code-review)" "archive-export sentence" \
   "Tooling runs in an archive export of the pinned head, never a worktree" \
   'git archive "$pr_head" | tar -x -C "$tmp/tree"' \
   "The PR is never checked out, here or in a second worktree" \
-  "a miss run through \`evidence run --tree <pr_tree> --dir '<tmp>/tree'\`"
+  "--command '<command key>' --tree <pr_tree> --dir '<tmp>/tree' -- <timeout> <argv>" \
+  "--command '<command key>' --tree <pr_tree> --source export"
 forbid_normalized "$(skill_md code-review)" "retired isolated-session stop, review worktree or same-PR lock" \
   "says it is isolated in a worktree, stop" "rerun from a session in the main checkout" \
   "git worktree add" "code-review.worktree-" "same-PR lock"
@@ -1131,7 +1133,9 @@ require_normalized "$(skill_md peer-review)" "writer-lock sentence" \
   "then resolve each thread, all under the writer lock step 7 took" \
   "fetching, validation and the walk run without the writer lock" \
   "--skill peer-review --repo <owner>/<repo> --pr <number> --worktree '<that top level>'" \
-  "review-state.sh unregister --session <token>"
+  "then run \`unregister --session <token>\`" \
+  "\`HEAD\` at \`<walk head>\` and \`git status --porcelain\` empty" \
+  "If \`origin/<branch>\` is no longer \`<walk head>\`"
 for name in code-review peer-review; do
   require_normalized "$(skill_md "$name")" "writer-lock sentence" "keeping the printed lock token"
 done
@@ -1144,6 +1148,8 @@ done
 # Every review skill's tooling and suite runs go through the evidence record;
 # the nested loops run the suite once per iteration; a green pushed head
 # becomes suite evidence; producer code is validation context.
+require_normalized "$(skill_md bot-review)" "CI-evidence sentence" \
+  "on a clean tree at the PR's pushed head, first take CI evidence for it"
 require_normalized "$(skill_md code-review)" "evidence-reuse sentence" \
   "Each tool goes through the evidence record per [state.md](../review-shared/state.md)'s exported-tree rule"
 require_normalized "$(skill_md panel-review)" "evidence-reuse sentence" \

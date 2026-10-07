@@ -15,9 +15,12 @@ review started. Its `version` must be `1`: on another version, or none, stop,
 naming the file and the version it carries. `repos` maps a consuming
 repository (`<owner>/<repo>`, compared lower-cased) to its producers, each
 mapped to the path of a local clone, absolute or under `~/`; a leading `~/` is
-replaced by `$HOME/` before the path is quoted into any command, since a
-quoted tilde never expands. No file, or no entry for this repository, means no
-producer context: say so once and continue.
+replaced by the home directory's absolute path before the path is quoted into
+any command, since a quoted tilde never expands. A file that is not one JSON
+object, whose `repos` is not an object of objects of strings, or that names a
+clone path neither absolute nor under `~/` stops the run the same way, naming
+the file. No file, or no entry for this repository, means no producer context:
+say so once and continue.
 
 ## Attaching a producer
 
@@ -29,9 +32,10 @@ the consumed shape, naming the producer file and the clone's `HEAD` in that
 finding's validation-passes entry.
 
 - Read it with `git -C '<clone>' show 'HEAD:<path>'`, never by running
-  anything in the clone, and only paths the definition lives in. The path is
-  inferred from the diff, so it goes in as one single-quoted literal, and one
-  containing `'`, a newline or a control character is refused.
+  anything in the clone, and only the file the definition lives in, never a
+  secrets file (`.env*`, credentials, keys). The path is inferred from the
+  diff, so it goes in as one single-quoted literal, and one containing `'`, a
+  newline or a control character is refused.
 - A clone that is missing, is not a git repository, or does not hold the
   definition gives no context: say which and validate without it.
 - A clone behind its upstream (`git -C '<clone>' rev-list --count
@@ -41,5 +45,5 @@ finding's validation-passes entry.
   named as of unknown freshness.
 - The producer's code stays local: it is never sent to a backend, since the
   egress consent covers the reviewed repository, not its producers, and never
-  quoted in anything posted. A finding cites the producer by file and `HEAD`
-  only.
+  named in anything posted: its repository, file and `HEAD` appear only in
+  the finding's validation-passes entry, which stays in the run's record.

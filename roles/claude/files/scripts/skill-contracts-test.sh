@@ -763,7 +763,8 @@ expect_pass submit-gate-reflow \
 for pin in \
   "Tooling runs in an archive export of the pinned head, never a worktree" \
   "The PR is never checked out, here or in a second worktree" \
-  "a miss run through \`evidence run --tree <pr_tree> --dir '<tmp>/tree'\`"; do
+  "--command '<command key>' --tree <pr_tree> --dir '<tmp>/tree' -- <timeout> <argv>" \
+  "--command '<command key>' --tree <pr_tree> --source export"; do
   PIN="$pin" expect_fail "code-review-archive-export-dropped ($pin)" 'drop_pin "$PIN" "$(md code-review)"' "archive-export sentence"
 done
 expect_fail code-review-archive-command-dropped \
@@ -802,7 +803,9 @@ for pin in \
   "then resolve each thread, all under the writer lock step 7 took" \
   "fetching, validation and the walk run without the writer lock" \
   "--skill peer-review --repo <owner>/<repo> --pr <number> --worktree '<that top level>'" \
-  "review-state.sh unregister --session <token>" \
+  "then run \`unregister --session <token>\`" \
+  "\`HEAD\` at \`<walk head>\` and \`git status --porcelain\` empty" \
+  "If \`origin/<branch>\` is no longer \`<walk head>\`" \
   "keeping the printed lock token"; do
   PIN="$pin" expect_fail "peer-review-writer-lock-dropped ($pin)" 'drop_pin "$PIN" "$(md peer-review)"' "writer-lock sentence"
 done
@@ -814,6 +817,8 @@ for name in code-review peer-review; do
 done
 # Evidence reuse in every skill's tooling step, the suite once per nested
 # iteration, CI as evidence (REQ-D1.2, REQ-D1.3, REQ-D1.4)
+PIN="first take CI evidence for it" \
+  expect_fail bot-review-ci-evidence-dropped 'drop_pin "$PIN" "$(md bot-review)"' "CI-evidence sentence"
 PIN="Each tool goes through the evidence record" \
   expect_fail code-review-evidence-dropped 'drop_pin "$PIN" "$(md code-review)"' "evidence-reuse sentence"
 PIN="a tool another skill or iteration already ran on this tree is reused" \
@@ -844,6 +849,7 @@ for name in code-review panel-review; do
 done
 for pin in \
   "A mapped producer's code is validation pass 2's context" \
+  "Read it at pre-flight, before anything is uploaded or anyone is told a review started." \
   "The producer's code stays local: it is never sent to a backend"; do
   PIN="$pin" expect_fail "siblings-anchor-dropped ($pin)" 'drop_pin "$PIN" "$SHARED/siblings.md"' "shared block anchor missing"
 done

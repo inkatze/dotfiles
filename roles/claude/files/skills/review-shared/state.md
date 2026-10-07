@@ -70,11 +70,11 @@ later skill and iteration on that tree.
   status. It
   records nothing when the tree afterwards differs from the key (a stale
   `--tree`, or a command that changed the tree), when its output could not
-  be captured, when the command could not be started, or when it was killed
-  by a signal or `timeout` or `gtimeout` is the program run and reports a
-  timeout or a failure of its own, and a failure to record is reported without
-  changing that exit status. An entry whose output file has gone is dropped on
-  lookup and reads as a miss.
+  be captured, when the command could not be started (it then exits 127), or
+  when it was killed by a signal; nor when the program run is `timeout` or
+  `gtimeout` and it reports a timeout or a failure of its own. A failure to
+  record is reported without changing that exit status. An entry whose output
+  file has gone is dropped on lookup and reads as a miss.
 - **Running in an export.** `evidence run --command <key> --tree <hash> --dir
   <absolute dir> -- <argv>` runs the program in that directory, keyed by the
   `--tree` it requires (a tree object in this repository), and records only
@@ -82,8 +82,9 @@ later skill and iteration on that tree.
   hashed from an index seeded with that tree, every file read again and modes
   compared strictly, through the session's clean filters and with hooks off.
   The caller's `BASH_ENV` is not passed to the command, since bash would
-  expand and resolve it from the export, and the helper says so. It needs git
-  2.38 or later and is refused at the filesystem root, inside the work tree,
+  expand and resolve it from the export, and the helper says so. It needs a git
+  recent enough for `safe.bareRepository` (the helper names the version) and
+  is refused at the filesystem root, inside the work tree,
   holding it, holding a `.git`, or on a path with a `:`. In it
   git trusts no repository: none inherited from the caller, none above the
   directory, and no bare layout found there. Config given through `git -c`
@@ -152,15 +153,19 @@ all. Bound a run by wrapping the program in `timeout` (`gtimeout` on macOS).
   after that iteration's fixes**, with the project tooling where the loop runs
   it, and validates each fix with diff-scoped checks: the tests touching the
   files it changed and the linters run on them, each through the record under
-  the command as run, paths included.
+  the command as run, paths included. At the start of an iteration on a clean
+  tree at the PR's pushed head, the loop takes CI evidence per the Full suite
+  bullet, so a later lookup on that tree reuses a green CI run.
 - **An exported tree.** **A PR that is not checked out has its tooling run in
   an archive export of its pinned head**: `git archive <head>` extracted into
   a scratch directory outside every work tree, keyed by `git rev-parse
   '<head>^{tree}'`, through `evidence lookup --tree <that tree> --source
   export` and `evidence run --tree <that tree> --dir <export>`, every tool
   going through `evidence run` so the export's git protections hold (a
-  refused lookup still runs it that way), one tool at a time, since one
-  tool's cache files would spoil the other's after-run hash. The record stays
+  refused lookup still runs it that way), one tool at a time, since a cache
+  file one tool leaves in the export fails every later hash; a run that reports it changed the export is followed by a
+  fresh export before the next tool. In it an empty or relative `PATH` entry
+  is dropped and mise must be trusted before it reads a version file there. The record stays
   in the session's own worktree. An export that is not that tree
   (`export-ignore` or `export-subst` attributes, a submodule, an edit) still
   runs, and the helper says it recorded nothing. An export holds no `.git` and no
@@ -175,7 +180,10 @@ or the decision ledger happens under the writer lock**: applying a fix,
 committing, pushing, submitting a review, posting a reply, resolving a thread,
 writing the ledger. Take it immediately before the write and release it
 immediately after. It replaces the per-skill same-PR lock in
-[github.md](github.md) as each skill adopts it.
+[github.md](github.md) as each skill adopts it. A single-pass skill whose
+write cannot be handed over (a review submission, replies of my own) waits at
+most one inbox poll window for a held lock and then asks, rather than sending
+to the holder's inbox.
 
 - **Root.** `~/.config/dotfiles/review/`, a per-user directory at mode 0700,
   created by the helper. Locks live under `locks/<owner>/<repo>/`, one per PR
@@ -230,7 +238,9 @@ immediately after. It replaces the per-skill same-PR lock in
 Every review skill registers for the length of its run, `register --name
 <session name> --skill <skill> --repo <owner>/<repo> (--pr <n> | --branch <b>)
 --worktree <dir>`, and keeps the printed session token: it is the session's
-identity for the lock and the inbox. `--skill` is a skill name; name,
+identity for the lock and the inbox. `<session name>` is the name the session
+goes by in session messaging (the session list), which a peer uses to nudge
+it. `--skill` is a skill name; name,
 worktree, repo and branch must each be one printable line with no
 text-direction characters, within the helper's length cap, and the repo and
 branch must encode to a lock name. `unregister --session <token>` on exit
