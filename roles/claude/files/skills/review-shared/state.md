@@ -71,8 +71,9 @@ later skill and iteration on that tree.
   records nothing when the tree afterwards differs from the key (a stale
   `--tree`, or a command that changed the tree), when its output could not
   be captured, when the command could not be started (it then exits 127), or
-  when it was killed by a signal; nor when the program run is `timeout` or
-  `gtimeout` and it reports a timeout or a failure of its own. A failure to
+  when it was killed by a signal; nor when `timeout` or `gtimeout` appears in
+  the argv (`env timeout` included) and the run exits 124 to 127, a timeout
+  or a failure of the wrapper's own. A failure to
   record is reported without changing that exit status. An entry whose output
   file has gone is dropped on lookup and reads as a miss.
 - **Running in an export.** `evidence run --command <key> --tree <hash> --dir
@@ -85,7 +86,10 @@ later skill and iteration on that tree.
   expand and resolve it from the export, and the helper says so. It needs a git
   recent enough for `safe.bareRepository` (the helper names the version) and
   is refused at the filesystem root, inside the work tree,
-  holding it, holding a `.git`, or on a path with a `:`. In it
+  holding it, holding a `.git`, or on a path with a `:`, and refused, before
+  anything runs, when the tree holds a symlink whose target leaves the export
+  or passes through another symlink. A tree with a submodule, whose contents
+  an archive leaves out, runs without recording. In it
   git trusts no repository: none inherited from the caller, none above the
   directory, and no bare layout found there. Config given through `git -c`
   or `GIT_CONFIG_COUNT` does not reach it either; global and system config,
@@ -144,10 +148,11 @@ all. Bound a run by wrapping the program in `timeout` (`gtimeout` on macOS).
   declares no test task has none, so its suite runs unrecorded and no CI
   evidence is taken. Before running it on a working tree whose key equals
   `HEAD`'s tree and whose `HEAD` is the pushed head of its PR, once every
-  check suite on that head that has check runs has completed (the head's
-  `check-suites` listing, ignoring suites whose `latest_check_runs_count` is
-  0), so a workflow not yet started cannot leave one fast check standing for
-  the suite, pipe the head's check runs to `evidence ci` and look up again
+  check suite on that head has completed (the head's `check-suites` listing),
+  so a workflow not yet started cannot leave one fast check standing for the
+  suite; a suite with no check runs from an app other than GitHub Actions is
+  ignored, since such apps can leave a suite queued for good, while a GitHub
+  Actions suite counts however many runs it shows. Then pipe the head's check runs to `evidence ci` and look up again
   with `--tree` that key; only a miss runs the suite.
 - **Nested loops.** **A nested loop runs the full suite once per iteration,
   after that iteration's fixes**, with the project tooling where the loop runs
@@ -168,7 +173,8 @@ all. Bound a run by wrapping the program in `timeout` (`gtimeout` on macOS).
   is dropped and mise must be trusted before it reads a version file there. The record stays
   in the session's own worktree. An export that is not that tree
   (`export-ignore` or `export-subst` attributes, a submodule, an edit) still
-  runs, and the helper says it recorded nothing. An export holds no `.git` and no
+  runs, and the helper says it recorded nothing: that run saw incomplete
+  source, so the skill reports it as degraded, never as a clean pass. An export holds no `.git` and no
   ignored dependencies, so a tool failing for want of either is reported as
   not run, never as a finding.
 

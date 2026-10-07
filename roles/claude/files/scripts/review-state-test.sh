@@ -486,7 +486,7 @@ chmod +x "$tmp/bin/badinterp"
 if "$H" evidence lookup --command 'no-start' > /dev/null 2>&1; then fail run-no-start-recorded "a command that never started was recorded"; fi
 # The shell that starts the command inherits neither the helper's errexit,
 # through an exported SHELLOPTS, nor a BASH_ENV to source.
-env SHELLOPTS=braceexpand:hashall:interactive-comments "$H" evidence run --command 'no-start-shellopts' -- "$tmp/bin/badinterp" > /dev/null 2> "$tmp/run.err" && rc=0 || rc=$?
+env SHELLOPTS=braceexpand:errexit:hashall:interactive-comments "$H" evidence run --command 'no-start-shellopts' -- "$tmp/bin/badinterp" > /dev/null 2> "$tmp/run.err" && rc=0 || rc=$?
 [ "$rc" -eq 127 ] && grep -q 'could not be started' "$tmp/run.err" || fail run-no-start-shellopts-named "a command that never started under SHELLOPTS was not named (exit $rc): $(cat "$tmp/run.err")"
 if "$H" evidence lookup --command 'no-start-shellopts' > /dev/null 2>&1; then
   fail run-no-start-shellopts "an exported SHELLOPTS let a command that never started be recorded"
@@ -603,6 +603,68 @@ fi
 if "$H" evidence lookup --command 'killed' > /dev/null 2>&1; then fail run-killed-recorded "a run killed by a signal was recorded"; fi
 "$H" evidence run --command 'exit-124' -- sh -c 'exit 124' > /dev/null 2>&1 || true
 "$H" evidence lookup --command 'exit-124' > /dev/null 2>&1 || fail run-124-unwrapped "a tool's own exit 124, without timeout, was not recorded"
+
+# --- Symlinks and submodules in an exported tree (REQ-E1.6) -------------------
+# A link the tree carries that leads out of the export, or whose text cannot
+# settle where it goes, stops the run before anything runs; a link that stays
+# inside is fine. A submodule an archive leaves empty runs without recording.
+lrepo="$tmp/links-repo"
+git init -q "$lrepo"
+git -C "$lrepo" config user.email t@example.invalid
+git -C "$lrepo" config user.name t
+git -C "$lrepo" config commit.gpgsign false
+mkdir -p "$lrepo/docs" "$lrepo/d1/d2"
+printf 'a\n' > "$lrepo/a.txt"
+ln -s ../a.txt "$lrepo/docs/readme"
+git -C "$lrepo" add -A
+git -C "$lrepo" commit -qm base
+link_case() {
+  local name="$1" want="$2" link="$3" target="$4" ltree lexp rc
+  rm -rf "$lrepo/extra"
+  mkdir -p "$lrepo/extra/${link%/*}"
+  ln -s "$target" "$lrepo/extra/$link"
+  git -C "$lrepo" add -A
+  ltree="$(git -C "$lrepo" write-tree)"
+  git -C "$lrepo" read-tree HEAD
+  rm -rf "$lrepo/extra"
+  lexp="$tmp/links-export-$name"
+  mkdir -p "$lexp"
+  git -C "$lrepo" archive "$ltree" | tar -x -C "$lexp"
+  rm -f "$tmp/ran"
+  (cd "$lrepo" && "$H" evidence run --command "link-$name" --tree "$ltree" --dir "$lexp" -- sh -c "touch '$tmp/ran'") > /dev/null 2> "$tmp/run.err" && rc=0 || rc=$?
+  case "$want" in
+    refused)
+      [ "$rc" -eq 2 ] && grep -q 'holds a symlink' "$tmp/run.err" && [ ! -e "$tmp/ran" ] \
+        || fail "dir-link-$name" "a link leading out of the export did not stop the run (exit $rc): $(cat "$tmp/run.err")" ;;
+    allowed)
+      [ "$rc" -eq 0 ] && [ -e "$tmp/ran" ] || fail "dir-link-$name" "a link inside the export stopped the run (exit $rc): $(cat "$tmp/run.err")" ;;
+  esac
+  rm -rf "$lexp"
+}
+link_case absolute refused out/abs /etc/passwd
+link_case climbs refused out/up ../../../etc
+link_case inside allowed in/side ../../a.txt
+# d1/d2/hop resolves to the root, so a .. after it climbs out, though the
+# text of a link through it seems to stay in.
+ln -s ../.. "$lrepo/d1/d2/hop"
+git -C "$lrepo" add -A
+git -C "$lrepo" commit -qm hop
+link_case chained refused chain/via ../../d1/d2/hop/../..
+gtree="$(git -C "$lrepo" mktree < <(git -C "$lrepo" ls-tree HEAD; printf '160000 commit %s\tsub\n' "$(git -C "$lrepo" rev-parse HEAD)"))"
+gexp="$tmp/gitlink-export"
+mkdir -p "$gexp"
+git -C "$lrepo" archive "$gtree" | tar -x -C "$gexp"
+(cd "$lrepo" && "$H" evidence run --command 'gitlink' --tree "$gtree" --dir "$gexp" -- true) > /dev/null 2> "$tmp/run.err" || true
+grep -q 'holds a submodule' "$tmp/run.err" || fail dir-gitlink-note "a submodule in the tree was not named: $(cat "$tmp/run.err")"
+if (cd "$lrepo" && "$H" evidence lookup --command 'gitlink' --tree "$gtree" --source export) > /dev/null 2>&1; then
+  fail dir-gitlink-recorded "a run on a tree with a submodule its archive left empty was recorded"
+fi
+rm -rf "$gexp" "$lrepo"
+# A timeout reached through env still says nothing about the tree.
+if [ -n "${timeout_bin:-}" ]; then
+  "$H" evidence run --command 'env-timed-out' -- env "${timeout_bin##*/}" 1 sleep 5 > /dev/null 2>&1 || true
+  if "$H" evidence lookup --command 'env-timed-out' > /dev/null 2>&1; then fail run-env-timeout-recorded "a timeout reached through env was recorded"; fi
+fi
 
 # --- Plain-name encoding -------------------------------------------------------
 for seg in 'feat/x y' '..' '.hidden' '-dash' 'a#b' 'ünï' 'under_score' 'plain-Name.1'; do

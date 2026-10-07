@@ -355,7 +355,7 @@ shared_blocks=(
   "siblings.md|The producer's code stays local: it is never sent to a backend"               # safety: egress consent
   "state.md|a secret scanner runs through it only with its redaction flag"                 # safety: no stored credential
   "state.md|In it git trusts no repository: none inherited from the caller, none above the directory, and no bare layout found there." # safety: untrusted export
-  "state.md|once every check suite on that head that has check runs has completed"
+  "state.md|a GitHub Actions suite counts however many runs it shows"
 )
 for block in "${shared_blocks[@]}"; do
   file="${block%%|*}"; anchor="${block#*|}"
@@ -1114,7 +1114,7 @@ forbid_normalized "$(skill_md code-review)" "retired isolated-session stop, revi
   "git worktree add" "code-review.worktree-" "same-PR lock"
 # The teardown's rm -rf reaches only this run's own scratch directory.
 require_phrases "$(skill_md code-review)" "teardown guard" \
-  'case "$t" in *..* | *[!A-Za-z0-9._/+-]*) echo "refusing to remove $t"; exit 1 ;; esac' \
+  'case "$t" in *..* | *[!A-Za-z0-9._/+\ -]*) echo "refusing to remove $t"; exit 1 ;; esac' \
   'case "${t##*/}" in code-review-pr-<number>.*) ;;' \
   '[ -d "$t" ] && [ ! -L "$t" ] && [ -O "$t" ]'
 

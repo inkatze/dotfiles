@@ -926,6 +926,57 @@ dir_hash_setup() {
   mkdir "$DIR_SCRATCH/objects" || die "cannot create a scratch directory"
   DIR_TREE="$tree"
 }
+# tree_links <tree>: LINK_OUT names the first symlink whose target leaves the
+# tree, or that its text cannot settle because it passes through another
+# symlink (a .. after a link resolves from the link's target, not its name);
+# HAS_GITLINK is set when the tree holds a submodule, whose contents an
+# archive leaves out.
+LINK_OUT=""
+HAS_GITLINK=""
+tree_links() {
+  local tree="$1" ent meta path links="" target cur part i n
+  local -a parts
+  LINK_OUT=""
+  HAS_GITLINK=""
+  while IFS= read -r -d '' ent; do
+    meta="${ent%%$'\t'*}"
+    path="${ent#*$'\t'}"
+    case "${meta%% *}" in
+      160000) HAS_GITLINK=1 ;;
+      120000)
+        case "$path" in *"$NL"*) LINK_OUT="$path"; return 0 ;; esac
+        links="$links$path$NL"
+        ;;
+    esac
+  done < <(git ls-tree -r -z "$tree")
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    target="$(git cat-file blob "$tree:$path")" || { LINK_OUT="$path"; return 0; }
+    case "$target" in /* | '' | *"$NL"*) LINK_OUT="$path"; return 0 ;; esac
+    cur="${path%/*}"
+    [ "$cur" != "$path" ] || cur=""
+    IFS=/ read -r -a parts <<< "$target"
+    n="${#parts[@]}"
+    i=0
+    for part in "${parts[@]}"; do
+      i=$((i + 1))
+      case "$part" in
+        '' | .) ;;
+        ..)
+          [ -n "$cur" ] || { LINK_OUT="$path"; return 0; }
+          case "$cur" in */*) cur="${cur%/*}" ;; *) cur="" ;; esac
+          ;;
+        *)
+          cur="${cur:+$cur/}$part"
+          if [ "$i" -lt "$n" ]; then
+            case "$NL$links" in *"$NL$cur$NL"*) LINK_OUT="$path"; return 0 ;; esac
+          fi
+          ;;
+      esac
+    done
+  done <<< "$links"
+}
+
 # dir_tree_key: 0 with DIR_KEY set, or non-zero with git's message in DIR_SCRATCH/err.
 dir_tree_key() {
   dir_git read-tree "$DIR_TREE" 2> "$DIR_SCRATCH/err" \
@@ -960,6 +1011,17 @@ record_entry() {
 int_opt() {
   local name="$1" val="$2"
   [[ "$val" =~ ^-?[0-9]{1,12}$ ]] || die "--$name must be a whole number, got '$val'"
+}
+
+# A timeout or gtimeout anywhere in the wrapped argv, so `env timeout` and
+# `nice timeout` count too; a tool that merely shares the name costs a missed
+# record, never a wrong one.
+argv_has_timeout() {
+  local arg
+  for arg in "${rest_args[@]}"; do
+    case "${arg##*/}" in timeout | gtimeout) return 0 ;; esac
+  done
+  return 1
 }
 
 CAPTURE=""
@@ -1032,6 +1094,8 @@ cmd_evidence() {
         case "$rundir/" in "$top_real/"*) die "--dir $opt_dir is inside the work tree; export the tree outside it" ;; esac
         case "$top_real/" in "$rundir/"*) die "--dir $opt_dir holds the work tree; export the tree outside it" ;; esac
         if [ -e "$rundir/.git" ] || [ -L "$rundir/.git" ]; then die "--dir $opt_dir holds a .git; an export carries none"; fi
+        tree_links "$tree"
+        [ -z "$LINK_OUT" ] || die "tree $tree holds a symlink that leads out of the export or through another link ($(printf '%q' "$LINK_OUT")); nothing run"
         # An empty or relative PATH entry would resolve inside the export.
         run_path=""
         IFS=: read -r -a path_parts <<< "$PATH"
@@ -1047,7 +1111,10 @@ cmd_evidence() {
       trap cleanup_capture EXIT
       if [ -n "$rundir" ]; then
         dir_hash_setup "$rundir" "$tree"
-        if ! dir_tree_key; then
+        if [ -n "$HAS_GITLINK" ]; then
+          note "tree $tree holds a submodule, whose contents an archive leaves out; running without recording"
+          keep=0
+        elif ! dir_tree_key; then
           note "could not hash --dir $opt_dir ($(tr '\n' ' ' < "$DIR_SCRATCH/err")); running without recording"
           keep=0
         elif [ "$DIR_KEY" != "$tree" ]; then
@@ -1106,8 +1173,7 @@ cmd_evidence() {
         note "the output could not be captured or streamed (tee exited ${pipe[1]}); nothing recorded"
       elif [ -e "$MARKER" ]; then
         note "the command could not be started; nothing recorded"
-      elif [ "$rc" -gt 128 ] || { [ "$rc" -ge 124 ] && [ "$rc" -le 127 ] \
-          && case "${rest_args[0]##*/}" in timeout | gtimeout) true ;; *) false ;; esac; }; then
+      elif [ "$rc" -gt 128 ] || { [ "$rc" -ge 124 ] && [ "$rc" -le 127 ] && argv_has_timeout; }; then
         note "the command was killed or timed out (exit $rc), which says nothing about the tree; nothing recorded"
       elif [ -n "$rundir" ]; then
         if [ "$keep" = 0 ]; then

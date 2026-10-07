@@ -18,8 +18,9 @@ mapped to the path of a local clone, absolute or under `~/`; a leading `~/` is
 replaced by the home directory's absolute path before the path is quoted into
 any command, since a quoted tilde never expands. A file that is not one JSON
 object, whose `repos` is not an object of objects of strings, or that names a
-clone path neither absolute nor under `~/` stops the run the same way, naming
-the file. No file, or no entry for this repository, means no producer context:
+clone path neither absolute nor under `~/`, or one containing `'`, a newline
+or a control character (it is pasted into single quotes), stops the run the
+same way, naming the file. No file, or no entry for this repository, means no producer context:
 say so once and continue.
 
 ## Attaching a producer

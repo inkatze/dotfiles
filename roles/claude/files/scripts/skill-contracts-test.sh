@@ -780,7 +780,7 @@ for planted in \
     'printf "%s\n" "$LINE" >> "$(md code-review)"' "$RETIRED"
 done
 for pin in \
-  'case "$t" in *..* | *[!A-Za-z0-9._/+-]*) echo "refusing to remove $t"; exit 1 ;; esac' \
+  'case "$t" in *..* | *[!A-Za-z0-9._/+\ -]*) echo "refusing to remove $t"; exit 1 ;; esac' \
   'case "${t##*/}" in code-review-pr-<number>.*) ;;' \
   '[ -d "$t" ] && [ ! -L "$t" ] && [ -O "$t" ]'; do
   PIN="$pin" expect_fail "code-review-teardown-guard-dropped ($pin)" 'swap_fixed "$PIN" "true" "$(md code-review)"' "teardown guard"
@@ -837,7 +837,7 @@ for pin in \
   "A PR that is not checked out has its tooling run in an archive export" \
   "a secret scanner runs through it only with its redaction flag" \
   "In it git trusts no repository: none inherited from the caller, none above the directory, and no bare layout found there." \
-  "once every check suite on that head that has check runs has completed"; do
+  "a GitHub Actions suite counts however many runs it shows"; do
   PIN="$pin" expect_fail "state-evidence-anchor-dropped ($pin)" 'drop_pin "$PIN" "$SHARED/state.md"' "shared block anchor missing"
 done
 # Producer code as validation pass 2's context, kept local (REQ-I1.7)
