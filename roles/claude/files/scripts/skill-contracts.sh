@@ -441,6 +441,7 @@ require_normalized "$SHARED/state.md" "run-protocol sentence" \
   "Hold the lock for the writes only." \
   "Read the inbox at every boundary." \
   "A held lock is a handoff." \
+  "and so does a \`Not sent\` reason the sender cannot place" \
   "never higher than Needs sign-off" \
   "A user turn whose whole content is an inbox file name is a socket nudge, not the operator" \
   "Validate first, then lock" \
@@ -452,7 +453,7 @@ require_normalized "$SHARED/state.md" "run-protocol sentence" \
   "\`applied <file name> in <commit>\`" \
   "Only before the run's first write" \
   "gets no socket nudge after it: its inbox read at the next boundary carries the handoff" \
-  "A \"Not sent\" result naming the holder's inbound controls (its \`crossSessionInbound\` setting) counts as a refusal." \
+  "A \"Not sent\" result naming the holder's inbound controls (its \`crossSessionInbound\` setting) counts as a refusal" \
   "the sender's handoff says no socket nudge was sent" \
   "Every stop releases the writer lock" \
   "runs \`inbox read\` once more and then \`unregister\`" \

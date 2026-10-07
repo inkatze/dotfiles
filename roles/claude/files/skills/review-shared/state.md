@@ -371,7 +371,8 @@ of sending to it.
      a reason other than the holder's inbound controls) runs `inbox nudge`
      instead, and its handoff reports a nudge that exits non-zero; nothing else
      changes. A "Not sent" result naming the holder's inbound controls (its
-     `crossSessionInbound` setting) counts as a refusal. A holder that refused
+     `crossSessionInbound` setting) counts as a refusal, and so does a `Not
+     sent` reason the sender cannot place. A holder that refused
      or held the message gets no socket nudge after it: its inbox read at the
      next boundary carries the handoff, and the sender's handoff says no
      socket nudge was sent.
