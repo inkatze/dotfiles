@@ -424,6 +424,12 @@ for name in panel-review bot-review; do
     "one scoped discovery pass per push of fixes"
   forbid_normalized "$(skill_md "$name")" "retired per-skill lock" "same-PR lock"
 done
+# The socket nudge's line: documented once in state.md, written by the helper.
+# A change to either trips its pin, so the two are edited together.
+require_phrases "$SHARED/state.md" "socket nudge line" \
+  '{"type":"user","message":{"role":"user","content":"<inbox file name>"}}'
+require_phrases roles/claude/files/scripts/review-state.sh "socket nudge line" \
+  "jq -nc --arg t \"\$name\" '{type: \"user\", message: {role: \"user\", content: \$t}}'"
 require_normalized "$SHARED/state.md" "run-protocol sentence" \
   "Hold the lock for the writes only." \
   "Read the inbox at every boundary." \

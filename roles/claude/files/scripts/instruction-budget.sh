@@ -40,7 +40,7 @@ roles/claude/files/skills/review-shared/github.md          1654   2000   2500
 roles/claude/files/skills/review-shared/limits.md          154    500    1000
 roles/claude/files/skills/review-shared/siblings.md        487    750    1250
 roles/claude/files/skills/review-shared/slack.md           730    1000   1500
-roles/claude/files/skills/review-shared/state.md           4284   4750   5250
+roles/claude/files/skills/review-shared/state.md           4335   4750   5250
 roles/claude/files/skills/review-shared/workflow.md        378    750    1250
 "
 

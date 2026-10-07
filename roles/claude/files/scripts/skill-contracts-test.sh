@@ -25,7 +25,8 @@ setup() {
   cp -R "$ROOT/roles/claude/files/skills" "$ROOT/roles/claude/files/planwright" "$tmp/roles/claude/files/"
   cp "$ROOT/roles/claude/files/CLAUDE.md" "$tmp/roles/claude/files/"
   cp "$ROOT/CLAUDE.md" "$tmp/"
-  cp "$ROOT/roles/claude/files/scripts/skill-contracts.sh" "$tmp/roles/claude/files/scripts/"
+  cp "$ROOT/roles/claude/files/scripts/skill-contracts.sh" "$ROOT/roles/claude/files/scripts/review-state.sh" \
+    "$tmp/roles/claude/files/scripts/"
 }
 
 teardown() { rm -rf "$tmp" || true; tmp=""; }
@@ -765,6 +766,11 @@ for pin in \
   "One scoped discovery pass per push of fixes."; do
   PIN="$pin" expect_fail "state-run-dropped ($pin)" 'drop_pin "$PIN" "$SHARED/state.md"' "run-protocol sentence"
 done
+# The socket nudge's line, documented once and written by the helper (REQ-E1.8)
+expect_fail nudge-line-doc-drift \
+  'swap_fixed "\"content\":\"<inbox file name>\"" "\"content\":\"findings from <sender>\"" "$SHARED/state.md"' "socket nudge line"
+expect_fail nudge-line-helper-drift \
+  'swap_fixed "jq -nc --arg t \"\$name\"" "jq -nc --arg t \"\$opt_path\"" roles/claude/files/scripts/review-state.sh' "socket nudge line"
 expect_fail panel-review-state-link-dropped \
   "perl -pi -e 's{\\]\\(\\.\\./review-shared/state\\.md\\)}{]}g' $(md panel-review)" "link to the shared state.md"
 # /peer-review routes bot threads and names no vendor (REQ-B1.3)
