@@ -39,7 +39,7 @@
 # Exit status: 0 success or hit; 1 a miss, a held lock, not this session's
 # lock, no CI evidence, or an inbox recipient whose process is gone; 2 an
 # error. `evidence run` is the exception: it exits with the wrapped command's
-# own status once the command has run.
+# own status once the command has run, and 127 when it could not be started.
 #
 # Bash 3.2 compatible: the Macs run it under /bin/bash, which has no
 # inherit_errexit. So a function that can fail hands its result back in a
@@ -926,7 +926,7 @@ dir_hash_setup() {
   mkdir "$DIR_SCRATCH/objects" || die "cannot create a scratch directory"
   DIR_TREE="$tree"
 }
-# dir_tree_key: 0 with DIR_KEY set, or 1 with git's message in DIR_SCRATCH/err.
+# dir_tree_key: 0 with DIR_KEY set, or non-zero with git's message in DIR_SCRATCH/err.
 dir_tree_key() {
   dir_git read-tree "$DIR_TREE" 2> "$DIR_SCRATCH/err" \
     && dir_git -C "$DIR_RUN" add -A -- . 2>> "$DIR_SCRATCH/err" \
@@ -972,12 +972,12 @@ cleanup_capture() {
 }
 
 cmd_evidence() {
-  local sub="${1:-}" tree started rc ended pipe after rundir top_real keep src_norm
+  local sub="${1:-}" tree started rc ended pipe after rundir top_real keep src_norm run_path path_parts path_part
   shift || true
   case "$sub" in
     lookup)
       parse_opts "command tree source" -- "$@"
-      require_opt command
+      require_opt command; single_line command "$opt_command"
       case "$opt_source" in '' | export) ;; *) die "--source takes only export" ;; esac
       if [ -n "$opt_tree" ]; then tree="$opt_tree"; else tree_key; tree="$TREE_KEY"; fi
       valid_tree "$tree"
@@ -992,6 +992,7 @@ cmd_evidence() {
     record)
       parse_opts "command exit started ended source tree" -- "$@"
       require_opt command; require_opt exit; require_opt started; require_opt ended
+      single_line command "$opt_command"
       [[ "$opt_exit" =~ ^[0-9]{1,3}$ ]] && [ "$opt_exit" -le 255 ] || die "--exit must be an exit status, 0 to 255, got '$opt_exit'"
       int_opt started "$opt_started"; int_opt ended "$opt_ended"
       single_line source "$opt_source"
@@ -1005,7 +1006,7 @@ cmd_evidence() {
       ;;
     run)
       parse_opts "command tree dir --" -- "$@"
-      require_opt command
+      require_opt command; single_line command "$opt_command"
       [ "${#rest_args[@]}" -gt 0 ] || die "run needs a command after --"
       if [ -n "$opt_tree" ]; then tree="$opt_tree"; else tree_key; tree="$TREE_KEY"; fi
       valid_tree "$tree"
@@ -1031,10 +1032,16 @@ cmd_evidence() {
         case "$rundir/" in "$top_real/"*) die "--dir $opt_dir is inside the work tree; export the tree outside it" ;; esac
         case "$top_real/" in "$rundir/"*) die "--dir $opt_dir holds the work tree; export the tree outside it" ;; esac
         if [ -e "$rundir/.git" ] || [ -L "$rundir/.git" ]; then die "--dir $opt_dir holds a .git; an export carries none"; fi
+        # An empty or relative PATH entry would resolve inside the export.
+        run_path=""
+        IFS=: read -r -a path_parts <<< "$PATH"
+        for path_part in ${path_parts[@]+"${path_parts[@]}"}; do
+          case "$path_part" in /*) run_path="${run_path:+$run_path:}$path_part" ;; esac
+        done
       fi
       # type -P looks on PATH only: command -v also finds this helper's own
       # functions and the shell's builtins, which exec cannot run.
-      ( if [ -n "$rundir" ]; then cd -- "$rundir" || exit 1; fi; type -P -- "${rest_args[0]}" ) > /dev/null 2>&1 \
+      ( if [ -n "$rundir" ]; then cd -- "$rundir" || exit 1; PATH="$run_path"; fi; type -P -- "${rest_args[0]}" ) > /dev/null 2>&1 \
         || die "${rest_args[0]} is not on PATH; nothing run or recorded"
       [ -z "$rundir" ] || [ -z "${BASH_ENV+set}" ] || note "BASH_ENV is not passed to a command run in an export"
       trap cleanup_capture EXIT
@@ -1069,6 +1076,9 @@ cmd_evidence() {
           ceiling="${rundir%/*}"
           export GIT_CEILING_DIRECTORIES="${ceiling:-/}"
           export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.bareRepository GIT_CONFIG_VALUE_0=explicit
+          # mise reads a version file the reviewed tree carries without asking for
+          # trust, and a path: version there would put its own binaries first.
+          export MISE_PARANOID=1 MISE_CEILING_PATHS="${ceiling:-/}" PATH="$run_path"
           cd -- "$rundir" || exit 2
         fi
         # A subshell exits on a failed exec whatever execfail says, so the
@@ -1120,7 +1130,7 @@ cmd_evidence() {
       ;;
     ci)
       parse_opts "head command" -- "$@"
-      require_opt head; require_opt command
+      require_opt head; require_opt command; single_line command "$opt_command"
       [[ "$opt_head" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]] || die "--head must be a full commit hash"
       local runs verdict summary first last
       runs="$(jq -c -s 'if length == 0 then "" elif length == 1 then .[0] else error("several documents") end | if . == "" then . elif type == "array" then map(if type == "object" and has("check_runs") then .check_runs[] else . end)

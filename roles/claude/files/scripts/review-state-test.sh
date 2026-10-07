@@ -344,7 +344,7 @@ fi
 git checkout -q HEAD -- a.txt
 rmdir sub
 
-# --- Tooling in an exported tree (REQ-E1.6, D-15) ------------------------------
+# --- Tooling in an exported tree (REQ-E1.6) ------------------------------------
 # /code-review exports the pinned head with git archive and runs tooling there,
 # keyed by that commit's own tree; the record lands in the session's worktree,
 # apart from work-tree runs. The session's tree differs from the export's
@@ -526,6 +526,25 @@ rm -f "$tmp/ns-export/.benv" "$tmp/export-link"
 # filesystem root is no export.
 refuse_dir inside-slashes "is inside the work tree" --tree "$htree" --dir "/$repo/.git"
 refuse_dir root "is the filesystem root" --tree "$htree" --dir //
+# In an export, an empty or relative PATH entry is dropped, so a program the
+# reviewed tree carries under that name is never found, and mise asks for
+# trust before reading a version file there.
+mkdir -p "$tmp/ns-export/bin"
+printf '#!/bin/sh\necho PLANTED_TOOL\n' > "$tmp/ns-export/bin/rs-planted-tool"
+chmod +x "$tmp/ns-export/bin/rs-planted-tool"
+PATH="bin::$PATH" "$H" evidence run --command 'relative-path' --tree "$htree" --dir "$tmp/ns-export" -- rs-planted-tool > "$tmp/run.out" 2> "$tmp/run.err" && rc=0 || rc=$?
+[ "$rc" -eq 2 ] && grep -q 'not on PATH' "$tmp/run.err" && ! grep -q PLANTED_TOOL "$tmp/run.out" \
+  || fail dir-relative-path-tool "a program on a relative PATH entry ran in the export (exit $rc): $(cat "$tmp/run.out")"
+out="$(PATH="bin::$PATH" "$H" evidence run --command 'relative-path-env' --tree "$htree" --dir "$tmp/ns-export" -- sh -c 'echo "$PATH|$MISE_PARANOID"' 2>/dev/null)" || true
+case "$out" in
+  *'|1') ;;
+  *) fail dir-mise-paranoid "mise was not asked for trust in the export: $out" ;;
+esac
+case ":${out%|*}:" in *::* | *:bin:*) fail dir-relative-path-env "a relative PATH entry reached the command in the export: ${out%|*}" ;; esac
+rm -rf "$tmp/ns-export/bin"
+# A command key is one line, so no key can reach another's entry.
+"$H" evidence record --command $'export\nlint' --exit 0 --started 1 --ended 2 < /dev/null > /dev/null 2>&1 && rc=0 || rc=$?
+[ "$rc" -eq 2 ] || fail record-multiline-command "a multi-line command key was accepted (exit $rc)"
 # A mode change in the export is seen whatever the session's core.fileMode.
 git config core.fileMode false
 "$H" evidence run --command 'mode-edit' --tree "$(git rev-parse 'HEAD^{tree}')" --dir "$tmp/ns-export" -- chmod -x run.sh > /dev/null 2> "$tmp/run.err" || true
