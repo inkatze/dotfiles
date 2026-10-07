@@ -844,6 +844,10 @@ cmd_inbox() {
         *) die "--path must name a file in session $opt_to's inbox" ;;
       esac
       [[ "$name" =~ ^[0-9]{1,12}-[0-9a-f]{8}\.md$ ]] || die "--path must name a file in session $opt_to's inbox"
+      if [ -L "$DIR/$opt_to" ]; then
+        note "session $opt_to's inbox is a symlink; no nudge sent"
+        return 1
+      fi
       # A file the holder already read has moved aside; naming it would send
       # the holder after nothing.
       if [ -L "$opt_path" ] || [ ! -f "$opt_path" ]; then

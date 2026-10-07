@@ -1040,6 +1040,15 @@ qfile="$(printf 'x\n' | "$H" inbox send --to "$quiet" --from sender)"
 "$H" inbox nudge --to "$quiet" --path "$qfile" > /dev/null 2> "$tmp/nudge.err" && rc=0 || rc=$?
 [ "$rc" = 1 ] && grep -q 'no messaging socket' "$tmp/nudge.err" \
   || fail nudge-no-socket "a nudge to a session that registered no socket did not exit 1 naming why (got $rc)"
+# An inbox directory that is a symlink is not the holder's own inbox.
+qbox="$REVIEW_STATE_ROOT/inbox/$quiet"
+mv "$qbox" "$tmp/qbox.real"
+ln -s "$tmp/qbox.real" "$qbox"
+"$H" inbox nudge --to "$quiet" --path "$qbox/${qfile##*/}" > /dev/null 2> "$tmp/nudge.err" && rc=0 || rc=$?
+[ "$rc" = 1 ] && grep -q 'inbox is a symlink' "$tmp/nudge.err" \
+  || fail nudge-symlinked-inbox "a nudge through a symlinked inbox directory did not exit 1 naming why (got $rc)"
+rm "$qbox"
+mv "$tmp/qbox.real" "$qbox"
 mkdir -p "$tmp/s2"
 # A holder that unregistered, or whose registration cannot be read, is gone:
 # the nudge exits 1 so the handoff carries on.
