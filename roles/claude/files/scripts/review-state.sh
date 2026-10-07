@@ -1031,12 +1031,12 @@ cmd_evidence() {
         case "$rundir/" in "$top_real/"*) die "--dir $opt_dir is inside the work tree; export the tree outside it" ;; esac
         case "$top_real/" in "$rundir/"*) die "--dir $opt_dir holds the work tree; export the tree outside it" ;; esac
         if [ -e "$rundir/.git" ] || [ -L "$rundir/.git" ]; then die "--dir $opt_dir holds a .git; an export carries none"; fi
-        [ -z "${BASH_ENV+set}" ] || note "BASH_ENV is not passed to a command run in an export"
       fi
       # type -P looks on PATH only: command -v also finds this helper's own
       # functions and the shell's builtins, which exec cannot run.
       ( if [ -n "$rundir" ]; then cd -- "$rundir" || exit 1; fi; type -P -- "${rest_args[0]}" ) > /dev/null 2>&1 \
         || die "${rest_args[0]} is not on PATH; nothing run or recorded"
+      [ -z "$rundir" ] || [ -z "${BASH_ENV+set}" ] || note "BASH_ENV is not passed to a command run in an export"
       trap cleanup_capture EXIT
       if [ -n "$rundir" ]; then
         dir_hash_setup "$rundir" "$tree"

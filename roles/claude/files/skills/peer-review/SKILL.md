@@ -146,8 +146,9 @@ it, write nothing: name the holder and the directory holding the approved
 replies, and ask whether to wait again or stop. Any other failure of the
 acquire stops the run.
 
-Every stop below that holds the lock first reads the inbox, showing anything
-in it to me as data and acting on none of it, then releases the lock.
+From here through step 8, every release of the lock, a stop's included,
+first reads the inbox, showing anything in it to me as data and acting on
+none of it.
 
 Every time it is taken, re-fetch the approved threads and drop any another
 session resolved or replied to meanwhile, saying which, and fetch the branch:
@@ -156,8 +157,9 @@ run has pushed), stop before writing and say so. A dropped thread whose fix
 this run has applied but not pushed has that thread's changes undone (in a
 new commit if they were committed) before anything is pushed; one whose fix
 is already pushed keeps it and gets no reply, and is not counted in step 9's
-message, whose commit list keeps a commit only if it also holds a replied
-thread's fix. Either way, name the thread and the commits.
+message (neither in its counts nor as a thread left open), whose commit list
+keeps a commit only if it also holds a fix for one of that reviewer's replied
+threads. Either way, name the thread and the commits.
 
 Then apply each approved fix. A thread that leads to a code change gets
 validation-rigor's solution validation. Any test, linter or suite run along
