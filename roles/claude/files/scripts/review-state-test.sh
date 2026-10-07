@@ -516,12 +516,28 @@ benv_case() {
     kept) [ "$out" = "real $value" ] || fail "dir-bash-env-$name" "BASH_ENV $value was dropped or sourced from the export: $out" ;;
   esac
 }
+# Each expansion form names a directory that exists literally outside the
+# export, so only the expansion filter can drop it.
 # shellcheck disable=SC2016
-benv_case pwd '/${PWD#/}/.benv' dropped
+mkdir -p "$tmp/\${E-}ns-export" "$tmp/\`true\`ns-export"
+# shellcheck disable=SC2016
+benv_case dollar "$tmp/\${E-}ns-export/.benv" dropped
+# shellcheck disable=SC2016
+benv_case backtick "$tmp/\`true\`ns-export/.benv" dropped
 benv_case link "$tmp/export-link/.benv" dropped
+benv_case slashes "/$tmp/ns-export/.benv" dropped
+ln -s "$tmp/ns-export/.benv" "$tmp/benv-link"
+benv_case final-link "$tmp/benv-link" dropped
 [ ! -d /proc/self/cwd ] || benv_case proc-cwd /proc/self/cwd/.benv dropped
 benv_case outside "$tmp/benv-abs" kept
-rm -f "$tmp/ns-export/.benv" "$tmp/export-link"
+# shellcheck disable=SC2016
+rm -rf "$tmp/ns-export/.benv" "$tmp/export-link" "$tmp/benv-link" "$tmp/\${E-}ns-export" "$tmp/\`true\`ns-export"
+# A --dir given with a doubled leading slash is still compared as the path it is.
+out="$(BASH_ENV="$tmp/ns-export/.benv" "$H" evidence run --command 'bash-env-dir-slashes' --tree "$(git rev-parse 'HEAD^{tree}')" \
+  --dir "/$tmp/ns-export" -- bash -c 'echo "real ${BASH_ENV-unset}"' 2>/dev/null)" || true
+[ "$out" = 'real unset' ] || fail dir-bash-env-dir-slashes "a --dir with a doubled slash let BASH_ENV into the export: $out"
+"$H" evidence run --command 'dir-inside-slashes' --tree "$(git rev-parse 'HEAD^{tree}')" --dir "/$repo/.git" -- true > /dev/null 2> "$tmp/run.err" && rc=0 || rc=$?
+[ "$rc" -eq 2 ] && grep -q 'inside the work tree' "$tmp/run.err" || fail dir-inside-slashes "a --dir inside the work tree with a doubled slash was not refused (exit $rc)"
 # A mode change in the export is seen whatever the session's core.fileMode.
 git config core.fileMode false
 "$H" evidence run --command 'mode-edit' --tree "$(git rev-parse 'HEAD^{tree}')" --dir "$tmp/ns-export" -- chmod -x run.sh > /dev/null 2> "$tmp/run.err" || true

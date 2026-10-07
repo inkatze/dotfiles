@@ -1022,8 +1022,11 @@ cmd_evidence() {
         worktree_top
         [ "$(git cat-file -t "$tree" 2> /dev/null)" = tree ] || die "--tree $tree is not a tree object in this repository"
         rundir="$(cd -- "$opt_dir" 2> /dev/null && pwd -P)" || die "--dir $opt_dir is not a directory"
+        # pwd -P may keep a leading //, which no prefix comparison would match.
+        rundir="/${rundir#"${rundir%%[!/]*}"}"
         case "$rundir" in *:*) die "--dir $opt_dir has a ':' in its path, which git's ceiling list cannot carry" ;; esac
         top_real="$(cd -- "$TOP" && pwd -P)" || die "cannot resolve the work tree"
+        top_real="/${top_real#"${top_real%%[!/]*}"}"
         case "$rundir/" in "$top_real/"*) die "--dir $opt_dir is inside the work tree; export the tree outside it" ;; esac
         case "$top_real/" in "$rundir/"*) die "--dir $opt_dir holds the work tree; export the tree outside it" ;; esac
         if [ -e "$rundir/.git" ] || [ -L "$rundir/.git" ]; then die "--dir $opt_dir holds a .git; an export carries none"; fi
@@ -1070,19 +1073,23 @@ cmd_evidence() {
         # exec happens in a shell of its own, which then replaces itself. That
         # shell starts with BASH_ENV empty, so it sources nothing, and hands
         # the caller's value back to the command. In an export it hands back
-        # only a literal absolute path whose directory, resolved from inside
-        # the export, lies outside it: bash expands the value, and a relative
-        # path, $PWD, /proc/self/cwd or a symlink would reach a file the
-        # reviewed tree supplies. It drops the errexit an exported SHELLOPTS
-        # carries in, which would end it before the marker is put back.
+        # only a literal absolute path that is not itself a symlink, whose
+        # directory, resolved from inside the export, lies outside it and
+        # outside the per-process trees under /proc and /dev: bash expands the
+        # value, and a relative path, $PWD, /proc/self/cwd or a symlink would
+        # reach a file the reviewed tree supplies. It drops the errexit an
+        # exported SHELLOPTS carries in, which would end it before the marker
+        # is put back.
         be_set="${BASH_ENV+set}"
         be="${BASH_ENV-}"
         if [ -n "$rundir" ] && [ "$be_set" = set ]; then
           case "$be" in /*) ;; *) be_set="" ;; esac
           case "$be" in *'$'* | *'`'*) be_set="" ;; esac
+          [ ! -L "$be" ] || be_set=""
           be_dir=""
           [ "$be_set" != set ] || be_dir="$(cd -P -- "${be%/*}/" 2> /dev/null && pwd -P)" || be_dir=""
-          case "$be_dir/" in "/" | "$rundir/"*) be_set="" ;; esac
+          [ -z "$be_dir" ] || be_dir="/${be_dir#"${be_dir%%[!/]*}"}"
+          case "$be_dir/" in "/" | "$rundir/"* | /proc/* | /dev/*) be_set="" ;; esac
         fi
         # shellcheck disable=SC2016
         BASH_ENV='' exec "$BASH" -c 'set +e +u +o pipefail; shopt -s execfail; m="$1"

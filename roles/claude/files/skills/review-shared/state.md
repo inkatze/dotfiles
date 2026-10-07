@@ -56,7 +56,7 @@ later skill and iteration on that tree.
   command); `source` is `local`, `export` (set only by an export run), the CI
   source below (set only by `evidence ci`), or any other one line `evidence
   record --source` was given, which may be neither `export` nor start with
-  `ci:`. Two
+  `ci:`, compared case-insensitively with surrounding blanks ignored. Two
   runs that both miss on one tree both run; the first to finish records and
   the later one is dropped.
 - **Lookup before running.** `evidence lookup --command <key>` prints the entry
@@ -82,7 +82,8 @@ later skill and iteration on that tree.
   hashed from an index seeded with that tree, every file read again and modes
   compared strictly, through the session's clean filters and with hooks off.
   The command keeps the caller's `BASH_ENV` only when it is a literal
-  absolute path whose directory lies outside the export. It needs git 2.38 or later and is refused inside
+  absolute path, not itself a symlink, whose directory resolves from inside
+  the export to a place outside it and outside `/proc` and `/dev`. It needs git 2.38 or later and is refused inside
   the work tree, holding it, holding a `.git`, or on a path with a `:`. In it
   git trusts no repository: none inherited from the caller, none above the
   directory, and no bare layout found there. Config given through `git -c`

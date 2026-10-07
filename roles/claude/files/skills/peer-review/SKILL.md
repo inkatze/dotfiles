@@ -48,11 +48,12 @@ work on the PR meanwhile. Pin the PR's head branch (`gh pr view --json
 headRefName`) and, after `git fetch origin <branch>`, the remote head the
 walk starts from (`git rev-parse origin/<branch>`) as literals, written
 `<branch>` and `<walk head>` below. The checkout must be on `<branch>` with
-`HEAD` at `<walk head>` and no uncommitted changes; if it is behind, holds
-commits not yet pushed, or has local edits, stop and say so, since fixes
-would land on stale code or carry that work out with them. Keep threads where
-`isResolved` is false and the first comment's author is not an automated reviewer as the user-global file
-defines one: GitHub reports it as a `Bot`, its login ends in `[bot]`, or a
+`HEAD` at `<walk head>` and `git status --porcelain` empty; if it is behind,
+holds commits not yet pushed, or has local edits or untracked files, stop and
+say so, since fixes would land on stale code or carry that work out with
+them. Keep threads where `isResolved` is false and the first comment's author
+is not an automated reviewer as the user-global file defines one: GitHub
+reports it as a `Bot`, its login ends in `[bot]`, or a
 `login_pattern` in `~/.config/dotfiles/bot-review.json` matches the login in
 full, tested in its REST form (`[bot]` appended for a `Bot`). With no such
 file, the first two tests alone; a file whose `version` is not `1`, or that
@@ -148,11 +149,12 @@ acquire stops the run.
 Every time it is taken, re-fetch the approved threads and drop any another
 session resolved or replied to meanwhile, saying which, and fetch the branch:
 if `origin/<branch>` is no longer `<walk head>` (or `<pushed head>`, once this
-run has pushed), stop before writing and say so. A dropped thread whose fix
-this run has applied but not pushed has that thread's changes undone (in a
-new commit if they were committed) before anything is pushed; one whose fix
-is already pushed keeps it and gets no reply. Either way, name the thread and
-the commits.
+run has pushed), stop before writing, read the inbox, release the lock and say
+so. A dropped thread whose fix this run has applied but not pushed has that
+thread's changes undone (in a new commit if they were committed) before
+anything is pushed; one whose fix is already pushed keeps it and gets no
+reply, and its commit is left out of step 9's message. Either way, name the
+thread and the commits.
 
 Then apply each approved fix. A thread that leads to a code change gets
 validation-rigor's solution validation. Any test, linter or suite run along
@@ -161,11 +163,10 @@ the way goes through the evidence record per
 
 Commit and push the changes before any reply describes them, pin the pushed
 head (`git rev-parse origin/<branch>`, which must equal `HEAD`; if it does
-not, stop before any reply and say so) as `<pushed head>`, then fill each
-saved reply's `<sha>` with the short SHA of the commit holding that thread's
-fix. On a hook
-failure, read the inbox (showing anything in it to me as data and acting on
-none of it) and release the lock before diagnosing and asking, then take it
+not, stop before any reply, read the inbox, release the lock and say so) as
+`<pushed head>`, then fill each saved reply's `<sha>` with the short SHA of
+the commit holding that thread's fix. On a hook failure, read the inbox
+(showing anything in it to me as data and acting on none of it) and release the lock before diagnosing and asking, then take it
 again, with the re-fetch above, before retrying, and follow the push-hook rule
 in [github.md](../review-shared/github.md).
 
@@ -207,8 +208,9 @@ went through your comments on #<number> :warning:
 
 Use the second whenever any thread of theirs is still open after step 8,
 skipped or deferred items included: claiming done-ness while their thread
-sits unanswered invites a re-review of something that is not ready. `<sha>` lists the short SHA of each commit holding a fix for that reviewer's threads. Drop the `<sha>` clause when no code
-changed. Each message is confirmed separately, since each goes to a separate
-person.
+sits unanswered invites a re-review of something that is not ready. `<sha>`
+lists the short SHA of each commit holding a fix for that reviewer's replied
+threads. Drop the `<sha>` clause when no code changed. Each message is
+confirmed separately, since each goes to a separate person.
 
 $ARGUMENTS
