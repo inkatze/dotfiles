@@ -1,0 +1,1 @@
+- 2026-10-06 [dotfiles] CI installs mise tools from scratch each run; caching mise installs would shorten the workflow now that the cubic CLI joins the pinned set.

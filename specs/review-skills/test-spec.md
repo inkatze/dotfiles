@@ -119,9 +119,11 @@ from before it and the binary's version is unchanged.
 ### REQ-C1.3 — Key synced and passed at invocation only [test + manual]
 
 The key sync's fixture refuses a key file at a loose mode and a blank value;
-`grep -rn CUBIC roles/fish` returns nothing. Manual: the backend's `env -i`
-line carries the key variable from `env_allow` and a shell started after the
-sync does not export it.
+`grep -rn CUBIC roles/fish` returns nothing. Manual: the key variable is
+listed in `env_allow`, its value reaches the CLI on the backend's pipe, and it
+appears on no process's argv, the `env -i` line included; a shell started
+after the sync does not export it. *(Amended at execute-task review
+(Task 5) 2026-10-05: the key arrives on a pipe, never an argv.)*
 
 ### REQ-C1.4 — mise shims stripped structurally [test]
 

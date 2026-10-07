@@ -20,6 +20,33 @@
          else '/usr' }}
   tags: [always]
 
+# The cubic CLI's npm postinstall pipes the git-ai installer (a commit tagger
+# that writes git notes) to bash unless this flag file exists or
+# CUBIC_DISABLE_GIT_AI is set. mise's npm backend skips package lifecycle
+# scripts by default, so this is a fallback for a host whose mise is set to run
+# them. The file is what every install path honours, a hand-run `mise
+# install` and mise's auto-install on first use included, so it is written
+# before the config link below can declare the pin; the variable on the install
+# task covers a state directory other than the one Ansible sees, and
+# CUBIC_DISABLE_INSTALL_WIZARD there keeps an install from opening the
+# vendor's interactive coding-agent setup.
+# scripts/cubic-postinstall-optout-test.sh checks the postinstall's own
+# condition against both.
+- name: Ensure the cubic CLI's state directory exists
+  ansible.builtin.file:
+    path: "{{ environments_xdg_state_home }}/cubic"
+    state: directory
+    mode: "0700"
+  tags: [environments]
+
+- name: Opt out of the cubic CLI's git-ai install
+  ansible.builtin.copy:
+    content: ""
+    dest: "{{ environments_xdg_state_home }}/cubic/git-ai-disabled"
+    force: false
+    mode: "0600"
+  tags: [environments]
+
 - name: Link the mise global config
   ansible.builtin.import_tasks: mise_config.yml
   tags: [environments]
@@ -100,6 +127,9 @@
     cmd: mise install {{ item.name }}
     chdir: "{{ ansible_facts.env.HOME }}"
     executable: "{{ environments_fish_prefix }}/bin/fish"
+  environment:
+    CUBIC_DISABLE_GIT_AI: "true"
+    CUBIC_DISABLE_INSTALL_WIZARD: "true"
   with_items: "{{ environments_mise_tools }}"
   when: environments_mise_missing.stdout | length > 0
   changed_when: true

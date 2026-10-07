@@ -113,6 +113,36 @@ pre-commit:
       glob: "{scripts/op-render.sh,scripts/op-render-test.sh,scripts/op-token.sh,\
         roles/claude/files/skills/*/*.{tpl,jq},roles/claude/files/planwright/*.tpl}"
       run: scripts/op-render-test.sh
+    op-key-sync:
+      # The suite is what notices a mode or blank-value guard being dropped;
+      # the script alone still writes a key file, just one nothing checked.
+      glob: "{scripts/op-key-sync.sh,scripts/op-key-sync-test.sh,scripts/op-token.sh,roles/fish/**}"
+      run: scripts/op-key-sync-test.sh
+    reviewer-backend:
+      # The template is in the glob because the suite runs the cubic entry's
+      # own cli block through the snippet.
+      glob: "{roles/claude/files/skills/panel-review/reviewer-backend.md,\
+        roles/claude/files/skills/bot-review/bot-review.json.tpl,\
+        roles/claude/files/scripts/reviewer-backend-test.sh}"
+      run: roles/claude/files/scripts/reviewer-backend-test.sh
+    cubic-postinstall-optout:
+      # Needs the network: it fetches the pinned package to read its install
+      # scripts and license. A version bump fails it until they are re-read.
+      glob: "{roles/environments/files/mise.toml,roles/environments/{tasks,defaults}/main.yml,\
+        scripts/cubic-postinstall-optout-test.sh}"
+      run: scripts/cubic-postinstall-optout-test.sh
+    cubic-lockdown:
+      # Reads the pinned cubic binary's code for the template's lockdown
+      # switches; the first run needs the network, later runs use a re-hashed
+      # cache. A version bump fails it until that code is re-read.
+      glob: "{roles/environments/files/mise.toml,roles/claude/files/skills/bot-review/bot-review.json.tpl,\
+        scripts/cubic-lockdown-test.sh}"
+      run: scripts/cubic-lockdown-test.sh
+    cubic-instructions:
+      # The suite is what notices the role overwriting a file with content.
+      glob: "{roles/claude/tasks/cubic-instructions.yml,roles/claude/tasks/main.yml,scripts/cubic-instructions-test.sh,\
+        roles/claude/files/skills/bot-review/bot-review.json.tpl}"
+      run: scripts/cubic-instructions-test.sh
     fish-tower:
       # The suite is what notices the launcher losing its fail-closed refusal;
       # the function alone still starts a tower, just without its deny floor.

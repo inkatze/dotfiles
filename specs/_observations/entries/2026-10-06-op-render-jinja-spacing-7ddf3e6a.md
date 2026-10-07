@@ -1,0 +1,1 @@
+- 2026-10-06 [dotfiles] The ansible-lint jinja[spacing] warning in roles/claude/tasks/op-render.yml predates this branch; a straightforward rewrite broke the filter chain (the first filter has no default), so it needs a careful fix of its own.
