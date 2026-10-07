@@ -1,7 +1,7 @@
 # Review Skills — Test Spec
 
 **Status:** Ready
-**Last reviewed:** 2026-10-03
+**Last reviewed:** 2026-10-07
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -119,9 +119,11 @@ from before it and the binary's version is unchanged.
 ### REQ-C1.3 — Key synced and passed at invocation only [test + manual]
 
 The key sync's fixture refuses a key file at a loose mode and a blank value;
-`grep -rn CUBIC roles/fish` returns nothing. Manual: the backend's `env -i`
-line carries the key variable from `env_allow` and a shell started after the
-sync does not export it.
+`grep -rn CUBIC roles/fish` returns nothing. Manual: the key variable is
+listed in `env_allow`, its value reaches the CLI on the backend's pipe, and it
+appears on no process's argv, the `env -i` line included; a shell started
+after the sync does not export it. *(Amended at execute-task review
+(Task 5) 2026-10-05: the key arrives on a pipe, never an argv.)*
 
 ### REQ-C1.4 — mise shims stripped structurally [test]
 
@@ -218,11 +220,25 @@ each single-pass skill, with fixtures planting their removal; the helper's
 fixture asserts a read inbox file is moved aside and not returned by the
 next read.
 
-### REQ-E1.5 — Fallback without messaging [manual]
+### REQ-E1.8 — Socket nudge only from a sender that cannot send [test + manual]
 
-With inbound messages refused in the holder's settings, the sender's inbox
-file is still read at the next boundary, and a nudge posted through the
-session's inbox socket by the helper arrives.
+The contract checker pins the shared state file's sentences that a "Not
+sent" result naming the holder's inbound controls counts as a refusal and
+that a refused or held message gets no socket nudge, with a fixture planting
+the removal of each; the helper's fixture asserts the nudge posts only to a
+socket the user owns. Manual, both sessions on Claude Code 2.1.224 or later
+(`claude --version`, recorded in the drill row):
+
+- *Socket-nudge drill.* A sender whose session lacks the SendMessage tool,
+  confirmed before the handoff, nudges a holder that accepts messages; the
+  holder's transcript shows the nudge naming the inbox file. A post the
+  helper reports as failed is recorded as the drill's outcome and filed as
+  an observation about the line format, not as a REQ-E1.8 failure.
+- *Refused-messaging drill.* A sender that can send messages hands off to a
+  holder whose `crossSessionInbound` is `refuse`; the sender's transcript
+  shows the send's result and no nudge call after it, its handoff says no
+  socket nudge was sent, and the holder's inbox file is read at its next
+  boundary.
 
 ### REQ-E1.6 — Worktree-free `/code-review` [test + manual]
 

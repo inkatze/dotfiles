@@ -1,0 +1,1 @@
+- 2026-10-06 [dotfiles] reviewer-backend-test.sh runs only on the Linux CI leg; the snippet also targets macOS (BSD stat, find, mktemp), so a macOS leg would catch portability drift.

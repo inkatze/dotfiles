@@ -1,0 +1,206 @@
+---
+
+# The cubic.dev CLI uploads the first global instruction file it finds,
+# ~/.config/cubic/AGENTS.md before ~/.claude/CLAUDE.md, and hands its review to
+# whichever provider ~/.local/share/cubic/preferences.json prefers. An empty
+# AGENTS.md keeps CLAUDE.md from being sent, and preferring cubic keeps the
+# review on cubic's own locked-down agent; /panel-review's reviewer:cubic
+# refuses to run without both (the review config template's require_empty and
+# require_json), while ~/.config/cubic holds anything else (require_only), and
+# while ~/.local/share/cubic/auth.json holds a wellknown login
+# (require_json_if_present).
+# What exists already is reported, never overwritten or removed: it is someone's
+# own rules or settings. ~/.config and ~/.local/share are used as such, because
+# the backend never passes a relocated config or data home to the CLI.
+- name: Inspect the cubic CLI's config and data directories
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop:
+    - "{{ ansible_facts.env.HOME }}/.config/cubic"
+    - "{{ ansible_facts.env.HOME }}/.local/share/cubic"
+  register: claude_cubic_dirs
+  check_mode: false
+  tags: [claude]
+
+# A symlink or someone else's directory is reported below and left alone.
+- name: Ensure the cubic CLI's config and data directories exist
+  ansible.builtin.file:
+    path: "{{ item.item }}"
+    state: directory
+    mode: "0700"
+  loop: "{{ claude_cubic_dirs.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: >-
+    not item.stat.exists
+    or (item.stat.isdir and not item.stat.islnk and item.stat.uid == ansible_facts.effective_user_id)
+  tags: [claude]
+
+- name: Inspect the cubic CLI's instruction file and provider settings
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop:
+    - "{{ ansible_facts.env.HOME }}/.config/cubic/AGENTS.md"
+    - "{{ ansible_facts.env.HOME }}/.local/share/cubic/preferences.json"
+  register: claude_cubic_files
+  check_mode: false
+  tags: [claude]
+
+- name: Create an empty global instruction file for the cubic CLI
+  ansible.builtin.copy:
+    content: ""
+    dest: "{{ ansible_facts.env.HOME }}/.config/cubic/AGENTS.md"
+    force: false
+    mode: "0600"
+  when:
+    - not claude_cubic_files.results[0].stat.exists
+    - claude_cubic_dirs.results[0].stat.exists or not ansible_check_mode
+    - >-
+      not claude_cubic_dirs.results[0].stat.exists
+      or (claude_cubic_dirs.results[0].stat.isdir and not claude_cubic_dirs.results[0].stat.islnk
+          and claude_cubic_dirs.results[0].stat.uid == ansible_facts.effective_user_id)
+  tags: [claude]
+
+- name: Prefer cubic's own provider for the cubic CLI
+  ansible.builtin.copy:
+    content: '{"preferredProvider": "cubic"}'
+    dest: "{{ ansible_facts.env.HOME }}/.local/share/cubic/preferences.json"
+    force: false
+    mode: "0600"
+  when:
+    - not claude_cubic_files.results[1].stat.exists
+    - claude_cubic_dirs.results[1].stat.exists or not ansible_check_mode
+    - >-
+      not claude_cubic_dirs.results[1].stat.exists
+      or (claude_cubic_dirs.results[1].stat.isdir and not claude_cubic_dirs.results[1].stat.islnk
+          and claude_cubic_dirs.results[1].stat.uid == ansible_facts.effective_user_id)
+  tags: [claude]
+
+# jq checks only run when jq does; its absence is reported once, rather than
+# as a problem with the files it could not read.
+- name: Check that jq is available for the cubic CLI checks
+  ansible.builtin.command:
+    argv: [jq, --version]
+  register: claude_cubic_jq
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  tags: [claude]
+
+# The same tests the backend applies, so the role reports what it would refuse;
+# jq prints only true or false, never a file's contents.
+- name: Check that the cubic CLI prefers its own provider
+  ansible.builtin.command:
+    argv:
+      - jq
+      - -e
+      - -s
+      # The template's require_json predicate, wrapped as the backend wraps it.
+      - 'length == 1 and (.[0] | (.preferredProvider == "cubic"))'
+      - "{{ ansible_facts.env.HOME }}/.local/share/cubic/preferences.json"
+  register: claude_cubic_prefers
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when:
+    - claude_cubic_jq.rc == 0
+    - claude_cubic_files.results[1].stat.isreg | default(false)
+    - not claude_cubic_files.results[1].stat.islnk
+  tags: [claude]
+
+- name: Inspect the cubic CLI's login store
+  ansible.builtin.stat:
+    path: "{{ ansible_facts.env.HOME }}/.local/share/cubic/auth.json"
+    follow: false
+  register: claude_cubic_auth
+  check_mode: false
+  tags: [claude]
+
+# A wellknown login makes the CLI merge remote config after its lockdown.
+- name: Check the cubic CLI's logins for a wellknown one
+  ansible.builtin.command:
+    argv:
+      - jq
+      - -e
+      - -s
+      # The template's require_json_if_present predicate, wrapped as the backend wraps it.
+      - 'length == 1 and (.[0] | ([.[]? | objects | select(.type == "wellknown")] | length == 0))'
+      - "{{ ansible_facts.env.HOME }}/.local/share/cubic/auth.json"
+  register: claude_cubic_no_wellknown
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when:
+    - claude_cubic_jq.rc == 0
+    - claude_cubic_auth.stat.isreg | default(false)
+    - not claude_cubic_auth.stat.islnk
+  tags: [claude]
+
+- name: List the cubic CLI's config directory
+  ansible.builtin.find:
+    paths: "{{ ansible_facts.env.HOME }}/.config/cubic"
+    file_type: any
+    hidden: true
+    excludes: [AGENTS.md]
+  register: claude_cubic_config_entries
+  when: claude_cubic_dirs.results[0].stat.exists
+  tags: [claude]
+
+- name: Report cubic CLI files reviewer:cubic will refuse to run with
+  ansible.builtin.debug:
+    msg: "{{ claude_cubic_problems }}"
+  vars:
+    claude_cubic_agents: "{{ claude_cubic_files.results[0].stat }}"
+    claude_cubic_prefs_stat: "{{ claude_cubic_files.results[1].stat }}"
+    claude_cubic_odd_dirs: >-
+      {{ (claude_cubic_dirs.results | selectattr('stat.exists') | rejectattr('stat.isdir')
+            | map(attribute='item') | list)
+         + (claude_cubic_dirs.results | selectattr('stat.exists') | selectattr('stat.islnk')
+            | map(attribute='item') | list)
+         + (claude_cubic_dirs.results | selectattr('stat.exists')
+            | rejectattr('stat.uid', 'equalto', ansible_facts.effective_user_id)
+            | map(attribute='item') | list) }}
+    claude_cubic_agents_msg: >-
+      ~/.config/cubic/AGENTS.md is not an empty regular file; the cubic CLI would upload it, so move its
+      content elsewhere and empty it
+    claude_cubic_prefs_rc: "{{ claude_cubic_prefers.rc | default(1) }}"
+    claude_cubic_auth_rc: "{{ claude_cubic_no_wellknown.rc | default(0) }}"
+    claude_cubic_foreign: >-
+      {{ ([claude_cubic_files.results[0], claude_cubic_files.results[1]]
+          | selectattr('stat.exists') | rejectattr('stat.uid', 'equalto', ansible_facts.effective_user_id)
+          | map(attribute='item') | list)
+         + ([claude_cubic_auth.stat.path] if claude_cubic_auth.stat.exists
+            and claude_cubic_auth.stat.uid != ansible_facts.effective_user_id else []) }}
+    claude_cubic_prefs_msg: >-
+      ~/.local/share/cubic/preferences.json is not a regular file holding one JSON document whose
+      preferredProvider is "cubic"; fix it so the review stays on cubic's own provider
+    claude_cubic_extra: >-
+      {{ (claude_cubic_config_entries.files | default([])) | map(attribute='path') | map('basename') | join(', ') }}
+    claude_cubic_problems: >-
+      {{ (['these are a symlink, not a directory, or not yours: ' ~ (claude_cubic_odd_dirs | unique | join(', '))]
+            if claude_cubic_odd_dirs | length > 0 else [])
+         + (['could not run jq, so preferences.json and auth.json could not be checked']
+            if (claude_cubic_jq.rc | default(1)) != 0
+               and (claude_cubic_prefs_stat.exists or claude_cubic_auth.stat.exists) else [])
+         + (['these are not yours, so reviewer:cubic refuses them: ' ~ (claude_cubic_foreign | join(', '))]
+            if claude_cubic_foreign | length > 0 else [])
+         + ([] if not claude_cubic_agents.exists
+              or (claude_cubic_agents.isreg and not claude_cubic_agents.islnk and claude_cubic_agents.size == 0)
+            else [claude_cubic_agents_msg])
+         + ([] if not claude_cubic_prefs_stat.exists
+              or ((claude_cubic_jq.rc | default(1)) != 0 and claude_cubic_prefs_stat.isreg)
+              or (claude_cubic_prefs_stat.isreg and not claude_cubic_prefs_stat.islnk
+                  and claude_cubic_prefs_rc | int == 0)
+            else [claude_cubic_prefs_msg])
+         + ([] if not claude_cubic_auth.stat.exists or (claude_cubic_jq.rc | default(1)) != 0
+              or claude_cubic_auth_rc | int == 0
+            else ['~/.local/share/cubic/auth.json holds a wellknown login or is not one JSON document; the cubic CLI'
+                  ~ ' merges the remote config of a wellknown login after its lockdown, so log out of it'])
+         + (['~/.local/share/cubic/auth.json is not a regular file'] if claude_cubic_auth.stat.exists
+            and (claude_cubic_auth.stat.islnk or not claude_cubic_auth.stat.isreg) else [])
+         + ([] if (claude_cubic_config_entries.matched | default(0)) == 0
+            else ['~/.config/cubic holds ' ~ claude_cubic_extra ~ ', which the cubic CLI would load; move it out']) }}
+  when: claude_cubic_problems | length > 0
+  tags: [claude]

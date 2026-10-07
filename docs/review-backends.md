@@ -20,6 +20,66 @@ chosen automatically.
 | `personal`, `alt` | `gemini` | `Brewfile` (`brew "gemini-cli"`) | `scripts/claude-gemini-auth-sync.sh` |
 | `server` | `gemini` | mise, pinned in `roles/linux/files/mise/linux.toml` | same script, service-account path |
 
+The cubic.dev CLI, run as `--backends reviewer:cubic`, is pinned for every
+platform in `roles/environments/files/mise.toml` through mise's npm backend,
+with its key from `scripts/op-key-sync.sh`; its invocation is the cubic
+entry's `cli` block in the review config template. The CLI loads
+`cubic.json`, `cubic.jsonc` and `.cubic/` (plugins included) from the tree it
+reviews, with no switch to turn that off, so the entry's `cli.refuse_paths`
+stops the backend on a repository carrying any of them; the hosted bot still
+reviews such a repository through `/bot-review`. Its review agent would also
+run shell commands, fetch URLs and start language servers (the TypeScript one
+from the reviewed repo's own `node_modules`) with the key in its environment,
+and upload the first global instruction file it finds; the entry's `cli.env`
+denies the shell and web fetch through `CUBIC_PERMISSION` and disables every
+built-in server through `CUBIC_CONFIG_CONTENT`, and `cli.require_empty` keeps
+`~/.config/cubic/AGENTS.md`, which it reads before `~/.claude/CLAUDE.md`,
+present and empty (the claude role creates it). The grep tool, whose path
+argument reaches ripgrep as an option, and the web and code search tools are
+off too, and edit stays denied, since a later version that enabled it
+would run the repo's own formatter;
+`~/.local/share/cubic/preferences.json` (the claude role writes it when
+absent) must prefer cubic's own provider and the key carry its `cbk_` prefix,
+or the CLI hands the review to Claude Code, Cursor or Codex with their own
+settings; `~/.local/share/cubic/auth.json` may hold no wellknown login, whose
+remote config the CLI merges after the lockdown; `~/.config/cubic` may hold
+nothing but that empty file, since global agents, tools and plugins load
+after the lockdown; and
+`cli.env_allow` may not name a `CUBIC_` switch or a relocated config or data
+home. The agent can still read any file you can read and send it to cubic,
+so run it only on branches whose contents you trust.
+`scripts/cubic-lockdown-test.sh` reads the pinned binary's code for each of
+these, keeping the reviewed tarball (about 50 MB) under
+`dotfiles/cubic-lockdown` in an absolute `XDG_CACHE_HOME`, else `~/.cache`,
+so later runs need no network; a cache directory that is a symlink, is not
+yours, or that group or other can write, is ignored. The package is
+proprietary (its license field is `UNLICENSED`, so use is on the vendor's
+terms), and its optional dependencies carry one native binary per platform
+variant, of which npm may fetch several on one host; `mise prune` reclaims
+an old version's directory after a bump.
+
+**Its install opts out of git-ai.** The package's postinstall pipes the
+git-ai installer, a commit tagger that writes git notes, to bash unless
+`CUBIC_DISABLE_GIT_AI` is set or `$XDG_STATE_HOME/cubic/git-ai-disabled`
+(default `~/.local/state`) exists. Several layers keep it from running:
+
+- mise's npm backend skips package lifecycle scripts by default (measured
+  on mise 2026.7.13: no postinstall ran);
+- the environments role writes the flag file before it links the mise
+  config that declares the pin;
+- its install task sets the variable, plus `CUBIC_DISABLE_INSTALL_WIZARD`
+  so an install never opens the vendor's interactive coding-agent setup.
+
+`scripts/cubic-postinstall-optout-test.sh` reads the pinned version's install
+scripts and fails when that condition, the license or the version changes.
+The gap is a host that pulls the pin before the role has run, on a mise set
+to run lifecycle scripts: none of the layers is in place there, and the
+postinstall would pipe the installer to bash. Such a host should check for
+`~/.git-ai/`, git hooks it did not install, and `git notes list` in its
+repositories. The invocation sets the same variable plus the vendor's
+auto-update and language-server download opt-outs, so a review never
+fetches a newer binary mid-run.
+
 ## Why the profile is the inventory alias
 
 It used to be only `PANEL_REVIEW_PROFILE`, defaulting to `personal`. Nothing

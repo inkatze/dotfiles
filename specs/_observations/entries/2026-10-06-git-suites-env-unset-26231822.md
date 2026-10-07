@@ -1,0 +1,1 @@
+- 2026-10-06 [dotfiles] Older git-calling test suites do not unset GIT_DIR, GIT_INDEX_FILE and GIT_WORK_TREE or pin GIT_CONFIG_GLOBAL; run from a commit hook they can write into the real repository, as a reviewer-backend fixture once did before it gained the unset and a decoy case.

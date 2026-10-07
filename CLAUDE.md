@@ -18,8 +18,7 @@ appear at runtime:
 | `~/.claude/output-styles/` | `roles/claude/files/output-styles/` | Directory symlink, resolved by name from `outputStyle` |
 | `~/.claude/settings.json` | `roles/claude/files/settings.json` | jq merge by `scripts/claude-settings-merge.sh`, not a symlink |
 
-- Always edit the tracked source; `readlink` a `~/.claude/` file first if in
-  doubt.
+- Always edit the tracked source; if in doubt, `readlink` a `~/.claude/` file.
 - Keep `keep-coding-instructions: true` in
   `roles/claude/files/output-styles/compact.md`: without it the custom style
   replaces Claude Code's built-in coding instructions. A style change needs
@@ -125,9 +124,10 @@ row names a writer. Keep machine-specific values here, never in tracked files.
 | `health-target` | `roles/osx/files/health/health-check.sh` | The host the health check polls; absent means nothing is polled |
 | `work-shell-init` | `roles/fish/files/work-init.fish` | Path of a second config manager's shell init to source |
 | `slack-users.json` | `roles/claude/files/skills/review-shared/slack.md` | GitHub login to Slack user ID (0600), written by the skills |
+| `cubic-api-key` | `roles/claude/files/skills/panel-review/reviewer-backend.md`, through the cubic entry's `cli.env_files` | The cubic.dev CLI's API key (0600), written by `scripts/op-key-sync.sh` from the `dotfiles-cubic-api-key` item, without which a playbook run where `op` works fails |
 | `code-review-egress.json` | `roles/claude/files/skills/review-shared/egress.md` | Per-repo (and per-reviewer) upload consents (0600), written by the skills |
 | `bot-review.json` | the `/bot-review` skill, `/panel-review`'s `reviewer:<name>` backend, `/peer-review` (its login patterns) | Named third-party reviewers, one schema (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/bot-review/bot-review.json.tpl` |
-| `sibling-repos.json` | nothing yet; `/code-review` and `/panel-review` gain the reader | Consuming repository to its producers' clone paths (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/review-shared/sibling-repos.json.tpl` |
+| `sibling-repos.json` | `roles/claude/files/skills/review-shared/siblings.md`, for `/code-review` and `/panel-review` | Consuming repository to its producers' clone paths (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/review-shared/sibling-repos.json.tpl` |
 | `private-identifiers` | `scripts/gitleaks-identifier-rules.sh`, `roles/claude/files/scripts/identifier-check.sh` | Names that must never reach a committed file |
 | `claude-instructions-inventory/` | the `specs/claude-instructions` tasks, by hand | Dated instruction-surface audit (directory 0700, files 0600) |
 | `review/` | `roles/claude/files/scripts/review-state.sh`, through `roles/claude/files/skills/review-shared/state.md` | Lock root for the review skills: writer locks, session registry, inboxes, and `/bot-review`'s per-PR decision ledgers, never pruned (directory 0700, created by the helper) |

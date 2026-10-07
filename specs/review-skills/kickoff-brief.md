@@ -395,4 +395,128 @@ Anchor: `9fb5e69210cfe7c3eb3df7c17f04be5d238bdd63` — computed as
 
 ## 9. Amendment log
 
-(none yet)
+### 2026-10-05 — REQ-C1.3 manual check (execute-task review (Task 5))
+
+`test-spec.md`'s manual check for REQ-C1.3 described the key on the
+backend's `env -i` line; the implementation keeps it off every argv and hands
+it to the CLI on a pipe, which REQ-C1.3's "only through `env_allow` at
+invocation" still holds, since the name stays listed there. The check now
+verifies the pipe and the absence from every argv. Cites the `requirements.md`
+Changelog entry dated 2026-10-05. Requested by the operator during the task's
+review.
+
+Class: expression-only
+Anchor: `43d79d1bf515c0ea9ee9bc357663e29657506d72` — computed as
+`scripts/spec-anchor.sh specs/review-skills`
+
+### 2026-10-06 — Event name made consistent (execute-task review (Task 5))
+
+The REQ-C1.3 amendment's annotation, its Changelog entry and the record
+above now name the event the same way, execute-task review (Task 5), so
+each is findable from the others. No requirement or check changed. Cites the
+`requirements.md` Changelog entry dated 2026-10-05.
+
+Class: expression-only
+Anchor: `0f4b82e59484248b93394e552258d3dc4b3d7890` — computed as
+`scripts/spec-anchor.sh specs/review-skills`
+
+### 2026-10-06 — Changelog entry for the event-name edit (execute-task review (Task 5))
+
+The event-name edit recorded above changed anchored content without a
+Changelog entry of its own; it now has one. Cites the `requirements.md`
+Changelog entry dated 2026-10-06.
+
+Class: expression-only
+Anchor: `bae5a69b9b609fc8b0a9c8dc095e96797b922356` — computed as
+`scripts/spec-anchor.sh specs/review-skills`
+
+### 2026-10-07 — Socket-nudge fallback narrowed (delta re-walkthrough)
+
+**Scope and mode.** Operator-requested delta re-walkthrough. The anchor
+matched at pre-flight (no stale content) and the validator reported no
+findings; the bundle derives Active (Task 6 in progress), so the
+post-merge supersede ritual applies, chosen by the operator over an in-place
+amendment. Walked: REQ-E1.5, D-8, the REQ-E1.5 test-spec entry, Task 6 and
+Task 10. Worked from the spec branch only; no task branch was touched.
+
+**Trigger.** Task 6's execution research (its risk 13, recorded on the
+Task 6 branch) found that Claude Code applies a session's inbound controls
+to posts on its inbox socket, so a holder that refuses messages drops the
+socket nudge that REQ-E1.5, D-8, the REQ-E1.5 manual check and Task 6's
+after-merge Done-when relied on.
+
+**Decision (operator).** Keep the socket nudge, narrowed to a sender that
+cannot send a session message; when the holder refused or held the session
+message, no socket nudge follows and the holder's inbox read carries the
+handoff alone. The lens pass refined the operator's "a send that came back
+'Not sent'" trigger: Claude Code's docs return a "Not sent" result that
+names the reason, including the recipient's inbound setting, so a "Not
+sent" naming the holder's inbound controls is a refusal, not an inability
+to send.
+
+**Spec edits.** REQ-E1.5 superseded by REQ-E1.8 and D-8 by D-19, each with
+its pointer; REQ-E1.3, REQ-E1.4, D-1 (annotated) and the decision-domains
+walk point at D-19; the fleet-messaging Sources entry cites that bundle's
+live D-7 and D-16; a Sources entry records the inbound-controls research;
+the REQ-E1.8 test-spec entry replaces REQ-E1.5's and is `[test + manual]`;
+Task 6's deliverables, Done-whens and citations and Task 10's drills and
+citations follow; `Last reviewed:` bumped on all four files. The full list
+is the `requirements.md` Changelog entry dated 2026-10-07.
+
+**Re-pointed brief records** (the sections above stay as signed; read them
+through this entry):
+
+- Section 2's assumption that messaging is available "at the version D-8
+  names", and its D-8 stand-in pointer: now D-19, which carries the 2.1.224
+  floor; the Task 6 pre-flight version check stands under D-19.
+- Section 4's ledger: D-8 superseded by D-19 (a new decision); the
+  concurrency domain now reads D-7 and D-19. Section 8's D-ID cross-check
+  is re-derived against `design.md`'s decision headings, not this ledger.
+- Section 8's lens table row naming "REQ-E1.5's drill owned by Task 6", and
+  its pre-flip note on the drills: Task 6 now owns the two-session,
+  socket-nudge and refused-messaging drills, as Task 6's Done-when names
+  them.
+- Risk 3 is restated here: session messaging unavailable to the sender
+  (no tool, below 2.1.224, or "Not sent" for a reason other than the
+  holder's inbound controls) → the socket nudge through the review helper,
+  a failed post reported in the handoff; the holder refused or held the
+  message → no socket nudge, the handoff says so, and the holder's inbox
+  read carries it. The inbox file stays the record (REQ-E1.8). Signal: a
+  handoff reporting a failed or skipped nudge.
+
+**Lens review pass (delta-scoped, spec class).** Fan-out: one read-only
+sub-agent per lens group, six agents, briefed to be exhaustive within the
+lens with severity pruning forbidden; the coordinator merged, deduped and
+ran the self-critique pass, then validated the pivotal claim against Claude
+Code's cross-session messaging documentation. Tooling grounding:
+`spec-validate.sh` (no findings before or after), `gitleaks dir` over the
+bundle (no leaks), and a read of the Task 6 branch's shared state file and
+helper.
+
+| Lens (spec set) | Findings | Notes |
+| --- | --- | --- |
+| Contract correctness and internal consistency | 5 | "Not sent" fell under both branches; REQ-E1.3's unconditional session message; the single-pass holder dropped; the version floor dropped; D-19's rejected-alternative reasoning contradicted its own premise. Applied. |
+| Ambiguity and interpretation forks | 7 | Undefined "held" and inbound controls; who polls; "the helper"; MAY against a drill expecting arrival; where the socket address comes from; unlabelled drills. Applied. A deferred SendMessage tool counting as "cannot send" was declined: the skill text loads deferred tools. |
+| Citation and coverage integrity | 5 | D-1's stale pointer; the fleet-messaging entry citing a superseded upstream decision; an unnamed upstream source, replaced by the official documentation; an incomplete Changelog; the no-nudge rule untraced to a check. Applied. Task 1's D-8 citation declined (merged and built under D-8); a Sources entry for the delta re-walkthrough citation declined (the format's citation kind resolves to this entry). |
+| Dead verification paths | 4 | The refused drill's sender setup and evidence; the arrival evidence; the version floor on both sessions; the no-nudge rule's contract pin. Applied. A pinned way to remove the SendMessage tool was not adopted: unverified, so the drill confirms the tool's absence instead. |
+| Decision-domain gaps | 5 | Observability of a failed or skipped nudge; the socket line's content and owner check (security); the undocumented line format (versioning); existing-seam reuse of fleet-messaging D-7 and D-16. Applied, with the walk updated. |
+| Testability | none | Every touched Done-when names its evidence after the dead-path fixes. |
+| Cross-file consistency | 3 | The stale brief records above, re-pointed here; the test entry's supersede sentence dropped to match the upstream precedent; `Last reviewed:` bumped. Applied. |
+| Documentation and glossary drift | 2 | "Messaging tool" contradicted its own example, renamed "a sender that cannot send a session message"; heading wording aligned. Applied. |
+| Rendered-content safety | n/a | The bundle is not rendered into an executing or markup context. |
+
+Overlapping findings are counted once, under the lens that owns the fix.
+Kickoff-specific checks: altitude, not applicable to the delta (it changes
+a fallback inside D-1's stand-in and moves no altitude call); ship-gate,
+none (the delta names no out-of-band fix). Outside this bundle: planwright's
+pending seed note still records D-8's fallback, filed as an observation for
+Task 9; the Task 6 branch's shared state file treats every "Not sent"
+result as an inability to send and must follow REQ-E1.8 there.
+
+Approved by the operator on 2026-10-07 after the approval summary; the
+validator reported no findings after the edits.
+
+Class: meaning
+Lens-pass: the delta-scoped lens review pass recorded in this entry, every finding dispositioned
+Anchor: `65cb1b044278f0d6560884853a24dac38ca044f2` — computed as
+`spec-anchor.sh specs/review-skills`

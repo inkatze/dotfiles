@@ -1,7 +1,7 @@
 # Review Skills — Tasks
 
 **Status:** Ready
-**Last reviewed:** 2026-10-03
+**Last reviewed:** 2026-10-07
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -208,24 +208,35 @@ by that task. Blocks are listed in dependency order.
   registering their session, reading their inbox at every iteration
   boundary, and handing findings to a lock holder through the inbox plus a
   session message with the poll-window bound, taking the lock themselves if
-  it frees within the window, and falling back to polling and the socket
-  nudge where messaging is unavailable or refused. The per-push scoped
+  it frees within the window. A sender that cannot send a session message
+  posts the nudge through the holder's inbox socket by a new nudge operation
+  in the review helper (registration recording the socket path, posting only
+  to a socket the user owns, the line's format kept in one place in the shared
+  state reference), reporting a failed post in its handoff; a holder that
+  refused or held the message, a "Not sent" result naming its inbound
+  controls included, gets no socket nudge. The per-push scoped
   discovery pass over the fix diff with its lens table in the loop artifact.
   Head and merge-base recorded per iteration, with body re-validation and
   screenshot flags on movement. The old per-skill locks removed.
-  Contract-checker pins and fixtures for the lock discipline and the
-  data-not-instructions rule, extending Task 1's fixture suite with the
-  handoff path.
+  Contract-checker pins and fixtures for the lock discipline, the
+  data-not-instructions rule and the no-socket-nudge-after-refusal rule,
+  extending Task 1's fixture suite with the handoff path and the nudge
+  operation's owner check.
 - **Done when:** On the branch: the contract checker and suite pass with the
-  new pins; the extended fixture suite covers the handoff path (a second
+  new pins; the nudge operation posts only to a socket the user owns; the
+  extended fixture suite covers the handoff path (a second
   session's inbox file lands under the holder's name and the sender exits
   within one poll window or takes a freed lock). After merge: two sessions
   on the same PR, one `/panel-review --nested` holding the lock and one
   `/bot-review`, end with the second's findings in the first's inbox, one
   commit stream, and the handoff naming the inbox path; a head rewrite
-  mid-loop produces the re-validation notice; with inbound messages refused
-  in the holder's settings, the inbox file is still read at the next
-  boundary and the socket nudge arrives.
+  mid-loop produces the re-validation notice (together, the two-session
+  drill); a sender without the SendMessage tool nudges a holder that accepts
+  messages through the holder's inbox socket and the nudge arrives (the
+  socket-nudge drill); a sender that can send messages, to a holder whose
+  `crossSessionInbound` is `refuse`, sends no socket nudge and says so in its
+  handoff, and the inbox file is still read at the holder's next boundary
+  (the refused-messaging drill), as the REQ-E1.8 test-spec entry details.
 - **Measurement plan:** metric: wall-clock of one nested iteration and the
   count of full-suite runs per iteration; source: the loop artifact's
   iteration markers and the evidence record's entries after the change, and
@@ -233,8 +244,8 @@ by that task. Blocks are listed in dependency order.
   `/panel-review --nested` run on `main` before Task 1 merges, as the
   baseline; both recorded in the task PR.
 - **Dependencies:** 1, 3
-- **Citations:** D-7, D-8, D-10 · REQ-E1.1, REQ-E1.3, REQ-E1.4, REQ-E1.5,
-  REQ-E1.7, REQ-I1.5, REQ-I1.6
+- **Citations:** D-7, D-10, D-19 · REQ-E1.1, REQ-E1.3, REQ-E1.4, REQ-E1.7,
+  REQ-E1.8, REQ-I1.5, REQ-I1.6
 - **Estimated effort:** 2 days
 
 ### Task 7 — Evidence reuse across skills and a worktree-free `/code-review`
@@ -323,11 +334,11 @@ by that task. Blocks are listed in dependency order.
 
 - **Deliverables:** Each review skill run once from a worktree session,
   against a real PR, up to its first outbound post or its local handoff,
-  recorded as manual verification in the task PR; the two-session drill and
-  the refused-messaging drill from Task 6 and the parallel `/code-review`
-  drill from Task 7 recorded; the before-and-after measurements from Tasks 6
-  and 7 compared in one table in the task PR; any defect found filed as an
-  observation rather than fixed in this task.
+  recorded as manual verification in the task PR; the two-session drill,
+  the socket-nudge drill and the refused-messaging drill from Task 6 and the
+  parallel `/code-review` drill from Task 7 recorded; the before-and-after
+  measurements from Tasks 6 and 7 compared in one table in the task PR; any
+  defect found filed as an observation rather than fixed in this task.
 - **Done when:** The task PR carries one row per skill with the run's
   outcome, the drills' outcomes, and the measurement table with the baseline
   and the post-change values; every `[manual]` entry of `test-spec.md` whose
@@ -336,7 +347,7 @@ by that task. Blocks are listed in dependency order.
 - **Dependencies:** 3, 4, 5, 6, 7, 8
 - **Citations:** D-18 · REQ-A1.1, REQ-A1.3, REQ-A1.4, REQ-A1.5, REQ-B1.1,
   REQ-C1.1, REQ-C1.2, REQ-C1.3, REQ-C1.6, REQ-D1.3, REQ-D1.4, REQ-E1.1,
-  REQ-E1.3, REQ-E1.5, REQ-E1.6, REQ-F1.1, REQ-G1.1, REQ-I1.4, REQ-I1.5,
+  REQ-E1.3, REQ-E1.6, REQ-E1.8, REQ-F1.1, REQ-G1.1, REQ-I1.4, REQ-I1.5,
   REQ-I1.6, REQ-I1.7
 - **Estimated effort:** 1 day
 

@@ -51,8 +51,12 @@ later skill and iteration on that tree.
   assume-unchanged, do not move it.
 - **Entry.** One per command: `<id>.json` (`version`, `command`, `tree`, `exit`,
   `started`, `ended`, `source`, `output`) beside the captured output it names.
-  `<id>` is the command string's git blob hash; `source` is `local`, the CI
-  source below, or whatever one line `evidence record --source` was given. Two
+  `<id>` is the command string's git blob hash (an export run's hashes the
+  command behind an `export` line, its `command` field still the plain
+  command); `source` is `local`, `export` (set only by an export run), the CI
+  source below (set only by `evidence ci`), or any other one line `evidence
+  record --source` was given, which may be neither `export` nor start with
+  `ci:`, compared case-insensitively with surrounding blanks ignored. Two
   runs that both miss on one tree both run; the first to finish records and
   the later one is dropped.
 - **Lookup before running.** `evidence lookup --command <key>` prints the entry
@@ -65,10 +69,35 @@ later skill and iteration on that tree.
   locale, streams that output, records it, and exits with the command's own
   status. It
   records nothing when the tree afterwards differs from the key (a stale
-  `--tree`, or a command that changed the tree) or when its output could not
-  be captured, and a failure to record is reported without changing that exit
-  status. An entry whose output file has gone is dropped on lookup and reads
-  as a miss.
+  `--tree`, or a command that changed the tree), when its output could not
+  be captured, when the command could not be started (it then exits 127), or
+  when it was killed by a signal; nor when `timeout` or `gtimeout` appears in
+  the argv (`env timeout` included) and the run exits 124 to 127, a timeout
+  or a failure of the wrapper's own. A failure to
+  record is reported without changing that exit status. An entry whose output
+  file has gone is dropped on lookup and reads as a miss.
+- **Running in an export.** `evidence run --command <key> --tree <hash> --dir
+  <absolute dir> -- <argv>` runs the program in that directory, keyed by the
+  `--tree` it requires (a tree object in this repository), and records only
+  when the directory hashes to exactly that tree before the run and after it,
+  hashed from an index seeded with that tree, every file read again and modes
+  compared strictly, through the session's clean filters and with hooks off.
+  The caller's `BASH_ENV` is not passed to the command, since bash would
+  expand and resolve it from the export, and the helper says so. It needs a git
+  recent enough for `safe.bareRepository` (the helper names the version) and
+  is refused at the filesystem root, inside the work tree,
+  holding it, holding a `.git`, or on a path with a `:`, and refused, before
+  anything runs, when the tree holds a symlink whose target leaves the export
+  or passes through another symlink. A tree with a submodule, whose contents
+  an archive leaves out, runs without recording. In it
+  git trusts no repository: none inherited from the caller, none above the
+  directory, and no bare layout found there. Config given through `git -c`
+  or `GIT_CONFIG_COUNT` does not reach it either; global and system config,
+  including files `GIT_CONFIG_GLOBAL` or `GIT_CONFIG_SYSTEM` name, still do.
+  A tool's own git calls see the same, so a test that opens a bare
+  repository by discovery fails there. Its entry is kept apart
+  from work-tree entries: `evidence lookup --source export` reads it (and a
+  work-tree run of the same tree), a plain lookup never does.
 - **Full-suite key.** The repository's declared test task, as written in its
   task runner (for example `mise run test`). Local runs and CI evidence record
   under that same key, so either satisfies the other's lookup.
@@ -97,6 +126,58 @@ planwright seed note is to carry:
 - a self-ignoring directory, where the bundle relies on the repository
   ignoring `.claude/`.
 
+## Evidence in a skill
+
+**Every tooling or suite run in a review skill looks up the evidence record
+first and records through it**: compute the tree key (`review-state.sh key`)
+once per tree state, then `evidence lookup --command <command key> --tree
+<tree key>` before the run; a hit is reused, its `output_path` read in place
+of running and reported as reused with its `source`; a miss runs through
+`evidence run --command <command key> --tree <tree key> -- <argv>`, which
+records it. A lookup that exits 2 names its cause (for a refused entry, the
+file): run the tool without consulting the record and report the cause. The
+command key is the command as the repository declares it (a `lefthook.yml`
+command, a task-runner task, a CI step), so two skills running the same tool
+share an entry. A tool that writes, such as a formatter without its check
+flag, never runs through the record, and a secret scanner runs through it only
+with its redaction flag (`gitleaks --redact`), so the record never stores a
+credential; one without such a flag runs outside it, or in an export not at
+all. Bound a run by wrapping the program in `timeout` (`gtimeout` on macOS).
+
+- **Full suite.** Its key is the full-suite key above; a repository that
+  declares no test task has none, so its suite runs unrecorded and no CI
+  evidence is taken. Before running it on a working tree whose key equals
+  `HEAD`'s tree and whose `HEAD` is the pushed head of its PR, once every
+  check suite on that head has completed (the head's `check-suites` listing),
+  so a workflow not yet started cannot leave one fast check standing for the
+  suite; a suite with no check runs from an app other than GitHub Actions is
+  ignored, since such apps can leave a suite queued for good, while a GitHub
+  Actions suite counts however many runs it shows. Then pipe the head's check runs to `evidence ci` and look up again
+  with `--tree` that key; only a miss runs the suite.
+- **Nested loops.** **A nested loop runs the full suite once per iteration,
+  after that iteration's fixes**, with the project tooling where the loop runs
+  it, and validates each fix with diff-scoped checks: the tests touching the
+  files it changed and the linters run on them, each through the record under
+  the command as run, paths included. At the start of an iteration on a clean
+  tree at the PR's pushed head, the loop takes CI evidence per the Full suite
+  bullet, so a later lookup on that tree reuses a green CI run.
+- **An exported tree.** **A PR that is not checked out has its tooling run in
+  an archive export of its pinned head**: `git archive <head>` extracted into
+  a scratch directory outside every work tree, keyed by `git rev-parse
+  '<head>^{tree}'`, through `evidence lookup --tree <that tree> --source
+  export` and `evidence run --tree <that tree> --dir <export>`, every tool
+  going through `evidence run` so the export's git protections hold (a
+  refused lookup still runs it that way), one tool at a time, since a cache
+  file one tool leaves in the export fails every later hash; a run that reports it changed the export is followed by a
+  fresh export before the next tool. In it an empty or relative `PATH` entry
+  is dropped and mise must be trusted before it reads a version file there. The record stays
+  in the session's own worktree. An export that is not that tree
+  (`export-ignore` or `export-subst` attributes, a submodule, an edit) still
+  runs, and the helper says it recorded nothing: that run saw incomplete
+  source, so the skill reports it as degraded, never as a clean pass. An export holds no `.git` and no
+  ignored dependencies, so a tool failing for want of either is reported as
+  not run, never as a finding.
+
 ## Writer lock
 
 Discovery, validation, thread fetching and check-mode tooling run without a
@@ -105,7 +186,10 @@ or the decision ledger happens under the writer lock**: applying a fix,
 committing, pushing, submitting a review, posting a reply, resolving a thread,
 writing the ledger. Take it immediately before the write and release it
 immediately after. It replaces the per-skill same-PR lock in
-[github.md](github.md) as each skill adopts it.
+[github.md](github.md) as each skill adopts it. A single-pass skill whose
+write cannot be handed over (a review submission, replies of my own) waits at
+most one inbox poll window for a held lock and then asks, rather than sending
+to the holder's inbox.
 
 - **Root.** `~/.config/dotfiles/review/`, a per-user directory at mode 0700,
   created by the helper. Locks live under `locks/<owner>/<repo>/`, one per PR
@@ -160,15 +244,16 @@ immediately after. It replaces the per-skill same-PR lock in
 Every review skill registers for the length of its run, `register --name
 <session name> --skill <skill> --repo <owner>/<repo> (--pr <n> | --branch <b>)
 --worktree <dir>`, and keeps the printed session token: it is the session's
-identity for the lock and the inbox. The name is the one peers address a
-session message to (this session's own line in `/list-agents`), and the
-registration also records the session's messaging socket
-(`CLAUDE_CODE_MESSAGING_SOCKET`) when that is this user's own socket. `--skill` is a skill name; name,
+identity for the lock and the inbox. `<session name>` is the name the session
+goes by in session messaging (the session list), which a peer uses to nudge
+it, and the registration also records the session's messaging socket
+(`CLAUDE_CODE_MESSAGING_SOCKET`) when that is the session's own. `--skill` is a skill name; name,
 worktree, repo and branch must each be one printable line with no
 text-direction characters, within the helper's length cap, and the repo and
 branch must encode to a lock name. `unregister --session <token>` on exit
 releases any lock the session still holds in that repository and drops its
-registration and inbox, unread files included. `sessions` lists the live
+registration and inbox, unread files included, so a skill reads its inbox
+first. `sessions` lists the live
 registrations as JSON lines (`version`, `token`, `pid`, `name`, `skill`,
 `repo`, `pr` or `branch`, `worktree`, `started`; the socket stays in the
 registration file, where only `inbox nudge` reads it); one whose owner process is
