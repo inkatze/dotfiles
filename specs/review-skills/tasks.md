@@ -353,7 +353,7 @@ by that task. Blocks are listed in dependency order.
 
 ## Awaiting input
 
-- **Task 6** — Waiting on a `/spec-kickoff` delta re-walkthrough, which the operator runs: the Done-when's after-merge drill, test-spec REQ-E1.5 and D-8 expect the socket nudge to arrive while the holder refuses inbound messages, but Claude Code applies the same inbound controls to socket posts. The operator decided to keep the socket nudge for a sender with no messaging tool only, with a refusing holder's handoff carried by its inbox read at the next boundary; the branch already follows that. The PR opens once the delta lands.
+(none yet)
 
 ## Deferred
 
