@@ -954,7 +954,7 @@ if printf 'x\n' | "$H" inbox send --to '../../etc' --from eta > /dev/null 2>&1; 
   fail inbox-token-shape "a path-shaped recipient was accepted"
 fi
 printf 'x\n' | "$H" inbox send --to 123-456-deadbeef --from eta > /dev/null 2>&1 && rc=0 || rc=$?
-[ "$rc" -eq 2 ] || fail inbox-unregistered "a send to an unregistered session did not exit 2 (got $rc)"
+[ "$rc" -eq 1 ] || fail inbox-unregistered "a send to an unregistered session did not exit 1 (got $rc)"
 stop_session gamma
 printf 'x\n' | "$H" inbox send --to "$gamma" --from eta > /dev/null 2>&1 && rc=0 || rc=$?
 [ "$rc" -eq 1 ] || fail inbox-dead-recipient "a send to a session whose process is gone did not exit 1 (got $rc)"

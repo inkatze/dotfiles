@@ -266,9 +266,8 @@ the holder: `inbox send --to <holder's session token> --from <own name>`, the
 findings on stdin. The file lands under `inbox/<session token>/` with `from:`
 and `sent:` header lines, and its path is printed; the rest of the handoff is
 under "In a run" below. A send to a session whose
-process is gone exits 1 and delivers nothing, so the sender keeps its
-findings; a send to a token with no registration, or an empty message, exits
-2. A body past the
+process is gone, or that has no registration, exits 1 and delivers nothing,
+so the sender keeps its findings; an empty message exits 2. A body past the
 helper's size cap is cut at it and the sender is told; a file read back is cut
 at the cap plus room for its header and marked `[truncated]`.
 
@@ -362,8 +361,7 @@ of sending to it.
   that token, and acquire again. A record with no `session`, or none, means
   the lock just moved: acquire again, once. Otherwise:
   1. `inbox send --to <session>` from the printed holder record, the
-     validated findings on stdin. Exit 1, or exit 2 naming no registered
-     session, means the holder is gone: acquire again, and treat a refusal
+     validated findings on stdin. Exit 1 means the holder is gone: acquire again, and treat a refusal
      there as step 3's different holder.
   2. Nudge the holder with one session message to the holder record's `name`,
      naming the inbox file. A sender that cannot send one (no `SendMessage`

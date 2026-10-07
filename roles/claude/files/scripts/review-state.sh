@@ -771,7 +771,12 @@ cmd_inbox() {
       single_line from "$opt_from"
       valid_token "$opt_to" || die "'$opt_to' is not a session token"
       registration_file "$opt_to"
-      [ -f "$REG" ] || die "no registered session $opt_to to send to"
+      # A holder that unregistered is gone like a dead one, so the sender
+      # can retake the lock it freed rather than stop.
+      if [ ! -f "$REG" ]; then
+        note "no registered session $opt_to; it is gone, nothing delivered, keep the findings"
+        return 1
+      fi
       if ! owner_alive "$opt_to"; then
         note "session $opt_to is gone; nothing delivered, keep the findings"
         return 1
@@ -795,7 +800,8 @@ cmd_inbox() {
       { printf 'from: %s\nsent: %s\n\n' "$opt_from" "$sent"; head -c "$INBOX_CAP" "$body"; } | write_file "$box/$name"
       if [ ! -e "$REG" ]; then
         rm -f "$box/$name"
-        die "session $opt_to unregistered while the message was written; nothing delivered"
+        note "session $opt_to unregistered while the message was written; nothing delivered, keep the findings"
+        return 1
       fi
       printf '%s\n' "$box/$name"
       ;;
