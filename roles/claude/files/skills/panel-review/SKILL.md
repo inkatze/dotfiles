@@ -87,7 +87,7 @@ The lens-coverage table first, then finding-categorization's four tables, in fix
 
 ### 7. Act, then walk what is left (standalone only)
 
-Act-then-review, per finding-categorization: apply Auto-applicable and Agent-resolvable findings, and apply each Needs-sign-off fix as its own `[pending-sign-off]` commit for the PR's checklist, each with validation-rigor's solution validation. Walk the Needs-human-judgment forks per [workflow.md](../review-shared/workflow.md). Take the writer lock immediately before the first fix is applied and release it before the walk; what the walk decides takes it again. This single pass reads its inbox before releasing the writer lock, ahead of its last commit.
+Act-then-review, per finding-categorization: apply Auto-applicable and Agent-resolvable findings, and apply each Needs-sign-off fix as its own `[pending-sign-off]` commit for the PR's checklist, each with validation-rigor's solution validation. Walk the Needs-human-judgment forks per [workflow.md](../review-shared/workflow.md). Take the writer lock immediately before the first fix is applied, commit the applied fixes, and release it before the walk; what the walk decides takes it again. This single pass reads its inbox before releasing the writer lock, ahead of its last commit.
 
 ### 8. Documentation check (standalone only)
 
@@ -120,13 +120,13 @@ Run Steps 1-6 (discovery per the cadence above). Be more conservative than stand
 
 #### b. Decide the loop's fate
 
-- **Nothing new to apply and no forks**: converged. Print "panel converged, no findings remain" and exit without a commit.
+- **Nothing new to apply, no forks, and an empty inbox read**: converged. Print "panel converged, no findings remain" and exit without a commit.
 - **Needs human judgment non-empty**: run (c) and (d) for whatever else this iteration found, then stop (**Human attention required**); the stop condition's "commit nothing further" applies from there.
 - **Otherwise**: step (c).
 
 #### c. Apply
 
-Take the writer lock immediately before the first fix and hold it through (d). Per finding: confirm the cited rule or test still fires on the current code (drop the item if not), apply the fix, confirm it no longer fires, then run its diff-scoped checks (the tests touching the files it changed and the linters on them). Once this iteration's fixes are all in, run the full suite, linters and type checkers once, per [state.md](../review-shared/state.md)'s nested-loop rule. Any failure, including a pre-existing one surfacing for the first time, is **Test failure**.
+Take the writer lock immediately before the first fix and hold it through (d)'s commit. Per finding: confirm the cited rule or test still fires on the current code (drop the item if not), apply the fix, confirm it no longer fires, then run its diff-scoped checks (the tests touching the files it changed and the linters on them). Once (d) has committed and released the lock, run the full suite, linters and type checkers once, per [state.md](../review-shared/state.md)'s nested-loop rule, without the lock. Any failure, including a pre-existing one surfacing for the first time, is **Test failure**.
 
 #### d. Commit
 
@@ -150,7 +150,7 @@ Stop, release the writer lock and leave per [state.md](../review-shared/state.md
 | **Ambiguity** | A finding borderline between buckets across two consecutive iterations. |
 | **Hard-disqualifier zone** | A candidate touches security-sensitive code, a migration or destructive op, CI config, a lockfile or a secrets file; finding-categorization pauses these before anything is applied. |
 | **Dirty working tree** | Pre-flight found uncommitted changes. |
-| **Writer lock held** | Another session held the writer lock through the handoff's wait; the findings sit in its inbox, named in the handoff. |
+| **Writer lock held** | Another session held the writer lock through the handoff's wait; the handoff carries the findings and names the inbox path when one was written. |
 | **High false-positive ratio** | At least 3 items in an iteration and more than half dropped at (c). |
 
 ### Local-only invariants

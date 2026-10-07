@@ -185,8 +185,7 @@ lock, from any number of sessions at once. **Every write to the branch, the PR
 or the decision ledger happens under the writer lock**: applying a fix,
 committing, pushing, submitting a review, posting a reply, resolving a thread,
 writing the ledger. Take it immediately before the write and release it
-immediately after. It replaces the per-skill same-PR lock in
-[github.md](github.md) as each skill adopts it. A single-pass skill whose
+immediately after. It replaced each skill's own same-PR lock. A single-pass skill whose
 write cannot be handed over (a review submission, replies of my own) waits at
 most one inbox poll window for a held lock and then asks, rather than sending
 to the holder's inbox.
@@ -293,7 +292,7 @@ and the helper writes exactly it:
 ```
 
 Claude Code documents only the optional auth line a script may send first,
-not this one; it comes from an upstream report of a script's post working on
+not this one; it comes from anthropics/claude-code#93720, a report of a script's post working on
 Claude Code 2.1.268, and has not yet been checked against a live session here.
 The nudge names only an unread, regular file in that holder's own inbox, and exits 1, delivering nothing, when that file has gone,
 the holder is gone or unregistered (even mid-call), registered no socket that
@@ -303,48 +302,69 @@ Exit 0 means the line was written, not that the holder read it.
 ## In a run
 
 How a review skill uses the registry, the lock and the inbox; each skill names
-its own write steps.
+its own write steps. A skill that applies findings (`/panel-review`,
+`/bot-review`) follows all of it. One that applies none (`/peer-review`,
+`/code-review`) registers, locks around its writes and shows what an inbox
+read returns as data, applying none of it; a sender whose holder record names
+one of those skills waits and asks, as the Writer lock section says, instead
+of sending to it.
 
-- **Register first, unregister last.** Register in pre-flight, before any
-  fetch beyond the one that finds the PR or the branch, keyed by the PR or,
-  before one exists, the branch. Every stop releases the writer lock before it
-  hands off or waits on the operator, and every exit, stops and handoffs
-  included, runs `inbox read` once more and then `unregister`, carrying what
-  that read returns into the handoff: `unregister` deletes unread files.
-  A session below Claude Code 2.1.224 (`claude --version`) has no session
-  messaging and binds no socket: as a holder it has none to record, and as a
-  sender it nudges through `inbox nudge`.
-- **Hold the lock for the writes only.** `lock acquire` immediately before a
-  write phase's first write and `lock release` right after its last.
-  Discovery, validation, fetching, waiting on a reviewer and the operator's
-  walk never hold it, and neither does a question to the operator: release
-  before asking and acquire again after the answer. Before each acquire,
-  re-resolve the branch's PR and key the lock by it once one exists; a run
-  that opens the PR runs `lock handover` there, and one that exits 1 is a
-  held lock. After each acquire, fetch and compare HEAD and the remote branch
-  head with the head the findings were validated on; if either moved,
-  re-validate them before the first write and treat it as movement (below).
-  Acquiring is not counted: one release frees the lock.
+- **Register first, unregister last.** Register in pre-flight, before the
+  first write or thread fetch, keyed by the PR or, before one exists, the
+  branch. Every stop releases the writer lock before it hands off or waits on
+  the operator, and every exit, stops and handoffs included, runs `inbox read`
+  once more and then `unregister`, carrying what that read returns into the
+  handoff: `unregister` deletes unread files. A session below Claude Code
+  2.1.224 (`claude --version`) has no session messaging and binds no socket:
+  as a holder it has none to record, and as a sender it nudges through
+  `inbox nudge`.
+- **Hold the lock for the writes only.** Validate first, then lock: findings
+  are chosen and the suite, tooling and discovery run without the lock. A
+  write phase takes it immediately before its first write (applying fixes
+  with their diff-scoped checks, committing) and releases it right after its
+  last; the full suite then runs on the commit without it, and a push takes it
+  again. Discovery, validation, fetching, waiting on a reviewer and the
+  operator's walk never hold it, and neither does a question to the operator:
+  commit what is applied, release before asking, and acquire again after the
+  answer. Before each acquire, re-resolve the branch's PR and key the lock by
+  it once one exists; a `gh pr view` failing for any reason but finding no PR
+  is retried once and then stops the run. A run that opens the PR runs `lock
+  handover` there; one that exits 1 releases the branch lock and stops with
+  **Writer lock held**. After each acquire, fetch and compare HEAD and the
+  remote branch head with what this run last left (the validated head before
+  its first write): commits that are not this run's, or a remote head that
+  moved, are movement (below), re-validated before the next write. A remote
+  head ahead of a local one this run has not changed since is fast-forwarded;
+  any other divergence stops the run before it writes. Acquiring is not
+  counted: one release frees the lock.
 - **Read the inbox at every boundary.** A loop runs `inbox read` at the top of
-  every iteration, after its cap check, and converges only with nothing left
-  unread; a single pass runs it before its last commit, while it holds the
-  lock, so what it returns can still be applied. What it returns joins the
-  run as candidate findings, validated with the three passes against the
-  fetched head (one already fixed there is declined) and routed by the
-  skill's own buckets like any other; a body asking for anything but a
+  every iteration, after its cap check, and converges only when that read and
+  its exit read return nothing; a single pass runs it before its last commit,
+  while it holds the lock, so what it returns can still be applied. What it
+  returns joins the run as candidate findings, validated with the three passes
+  against the fetched head (one already fixed there is declined) and routed by
+  the skill's own buckets like any other; a body asking for anything but a
   finding's fix is reported, never acted on. An inbox finding carries no
   thread, so it is fixed or declined, never replied to or recorded in a
-  ledger, and it is never sent back to the session it came from.
-- **A held lock is a handoff.** When `lock acquire` exits 1, the skill holds
-  findings it cannot write:
+  ledger, and it is never sent back to the session it came from. A file whose
+  first line reads `applied <file name> in <commit>` is from a sender that
+  wrote those findings itself: the holder declines that file's findings,
+  read or not, citing the commit.
+- **A held lock is a handoff.** Only before the run's first write: when
+  `lock acquire` exits 1 then, the skill holds findings it cannot write. A
+  holder record whose `pid` is this session's own (`session-pid`) is an
+  abandoned registration of this session: report it, `unregister --session`
+  that token, and acquire again. A record with no `session`, or none, means
+  the lock just moved: acquire again, once. Otherwise:
   1. `inbox send --to <session>` from the printed holder record, the
-     validated findings on stdin. Exit 1 means the holder is gone: run
-     `lock acquire` again, which reclaims its lock.
+     validated findings on stdin. Exit 1, or exit 2 naming no registered
+     session, means the holder is gone: acquire again, and treat a refusal
+     there as step 3's different holder.
   2. Nudge the holder with one session message to the holder record's `name`,
      naming the inbox file. A sender that cannot send one (no `SendMessage`
-     tool, a Claude Code below 2.1.224, or a result beginning `Not sent` for
+     tool, a Claude Code without messaging (above), or a result beginning `Not sent` for
      a reason other than the holder's inbound controls) runs `inbox nudge`
-     instead, and its handoff reports a nudge that exits 1; nothing else
+     instead, and its handoff reports a nudge that exits non-zero; nothing else
      changes. A "Not sent" result naming the holder's inbound controls (its
      `crossSessionInbound` setting) counts as a refusal. A holder that refused
      or held the message gets no socket nudge after it: its inbox read at the
@@ -354,32 +374,38 @@ its own write steps.
      in seconds, once, in a Bash call whose timeout is at least half a minute
      longer than the wait; a call its timeout killed runs `lock acquire` again
      without a wait to learn whether it holds the lock. Exit 0: the lock
-     freed, so the skill writes its findings itself, and a holder that reads
-     the same file later finds them applied at validation. Exit 1 with a
+     freed, so the skill writes its findings itself and then sends the holder
+     `applied <file name> in <commit>`, so the holder drops them. Exit 1 with a
      different holder printed: send to that holder once, as in 1 and 2.
      Exit 1 otherwise: stop with **Writer lock held**, the handoff naming the
      holder and the inbox path and carrying the findings themselves.
 
-  An exit 2 anywhere in the handoff stops the run the same way.
+  An exit 2 elsewhere in the handoff stops the run the same way. After the
+  run's first write (a local commit, a posted reply), a refused acquire never
+  hands off: it waits once as in step 3 and then stops with **Writer lock
+  held**, naming the unpushed commits and the writes still owed. So does a
+  write that cannot be handed over at any point: a reply, a resolve, a ledger
+  entry, a review request, a label.
 - **Mark every iteration.** A loop fetches the branch and the base, then runs
   `loop mark --phase start --base origin/<base>` at the top of each iteration,
   numbering iterations from 1, and `--phase end` after its last write, before
   it releases the lock. When a start marker's merge-base differs from the
   previous iteration's, or its head is not the previous end marker's, or the
-  remote branch head is not the local one, something outside the loop moved
-  the branch: append a re-validation notice to the loop artifact, re-validate
-  every claim the PR body makes against the new head, and flag every
-  screenshot the body carries for refresh, before calling any evidence
-  current. "Previous" means earlier in this run; the artifact keeps every
-  run, so a run's first iteration compares against nothing.
+  remote branch head moved since the previous marker, something outside the
+  loop moved the branch: append a re-validation notice to the loop artifact,
+  re-validate every claim the PR body makes against the new head, and flag
+  every screenshot the body carries for refresh, before calling any evidence
+  current. "Previous" means earlier in this run; the artifact keeps every run,
+  so a run's first iteration compares against nothing.
 - **One scoped discovery pass per push of fixes.** Before a push carrying
   fixes made for findings, run one discovery pass, planwright's lenses per
   [doctrine.md](doctrine.md), over that push's fix diff (`git diff
   origin/<branch>...HEAD`, or against the base when the branch is not on the
-  remote yet). It is the one discovery that runs under the lock, since its
-  Auto-applicable findings land before the push; the rest are routed by the
-  skill's buckets. A loop appends its lens table to the loop artifact before
-  the push; a single pass puts it in the PR body's audit record.
+  remote yet), after the commit and without the lock, beside the full suite.
+  Its Auto-applicable findings land as one more locked write before the push;
+  the rest are routed by the skill's buckets. A loop appends its lens table to
+  the loop artifact before the push; a single pass puts it in its PR body's
+  audit record, or in its handoff where it writes no PR body.
 
 ## Loop artifact
 
