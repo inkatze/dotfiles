@@ -32,7 +32,7 @@ roles/claude/files/skills/bot-review/SKILL.md              6023   6500   7000
 roles/claude/files/skills/code-review/SKILL.md             4489   4750   5250
 roles/claude/files/skills/panel-review/reviewer-backend.md 7423   7750   8250
 roles/claude/files/skills/panel-review/SKILL.md            2886   3250   3750
-roles/claude/files/skills/peer-review/SKILL.md             1731   2000   2500
+roles/claude/files/skills/peer-review/SKILL.md             1743   2000   2500
 roles/claude/files/skills/review-shared/backends.md        1559   2000   2500
 roles/claude/files/skills/review-shared/doctrine.md        434    750    1250
 roles/claude/files/skills/review-shared/egress.md          626    1000   1500

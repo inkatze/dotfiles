@@ -46,10 +46,11 @@ might be required by the AC). Otherwise skip this step.
 Fetch the threads per [github.md](../review-shared/github.md); fetching,
 validation and the walk run without the writer lock, so another session can
 work on the PR meanwhile. Pin the PR's head branch (`gh pr view --json
-headRefName`; it must match `^[A-Za-z0-9._/-]+$`, or stop, since it is
-pasted into commands) and, after `git fetch origin <branch>`, the remote head
-the walk starts from (`git rev-parse origin/<branch>`) as literals, written
-`<branch>` and `<walk head>` below. The checkout must be on `<branch>` with
+headRefName,headRefOid`; the name must match `^[A-Za-z0-9._][A-Za-z0-9._/-]*$`,
+or stop, since it is pasted into commands) and, after `git fetch origin
+<branch>`, the remote head the walk starts from (`git rev-parse
+origin/<branch>`, which must equal `headRefOid`, or stop and say the branch
+moved) as literals, written `<branch>` and `<walk head>` below. The checkout must be on `<branch>` with
 `HEAD` at `<walk head>` and `git status --porcelain` empty; if it is behind,
 holds commits not yet pushed, or has local edits or untracked files, stop and
 say so, since fixes would land on stale code or carry that work out with
