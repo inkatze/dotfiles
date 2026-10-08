@@ -351,7 +351,8 @@ of sending to it.
   read. An inbox finding carries no
   thread, so it is fixed or declined, never replied to or recorded in a
   ledger, and it is never sent back to the session it came from. A file whose
-  first line reads `applied <file name> in <commit>` is from a sender that
+  body, after its `from:` and `sent:` lines, opens with `applied <file name>
+  in <commit>` is from a sender that
   wrote those findings itself: the holder declines that file's findings,
   read or not, citing the commit.
 - **A held lock is a handoff.** Only before the run's first write: when
