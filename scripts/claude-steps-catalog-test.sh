@@ -51,7 +51,9 @@ run_role() {
   # Become off, whatever the caller's environment says: sudo would reset HOME
   # and aim the role at a real home. Fact injection off, as the repo's
   # ansible.cfg (unread from $work) has it, so a bare ansible_env fails here too.
+  # The output format pinned, since the cases match one-line refusal messages.
   (cd "$work" && env -u ANSIBLE_CONFIG HOME="$home" ANSIBLE_BECOME=false ANSIBLE_INJECT_FACT_VARS=false \
+    ANSIBLE_STDOUT_CALLBACK=ansible.builtin.default ANSIBLE_CALLBACK_RESULT_FORMAT=json \
     ansible-playbook "$play" "$@" >"$work/out" 2>&1)
   grep -q 'PLAY RECAP' "$work/out" || { echo "FAIL[harness]: no recap"; sed 's/^/    /' "$work/out" | tail -20; exit 1; }
   grep -qE 'failed=0 ' "$work/out"
@@ -102,6 +104,11 @@ else
 fi
 [ "$(mode_of "$(overlay "$h")/catalogs")" = 755 ] && ok catalogs-mode "a created catalogs directory is 0755" \
   || fail catalogs-mode "the created catalogs directory is $(mode_of "$(overlay "$h")/catalogs")"
+if run_role "$h" --check && [ "$(changed)" = 0 ]; then
+  ok check-idempotent "a --check run over an identical marked copy reports no change"
+else
+  fail check-idempotent "a --check run over an identical copy failed or reported changed=$(changed)"; show
+fi
 if run_role "$h" && [ "$(changed)" = 0 ]; then
   ok idempotent "an identical marked copy reports no change"
 else
@@ -217,11 +224,15 @@ fi
 fresh_home
 mkdir -p "$(overlay "$h")/catalogs"
 cp "$work/foreign" "$(overlay "$h")/catalogs/steps.yaml"
-if run_role "$h" "${with_src[@]}" && cmp -s "$work/foreign" "$(overlay "$h")/catalogs/steps.yaml"; then
-  ok retire-foreign "an unmarked catalog is left in place when the source is gone"
-else
-  fail retire-foreign "an unmarked catalog was changed, or the run failed, with the source gone"; show
-fi
+for mode in --check ""; do
+  label="retire-foreign${mode:+-check}"
+  if run_role "$h" "${with_src[@]}" ${mode:+"$mode"} && cmp -s "$work/foreign" "$(overlay "$h")/catalogs/steps.yaml" \
+    && [ "$(changed)" = 0 ]; then
+    ok "$label" "an unmarked catalog is left in place when the source is gone"
+  else
+    fail "$label" "an unmarked catalog was changed or planned for change, or the run failed, with the source gone"; show
+  fi
+done
 
 # A run from outside a checkout would read every source as gone.
 fresh_home
@@ -229,8 +240,8 @@ seed "$h" "$tracked"
 if run_role "$h" -e "claude_steps_catalog_src=$work/nowhere/planwright/steps.yaml"; then
   fail no-checkout "a missing source directory did not fail the run"
 else
-  [ -f "$(overlay "$h")/catalogs/steps.yaml" ] && ok no-checkout "a missing source directory fails the run and keeps the copy" \
-    || fail no-checkout "a missing source directory removed the copy"
+  [ -f "$(overlay "$h")/catalogs/steps.yaml" ] && reported "is not a directory; run the" && ok no-checkout "a missing source directory fails the run and keeps the copy" \
+    || { fail no-checkout "a missing source directory removed the copy, or another failure fired"; show; }
 fi
 
 fresh_home
@@ -238,8 +249,8 @@ printf 'steps:\n  - id: unmarked\n    kind: skill\n    target: unmarked\n' >"$sr
 if run_role "$h" "${with_src[@]}"; then
   fail src-unmarked "a source without the marker did not fail the run"
 else
-  [ ! -e "$(overlay "$h")/catalogs/steps.yaml" ] && ok src-unmarked "a source without the marker fails the run and installs nothing" \
-    || fail src-unmarked "a source without the marker was installed"
+  [ ! -e "$(overlay "$h")/catalogs/steps.yaml" ] && reported "must begin with the line" && ok src-unmarked "a source without the marker fails the run and installs nothing" \
+    || { fail src-unmarked "a source without the marker was installed, or another failure fired"; show; }
 fi
 
 # --- This repository's step lists (REQ-F1.2, REQ-F1.3) ---
