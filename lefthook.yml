@@ -24,7 +24,7 @@ pre-commit:
       # Beyond the skill files: both CLAUDE.md files are in the glob because the
       # checker asserts against them, and the checker so its own edits re-run it.
       glob: "{CLAUDE.md,roles/claude/files/{skills/*/*.{md,json,tpl,jq},planwright/*.tpl,CLAUDE.md,\
-        scripts/{skill-contracts.sh,skill-contracts-test.sh,identifier-check.sh}}}"
+        scripts/{skill-contracts.sh,skill-contracts-test.sh,identifier-check.sh,review-state.sh}}}"
       run: roles/claude/files/scripts/skill-contracts.sh
     skill-contracts-suite:
       # The fixture suite is what notices a check class being deleted from the

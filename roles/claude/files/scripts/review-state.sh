@@ -26,6 +26,7 @@
 #   review-state.sh lock status --repo <owner/repo> (--pr <n> | --branch <b>)
 #   review-state.sh inbox send --to <session-token> --from <name>   (body on stdin)
 #   review-state.sh inbox read --session <token>
+#   review-state.sh inbox nudge --to <session-token> --path <inbox file>
 #   review-state.sh loop mark --skill <s> --iteration <n> --phase <start|end> [--base <ref>]
 #   review-state.sh loop append --skill <s>                         (body on stdin)
 #   review-state.sh ledger record --repo <owner/repo> --pr <n> --reviewer <r> --key <k> --anchor <a>
@@ -37,9 +38,10 @@
 #   review-state.sh encode <segment>
 #
 # Exit status: 0 success or hit; 1 a miss, a held lock, not this session's
-# lock, no CI evidence, or an inbox recipient whose process is gone; 2 an
-# error. `evidence run` is the exception: it exits with the wrapped command's
-# own status once the command has run, and 127 when it could not be started.
+# lock, no CI evidence, an inbox recipient that is gone or unregistered, or a
+# nudge not delivered; 2 an error. `evidence run` is the exception: it exits with
+# the wrapped command's own status once the command has run, and 127 when it
+# could not be started.
 #
 # Bash 3.2 compatible: the Macs run it under /bin/bash, which has no
 # inherit_errexit. So a function that can fail hands its result back in a
@@ -93,7 +95,7 @@ rand_hex() {
 # parse_opts <allowed names> -- <args>: clears every opt_<name>, sets one for
 # each --<name> <value> (a hyphen in the name becomes an underscore in the variable),
 # and leaves anything after a literal -- in rest_args.
-OPT_NAMES="anchor base branch command dir disposition ended exit follow_up from head iteration key name phase pr reason repo reply reviewer session skill source started to token tree wait worktree"
+OPT_NAMES="anchor base branch command dir disposition ended exit follow_up from head iteration key name path phase pr reason repo reply reviewer session skill source started to token tree wait worktree"
 for _n in $OPT_NAMES; do printf -v "opt_$_n" '%s' ""; done
 rest_args=()
 parse_opts() {
@@ -304,6 +306,36 @@ registration_file() {
   REG="$DIR/$token.json"
 }
 
+# own_socket <path>: this user's own socket, at an absolute path every
+# platform can connect to. macOS holds a socket path in 104 bytes, its
+# terminating NUL included; Linux allows a few more, which macOS would refuse.
+own_socket() {
+  local sock="$1"
+  case "$sock" in /*) ;; *) return 1 ;; esac
+  case "$sock" in *[[:cntrl:]]*) return 1 ;; esac
+  [ "${#sock}" -le 103 ] && [ ! -L "$sock" ] && [ -S "$sock" ] && [ -O "$sock" ]
+}
+
+# The session's messaging socket, recorded so a peer whose session message
+# cannot reach it can still nudge it. A session that bound no socket of its
+# own still inherits its parent's variable, and Claude Code names each
+# session's socket after its process, so only one carrying this session's pid
+# is recorded. Anything else is left out rather than refused: the nudge is
+# never required.
+messaging_socket() {
+  local sock="${CLAUDE_CODE_MESSAGING_SOCKET:-}"
+  SOCK=""
+  [ -n "$sock" ] || return 0
+  if [ "${sock##*/}" != "$SESSION_PID.sock" ] || ! own_socket "$sock"; then
+    # The rejected value is never echoed: it may carry text meant to pass for
+    # this helper's own output.
+    note "not recording CLAUDE_CODE_MESSAGING_SOCKET as this session's messaging socket; peers will rely on its inbox alone"
+    return 0
+  fi
+  SOCK="$sock"
+}
+
+SOCK=""
 cmd_register() {
   local token file
   parse_opts "name skill repo pr branch worktree" -- "$@"
@@ -316,15 +348,17 @@ cmd_register() {
   encode_segment "${opt_repo%%/*}"; encode_segment "${opt_repo#*/}"
   [ -z "$opt_branch" ] || encode_segment "$opt_branch"
   find_session_pid
+  messaging_socket
   mint_token "$SESSION_PID"; token="$TOKEN"
   registration_file "$token"; file="$REG"
   jq -n --argjson v "$VERSION" --arg token "$token" --argjson pid "$SESSION_PID" \
     --arg name "$opt_name" --arg skill "$opt_skill" --arg repo "$opt_repo" \
     --arg pr "$opt_pr" --arg branch "$opt_branch" --arg wt "$opt_worktree" \
-    --argjson started "$(now)" \
+    --argjson started "$(now)" --arg sock "$SOCK" \
     '{version: $v, token: $token, pid: $pid, name: $name, skill: $skill, repo: $repo}
      + (if $pr != "" then {pr: ($pr | tonumber)} else {branch: $branch} end)
-     + {worktree: $wt, started: $started}' | write_file "$file"
+     + {worktree: $wt, started: $started}
+     + (if $sock != "" then {socket: $sock} else {} end)' | write_file "$file"
   printf '%s\n' "$token"
 }
 
@@ -387,7 +421,8 @@ cmd_sessions() {
     j="$(jq -c . "$f" 2> /dev/null)" || { [ -e "$f" ] || continue; die "$f is not valid JSON; refusing it"; }
     v="$(jq -r 'if type == "object" and has("version") then .version | tostring else "missing" end' <<< "$j")"
     [ "$v" = "$VERSION" ] || die "$f has unknown version '$v' (this helper reads version $VERSION); refusing it"
-    printf '%s\n' "$j"
+    # The socket stays in the registration, where only a nudge reads it.
+    jq -c 'del(.socket)' <<< "$j"
   done
 }
 
@@ -727,7 +762,7 @@ cmd_lock() {
 
 # --- Inbox --------------------------------------------------------------------------------
 cmd_inbox() {
-  local sub="${1:-}" box f name sent nonce claimed body
+  local sub="${1:-}" box f name sent nonce claimed body sock reg_json got reg_pid
   shift || true
   case "$sub" in
     send)
@@ -736,7 +771,12 @@ cmd_inbox() {
       single_line from "$opt_from"
       valid_token "$opt_to" || die "'$opt_to' is not a session token"
       registration_file "$opt_to"
-      [ -f "$REG" ] || die "no registered session $opt_to to send to"
+      # A holder that unregistered is gone like a dead one, so the sender
+      # can retake the lock it freed rather than stop.
+      if [ ! -f "$REG" ]; then
+        note "no registered session $opt_to; it is gone, nothing delivered, keep the findings"
+        return 1
+      fi
       if ! owner_alive "$opt_to"; then
         note "session $opt_to is gone; nothing delivered, keep the findings"
         return 1
@@ -760,7 +800,8 @@ cmd_inbox() {
       { printf 'from: %s\nsent: %s\n\n' "$opt_from" "$sent"; head -c "$INBOX_CAP" "$body"; } | write_file "$box/$name"
       if [ ! -e "$REG" ]; then
         rm -f "$box/$name"
-        die "session $opt_to unregistered while the message was written; nothing delivered"
+        note "session $opt_to unregistered while the message was written; nothing delivered, keep the findings"
+        return 1
       fi
       printf '%s\n' "$box/$name"
       ;;
@@ -788,7 +829,98 @@ cmd_inbox() {
         printf '\n=== inbox %s end %s ===\n' "$nonce" "${f##*/}"
       done
       ;;
-    *) die "inbox takes send or read" ;;
+    nudge)
+      # The fallback for a holder a session message cannot reach: one line
+      # into the socket it registered. Its wire format is the one a script
+      # posting to a session's own inbox uses, which Claude Code documents only
+      # in part, so a failure here is reported and never stops the handoff.
+      parse_opts "to path" -- "$@"
+      require_opt to; require_opt path
+      valid_token "$opt_to" || die "'$opt_to' is not a session token"
+      registration_file "$opt_to"
+      # A holder that unregistered or was pruned is gone like a dead one: the
+      # handoff carries on, so these exit 1 rather than as errors.
+      if [ ! -f "$REG" ]; then
+        note "no registered session $opt_to; it is gone, so no nudge was sent"
+        return 1
+      fi
+      root_dir inbox
+      case "$opt_path" in
+        "$DIR/$opt_to/"*) name="${opt_path#"$DIR/$opt_to/"}" ;;
+        *) die "--path must name a file in session $opt_to's inbox" ;;
+      esac
+      [[ "$name" =~ ^[0-9]{1,12}-[0-9a-f]{8}\.md$ ]] || die "--path must name a file in session $opt_to's inbox"
+      if [ -L "$DIR/$opt_to" ]; then
+        note "session $opt_to's inbox is a symlink; no nudge sent"
+        return 1
+      fi
+      # A file the holder already read has moved aside; naming it would send
+      # the holder after nothing.
+      if [ -L "$opt_path" ] || [ ! -f "$opt_path" ]; then
+        note "$opt_path is not an unread file in session $opt_to's inbox; no nudge sent"
+        return 1
+      fi
+      if ! owner_alive "$opt_to"; then
+        note "session $opt_to is gone; no nudge sent"
+        return 1
+      fi
+      reg_json="$(cat "$REG" 2> /dev/null)" || reg_json=""
+      if [ -z "$reg_json" ]; then
+        note "session $opt_to unregistered while the nudge was prepared; no nudge sent"
+        return 1
+      fi
+      got="$(jq -r 'if type == "object" and has("version") then .version | tostring else "missing" end' <<< "$reg_json" 2> /dev/null)" \
+        || die "$REG is not valid JSON; refusing it"
+      [ "$got" = "$VERSION" ] || die "$REG has unknown version '$got' (this helper reads version $VERSION); refusing it"
+      sock="$(jq -r '.socket // empty' <<< "$reg_json")" || die "cannot read $REG"
+      if [ -z "$sock" ]; then
+        note "session $opt_to registered no messaging socket; no nudge sent, the inbox file is the record"
+        return 1
+      fi
+      # Registration records only a socket named for the session's own pid;
+      # one named for any other process was edited in since, and would reach
+      # some other session.
+      reg_pid="$(jq -r '.pid // empty' <<< "$reg_json")" || die "cannot read $REG"
+      if [ "$reg_pid" != "${opt_to%%-*}" ] || [ "${sock##*/}" != "$reg_pid.sock" ]; then
+        note "the registered messaging socket is not session $opt_to's own; no nudge sent"
+        return 1
+      fi
+      if ! own_socket "$sock"; then
+        note "the registered messaging socket is not this user's own; no nudge sent"
+        return 1
+      fi
+      if ! command -v perl > /dev/null 2>&1; then
+        note "perl is not on PATH; no nudge sent, the inbox file is the record"
+        return 1
+      fi
+      # Checked again at the last moment: a holder that left meanwhile has
+      # deleted the file this line would name, and one that read it has moved
+      # it aside.
+      if [ ! -f "$REG" ] || ! owner_alive "$opt_to"; then
+        note "session $opt_to went away while the nudge was prepared; no nudge sent"
+        return 1
+      fi
+      if [ -L "$opt_path" ] || [ ! -f "$opt_path" ]; then
+        note "$opt_path was read or removed while the nudge was prepared; no nudge sent"
+        return 1
+      fi
+      # The holder reads this line as a user turn, so it carries nothing a
+      # sender wrote: only the file's name, which the helper minted and
+      # checked above. state.md holds the line's format; keep the two equal.
+      # shellcheck disable=SC2016
+      if ! jq -nc --arg t "$name" '{type: "user", message: {role: "user", content: $t}}' \
+        | perl -MIO::Socket::UNIX -e '
+            alarm 10;
+            my $s = IO::Socket::UNIX->new(Type => SOCK_STREAM(), Peer => $ARGV[0]) or exit 1;
+            local $/; my $line = <STDIN>;
+            print {$s} $line or exit 1;
+            close $s or exit 1' "$sock" 2> /dev/null; then
+        note "could not deliver the nudge to the registered socket; the inbox file is the record"
+        return 1
+      fi
+      printf 'nudged %s\n' "$opt_to"
+      ;;
+    *) die "inbox takes send, read or nudge" ;;
   esac
 }
 

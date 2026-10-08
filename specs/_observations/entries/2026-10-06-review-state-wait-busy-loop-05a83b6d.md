@@ -1,0 +1,1 @@
+- 2026-10-06 [dotfiles] review-state.sh lock acquire --wait skips its one-second sleep once a second or less remains, and the clock has one-second resolution, so the last second of every bounded wait re-tries the lock in a tight fork loop; a sub-second sleep there would remove it.
