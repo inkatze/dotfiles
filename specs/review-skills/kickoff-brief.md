@@ -520,3 +520,85 @@ Class: meaning
 Lens-pass: the delta-scoped lens review pass recorded in this entry, every finding dispositioned
 Anchor: `65cb1b044278f0d6560884853a24dac38ca044f2` — computed as
 `spec-anchor.sh specs/review-skills`
+
+### 2026-10-08 — Steps catalog installed as a managed copy (delta re-walkthrough)
+
+**Scope and mode.** Operator-requested delta re-walkthrough. The anchor
+matched at pre-flight (no stale content) and the validator reported no
+findings; the bundle derives Active (tasks dispatched), so the post-merge
+supersede ritual applies, chosen by the operator over an in-place edit. The
+spec branch was brought level with `main` by a merge commit first. Walked:
+REQ-F1.1, D-12, the REQ-F1.1 and REQ-F1.2 test-spec entries, Task 8 and
+Task 10. Worked from the spec branch only; no task branch was touched.
+
+**Trigger.** Task 8, parked before implementation, found that planwright's
+catalog resolver canonicalizes each overlay catalog and drops one resolving
+outside its overlay root, so the symlink REQ-F1.1 and D-12 prescribed never
+reaches the adopter layer and the after-merge Done-when could not pass.
+
+**Decisions (operator).** Supersede rather than edit in place. The role
+installs a byte-for-byte copy of the tracked catalog at the overlay's
+`catalogs/steps.yaml`, the catalog's first line being the role's marker
+comment. A foreign destination (an unmarked file, any symlink, a
+non-directory `catalogs/`) fails the run with its remedy rather than
+warning. Retirement is two-step (delete the source and run the role before
+the task goes; a plain revert leaves the copy to remove by hand). The task
+carries no `CI` guard. The root ignore rule becomes `**/.claude/*` plus
+`!/.claude/planwright.yml`.
+
+**Spec edits.** REQ-F1.1 superseded by REQ-F1.5 and D-12 by D-20, each with
+its pointer; D-18 amended in place; the decision-domains walk, Sources and
+the out-of-scope bullet name D-20; REQ-F1.2 to REQ-F1.4 cite D-20; the
+REQ-F1.5 test-spec entry replaces REQ-F1.1's and the REQ-F1.2 entry gains
+the `--no-index` and worktrees checks; Task 8 and Task 10 follow;
+`Last reviewed:` bumped on all four files. The full list is the
+`requirements.md` Changelog entry dated 2026-10-08.
+
+**Re-pointed brief records** (the sections above stay as signed; read them
+through this entry):
+
+- Section 2's goal restatement, "registers the dotfiles skills as planwright
+  steps through the adopter catalog (D-12)": now D-20, by managed copy.
+- Section 3's REQ-F row, "Catalog under the Claude role, linked into the
+  adopter overlay": now a marker-guarded copy at the overlay's
+  `catalogs/steps.yaml` (REQ-F1.5); its ignore-rule constraint is now named
+  as `**/.claude/*` plus `!/.claude/planwright.yml`.
+- Section 4's ledger row "D-12 confirmed": D-12 superseded by D-20 (a new
+  decision); D-18 amended in place.
+- Section 7's gap check: deploy and migration now also covers the catalog
+  copy's retirement and the fail-on-foreign remedy (D-20).
+
+**Lens review pass (delta-scoped, spec class).** Fan-out: three read-only
+sub-agents, each owning three of the nine spec-set lenses, briefed to be
+exhaustive within their lenses with severity pruning forbidden; the
+coordinator merged, deduped and spot-checked the claims against
+planwright's catalog reader, the role's tasks, this host's overlay
+directory and the docs. Tooling grounding: `spec-validate.sh` with
+`--baseline origin/main` (no findings before or after), `yamllint`, and a
+scratch repository reproducing both ignore rule sets.
+
+| Lens (spec set) | Findings | Notes |
+| --- | --- | --- |
+| Contract correctness and internal consistency | 2 | The ignore check passed with the old rule (tracked files are never reported without `--no-index`); the rollback claim was false for a plain revert. Applied. |
+| Ambiguity and interpretation forks | 7 | Marker undefined; "reported" had no channel; "a symlink included" read two ways; destination filename unnamed; absent or non-directory `catalogs/`; check mode and CI unspecified; "the task" without an antecedent. Applied, the marker, foreign-file, rollback and CI forks decided by the operator. |
+| Citation and coverage integrity | 1 | The Changelog missed four pointer edits. Applied. |
+| Dead verification paths | none | Beyond the `--no-index` finding counted above, the resolver accepts a regular-file copy and reports it as the adopter layer. |
+| Decision-domain gaps | 2 | Idempotency unpinned; foreign-file migration had no remedy. Applied. |
+| Testability | none | Every touched Done-when names a runnable command or fixture case. |
+| Cross-file consistency | 1 | The worktrees check was not traced to the REQ-F1.2 entry. Applied; the stale brief records are re-pointed above. |
+| Documentation and glossary drift | 1 | `docs/claude-config.md`'s ignore sentence goes stale; added to Task 8. |
+| Rendered-content safety | n/a | The bundle is not rendered into an executing or markup context. |
+
+Overlapping findings are counted once, under the lens that owns the fix.
+Kickoff-specific checks: altitude, not applicable (the delta swaps an
+install mechanism inside D-12's scope); ship-gate, none (the delta names no
+out-of-band fix). Outside this bundle: the Task 8 branch's parked
+Awaiting-input entry is cleared when the task is re-dispatched.
+
+Approved by the operator on 2026-10-08 after the approval summary; the
+validator reported no findings after the edits.
+
+Class: meaning
+Lens-pass: the delta-scoped lens review pass recorded in this entry, every finding dispositioned
+Anchor: `140ee98d998c446342243fadb951b442f4dce62c` — computed as
+`spec-anchor.sh specs/review-skills`

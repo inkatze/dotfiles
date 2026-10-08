@@ -1,7 +1,7 @@
 # Review Skills — Test Spec
 
 **Status:** Ready
-**Last reviewed:** 2026-10-07
+**Last reviewed:** 2026-10-08
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -256,17 +256,25 @@ removed at the next reclaim.
 
 ## REQ-F — planwright steps
 
-### REQ-F1.1 — Tracked catalog linked into the overlay [test + manual]
+### REQ-F1.5 — Tracked catalog installed as a managed copy in the overlay [test + manual]
 
-The link fixture suite passes. Manual: planwright's step resolver, run
-unattended with its explain flag in this repository, prints `run` for each
-named step with the adopter layer as its catalog source.
+The copy fixture suite passes: a copy is written when the destination and
+`catalogs/` are absent; an identical marked copy reports no change; a marked
+copy is rewritten when its source changes; an unmarked file, a symlink to a
+marked file, and a `catalogs/` that is a symlink or a regular file each fail
+the run naming the path, with nothing written through them; check mode makes
+the same decisions without writing; the role's own copy is removed when the
+source is gone, and an unmarked file is left in place then. Manual:
+planwright's step resolver, run unattended with its explain flag in this
+repository, prints `run` for each named step with the adopter layer as its
+catalog source.
 
 ### REQ-F1.2 — No adopter-wide list; repo-tracked list committed [test]
 
 The renderer suite asserts the Claude role's overlay template sets no
-`steps_<point>` key; `git check-ignore .claude/planwright.yml` exits
-non-zero and the file is tracked.
+`steps_<point>` key; `git check-ignore --no-index .claude/planwright.yml`
+exits non-zero and the file is tracked; `git check-ignore .claude/worktrees`
+exits zero.
 
 ### REQ-F1.3 — bot-review at post-pr only, panel-review never pushes at convergence [test]
 

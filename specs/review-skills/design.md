@@ -1,7 +1,7 @@
 # Review Skills — Design
 
 **Status:** Ready
-**Last reviewed:** 2026-10-07
+**Last reviewed:** 2026-10-08
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -331,6 +331,10 @@ a repo-tracked `.claude/planwright.yml`, un-ignored for that one path, naming
 Claude surface here is role-managed, while the list is the repo-tracked
 layer's documented purpose.
 
+**Superseded-by: D-20** (2026-10-08) — planwright's catalog resolver drops an
+overlay catalog that resolves outside its overlay root, so the link never
+reaches the adopter layer; the role installs a managed copy instead.
+
 ### D-13: New private machine-local files render from 1Password through one generic script  (N)
 
 **Decision:** The overlay config, the sibling-repository map and the review
@@ -435,7 +439,7 @@ adopters would plausibly want.
 **Decision:** The skills are verified by running each once on a real PR,
 plus the deterministic contract-checker, budget and fixture suites for
 everything scriptable (lock, tree hash, ledger, renderer, schema, catalog
-link). The performance tasks carry a measurement plan: suite runs and
+copy). The performance tasks carry a measurement plan: suite runs and
 wall-clock per nested iteration, from the evidence record's timestamps,
 against a baseline run on `main` before the change.
 
@@ -447,6 +451,9 @@ against a baseline run on `main` before the change.
 **Chosen because:** the claims that matter here (fewer suite runs, parallel
 sessions not colliding) are measurable by timestamps and lock files, which
 fixtures and one real run can pin.
+
+*(Amended at delta re-walkthrough 2026-10-08: the catalog link became the
+catalog copy, following D-20.)*
 
 ### D-19: Session message as nudge, inbox file as record, socket nudge only for a sender that cannot send  (N, supersedes D-8)
 
@@ -502,6 +509,67 @@ untrusted content, one notice and no retry); the divergence is that a
 review session has no tower to re-read state, so the holder's inbox read is
 the record's only consumer.
 
+### D-20: Catalog entries in a managed adopter-catalog copy; lists per repository  (N, supersedes D-12)
+
+**Decision:** A tracked catalog file under the Claude role declares
+`panel-review` and `bot-review` as `--nested` skill steps, its first line the
+role's marker comment, `# Managed by the dotfiles claude role — do not edit by hand`, a full-line comment because planwright's
+catalog reader rejects trailing ones. The role installs a byte-for-byte copy
+at the adopter overlay's `catalogs/steps.yaml`, the only adopter path the
+resolver reads for steps, creating a missing `catalogs/` directory at the
+overlay directory's mode (0755). The copy is written when the destination is
+absent or its first line is the marker; an unchanged copy reports no change,
+and a check-mode run makes the same decisions without writing. A destination
+whose first line is not the marker, any symlink whatever its target, or a
+`catalogs/` that is not a plain directory fails the run, naming the path and
+the remedy (merge its entries into the tracked catalog, remove it, re-run),
+and is never written through or removed. When the tracked source is gone,
+the role removes its own marked copy and leaves any other file in place.
+The task carries no `CI` guard: it needs no 1Password and writes no secret.
+The role leaves the overlay's config file to the renderer (D-13), which
+sets no step list in it. No adopter-wide list is set. This repository's own
+list lives in a repo-tracked `.claude/planwright.yml` naming `panel-review`
+at convergence and `bot-review` at post-pr. Git never re-includes a file
+under an excluded directory, so the root ignore rule for `.claude/` becomes
+the contents rule `**/.claude/*` plus the negation
+`!/.claude/planwright.yml`, which un-ignores that one root path and leaves
+every other `.claude/` entry, worktrees included, ignored.
+
+**Retirement:** delete the tracked catalog and run the role once while the
+copy task still exists, which removes the copy; then remove the task. A
+plain revert of the task removes both at once and leaves
+`catalogs/steps.yaml` behind, to delete by hand.
+
+**Alternatives considered:**
+- A symlink into this repository, as D-12 chose. Rejected because:
+  planwright's catalog resolver canonicalizes each overlay file and drops
+  one resolving outside its overlay root, so the catalog never reaches the
+  adopter layer.
+- An unconditional overwrite of the destination. Rejected because: it would
+  clobber a catalog the operator or another tool wrote there; the marker is
+  what makes the file the role's to replace or remove.
+- Keep a foreign destination and warn. Rejected because: the run would stay
+  green while the steps never reach the adopter layer; failing matches the
+  role's own refusal of a foreign entry at a tracked skill name.
+- Add the marker at install time. Rejected because: the copy would no longer
+  match its source byte for byte, so the role could not compare the two
+  directly.
+- An adopter-wide convergence list. Rejected because: the adopter layer
+  reaches every repository on the host, including employer ones, and a step
+  that sends a diff to an external tool is a per-repository disclosure
+  decision; its consent prompt would also fire unattended inside workers.
+- A machine-local list for this repository. Rejected because: dispatched
+  workers see only the adopter layer plus repo-tracked files, so the step
+  would never run in a worker here.
+- Render the list from 1Password. Rejected because: it names only step ids
+  and is a public policy declaration whose commit is its consent record.
+
+**Chosen because:** the catalog carries no private name and every other
+Claude surface here is role-managed; a copy is a regular file inside the
+overlay root, which the resolver's containment check accepts, and the marker
+keeps the role from touching a file it did not write. The list stays the
+repo-tracked layer's documented purpose.
+
 ## Cross-cutting concerns
 
 ### Decision-domains walk
@@ -515,7 +583,9 @@ surface (the review config schema change, a sign-off-class change to an
 existing machine-local surface: D-2); dependency adoption (the cubic.dev
 CLI, checklist recorded in D-5); deploy and migration (removing a skill, a
 backend and a credential, each a revert plus a role run away except the
-credential, which needs a re-login: D-3, D-4, D-14); observability (stale
+credential, which needs a re-login: D-3, D-4, D-14; the marker-guarded catalog copy,
+retired by deleting its source and running the role once before the task
+goes, a plain revert leaving it to remove by hand: D-20); observability (stale
 locks named, evidence sources recorded, convergence reported as a fact, a
 failed or skipped socket nudge reported in the sender's handoff: D-7, D-9,
 D-19); existing-seam reuse (planwright's handoff bundle and messaging named

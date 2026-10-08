@@ -1,7 +1,7 @@
 # Review Skills — Requirements
 
 **Status:** Ready
-**Last reviewed:** 2026-10-07
+**Last reviewed:** 2026-10-08
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -311,18 +311,37 @@ retrospective (Sources).)*
   catalog-link task leaves the overlay's config file to the renderer (D-13),
   and the rendered config sets no `steps_<point>` key.
   *(Cites: D-12, D-13, kickoff decision (2026-10-03).)*
+  **Superseded-by: REQ-F1.5** (2026-10-08) — planwright's catalog resolver
+  drops an overlay catalog that resolves outside its overlay root, so a
+  linked catalog never reaches the adopter layer; the link becomes a managed
+  copy.
+- **REQ-F1.5** (supersedes REQ-F1.1) A tracked catalog under the Claude role
+  SHALL declare `panel-review` and `bot-review` as skill steps carrying
+  `--nested`, its first line the role's marker comment (`# Managed by the dotfiles claude role — do not edit by hand`), and the role
+  SHALL install a byte-for-byte copy of it at the adopter overlay's
+  `catalogs/steps.yaml`, creating a missing `catalogs/` directory. The copy is
+  written when the destination is absent or its first line is the marker,
+  and an unchanged copy reports no change. A destination whose first line is
+  not the marker, any symlink whatever its target, or a `catalogs/` that is
+  not a plain directory SHALL fail the run, naming the path and the remedy
+  (merge its entries into the tracked catalog, remove it, re-run), and is
+  never written through or removed. When the tracked source is gone, the
+  role removes its own marked copy and leaves any other file in place. The
+  copy task leaves the overlay's config file to the renderer (D-13), and the
+  rendered config sets no `steps_<point>` key.
+  *(Cites: D-20, D-13, research: planwright catalog containment (Sources).)*
 - **REQ-F1.2** No adopter-wide `steps_<point>` list SHALL be set by this
   repository. This repository's own list is repo-tracked at
   `.claude/planwright.yml`, un-ignored for that single path.
-  *(Cites: D-12, drafting-session decision (2026-10-02).)*
+  *(Cites: D-20, drafting-session decision (2026-10-02).)*
 - **REQ-F1.3** `bot-review` SHALL be named only at the `post-pr` point, since
   it pushes; `panel-review` at `convergence` SHALL never push, as the step
   contract requires.
-  *(Cites: D-12, planwright custom-steps doctrine (Sources).)*
+  *(Cites: D-20, planwright custom-steps doctrine (Sources).)*
 - **REQ-F1.4** Every mention of the retired `review_sequence` knob in the
   dotfiles instruction surfaces SHALL be replaced by the catalog-and-list
   vocabulary.
-  *(Cites: D-12, the legacy nested-flag line (Sources).)*
+  *(Cites: D-20, the legacy nested-flag line (Sources).)*
 
 ## REQ-G — Credential cleanup
 
@@ -407,6 +426,25 @@ retrospective (Sources).)*
 
 ## Changelog
 
+- 2026-10-08 — Meaning-class, at a delta re-walkthrough: REQ-F1.1 is
+  superseded by REQ-F1.5 and D-12 by D-20. Task 8 found, before
+  implementation, that planwright's catalog resolver canonicalizes each
+  overlay file and drops one resolving outside its overlay root, so the
+  symlinked catalog never reaches the adopter layer. The role now installs a
+  byte-for-byte copy at the overlay's `catalogs/steps.yaml`, its first line
+  the role's marker comment: written when absent or marked, a foreign
+  destination (an unmarked file, any symlink, a non-directory `catalogs/`)
+  failing the run with its remedy, its own copy removed when the source goes,
+  no `CI` guard; D-20 records the retirement steps. REQ-F1.2 to REQ-F1.4 cite
+  D-20; the root ignore rules are named (`**/.claude/*` plus
+  `!/.claude/planwright.yml`) and their check uses `--no-index`, so a
+  force-added file under the old rule cannot pass it; a Sources entry
+  records the containment finding. D-18 is amended in place (catalog link
+  becomes catalog copy); the decision-domains walk, the customization-boundary
+  Sources entry and the out-of-scope bullet name D-20. The test-spec entries
+  for REQ-F1.5 and REQ-F1.2 and Task 8's deliverables (now including
+  `docs/claude-config.md`), Done-when and citations follow; Task 10 cites
+  REQ-F1.5.
 - 2026-10-07 — Meaning-class, at a delta re-walkthrough: REQ-E1.5 is
   superseded by REQ-E1.8 and D-8 by D-19. Task 6's execution research found
   that Claude Code applies a session's inbound controls to posts on its
@@ -508,7 +546,7 @@ retrospective (Sources).)*
   signal, never a record; a script's post to an inbox socket carries
   untrusted content and goes only to a socket the user owns.
 - **planwright customization-boundary doctrine.** The capability-versus-style
-  split applied in D-12 and D-17.
+  split applied in D-20 (D-12 before it) and D-17.
 - **planwright autopilot-reflex doctrine.** The altitude triggers and the
   altitude record applied in D-1.
 - **planwright interaction-style doctrine.** Capture at birth: a follow-up
@@ -527,6 +565,10 @@ retrospective (Sources).)*
   The cross-session messaging, worktrees, sessions and agent-view pages:
   discoverability of worktree and headless sessions, delivery between tool
   calls, the no-consent rule, and the inbox socket environment variable.
+- **Research: planwright catalog containment (consulted 2026-10-07 during
+  Task 8).** planwright's `scripts/resolve-catalog.sh` canonicalizes each
+  overlay catalog path and treats one resolving outside its overlay root as
+  malformed, so a symlink into another tree is dropped (REQ-F1.5).
 - **Research: Claude Code inbound controls on the inbox socket (consulted
   2026-10-06 during Task 6, re-checked 2026-10-07).** Claude Code's
   cross-session messaging page (code.claude.com/docs/en/cross-session-messaging)
