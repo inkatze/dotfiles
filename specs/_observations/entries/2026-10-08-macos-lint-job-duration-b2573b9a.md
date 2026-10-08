@@ -1,0 +1,1 @@
+- 2026-10-08 [dotfiles] The macOS lint job, which every role in the test matrix needs, ran about 65 minutes on the two most recent completed main runs (2026-10-08), so the matrix waits over an hour before starting; worth profiling which steps dominate.

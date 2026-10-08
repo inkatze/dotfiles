@@ -1,0 +1,1 @@
+- 2026-10-08 [dotfiles] The skill-contracts job's comment on the review-state helper suite says bash, git, jq and procps are all it needs, but the helper and its suite also need perl (the ledger lock and its re-entry check); harmless on ubuntu-latest, which ships perl, but the enumeration is stale.
