@@ -11,7 +11,10 @@ roles/fish/files/fish/conf.d
 roles/fish/files/fish/functions/_*
 roles/fish/files/fish/functions/fisher.fish
 roles/fish/files/fish/functions/bass.fish
-.claude/
+# Contents, not the directory: git never re-includes a file under an excluded
+# directory, and the step lists below are tracked.
+**/.claude/*
+!/.claude/planwright.yml
 mise.local.toml
 # planwright's per-spec orchestration runtime state (dispatch markers, lock).
 # Runtime, never tracked: every /orchestrate run would otherwise leave the
