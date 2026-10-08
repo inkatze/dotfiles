@@ -92,7 +92,7 @@
   ansible.builtin.fail:
     msg: >-
       {{ claude_planwright_overlay }}/catalogs/steps.yaml is not the dotfiles
-      claude role's copy (a symlink, or its first line is not the marker);
+      claude role's copy (not a regular file whose first line is the marker);
       merge its entries into {{ claude_steps_catalog_src }}, remove it, then
       re-run.
   when:
