@@ -48,7 +48,11 @@ YAML
 run_role() {
   local home="$1"
   shift
-  (cd "$work" && HOME="$home" ansible-playbook "$play" "$@" >"$work/out" 2>&1)
+  # Become off, whatever the caller's environment says: sudo would reset HOME
+  # and aim the role at a real home. Fact injection off, as the repo's
+  # ansible.cfg (unread from $work) has it, so a bare ansible_env fails here too.
+  (cd "$work" && env -u ANSIBLE_CONFIG HOME="$home" ANSIBLE_BECOME=false ANSIBLE_INJECT_FACT_VARS=false \
+    ansible-playbook "$play" "$@" >"$work/out" 2>&1)
   grep -q 'PLAY RECAP' "$work/out" || { echo "FAIL[harness]: no recap"; sed 's/^/    /' "$work/out" | tail -20; exit 1; }
   grep -qE 'failed=0 ' "$work/out"
 }
@@ -58,6 +62,8 @@ show() { sed 's/^/    /' "$work/out" | tail -12; }
 fresh_home() { h="$(mktemp -d "$work/h.XXXXXX")" || { echo "FAIL[harness]: mktemp failed"; exit 1; }; }
 overlay() { printf '%s/.claude/plugins/data/planwright-planwright/overlay' "$1"; }
 mode_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
+# seed <home> <file>: an installed copy, laid down without a play.
+seed() { mkdir -p "$(overlay "$1")/catalogs" && cp "$2" "$(overlay "$1")/catalogs/steps.yaml"; }
 
 # A scratch source stands in for the tracked catalog wherever a case changes
 # or removes it.
@@ -84,10 +90,10 @@ done
 
 # --- Fresh host ---
 fresh_home
-if run_role "$h" --check && [ ! -e "$(overlay "$h")/catalogs" ]; then
-  ok check-fresh "a --check run on a fresh host writes nothing"
+if run_role "$h" --check && [ ! -e "$(overlay "$h")/catalogs" ] && [ "$(changed)" != 0 ]; then
+  ok check-fresh "a --check run on a fresh host reports the install and writes nothing"
 else
-  fail check-fresh "a --check run on a fresh host failed or wrote the catalog"; show
+  fail check-fresh "a --check run on a fresh host failed, wrote the catalog, or reported no change"; show
 fi
 if run_role "$h" && cmp -s "$tracked" "$(overlay "$h")/catalogs/steps.yaml"; then
   ok fresh "a fresh host gets a byte-for-byte copy of the tracked catalog"
@@ -96,14 +102,16 @@ else
 fi
 [ "$(mode_of "$(overlay "$h")/catalogs")" = 755 ] && ok catalogs-mode "a created catalogs directory is 0755" \
   || fail catalogs-mode "the created catalogs directory is $(mode_of "$(overlay "$h")/catalogs")"
-run_role "$h"
-[ "$(changed)" = 0 ] && ok idempotent "an identical marked copy reports no change" \
-  || fail idempotent "a second run reported changed=$(changed)"
+if run_role "$h" && [ "$(changed)" = 0 ]; then
+  ok idempotent "an identical marked copy reports no change"
+else
+  fail idempotent "a second run failed or reported changed=$(changed)"; show
+fi
 
 # --- A marked copy whose source changed ---
 fresh_home
 cp "$tracked" "$src"
-run_role "$h" "${with_src[@]}"
+seed "$h" "$src"
 printf '  - id: extra\n    kind: skill\n    target: extra\n' >>"$src"
 dest="$(overlay "$h")/catalogs/steps.yaml"
 cp "$dest" "$work/before"
@@ -130,7 +138,7 @@ for mode in --check ""; do
   label="unmarked${mode:+-check}"
   if run_role "$h" ${mode:+"$mode"}; then
     fail "$label" "an unmarked catalog did not fail the run"
-  elif reported "$(overlay "$h")/catalogs/steps.yaml" && reported "$remedy"; then
+  elif reported "$(overlay "$h")/catalogs/steps.yaml is not the dotfiles" && reported "$remedy"; then
     ok "$label" "an unmarked catalog fails the run naming its path and the remedy"
   else
     fail "$label" "the failure did not name the path and the remedy"; show
@@ -139,62 +147,72 @@ for mode in --check ""; do
     || fail "$label-kept" "the unmarked catalog was changed"
 done
 
-fresh_home
-mkdir -p "$(overlay "$h")/catalogs" "$h/elsewhere"
-cp "$tracked" "$h/elsewhere/steps.yaml"
-printf '  - id: drift\n    kind: skill\n    target: drift\n' >>"$h/elsewhere/steps.yaml"
-cp "$h/elsewhere/steps.yaml" "$work/linked"
-ln -s "$h/elsewhere/steps.yaml" "$(overlay "$h")/catalogs/steps.yaml"
-if run_role "$h"; then
-  fail symlink "a symlink to a marked catalog did not fail the run"
-else
-  reported "$(overlay "$h")/catalogs/steps.yaml" && ok symlink "a symlink to a marked catalog fails the run naming its path" \
-    || { fail symlink "the failure did not name the symlink"; show; }
-fi
-[ -L "$(overlay "$h")/catalogs/steps.yaml" ] && cmp -s "$work/linked" "$h/elsewhere/steps.yaml" \
-  && ok symlink-kept "nothing is written through the symlink" || fail symlink-kept "the symlink or its target was changed"
+for mode in --check ""; do
+  sfx="${mode:+-check}"
 
-fresh_home
-mkdir -p "$(overlay "$h")" "$h/elsewhere"
-ln -s "$h/elsewhere" "$(overlay "$h")/catalogs"
-if run_role "$h"; then
-  fail catalogs-link "a symlinked catalogs directory did not fail the run"
-else
-  reported "$(overlay "$h")/catalogs" && ok catalogs-link "a symlinked catalogs directory fails the run naming its path" \
-    || { fail catalogs-link "the failure did not name the catalogs path"; show; }
-fi
-[ -L "$(overlay "$h")/catalogs" ] && [ -z "$(ls -A "$h/elsewhere")" ] \
-  && ok catalogs-link-kept "nothing is written through the symlinked directory" \
-  || fail catalogs-link-kept "something was written through the symlinked directory"
+  fresh_home
+  mkdir -p "$(overlay "$h")/catalogs" "$h/elsewhere"
+  cp "$tracked" "$h/elsewhere/steps.yaml"
+  printf '  - id: drift\n    kind: skill\n    target: drift\n' >>"$h/elsewhere/steps.yaml"
+  cp "$h/elsewhere/steps.yaml" "$work/linked"
+  ln -s "$h/elsewhere/steps.yaml" "$(overlay "$h")/catalogs/steps.yaml"
+  if run_role "$h" ${mode:+"$mode"}; then
+    fail "symlink$sfx" "a symlink to a marked catalog did not fail the run"
+  elif reported "$(overlay "$h")/catalogs/steps.yaml is not the dotfiles" && reported "$remedy"; then
+    ok "symlink$sfx" "a symlink to a marked catalog fails the run naming its path and the remedy"
+  else
+    fail "symlink$sfx" "the failure did not come from the foreign-catalog refusal"; show
+  fi
+  [ -L "$(overlay "$h")/catalogs/steps.yaml" ] && cmp -s "$work/linked" "$h/elsewhere/steps.yaml" \
+    && ok "symlink-kept$sfx" "nothing is written through the symlink" || fail "symlink-kept$sfx" "the symlink or its target was changed"
 
-fresh_home
-mkdir -p "$(overlay "$h")"
-printf 'not a directory\n' >"$(overlay "$h")/catalogs"
-if run_role "$h"; then
-  fail catalogs-file "a regular file at catalogs did not fail the run"
-else
-  reported "$(overlay "$h")/catalogs" && ok catalogs-file "a regular file at catalogs fails the run naming its path" \
-    || { fail catalogs-file "the failure did not name the catalogs path"; show; }
-fi
-[ "$(cat "$(overlay "$h")/catalogs")" = "not a directory" ] && ok catalogs-file-kept "the file at catalogs is left as it was" \
-  || fail catalogs-file-kept "the file at catalogs was changed"
+  fresh_home
+  mkdir -p "$(overlay "$h")" "$h/elsewhere"
+  ln -s "$h/elsewhere" "$(overlay "$h")/catalogs"
+  if run_role "$h" ${mode:+"$mode"}; then
+    fail "catalogs-link$sfx" "a symlinked catalogs directory did not fail the run"
+  elif reported "$(overlay "$h")/catalogs is not a plain directory" && reported "remove it, then"; then
+    ok "catalogs-link$sfx" "a symlinked catalogs directory fails the run naming its path and the remedy"
+  else
+    fail "catalogs-link$sfx" "the failure did not come from the catalogs-directory refusal"; show
+  fi
+  [ -L "$(overlay "$h")/catalogs" ] && [ -z "$(ls -A "$h/elsewhere")" ] \
+    && ok "catalogs-link-kept$sfx" "nothing is written through the symlinked directory" \
+    || fail "catalogs-link-kept$sfx" "something was written through the symlinked directory"
+
+  fresh_home
+  mkdir -p "$(overlay "$h")"
+  printf 'not a directory\n' >"$(overlay "$h")/catalogs"
+  if run_role "$h" ${mode:+"$mode"}; then
+    fail "catalogs-file$sfx" "a regular file at catalogs did not fail the run"
+  elif reported "$(overlay "$h")/catalogs is not a plain directory"; then
+    ok "catalogs-file$sfx" "a regular file at catalogs fails the run naming its path"
+  else
+    fail "catalogs-file$sfx" "the failure did not come from the catalogs-directory refusal"; show
+  fi
+  [ "$(cat "$(overlay "$h")/catalogs")" = "not a directory" ] && ok "catalogs-file-kept$sfx" "the file at catalogs is left as it was" \
+    || fail "catalogs-file-kept$sfx" "the file at catalogs was changed"
+done
 
 # --- The source is gone ---
 fresh_home
-cp "$tracked" "$src"
-run_role "$h" "${with_src[@]}"
+seed "$h" "$tracked"
+printf 'kept\n' >"$(overlay "$h")/catalogs/other.yaml"
+printf 'kept\n' >"$(overlay "$h")/planwright.yml"
 rm -f "$src"
 dest="$(overlay "$h")/catalogs/steps.yaml"
-if run_role "$h" "${with_src[@]}" --check && [ -f "$dest" ]; then
-  ok check-retire "a --check run keeps the copy whose source is gone"
+if run_role "$h" "${with_src[@]}" --check && [ -f "$dest" ] && [ "$(changed)" != 0 ]; then
+  ok check-retire "a --check run reports the removal and keeps the copy"
 else
-  fail check-retire "a --check run failed or removed the copy"; show
+  fail check-retire "a --check run failed, removed the copy, or reported no change"; show
 fi
 if run_role "$h" "${with_src[@]}" && [ ! -e "$dest" ]; then
   ok retire "the role's own copy is removed when its source is gone"
 else
   fail retire "the role's own copy survived its source, or the run failed"; show
 fi
+[ -f "$(overlay "$h")/catalogs/other.yaml" ] && [ -f "$(overlay "$h")/planwright.yml" ] \
+  && ok retire-scoped "removal touches nothing but the role's copy" || fail retire-scoped "removal reached another overlay file"
 
 fresh_home
 mkdir -p "$(overlay "$h")/catalogs"
@@ -207,8 +225,7 @@ fi
 
 # A run from outside a checkout would read every source as gone.
 fresh_home
-cp "$tracked" "$src"
-run_role "$h" "${with_src[@]}"
+seed "$h" "$tracked"
 if run_role "$h" -e "claude_steps_catalog_src=$work/nowhere/planwright/steps.yaml"; then
   fail no-checkout "a missing source directory did not fail the run"
 else
@@ -232,13 +249,15 @@ if git -C "$repo" ls-files --error-unmatch .claude/planwright.yml >/dev/null 2>&
 else
   fail lists-tracked ".claude/planwright.yml is not tracked"
 fi
-git -C "$repo" check-ignore -q --no-index .claude/planwright.yml \
-  && fail lists-ignored "the ignore rules still match .claude/planwright.yml" \
-  || ok lists-ignored "the ignore rules leave .claude/planwright.yml out"
-git -C "$repo" check-ignore -q --no-index .claude/worktrees \
-  && ok worktrees-ignored ".claude/worktrees stays ignored" || fail worktrees-ignored ".claude/worktrees is no longer ignored"
-git -C "$repo" check-ignore -q --no-index roles/claude/.claude/settings.local.json \
-  && ok nested-ignored "a nested .claude/ entry stays ignored" || fail nested-ignored "a nested .claude/ entry is no longer ignored"
+# ignored_rc <path>: git check-ignore's status, 0 ignored and 1 not; anything
+# else is an error that must not read as either.
+ignored_rc() { git -C "$repo" check-ignore -q --no-index "$1"; echo $?; }
+[ "$(ignored_rc .claude/planwright.yml)" = 1 ] && ok lists-ignored "the ignore rules leave .claude/planwright.yml out" \
+  || fail lists-ignored "the ignore rules still match .claude/planwright.yml, or git failed"
+[ "$(ignored_rc .claude/worktrees)" = 0 ] && ok worktrees-ignored ".claude/worktrees stays ignored" \
+  || fail worktrees-ignored ".claude/worktrees is no longer ignored, or git failed"
+[ "$(ignored_rc roles/claude/.claude/settings.local.json)" = 0 ] && ok nested-ignored "a nested .claude/ entry stays ignored" \
+  || fail nested-ignored "a nested .claude/ entry is no longer ignored, or git failed"
 list_of() { sed -n "s/^$1: *\[\(.*\)\] *$/\1/p" "$lists" | tr -d ' '; }
 case ",$(list_of steps_convergence)," in
   *,panel-review,*) ok convergence "panel-review is named at convergence" ;;
@@ -251,5 +270,13 @@ if grep -E '^steps_' "$lists" | grep -v '^steps_post_pr:' | grep -q 'bot-review'
 else
   ok bot-review-only "bot-review is named only at post-pr"
 fi
+
+# --- Wiring and vocabulary (REQ-F1.5, REQ-F1.4) ---
+grep -qxF -- '  ansible.builtin.import_tasks: steps-catalog.yml' "$repo/roles/claude/tasks/main.yml" \
+  && ok wired "the role's main tasks import the steps catalog tasks" \
+  || fail wired "roles/claude/tasks/main.yml no longer imports steps-catalog.yml"
+stale="$(cd "$repo" && grep -rn review_sequence roles/ CLAUDE.md | grep -v retired)"
+[ -z "$stale" ] && ok retired-knob "every review_sequence mention records the knob's retirement" \
+  || { fail retired-knob "review_sequence named without its retirement:"; printf '    %s\n' "$stale"; }
 
 [ "$fails" -eq 0 ] && echo "claude-steps-catalog-test: all assertions hold" || { echo "claude-steps-catalog-test: $fails failed"; exit 1; }
