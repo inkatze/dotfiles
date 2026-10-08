@@ -39,8 +39,8 @@ See [docs/claude-config.md](docs/claude-config.md).
 Three valid layers, chosen by scope: global tracked
 `roles/claude/files/settings.json` for cross-project allows and the deny list;
 per-repo tracked `<repo>/.claude/settings.json` for project-specific durable
-rules; per-repo local `.claude/settings.local.json` for ephemeral rules, kept
-near-empty. See [docs/claude-config.md](docs/claude-config.md).
+rules; per-repo local `<repo>/.claude/settings.local.json` for ephemeral
+rules, kept near-empty. See [docs/claude-config.md](docs/claude-config.md).
 
 ## Adding a new Claude skill
 
@@ -81,7 +81,7 @@ Any new tracked directory under `roles/claude/files/` except a skill or
 - Never wire planwright's hooks (`tool-discovery`, `tasks-pr-sync`, and the
   rest of its `hooks/hooks.json`) in the tracked `settings.json`; the plugin
   wires them and a second entry double-fires.
-- `worktree-bootstrap.sh` runs a repo's `.claude/worktree-bootstrap`
+- `worktree-bootstrap.sh` runs `<repo>/.claude/worktree-bootstrap`
   unsandboxed: inspect it before opening a checkout you did not author. Its
   header documents the marker and how to force a re-run.
 
