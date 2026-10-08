@@ -768,7 +768,7 @@ for pin in \
   "converges only when that read and its exit read return nothing" \
   "never sent back to the session it came from" \
   "release before asking, and acquire again after the answer" \
-  "\`applied <file name> in <commit>\`" \
+  "opens with \`applied <file name> in <commit>\`" \
   "Only before the run's first write" \
   "gets no socket nudge after it: its inbox read at the next boundary carries the handoff" \
   "A \"Not sent\" result naming the holder's inbound controls (its \`crossSessionInbound\` setting) counts as a refusal" \
