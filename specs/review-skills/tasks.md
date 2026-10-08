@@ -353,15 +353,7 @@ by that task. Blocks are listed in dependency order.
 
 ## Awaiting input
 
-- **Task 8** — Contract drift, halted before implementation (2026-10-07):
-  REQ-F1.1 and D-12 have the role symlink the tracked steps catalog into the
-  adopter overlay's catalogs directory, but planwright's catalog resolver
-  canonicalizes each overlay file and drops one resolving outside its overlay
-  root, so a linked catalog never reaches the adopter layer and the after-merge
-  Done-when cannot pass. Remedy chosen by the operator: a `/spec-kickoff`
-  delta re-walkthrough replacing the link with a managed copy (written when
-  absent or carrying the role's marker, a foreign file kept and reported, the
-  role's own copy removed when its source goes), then re-dispatch.
+(none yet)
 
 ## Deferred
 
