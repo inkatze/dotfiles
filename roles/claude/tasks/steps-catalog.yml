@@ -5,12 +5,16 @@
 # copy. Its marker first line is what makes a file at the destination this
 # role's to replace or remove. Anything else there fails the run, since a
 # green run that left it would leave the steps silently unregistered.
+- name: Inspect the planwright steps catalog source's directory
+  ansible.builtin.stat:
+    path: "{{ claude_steps_catalog_src | dirname }}"
+  register: claude_steps_src_dir
+  check_mode: false
+  tags: [claude]
+
 - name: Inspect the planwright steps catalog source
   ansible.builtin.stat:
-    path: "{{ item }}"
-  loop:
-    - "{{ claude_steps_catalog_src | dirname }}"
-    - "{{ claude_steps_catalog_src }}"
+    path: "{{ claude_steps_catalog_src }}"
   register: claude_steps_src
   check_mode: false
   tags: [claude]
@@ -22,14 +26,14 @@
     msg: >-
       {{ claude_steps_catalog_src | dirname }} is not a directory; run the
       playbook from the dotfiles checkout.
-  when: not (claude_steps_src.results[0].stat.isdir | default(false))
+  when: not (claude_steps_src_dir.stat.isdir | default(false))
   tags: [claude]
 
 - name: Read the steps catalog source
   ansible.builtin.slurp:
     path: "{{ claude_steps_catalog_src }}"
   register: claude_steps_src_content
-  when: claude_steps_src.results[1].stat.exists
+  when: claude_steps_src.stat.exists
   tags: [claude]
 
 # A source without the marker would be refused as foreign on the next run.
@@ -39,7 +43,7 @@
       {{ claude_steps_catalog_src }} must begin with the line
       "{{ claude_steps_catalog_marker }}".
   when:
-    - claude_steps_src.results[1].stat.exists
+    - claude_steps_src.stat.exists
     - (claude_steps_src_content.content | b64decode).split('\n')[0] != claude_steps_catalog_marker
   tags: [claude]
 
@@ -58,7 +62,7 @@
       any steps it holds into {{ claude_steps_catalog_src }}, remove it, then
       re-run.
   when:
-    - claude_steps_src.results[1].stat.exists
+    - claude_steps_src.stat.exists
     - claude_steps_catalogs.stat.exists
     - claude_steps_catalogs.stat.islnk or not claude_steps_catalogs.stat.isdir
   tags: [claude]
@@ -96,7 +100,7 @@
       merge its entries into {{ claude_steps_catalog_src }}, remove it, then
       re-run.
   when:
-    - claude_steps_src.results[1].stat.exists
+    - claude_steps_src.stat.exists
     - claude_steps_dest.stat.exists | default(false)
     - not (claude_steps_dest_marked | bool)
   tags: [claude]
@@ -107,7 +111,7 @@
     state: directory
     mode: "0755"
   when:
-    - claude_steps_src.results[1].stat.exists
+    - claude_steps_src.stat.exists
     - not claude_steps_catalogs.stat.exists
   tags: [claude]
 
@@ -118,7 +122,7 @@
     remote_src: true
     mode: "0644"
   when:
-    - claude_steps_src.results[1].stat.exists
+    - claude_steps_src.stat.exists
     # In check mode nothing created the directory the copy would land in.
     - claude_steps_catalogs.stat.exists or not ansible_check_mode
   tags: [claude]
@@ -128,6 +132,6 @@
     path: "{{ claude_planwright_overlay }}/catalogs/steps.yaml"
     state: absent
   when:
-    - not claude_steps_src.results[1].stat.exists
+    - not claude_steps_src.stat.exists
     - claude_steps_dest_marked | bool
   tags: [claude]
