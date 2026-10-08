@@ -269,6 +269,8 @@ ignored_rc() { git -C "$repo" check-ignore -q --no-index "$1"; echo $?; }
   || fail worktrees-ignored ".claude/worktrees is no longer ignored, or git failed"
 [ "$(ignored_rc roles/claude/.claude/settings.local.json)" = 0 ] && ok nested-ignored "a nested .claude/ entry stays ignored" \
   || fail nested-ignored "a nested .claude/ entry is no longer ignored, or git failed"
+[ "$(ignored_rc roles/claude/.claude/planwright.yml)" = 0 ] && ok nested-lists-ignored "only the root .claude/planwright.yml is re-included" \
+  || fail nested-lists-ignored "a nested .claude/planwright.yml is no longer ignored, or git failed"
 list_of() { sed -n "s/^$1: *\[\(.*\)\] *$/\1/p" "$lists" | tr -d ' '; }
 case ",$(list_of steps_convergence)," in
   *,panel-review,*) ok convergence "panel-review is named at convergence" ;;
