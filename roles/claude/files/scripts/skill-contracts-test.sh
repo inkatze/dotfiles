@@ -903,11 +903,16 @@ PIN="every test, linter or suite run going through the evidence record" \
   expect_fail bot-review-evidence-dropped 'drop_pin "$PIN" "$(md bot-review)"' "evidence-reuse sentence"
 PIN="run the full suite, linters and type checkers once" \
   expect_fail panel-review-suite-cadence-dropped 'drop_pin "$PIN" "$(md panel-review)"' "suite-cadence sentence"
-PIN="run the project tooling, the full suite and the scoped discovery pass step 9 names once for the iteration" \
+PIN="validate each fix with its diff-scoped checks only and commit" \
   expect_fail bot-review-suite-cadence-dropped 'drop_pin "$PIN" "$(md bot-review)"' "suite-cadence sentence"
+PIN="CI on the pushed head is the full-suite evidence" \
+  expect_fail bot-review-fix-round-dropped 'drop_pin "$PIN" "$(md bot-review)"' "fix-round cadence sentence"
+PIN="never the full suite or the project gate" \
+  expect_fail peer-review-fix-round-dropped 'drop_pin "$PIN" "$(md peer-review)"' "fix-round cadence sentence"
 for pin in \
   "Every tooling or suite run in a review skill looks up the evidence record first" \
-  "A nested loop runs the full suite once per iteration" \
+  "A nested loop validates each fix with diff-scoped checks" \
+  "a fix round that pushes to the PR afterwards never re-runs the full suite" \
   "A PR that is not checked out has its tooling run in an archive export" \
   "a secret scanner runs through it only with its redaction flag" \
   "In it git trusts no repository: none inherited from the caller, none above the directory, and no bare layout found there." \

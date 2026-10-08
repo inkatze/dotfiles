@@ -169,7 +169,12 @@ threads. Either way, name the thread and the commits.
 Then apply each approved fix. A thread that leads to a code change gets
 validation-rigor's solution validation. Any test, linter or suite run along
 the way goes through the evidence record per
-[state.md](../review-shared/state.md).
+[state.md](../review-shared/state.md). This is a fix round under its
+fix-round rule: validate each fix with diff-scoped checks only (the tests
+touching the changed files and the linters on them), never the full suite or
+the project gate; CI on `<pushed head>` is the full-suite evidence, and the
+final report names its state, a red run there being this round's test
+failure.
 
 Commit and push the changes before any reply describes them, pin the pushed
 head (`git rev-parse origin/<branch>`, which must equal `HEAD`; if it does

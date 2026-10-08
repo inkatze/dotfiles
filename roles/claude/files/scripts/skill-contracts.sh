@@ -347,7 +347,8 @@ shared_blocks=(
   "state.md|No skill writes any of this state with a shell redirect"                   # safety: redirect-free writes
   "state.md|Staleness is the owner's absence, never an age."
   "state.md|Every tooling or suite run in a review skill looks up the evidence record first and records through it"
-  "state.md|A nested loop runs the full suite once per iteration, after that iteration's fixes"
+  "state.md|A nested loop validates each fix with diff-scoped checks and runs the full suite at most once per iteration, after that iteration's fixes"
+  "state.md|One full local gate runs before a PR opens; a fix round that pushes to the PR afterwards never re-runs the full suite or the project gate locally."
   "state.md|A PR that is not checked out has its tooling run in an archive export of its pinned head"
   "siblings.md|A mapped producer's code is validation pass 2's context"
   "siblings.md|Read it at pre-flight, before anything is uploaded or anyone is told a review started."
@@ -1207,8 +1208,9 @@ for name in code-review peer-review; do
 done
 
 # Every review skill's tooling and suite runs go through the evidence record;
-# the nested loops run the suite once per iteration; a green pushed head
-# becomes suite evidence; producer code is validation context.
+# the nested loops run the suite at most once per iteration, and a fix round
+# that pushes runs only diff-scoped checks; a green pushed head becomes suite
+# evidence; producer code is validation context.
 require_normalized "$(skill_md bot-review)" "CI-evidence sentence" \
   "on a clean tree at the PR's pushed head, first take CI evidence for it"
 require_normalized "$(skill_md code-review)" "evidence-reuse sentence" \
@@ -1222,7 +1224,11 @@ require_normalized "$(skill_md bot-review)" "evidence-reuse sentence" \
 require_normalized "$(skill_md panel-review)" "suite-cadence sentence" \
   "Once (d) has committed and released the lock, run the full suite, linters and type checkers once"
 require_normalized "$(skill_md bot-review)" "suite-cadence sentence" \
-  "validate each fix with its diff-scoped checks and commit; release the lock and run the project tooling, the full suite and the scoped discovery pass step 9 names once for the iteration"
+  "validate each fix with its diff-scoped checks only and commit"
+require_normalized "$(skill_md bot-review)" "fix-round cadence sentence" \
+  "never the full suite or the project gate: CI on the pushed head is the full-suite evidence"
+require_normalized "$(skill_md peer-review)" "fix-round cadence sentence" \
+  "validate each fix with diff-scoped checks only (the tests touching the changed files and the linters on them), never the full suite or the project gate"
 for name in code-review panel-review; do
   require_normalized "$(skill_md "$name")" "pass-2 attachment sentence" \
     "the diff consumes a shape a mapped producer defines, attach the producer's definition as validation pass 2's context"
