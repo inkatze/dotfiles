@@ -894,9 +894,14 @@ cmd_inbox() {
         return 1
       fi
       # Checked again at the last moment: a holder that left meanwhile has
-      # deleted the file this line would name.
+      # deleted the file this line would name, and one that read it has moved
+      # it aside.
       if [ ! -f "$REG" ] || ! owner_alive "$opt_to"; then
         note "session $opt_to went away while the nudge was prepared; no nudge sent"
+        return 1
+      fi
+      if [ -L "$opt_path" ] || [ ! -f "$opt_path" ]; then
+        note "$opt_path was read or removed while the nudge was prepared; no nudge sent"
         return 1
       fi
       # The holder reads this line as a user turn, so it carries nothing a
