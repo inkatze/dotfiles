@@ -363,9 +363,7 @@ by that task. Blocks are listed in dependency order.
 
 ## Awaiting input
 
-- **Spec PR ready-flip** — pending (2026-10-08): the catalog-copy
-  re-sign-off's spec PR stays draft; the CI wait expired before the head
-  commit's checks completed. Re-run the ready-flip once CI is green.
+(none yet)
 
 ## Deferred
 
