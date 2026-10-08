@@ -161,7 +161,9 @@ all. Bound a run by wrapping the program in `timeout` (`gtimeout` on macOS).
   only: the tests touching the files it changed and the linters run on them,
   each through the record under the command as run, paths included. It then
   pushes, and CI on the pushed head is the full-suite evidence: a check run
-  that concluded failure on that head is the round's test failure.
+  that concluded failure on that head is the round's test failure. The round
+  never waits on that CI to finish; a run still going is reported as still
+  running.
 - **Nested loops.** **A nested loop validates each fix with diff-scoped checks
   and runs the full suite at most once per iteration, after that iteration's
   fixes**: never in a loop that pushes its fixes, per the fix-round rule

@@ -1227,6 +1227,8 @@ require_normalized "$(skill_md bot-review)" "suite-cadence sentence" \
   "validate each fix with its diff-scoped checks only and commit"
 require_normalized "$(skill_md bot-review)" "fix-round cadence sentence" \
   "never the full suite or the project gate: CI on the pushed head is the full-suite evidence"
+forbid_normalized "$(skill_md bot-review)" "retired per-iteration full suite" \
+  "run the project tooling, the full suite"
 require_normalized "$(skill_md peer-review)" "fix-round cadence sentence" \
   "validate each fix with diff-scoped checks only (the tests touching the changed files and the linters on them), never the full suite or the project gate"
 for name in code-review panel-review; do

@@ -907,6 +907,9 @@ PIN="validate each fix with its diff-scoped checks only and commit" \
   expect_fail bot-review-suite-cadence-dropped 'drop_pin "$PIN" "$(md bot-review)"' "suite-cadence sentence"
 PIN="CI on the pushed head is the full-suite evidence" \
   expect_fail bot-review-fix-round-dropped 'drop_pin "$PIN" "$(md bot-review)"' "fix-round cadence sentence"
+expect_fail bot-review-per-iteration-suite-planted \
+  "echo 'Release the lock and run the project tooling, the full suite and the scoped pass.' >> $(md bot-review)" \
+  "retired per-iteration full suite"
 PIN="never the full suite or the project gate" \
   expect_fail peer-review-fix-round-dropped 'drop_pin "$PIN" "$(md peer-review)"' "fix-round cadence sentence"
 for pin in \

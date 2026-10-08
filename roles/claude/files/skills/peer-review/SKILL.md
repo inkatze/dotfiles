@@ -172,9 +172,9 @@ the way goes through the evidence record per
 [state.md](../review-shared/state.md). This is a fix round under its
 fix-round rule: validate each fix with diff-scoped checks only (the tests
 touching the changed files and the linters on them), never the full suite or
-the project gate; CI on `<pushed head>` is the full-suite evidence, and the
-final report names its state, a red run there being this round's test
-failure.
+the project gate; CI on `<pushed head>` is the full-suite evidence. After
+step 8, tell me its state (green, still running or red), a red run there
+being this round's test failure.
 
 Commit and push the changes before any reply describes them, pin the pushed
 head (`git rev-parse origin/<branch>`, which must equal `HEAD`; if it does
