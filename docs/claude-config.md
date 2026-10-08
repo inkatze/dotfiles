@@ -61,10 +61,11 @@ planwright resolves each overlay file's real path and ignores one that lands
 outside the overlay, so a link into this repo is never read.
 
 The copy's first line is a marker comment, and that line is what makes a file
-there the role's to replace or remove. A file without it, a symlink, or a
-`catalogs` that is not a plain directory fails the run rather than being
-overwritten; merge its entries into the tracked catalog, remove it, and
-re-run. The catalog only declares steps: this repo names them in
+there the role's to replace or remove. While the tracked catalog exists, a
+file without it, a symlink, or a `catalogs` that is not a plain directory
+fails the run rather than being overwritten; merge its entries into the
+tracked catalog, remove it, and re-run. Once the tracked catalog is gone, the
+role removes only its own copy and leaves anything else in place. The catalog only declares steps: this repo names them in
 `.claude/planwright.yml`, and no adopter-wide list is set, since a step that
 sends a diff to an outside service is a per-repository decision.
 

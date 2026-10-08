@@ -17,7 +17,7 @@ appear at runtime:
 | `~/.claude/scripts/` | `roles/claude/files/scripts/` | Directory symlink (hooks and the status line `settings.json` invokes) |
 | `~/.claude/output-styles/` | `roles/claude/files/output-styles/` | Directory symlink, resolved by name from `outputStyle` |
 | `~/.claude/settings.json` | `roles/claude/files/settings.json` | jq merge by `scripts/claude-settings-merge.sh`, not a symlink |
-| `~/.claude/plugins/data/planwright-planwright/overlay/catalogs/steps.yaml` | `roles/claude/files/planwright/steps.yaml` | Copy (`roles/claude/tasks/steps-catalog.yml`), as planwright ignores a symlinked catalog; a file there without the marker first line fails the run |
+| `~/.claude/plugins/data/planwright-planwright/overlay/catalogs/steps.yaml` | `roles/claude/files/planwright/steps.yaml` | Copy (`roles/claude/tasks/steps-catalog.yml`), as planwright ignores a catalog resolving outside the overlay; while the source exists, a file there without the marker first line fails the run |
 
 - Always edit the tracked source; if in doubt, `readlink` a `~/.claude/` file.
 - Keep `keep-coding-instructions: true` in
