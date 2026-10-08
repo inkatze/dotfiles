@@ -3,3 +3,4 @@
 .elixir_ls
 mise.local.toml
 settings.local.json
+.claude/planwright.local.yml
