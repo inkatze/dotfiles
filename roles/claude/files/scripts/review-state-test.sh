@@ -986,8 +986,11 @@ ledger="$REVIEW_STATE_ROOT/ledger/acme/widgets/pr-7.json"
   || fail ledger-empty "a key never recorded did not route as new"
 # The re-run under the lock must see the lock it was handed, or it locks again
 # and waits on its own parent forever. macOS reports /dev/fd/N on another
-# device than the file, so an `-ef` test there never matched.
-printf 'one record\n' | perl -e 'alarm shift; exec @ARGV or exit 127' 20 \
+# device than the file, so an `-ef` test there never matched. The bound kills
+# the record's whole process group: killing only the locker frees its lock for
+# the blocked re-run, which then waits on a re-run of its own and never exits.
+printf 'one record\n' | perl -e 'my $t = shift; my $p = fork // exit 127; if (!$p) { setpgrp; exec @ARGV or exit 127 }
+  $SIG{ALRM} = sub { kill KILL => -$p; exit 124 }; alarm $t; waitpid $p, 0; exit($? & 127 ? 2 : $? >> 8)' 20 \
   "$H" ledger record --repo Acme/Widgets --pr 9 --reviewer acme --key k-reentry --anchor f \
   --disposition fixed --head "$h1" --reply https://example.invalid/r/0 > /dev/null 2>&1 && rc=0 || rc=$?
 [ "$rc" -eq 0 ] || fail ledger-lock-reentry "a record under its own lock did not finish (exit $rc)"
