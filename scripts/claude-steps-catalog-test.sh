@@ -272,10 +272,8 @@ ignored_rc() { git -C "$repo" check-ignore -q --no-index "$1"; echo $?; }
 [ "$(ignored_rc roles/claude/.claude/planwright.yml)" = 0 ] && ok nested-lists-ignored "only the root .claude/planwright.yml is re-included" \
   || fail nested-lists-ignored "a nested .claude/planwright.yml is no longer ignored, or git failed"
 list_of() { sed -n "s/^$1: *\[\(.*\)\] *$/\1/p" "$lists" | tr -d ' '; }
-case ",$(list_of steps_convergence)," in
-  *,panel-review,*) ok convergence "panel-review is named at convergence" ;;
-  *) fail convergence "panel-review is not named at convergence" ;;
-esac
+[ "$(list_of steps_convergence)" = polish,panel-review ] && ok convergence "steps_convergence is [polish, panel-review]" \
+  || fail convergence "steps_convergence is not [polish, panel-review]"
 [ "$(list_of steps_post_pr)" = bot-review ] && ok post-pr "bot-review is named at post-pr" \
   || fail post-pr "steps_post_pr is not [bot-review]"
 if grep -E '^steps_' "$lists" | grep -v '^steps_post_pr:' | grep -q 'bot-review'; then
