@@ -283,6 +283,23 @@ resolved into a decision or one of the rows above.
 
 Signed off: 2026-10-03
 
+### Execution research: Task 6 (2026-10-06)
+
+Consulted Claude Code's cross-session messaging and environment-variable
+pages, and an upstream bug report reproducing a script's post to a session's
+inbox socket. The docs define the socket, its per-session environment
+variables, the optional auth line and the inbound controls, but not the line
+a script writes to deliver a message; the bug report shows it as one JSON
+line of type `user` carrying a `message` with role and content. Inbound
+controls apply to a socket post as to any peer message, so `refuse` drops a
+socket nudge too: the nudge helps a sender with no messaging tool, not a
+holder that refuses messages, and the boundary read stays the delivery that
+counts.
+
+| # | Risk | Mitigation / early signal |
+| --- | --- | --- |
+| 13 | The socket nudge rests on a line format Claude Code does not document, so an update can drop it silently. | The helper reports a failed delivery and the handoff carries on; the inbox file is the record. Signal: a socket nudge from a sender with no messaging tool, to a holder that accepts messages, does not arrive. |
+
 ## 8. Sign-off
 
 **Session note.** The session restarted between section 7 and the lens
