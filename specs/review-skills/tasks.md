@@ -1,7 +1,7 @@
 # Review Skills — Tasks
 
 **Status:** Ready
-**Last reviewed:** 2026-10-07
+**Last reviewed:** 2026-10-08
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -286,29 +286,39 @@ by that task. Blocks are listed in dependency order.
 ### Task 8 — planwright step registration
 
 - **Deliverables:** A tracked catalog file under the Claude role declaring
-  `panel-review` and `bot-review` as `--nested` skill steps; a role task
-  linking it into the adopter overlay's catalogs directory, linking only when
-  the destination is absent or already a link into this repository, and
-  leaving the overlay's config file to Task 2's renderer; a fixture suite for
-  the link task. The root `.gitignore` reworked so `.claude/planwright.yml` can be
-  re-included (git never re-includes a file under an excluded directory, so
-  the directory rule becomes a contents rule plus a negation) and that file
-  naming `panel-review` at `convergence` and `bot-review` at `post-pr`. Every
-  `review_sequence` mention in the dotfiles instruction surfaces replaced by
-  the catalog-and-list vocabulary. The repo-root `CLAUDE.md` updated for the
-  managed catalog.
-- **Done when:** On the branch: the link fixture suite passes (links when
-  absent, keeps a foreign file and reports it, prunes its own dangling
-  link); `grep -rn review_sequence roles/ CLAUDE.md` returns only lines
-  recording the knob's retirement; `git check-ignore .claude/planwright.yml`
-  exits non-zero and the file is tracked; `ansible-playbook main.yml
-  --syntax-check` passes; the suite is wired into the workflow job that has
-  Ansible and into `lefthook.yml`. After merge: planwright's step resolver,
-  run unattended with its explain flag for `convergence` and `post-pr` in
-  this repository, prints `run` for each named step with the adopter layer
-  as the catalog source.
+  `panel-review` and `bot-review` as `--nested` skill steps, its first line
+  the role's marker comment; a role task, with no `CI` guard, installing a
+  byte-for-byte copy at the adopter overlay's `catalogs/steps.yaml` per
+  REQ-F1.5 (creating a missing `catalogs/`, failing the run on a foreign
+  destination, removing its own copy when the source is gone) and leaving
+  the overlay's config file to Task 2's renderer; a fixture suite for the
+  copy task. The root `.gitignore`'s `.claude/` rule replaced by
+  `**/.claude/*` plus `!/.claude/planwright.yml` (git never re-includes a
+  file under an excluded directory, so the directory rule becomes a contents
+  rule plus a negation) and that file naming `panel-review` at `convergence`
+  and `bot-review` at `post-pr`. Every `review_sequence` mention in the
+  dotfiles instruction surfaces replaced by the catalog-and-list vocabulary.
+  The repo-root `CLAUDE.md` updated for the managed catalog, and
+  `docs/claude-config.md`'s sentence on ignoring `.claude/` updated for the
+  contents rule and the tracked file.
+- **Done when:** On the branch: the copy fixture suite passes (writes when
+  the destination and `catalogs/` are absent; reports no change on an
+  identical marked copy; rewrites a marked copy whose source changed; fails
+  the run naming the path on an unmarked file, on a symlink to a marked
+  file, and on a `catalogs/` that is a symlink or a regular file, writing
+  nothing through them; makes the same decisions under check mode without
+  writing; removes its own copy when the source is gone; leaves an unmarked
+  file in place when the source is gone); `grep -rn review_sequence roles/
+  CLAUDE.md` returns only lines recording the knob's retirement; `git
+  check-ignore --no-index .claude/planwright.yml` exits non-zero and the
+  file is tracked, while `git check-ignore .claude/worktrees` exits zero;
+  `ansible-playbook main.yml --syntax-check` passes; the suite is wired into
+  the workflow job that has Ansible and into `lefthook.yml`. After merge:
+  planwright's step resolver, run unattended with its explain flag for
+  `convergence` and `post-pr` in this repository, prints `run` for each
+  named step with the adopter layer as the catalog source.
 - **Dependencies:** 3
-- **Citations:** D-12 · REQ-F1.1, REQ-F1.2, REQ-F1.3, REQ-F1.4
+- **Citations:** D-20 · REQ-F1.5, REQ-F1.2, REQ-F1.3, REQ-F1.4
 - **Estimated effort:** half day
 
 ### Task 9 — Seed the planwright note
@@ -347,7 +357,7 @@ by that task. Blocks are listed in dependency order.
 - **Dependencies:** 3, 4, 5, 6, 7, 8
 - **Citations:** D-18 · REQ-A1.1, REQ-A1.3, REQ-A1.4, REQ-A1.5, REQ-B1.1,
   REQ-C1.1, REQ-C1.2, REQ-C1.3, REQ-C1.6, REQ-D1.3, REQ-D1.4, REQ-E1.1,
-  REQ-E1.3, REQ-E1.6, REQ-E1.8, REQ-F1.1, REQ-G1.1, REQ-I1.4, REQ-I1.5,
+  REQ-E1.3, REQ-E1.6, REQ-E1.8, REQ-F1.5, REQ-G1.1, REQ-I1.4, REQ-I1.5,
   REQ-I1.6, REQ-I1.7
 - **Estimated effort:** 1 day
 
@@ -381,7 +391,7 @@ by that task. Blocks are listed in dependency order.
 
 - **Lens-list additions in the dotfiles skills.** Seeded upstream (D-11,
   D-17).
-- **Adopter-wide step lists.** Per-repository only (D-12).
+- **Adopter-wide step lists.** Per-repository only (D-20).
 - **Hosted Copilot on repositories that do not run it.** The entry exists;
   nothing requests Copilot where it is not installed (D-3).
 - **The retrospective's human-process habits.** Practice, not skill text.
