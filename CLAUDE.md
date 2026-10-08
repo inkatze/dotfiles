@@ -17,6 +17,7 @@ appear at runtime:
 | `~/.claude/scripts/` | `roles/claude/files/scripts/` | Directory symlink (hooks and the status line `settings.json` invokes) |
 | `~/.claude/output-styles/` | `roles/claude/files/output-styles/` | Directory symlink, resolved by name from `outputStyle` |
 | `~/.claude/settings.json` | `roles/claude/files/settings.json` | jq merge by `scripts/claude-settings-merge.sh`, not a symlink |
+| planwright's adopter overlay `catalogs/steps.yaml` | `roles/claude/files/planwright/steps.yaml` | Copy (`roles/claude/tasks/steps-catalog.yml`), as planwright ignores a symlinked catalog; a file there without the marker first line fails the run. This repo's own step lists are `.claude/planwright.yml` |
 
 - Always edit the tracked source; if in doubt, `readlink` a `~/.claude/` file.
 - Keep `keep-coding-instructions: true` in
@@ -50,8 +51,7 @@ near-empty. See [docs/claude-config.md](docs/claude-config.md).
 2. A review skill also joins `SKILL_NAMES` and `expected_hint` in
    `roles/claude/files/scripts/skill-contracts.sh`, with a fixture.
 3. Declare its word budget (below), commit, and run Ansible from the main
-   checkout: the links point into whichever checkout Ansible ran from. Verify
-   in a fresh session.
+   checkout, which the links then point into. Verify in a fresh session.
 
 Any new tracked directory under `roles/claude/files/` except a skill or
 `planwright/` needs a symlink task in `roles/claude/tasks/main.yml`.

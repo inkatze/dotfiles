@@ -185,6 +185,9 @@
 - name: Install the planwright plugin
   ansible.builtin.import_tasks: planwright.yml
 
+- name: Install the planwright steps catalog
+  ansible.builtin.import_tasks: steps-catalog.yml
+
 # Last, unlike the Gemini key sync: a host with `op` but without one of these
 # items yet fails here, after every other task in the role has run.
 - name: Render machine-local files from 1Password

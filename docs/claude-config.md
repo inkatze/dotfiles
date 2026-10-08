@@ -60,5 +60,8 @@ already carries.
 | Per-repo tracked | `<repo>/.claude/settings.json` | Project-specific durable allows | Durable, committed |
 | Per-repo local | `<repo>/.claude/settings.local.json` | Ephemeral, short rules | Nukeable, gitignored |
 
-This repo gitignores `.claude/` wholesale today, so it carries no per-repo
-tracked file yet; adding one means un-ignoring that path.
+This repo gitignores the contents of every `.claude/` directory rather than
+the directory itself, since git never re-includes a file under an excluded
+directory, and un-ignores one path: `.claude/planwright.yml`, its tracked
+planwright step lists. Tracking another file there means adding its own
+negation to `.gitignore`.

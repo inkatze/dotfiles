@@ -1,0 +1,5 @@
+# The steps are declared in the adopter catalog the claude role installs from
+# roles/claude/files/planwright/steps.yaml; a host without it parks the unit.
+# bot-review pushes, so it belongs at post-pr and at no earlier point.
+steps_convergence: [polish, panel-review]
+steps_post_pr: [bot-review]

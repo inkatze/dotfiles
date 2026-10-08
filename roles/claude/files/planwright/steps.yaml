@@ -1,0 +1,17 @@
+# Managed by the dotfiles claude role — do not edit by hand
+#
+# Installed as a copy at planwright's adopter overlay catalogs/steps.yaml
+# (roles/claude/tasks/steps-catalog.yml); edit this file and re-run the role.
+# Declaring a step here runs it nowhere: a repository names it in its own
+# steps_<point> list. planwright's catalog reader is not full YAML; keep to its
+# constrained form (custom-steps doctrine, the step entry).
+
+steps:
+  - id: panel-review
+    kind: skill
+    target: panel-review
+    args: --nested
+  - id: bot-review
+    kind: skill
+    target: bot-review
+    args: --nested

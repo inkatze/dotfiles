@@ -2,3 +2,11 @@
 # Must stay in owner/repo form: the migration task compares against a
 # `github`-kind source built from it, so a URL would remove it on every run.
 claude_planwright_repo: inkatze/planwright
+
+# planwright's adopter overlay root, the same path conf.d/planwright.fish
+# exports as PLANWRIGHT_ADOPTER_OVERLAY.
+claude_planwright_overlay: "{{ ansible_facts.env.HOME }}/.claude/plugins/data/planwright-planwright/overlay"
+claude_steps_catalog_src: "{{ ansible_facts.env.PWD }}/roles/claude/files/planwright/steps.yaml"
+# The first line of the tracked catalog, and what makes a file at the overlay's
+# catalogs/steps.yaml this role's to replace or remove.
+claude_steps_catalog_marker: "# Managed by the dotfiles claude role — do not edit by hand"
