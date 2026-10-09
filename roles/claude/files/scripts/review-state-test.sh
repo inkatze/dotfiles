@@ -32,8 +32,11 @@ fail() { echo "FAIL $1: $2"; failures=$((failures + 1)); }
 # the /var symlink. Kept short, never through `mktemp -t`: BSD appends its own
 # suffix to that template, and the messaging sockets below must stay inside
 # the helper's own_socket length limit under macOS's long TMPDIR.
+# Two steps: bash 3.2 treats `cd ""` as success, so a failed mktemp nested in
+# the cd would leave tmp naming the cwd, which cleanup then deletes.
 tmp_base="${TMPDIR:-/tmp}"
-tmp="$(cd "$(mktemp -d "${tmp_base%/}/rst.XXXXXX")" && pwd -P)"
+tmp="$(mktemp -d "${tmp_base%/}/rst.XXXXXX")"
+tmp="$(cd "$tmp" && pwd -P)"
 bg_pids=()
 cleanup() {
   local p
