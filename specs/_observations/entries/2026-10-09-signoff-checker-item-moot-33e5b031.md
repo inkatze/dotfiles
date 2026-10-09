@@ -1,0 +1,1 @@
+- 2026-10-09 [dotfiles] The 2026-10-03 review-skill-carried-defects entry lists the sign-off checker missing comma or emoji decorations; the sign-off and its checker were removed on the drop-clanky-name branch, so that item is moot when the entry is mined. Its other items are unaffected.
