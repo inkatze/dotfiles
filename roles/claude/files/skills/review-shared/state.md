@@ -154,11 +154,22 @@ all. Bound a run by wrapping the program in `timeout` (`gtimeout` on macOS).
   ignored, since such apps can leave a suite queued for good, while a GitHub
   Actions suite counts however many runs it shows. Then pipe the head's check runs to `evidence ci` and look up again
   with `--tree` that key; only a miss runs the suite.
-- **Nested loops.** **A nested loop runs the full suite once per iteration,
-  after that iteration's fixes**, with the project tooling where the loop runs
-  it, and validates each fix with diff-scoped checks: the tests touching the
-  files it changed and the linters run on them, each through the record under
-  the command as run, paths included. At the start of an iteration on a clean
+- **Fix rounds on a PR.** **One full local gate runs before a PR opens; a
+  fix round that pushes to the PR afterwards never re-runs the full suite or
+  the project gate locally.** Such a round (`/bot-review`'s, standalone or
+  nested, and `/peer-review`'s) validates each fix with diff-scoped checks
+  only: the tests touching the files it changed and the linters run on them,
+  each through the record under the command as run, paths included. It then
+  pushes, and CI on the pushed head is the full-suite evidence: a check run
+  that concluded failure on that head is the round's test failure. The round
+  never waits on that CI to finish; a run still going is reported as still
+  running.
+- **Nested loops.** **A nested loop validates each fix with diff-scoped checks
+  and runs the full suite at most once per iteration, after that iteration's
+  fixes**: never in a loop that pushes its fixes, per the fix-round rule
+  above, and once, with the project tooling where the loop runs it, in a
+  local-only loop such as `/panel-review --nested`, whose fixes reach no CI
+  until its caller publishes them. At the start of an iteration on a clean
   tree at the PR's pushed head, the loop takes CI evidence per the Full suite
   bullet, so a later lookup on that tree reuses a green CI run.
 - **An exported tree.** **A PR that is not checked out has its tooling run in
@@ -321,7 +332,7 @@ of sending to it.
   are chosen and the suite, tooling and discovery run without the lock. A
   write phase takes it immediately before its first write (applying fixes
   with their diff-scoped checks, committing) and releases it right after its
-  last; the full suite then runs on the commit without it, and a push takes it
+  last; any full suite then runs on the commit without it, and a push takes it
   again. Discovery, validation, fetching, waiting on a reviewer and the
   operator's walk never hold it, and neither does a question to the operator:
   commit what is applied, release before asking, and acquire again after the
@@ -406,7 +417,7 @@ of sending to it.
   fixes made for findings, run one discovery pass, planwright's lenses per
   [doctrine.md](doctrine.md), over that push's fix diff (`git diff
   origin/<branch>...HEAD`, or against the base when the branch is not on the
-  remote yet), after the commit and without the lock, beside the full suite.
+  remote yet), after the commit and without the lock, beside any full suite.
   Its Auto-applicable findings land as one more locked write before the push;
   the rest are routed by the skill's buckets. A loop appends its lens table to
   the loop artifact before the push; a single pass puts it in its PR body's
