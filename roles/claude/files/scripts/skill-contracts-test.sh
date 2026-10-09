@@ -502,11 +502,15 @@ for name in "${SKILL_NAMES[@]}"; do
   expect_pass "agent-resolvable-allowed-$name" "echo 'Agent-resolvable' >> $(md "$name")"
 done
 
-# --- No review_sequence claim (REQ-B1.5) ---
+# --- The retired review_sequence knob stays unnamed (REQ-B1.5, REQ-F1.4) ---
 for name in "${SKILL_NAMES[@]}"; do
   expect_fail "review-sequence-claim-$name" \
-    "echo 'This is a nestable member of review_sequence.' >> $(md "$name")" "claims a review_sequence role"
+    "echo 'This is a nestable member of review_sequence.' >> $(md "$name")" "names the retired review_sequence knob"
 done
+
+# --- A nested panel-review stays local-only (REQ-F1.3) ---
+expect_fail panel-review-local-only \
+  "perl -0pi -e 's/it never pushes and never creates or touches a PR/it pushes when done/' $(md panel-review)" "local-only sentence"
 
 # --- Shared mechanics stated once, safety mechanics kept (REQ-C1.2) ---
 expect_fail shared-block-duplicated \
@@ -1019,7 +1023,7 @@ expect_fail workflow-bullet-no-pointer \
 expect_fail hard-invariants-dropped \
   "perl -0pi -e 's/\\*\\*Hard invariants\\.\\*\\* //' $GLOBAL_MD" "hard-invariants paragraph"
 expect_fail review-sequence-claim-global \
-  "printf '\\n\`/panel-review --nested\` fits planwright.s review_sequence.\\n' >> $GLOBAL_MD" "forbidden review_sequence claim"
+  "printf '\\n\`/panel-review --nested\` fits planwright.s review_sequence.\\n' >> $GLOBAL_MD" "forbidden retired review_sequence knob"
 
 # Messages to people (REQ-D1.1 to REQ-D1.5)
 expect_fail outbound-rule-dropped \

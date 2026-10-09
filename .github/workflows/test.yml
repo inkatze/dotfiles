@@ -92,6 +92,10 @@ jobs:
       - name: Run the Claude skills link suite
         run: scripts/claude-skills-link-test.sh
 
+      # Needs ansible-playbook, which this job installs.
+      - name: Run the planwright steps catalog suite
+        run: scripts/claude-steps-catalog-test.sh
+
       # Was asserted by nothing until now, so its Ubuntu-job assertion had gone
       # stale unnoticed once a second job started running there.
       - name: Run the services declaration suite

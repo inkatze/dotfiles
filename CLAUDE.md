@@ -17,6 +17,7 @@ appear at runtime:
 | `~/.claude/scripts/` | `roles/claude/files/scripts/` | Directory symlink (hooks and the status line `settings.json` invokes) |
 | `~/.claude/output-styles/` | `roles/claude/files/output-styles/` | Directory symlink, resolved by name from `outputStyle` |
 | `~/.claude/settings.json` | `roles/claude/files/settings.json` | jq merge by `scripts/claude-settings-merge.sh`, not a symlink |
+| `~/.claude/plugins/data/planwright-planwright/overlay/catalogs/steps.yaml` | `roles/claude/files/planwright/steps.yaml` | Copy (`roles/claude/tasks/steps-catalog.yml`), as planwright ignores a catalog resolving outside the overlay; while the source exists, a file there without the marker first line fails the run |
 
 - Always edit the tracked source; if in doubt, `readlink` a `~/.claude/` file.
 - Keep `keep-coding-instructions: true` in
@@ -38,8 +39,8 @@ See [docs/claude-config.md](docs/claude-config.md).
 Three valid layers, chosen by scope: global tracked
 `roles/claude/files/settings.json` for cross-project allows and the deny list;
 per-repo tracked `<repo>/.claude/settings.json` for project-specific durable
-rules; per-repo local `.claude/settings.local.json` for ephemeral rules, kept
-near-empty. See [docs/claude-config.md](docs/claude-config.md).
+rules; per-repo local `<repo>/.claude/settings.local.json` for ephemeral
+rules, kept near-empty. See [docs/claude-config.md](docs/claude-config.md).
 
 ## Adding a new Claude skill
 
@@ -50,8 +51,7 @@ near-empty. See [docs/claude-config.md](docs/claude-config.md).
 2. A review skill also joins `SKILL_NAMES` and `expected_hint` in
    `roles/claude/files/scripts/skill-contracts.sh`, with a fixture.
 3. Declare its word budget (below), commit, and run Ansible from the main
-   checkout: the links point into whichever checkout Ansible ran from. Verify
-   in a fresh session.
+   checkout; links follow the checkout it ran from. Verify in a new session.
 
 Any new tracked directory under `roles/claude/files/` except a skill or
 `planwright/` needs a symlink task in `roles/claude/tasks/main.yml`.
@@ -81,7 +81,7 @@ Any new tracked directory under `roles/claude/files/` except a skill or
 - Never wire planwright's hooks (`tool-discovery`, `tasks-pr-sync`, and the
   rest of its `hooks/hooks.json`) in the tracked `settings.json`; the plugin
   wires them and a second entry double-fires.
-- `worktree-bootstrap.sh` runs a repo's `.claude/worktree-bootstrap`
+- `worktree-bootstrap.sh` runs `<repo>/.claude/worktree-bootstrap`
   unsandboxed: inspect it before opening a checkout you did not author. Its
   header documents the marker and how to force a re-run.
 

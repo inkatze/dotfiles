@@ -52,6 +52,28 @@ caused by it without anyone noticing it was undeclared. Moving the Claude role
 cross-platform did not fix this, because that only propagates keys the repo
 already carries.
 
+## The planwright steps catalog is a copy
+
+The review skills reach planwright as steps through a catalog the role
+installs at the adopter overlay's `catalogs/steps.yaml`, from
+`roles/claude/files/planwright/steps.yaml`. It is a copy, not a symlink:
+planwright resolves each overlay file's real path and ignores one that lands
+outside the overlay, so a link into this repo is never read.
+
+The copy's first line is a marker comment, and that line is what makes a file
+there the role's to replace or remove. While the tracked catalog exists, a
+file without it, a symlink, or a `catalogs` that is not a plain directory
+fails the run rather than being overwritten; merge its entries into the
+tracked catalog, remove it, and re-run. Once the tracked catalog is gone, the
+role removes only its own copy and leaves anything else in place. The catalog only declares steps: this repo names them in
+`.claude/planwright.yml`, and no adopter-wide list is set, since a step that
+sends a diff to an outside service is a per-repository decision.
+
+To retire the catalog, delete the tracked file and run the role once while
+`roles/claude/tasks/steps-catalog.yml` still exists, which removes the copy,
+then remove the task. Reverting the task alone leaves the copy behind, to
+delete by hand.
+
 ## Permission layers
 
 | Layer | File | Scope | Persistence |
@@ -60,5 +82,8 @@ already carries.
 | Per-repo tracked | `<repo>/.claude/settings.json` | Project-specific durable allows | Durable, committed |
 | Per-repo local | `<repo>/.claude/settings.local.json` | Ephemeral, short rules | Nukeable, gitignored |
 
-This repo gitignores `.claude/` wholesale today, so it carries no per-repo
-tracked file yet; adding one means un-ignoring that path.
+This repo gitignores the contents of every `.claude/` directory rather than
+the directory itself, since git never re-includes a file under an excluded
+directory, and un-ignores one path: `.claude/planwright.yml`, its tracked
+planwright step lists. Tracking another file there means adding its own
+negation to `.gitignore`.

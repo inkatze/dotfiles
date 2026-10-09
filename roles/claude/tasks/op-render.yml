@@ -40,15 +40,13 @@
     - lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [claude]
 
-# planwright's adopter overlay root, the same path conf.d/planwright.fish
-# exports as PLANWRIGHT_ADOPTER_OVERLAY.
 - name: Render the planwright adopter overlay config from 1Password
   ansible.builtin.command:
     argv:
       - "{{ ansible_facts.env.PWD }}/scripts/op-render.sh"
       - "{{ ansible_facts.env.PWD }}/roles/claude/files/planwright/planwright.yml.tpl"
       - dotfiles-planwright-overlay
-      - "{{ ansible_facts.env.HOME }}/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
+      - "{{ claude_planwright_overlay }}/planwright.yml"
   register: claude_render_overlay_config
   changed_when: "'CHANGED' in claude_render_overlay_config.stdout"
   failed_when: false

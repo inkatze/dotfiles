@@ -58,6 +58,13 @@ pre-commit:
       # foreign.
       glob: "{roles/claude/tasks/skills.yml,roles/claude/tasks/main.yml,scripts/claude-skills-link-test.sh}"
       run: scripts/claude-skills-link-test.sh
+    claude-steps-catalog:
+      # The suite is what notices the marker guard being dropped; the role alone
+      # still converges on a host whose overlay holds nothing foreign.
+      glob: "{.gitignore,.claude/planwright.yml,roles/claude/{defaults,tasks}/main.yml,\
+        roles/claude/tasks/steps-catalog.yml,roles/claude/files/planwright/steps.yaml,\
+        scripts/claude-steps-catalog-test.sh}"
+      run: scripts/claude-steps-catalog-test.sh
     claude-settings-merge:
       # The suite is what notices a merge case being dropped; the script alone
       # would still report OK.

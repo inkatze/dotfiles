@@ -310,11 +310,11 @@ for name in panel-review bot-review; do
   done <<< "$paras"
 done
 
-# No skill claims membership of planwright's review_sequence, whose resolver
-# accepts no skill from outside planwright.
-files_matching -F 'review_sequence'
+# planwright retired its review_sequence knob for the steps catalog and the
+# per-point steps_<point> lists, so no skill names the retired knob.
+files_matching -F 'review_sequence'  # the retired knob's name
 for f in ${matched[@]+"${matched[@]}"}; do
-  err "$f claims a review_sequence role; the resolver accepts no skill outside planwright"
+  err "$f names the retired review_sequence knob; a step is declared in the catalog and named in a steps_<point> list"
 done
 
 # --- Shared mechanics stated once ---
@@ -388,6 +388,10 @@ files_matching -E '^#+ Maintenance'
 for f in ${matched[@]+"${matched[@]}"}; do
   err "$f has a Maintenance section; skills carry no per-run self-audit"
 done
+
+# --- A nested panel-review never pushes, so it can run at convergence ---
+require_normalized "$(skill_md panel-review)" "local-only sentence" \
+  "**Local-only**: it never pushes and never creates or touches a PR; whoever invoked it publishes the branch."
 
 # --- Nested loops run discovery on the first and converging iterations ---
 require_normalized "$(skill_md panel-review)" "discovery-cadence sentence" \
@@ -648,7 +652,7 @@ if [ -n "$global_ok" ]; then
     "and never push to a protected branch"
   forbid_normalized "$GLOBAL_MD" "lifecycle wording" \
     "Draft → Active" "\`Draft\` → \`Active\`" "non-Active spec" "non-\`Active\` spec"
-  forbid_normalized "$GLOBAL_MD" "review_sequence claim" "review_sequence"
+  forbid_normalized "$GLOBAL_MD" "retired review_sequence knob" "review_sequence"
 
   POLISH_SCOPE="\`/polish\` applies Auto-applicable, Agent-resolvable and Needs-sign-off fixes on the branch, pausing first on planwright's hard-disqualifier zones and stopping at Needs human judgment"
   occurrences "$global_norm" "$POLISH_SCOPE" n
