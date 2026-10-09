@@ -949,14 +949,6 @@ for name in code-review peer-review; do
   expect_fail "$name-limits-link-dropped" \
     "perl -pi -e 's{\\]\\(\\.\\./review-shared/limits\\.md\\)}{]}g' $(md $name)" "link to the shared limits.md"
 done
-expect_fail signoff-decoration \
-  "perl -0pi -e 's/– clanky\\n/– clanky the bot\\n/' $(md code-review)" "decoration after clanky"
-expect_fail signoff-wrong-dash \
-  "perl -0pi -e 's/– clanky/— clanky/' $(md code-review)" "wrong dash"
-expect_fail signoff-missing \
-  "perl -0pi -e 's/^– clanky[ \\t]*\$//mg' $(md peer-review)" "carries no"
-expect_fail signoff-shared-missing \
-  "perl -0pi -e 's/– clanky/- clanky/g' $SHARED/slack.md" "missing expected sign-off"
 
 # --- The user-global file ---
 
@@ -1151,7 +1143,7 @@ expect_fail outbound-rule-in-root \
 expect_fail slack-resolution-in-root \
   "printf '\\n## Resolve the GitHub login to a Slack user\\n' >> CLAUDE.md" "copy of a global rule or the Slack mechanics"
 expect_fail slack-pointer-dropped \
-  "perl -0pi -e 's/; its recipient resolution, confirmation and\\s+sign-off are in \`~\\/\\.claude\\/skills\\/review-shared\\/slack\\.md\`/ is optional too/' $GLOBAL_MD" "Slack mechanics pointer"
+  "perl -0pi -e 's/; its recipient resolution and confirmation\\s+are in \`~\\/\\.claude\\/skills\\/review-shared\\/slack\\.md\`/ is optional too/' $GLOBAL_MD" "Slack mechanics pointer"
 expect_pass slack-mcp-optional-reflowed \
   "perl -0pi -e 's/The Slack MCP server is optional;/The Slack MCP server is\\noptional;/' $GLOBAL_MD"
 

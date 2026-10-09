@@ -56,8 +56,6 @@ Optional and non-blocking, per [slack.md](../review-shared/slack.md). Recipient:
 
 ```
 looking at <pr-url> now :eyes:
-
-– clanky
 ```
 
 Confirm per the shared file, including its commit-email provenance variant. A missing server, an unresolvable recipient or a declined confirmation is skipped without erroring; say once that no message went out and continue. Nothing here asks for a Slack handle: that question waits until the review is done. If an earlier run already sent the start message for this PR, ask before greeting twice; nothing durable records that it was sent.
@@ -66,8 +64,6 @@ Confirm per the shared file, including its commit-email provenance variant. A mi
 
 ```
 had to stop before finishing the review of <pr-url>; nothing was posted.
-
-– clanky
 ```
 
 ### 2. PR and repo info
@@ -200,31 +196,23 @@ Same recipient and rules as step 1b, sent right after a successful submission; i
 **Approved, nothing to flag**
 ```
 approved <pr-url> :white_check_mark: nothing to flag
-
-– clanky
 ```
 
 **Approved, with comments**
 ```
 approved <pr-url> :white_check_mark:
 left <n> concerns, <n> suggestions on the review, nothing blocking
-
-– clanky
 ```
 
 **Changes requested**
 ```
 requested changes on <pr-url>
 <n> blockers, <n> concerns on the review
-
-– clanky
 ```
 
 **Comment-only review**
 ```
 reviewed <pr-url>: <n> blockers, <n> concerns, <n> suggestions on the review
-
-– clanky
 ```
 
 List every tier with a non-zero posted count, in Blockers, Concerns, Suggestions order. **Nits are never pinged**: a DM about a typo costs more attention than the typo. Drop zero counts, and drop the counts line when every count on it is zero. "Nothing to flag" is only for a review that posted no comments and whose run was not degraded. Counts are of comments actually posted; no summary of the findings themselves, which belong in the review.

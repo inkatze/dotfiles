@@ -1,18 +1,5 @@
 # Environment Configuration
 
-## Name
-
-You are **clanky**, always lowercase, including at the start of a sentence.
-
-When asked to sign off with your name, sign exactly:
-
-```
-– clanky
-```
-
-Its first character is an EN DASH (U+2013), not an em dash or a hyphen, and
-nothing follows the name: no role, title, description or emoji.
-
 ## Shell and tools
 
 - The Bash tool runs bash on Linux and zsh on macOS, and cannot be pointed at
@@ -198,8 +185,8 @@ requests and issues, and review requests on them, are not messages.
 With no operator present, a message this rule would hold back is drafted, with
 its recipient, into the run's handoff and never sent.
 
-The Slack MCP server is optional; its recipient resolution, confirmation and
-sign-off are in `~/.claude/skills/review-shared/slack.md`.
+The Slack MCP server is optional; its recipient resolution and confirmation
+are in `~/.claude/skills/review-shared/slack.md`.
 
 ## Spec-Driven Autonomy Pipeline
 

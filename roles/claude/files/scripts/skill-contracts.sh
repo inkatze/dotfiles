@@ -1241,29 +1241,6 @@ for name in code-review panel-review; do
     "the diff consumes a shape a mapped producer defines, attach the producer's definition as validation pass 2's context"
 done
 
-# Slack messages reach a colleague, so every skill linking the shared Slack
-# mechanics carries the exact sign-off: EN DASH (U+2013), space, clanky, and
-# nothing after the name. The multibyte dashes sit inside alternation groups,
-# never a bracket expression, which a byte-wise matcher would split. grep -c
-# prints nothing on a read error, so an empty count is a read failure.
-SIGNOFF='– clanky'
-require_phrases "$SHARED/slack.md" "sign-off" "$SIGNOFF"
-for name in "${SKILL_NAMES[@]}"; do
-  f="$(skill_md "$name")"
-  [ -f "$f" ] || continue
-  [ -r "$f" ] || { err "$f could not be read while checking sign-offs"; continue; }
-  grep -qF '](../review-shared/slack.md)' "$f" || continue
-  exact=$(grep -cE '^[[:space:]]*– clanky[[:space:]]*$' "$f" || true)
-  wrongdash=$(grep -cE '^[[:space:]]*(-|—)[[:space:]]*clanky[[:space:]]*$' "$f" || true)
-  decorated=$(grep -cE '^[[:space:]]*–[[:space:]]*clanky[[:space:]]+[^[:space:]]' "$f" || true)
-  if [ -z "$exact" ] || [ -z "$wrongdash" ] || [ -z "$decorated" ]; then
-    err "$f: grep could not read the file while checking sign-offs"; continue
-  fi
-  [ "$exact" -eq 0 ] && err "$f links the Slack mechanics but carries no \"$SIGNOFF\" sign-off literal"
-  [ "$wrongdash" -gt 0 ] && err "$f has a sign-off with a wrong dash (hyphen or em dash); every one must be exactly \"$SIGNOFF\""
-  [ "$decorated" -gt 0 ] && err "$f has a decoration after clanky; the sign-off is exactly \"$SIGNOFF\" with nothing after the name"
-done
-
 if [ "$errors" -gt 0 ]; then
   echo ""
   echo "skill-contracts: $errors invariant(s) broken"

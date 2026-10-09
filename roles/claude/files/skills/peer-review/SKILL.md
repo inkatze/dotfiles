@@ -210,16 +210,12 @@ not on the start.
 ```
 addressed your comments on #<number> :white_check_mark:
 <n> replied · <n> with fixes in <sha>
-
-– clanky
 ```
 
 **Some left open**
 ```
 went through your comments on #<number> :warning:
 <n> replied · <n> left open, they need a call from you
-
-– clanky
 ```
 
 Use the second whenever any thread of theirs is still open after step 8,

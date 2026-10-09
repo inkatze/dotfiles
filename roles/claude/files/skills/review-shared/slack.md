@@ -79,13 +79,3 @@ or the remembered file, say so in the prompt (`@<handle>, via commit email`):
 commit emails are author-controlled. Anything other than a yes sends nothing
 and the review carries on. With no operator present, draft a message no
 go-ahead covers, and its recipient, into the handoff instead of sending it.
-
-## Signing
-
-Every message ends with the sign-off on its own line, exactly:
-
-```
-– clanky
-```
-
-The leading character is an EN DASH (U+2013), and nothing follows the name.
