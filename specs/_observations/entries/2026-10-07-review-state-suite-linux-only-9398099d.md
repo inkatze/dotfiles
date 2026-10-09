@@ -1,0 +1,1 @@
+- 2026-10-07 [dotfiles] CI ran review-state-test.sh only in the ubuntu skill-contracts job, so a macOS-only deadlock in ledger record (a /dev/fd -ef lock re-entry check that never matches on macOS) merged green and hung, on a Mac, every pre-commit that ran the review-state suite and every /bot-review ledger write; the fix branch adds it to the macOS lint job too.

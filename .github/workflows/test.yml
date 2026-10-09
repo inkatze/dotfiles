@@ -132,6 +132,12 @@ jobs:
       - name: Run the instruction word-budget fixture suite (macOS)
         run: roles/claude/files/scripts/instruction-budget-test.sh
 
+      # Also runs on Ubuntu below: the ledger lock's re-entry check once
+      # passed there and deadlocked on macOS, whose /dev/fd/N reports another
+      # device than the file.
+      - name: Run the review-state helper suite (macOS)
+        run: roles/claude/files/scripts/review-state-test.sh
+
   # The review-command contract checker's fixture suite. lefthook runs both
   # scripts pre-commit, but a bypassed hook (--no-verify, web edits) would
   # land unchecked without this; the suite is what proves each check class
@@ -157,8 +163,8 @@ jobs:
       - name: Run the playbook alias suite
         run: scripts/playbook-alias-test.sh
 
-      # bash, git, jq and procps are all it needs; it stands in for a Claude
-      # Code session with a renamed bash.
+      # bash, git, jq, perl and procps are all it needs; it stands in for a Claude
+      # Code session with a renamed bash. lint runs it on macOS as well.
       - name: Run the review-state helper suite
         run: roles/claude/files/scripts/review-state-test.sh
 
