@@ -154,6 +154,18 @@ for mode in --check ""; do
     || fail "$label-kept" "the unmarked catalog was changed"
 done
 
+# An empty file has no first line at all, so it must still read as foreign.
+fresh_home
+mkdir -p "$(overlay "$h")/catalogs"
+: >"$(overlay "$h")/catalogs/steps.yaml"
+if run_role "$h"; then
+  fail empty "an empty catalog did not fail the run"
+elif reported "$(overlay "$h")/catalogs/steps.yaml is not the dotfiles" && [ ! -s "$(overlay "$h")/catalogs/steps.yaml" ]; then
+  ok empty "an empty catalog fails the run as foreign and is left empty"
+else
+  fail empty "an empty catalog was written, or another failure fired"; show
+fi
+
 for mode in --check ""; do
   sfx="${mode:+-check}"
 

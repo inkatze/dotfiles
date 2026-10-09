@@ -5,6 +5,10 @@
 # copy. Its marker first line is what makes a file at the destination this
 # role's to replace or remove. Anything else there fails the run, since a
 # green run that left it would leave the steps silently unregistered.
+#
+# The marker comparisons take the first line with splitlines(): a '\n' inside
+# a "{{ }}" template reaches Jinja with its backslash escaped, so split('\n')
+# there never splits and every copy reads as foreign.
 - name: Inspect the planwright steps catalog source's directory
   ansible.builtin.stat:
     path: "{{ claude_steps_catalog_src | dirname }}"
@@ -44,7 +48,7 @@
       "{{ claude_steps_catalog_marker }}".
   when:
     - claude_steps_src.stat.exists
-    - (claude_steps_src_content.content | b64decode).split('\n')[0] != claude_steps_catalog_marker
+    - (claude_steps_src_content.content | b64decode).splitlines() | first | default('') != claude_steps_catalog_marker
   tags: [claude]
 
 - name: Inspect the planwright adopter catalogs directory
@@ -85,13 +89,6 @@
     - not claude_steps_dest.stat.islnk
   tags: [claude]
 
-- name: Settle who owns the installed steps catalog
-  ansible.builtin.set_fact:
-    claude_steps_dest_marked: >-
-      {{ (claude_steps_dest_content.content is defined)
-         and (claude_steps_dest_content.content | b64decode).split('\n')[0] == claude_steps_catalog_marker }}
-  tags: [claude]
-
 - name: Refuse a steps catalog this role did not install
   ansible.builtin.fail:
     msg: >-
@@ -102,7 +99,10 @@
   when:
     - claude_steps_src.stat.exists
     - claude_steps_dest.stat.exists | default(false)
-    - not (claude_steps_dest_marked | bool)
+    - >-
+      claude_steps_dest_content.content is not defined
+      or (claude_steps_dest_content.content | b64decode).splitlines() | first | default('')
+      != claude_steps_catalog_marker
   tags: [claude]
 
 - name: Create the planwright adopter catalogs directory
@@ -133,5 +133,6 @@
     state: absent
   when:
     - not claude_steps_src.stat.exists
-    - claude_steps_dest_marked | bool
+    - claude_steps_dest_content.content is defined
+    - (claude_steps_dest_content.content | b64decode).splitlines() | first | default('') == claude_steps_catalog_marker
   tags: [claude]
