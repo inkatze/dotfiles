@@ -159,7 +159,7 @@ jobs:
       - name: Run the playbook alias suite
         run: scripts/playbook-alias-test.sh
 
-      # bash, git, jq and procps are all it needs; it stands in for a Claude
+      # bash, git, jq, perl and procps are all it needs; it stands in for a Claude
       # Code session with a renamed bash. lint runs it on macOS as well.
       - name: Run the review-state helper suite
         run: roles/claude/files/scripts/review-state-test.sh
