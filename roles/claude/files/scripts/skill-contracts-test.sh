@@ -912,6 +912,8 @@ expect_fail bot-review-per-iteration-suite-planted \
   "retired per-iteration full suite"
 PIN="never the full suite or the project gate" \
   expect_fail peer-review-fix-round-dropped 'drop_pin "$PIN" "$(md peer-review)"' "fix-round cadence sentence"
+PIN="is the full-suite evidence. After" \
+  expect_fail peer-review-ci-evidence-dropped 'drop_pin "$PIN" "$(md peer-review)"' "fix-round cadence sentence"
 for pin in \
   "Every tooling or suite run in a review skill looks up the evidence record first" \
   "A nested loop validates each fix with diff-scoped checks" \

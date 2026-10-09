@@ -1230,7 +1230,8 @@ require_normalized "$(skill_md bot-review)" "fix-round cadence sentence" \
 forbid_normalized "$(skill_md bot-review)" "retired per-iteration full suite" \
   "run the project tooling, the full suite"
 require_normalized "$(skill_md peer-review)" "fix-round cadence sentence" \
-  "validate each fix with diff-scoped checks only (the tests touching the changed files and the linters on them), never the full suite or the project gate"
+  "validate each fix with diff-scoped checks only (the tests touching the changed files and the linters on them), never the full suite or the project gate" \
+  "CI on \`<pushed head>\` is the full-suite evidence"
 for name in code-review panel-review; do
   require_normalized "$(skill_md "$name")" "pass-2 attachment sentence" \
     "the diff consumes a shape a mapped producer defines, attach the producer's definition as validation pass 2's context"
