@@ -29,8 +29,11 @@ failures=0
 fail() { echo "FAIL $1: $2"; failures=$((failures + 1)); }
 
 # Resolved, because git reports resolved paths and macOS's TMPDIR sits behind
-# the /var symlink.
-tmp="$(cd "$(mktemp -d -t review-state-test.XXXXXX)" && pwd -P)"
+# the /var symlink. Kept short, never through `mktemp -t`: BSD appends its own
+# suffix to that template, and the messaging sockets below must stay inside
+# the helper's own_socket length limit under macOS's long TMPDIR.
+tmp_base="${TMPDIR:-/tmp}"
+tmp="$(cd "$(mktemp -d "${tmp_base%/}/rst.XXXXXX")" && pwd -P)"
 bg_pids=()
 cleanup() {
   local p
@@ -488,8 +491,10 @@ chmod +x "$tmp/bin/badinterp"
   || fail run-no-start "a command that could not start was not named as such (exit $rc): $(cat "$tmp/run.err")"
 if "$H" evidence lookup --command 'no-start' > /dev/null 2>&1; then fail run-no-start-recorded "a command that never started was recorded"; fi
 # The shell that starts the command inherits neither the helper's errexit,
-# through an exported SHELLOPTS, nor a BASH_ENV to source.
-env SHELLOPTS=braceexpand:errexit:hashall:interactive-comments "$H" evidence run --command 'no-start-shellopts' -- "$tmp/bin/badinterp" > /dev/null 2> "$tmp/run.err" && rc=0 || rc=$?
+# through an exported SHELLOPTS, nor a BASH_ENV to source. Run past the $H
+# wrapper: macOS's /bin/sh is bash, which adds posix to an exported SHELLOPTS,
+# and bash 3.2 cannot parse the helper in posix mode.
+env SHELLOPTS=braceexpand:errexit:hashall:interactive-comments "$BASH" "$HELPER" evidence run --command 'no-start-shellopts' -- "$tmp/bin/badinterp" > /dev/null 2> "$tmp/run.err" && rc=0 || rc=$?
 [ "$rc" -eq 127 ] && grep -q 'could not be started' "$tmp/run.err" || fail run-no-start-shellopts-named "a command that never started under SHELLOPTS was not named (exit $rc): $(cat "$tmp/run.err")"
 if "$H" evidence lookup --command 'no-start-shellopts' > /dev/null 2>&1; then
   fail run-no-start-shellopts "an exported SHELLOPTS let a command that never started be recorded"
