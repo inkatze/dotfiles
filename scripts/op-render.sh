@@ -59,13 +59,14 @@ case "${template##*/}" in
 esac
 
 # A name reaches op as one argv element, never a shell word, but one that reads
-# as a flag or carries a path separator is a typo worth stopping on. An explicit
-# list, not a range: ranges follow the locale. `-` last so it stays literal. The
+# as a flag or carries a path separator is a typo worth stopping on. The rule is
+# scripts/playbook.sh's plain_name: an explicit list, not a range (ranges follow
+# the locale), an alphanumeric first character, and no trailing space. The
 # message never repeats the value: a misplaced secret is the likeliest bad one.
 alnum='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-check_name() { # check_name <what> <value> <allowed besides alphanumerics, `-` last>
+check_name() { # check_name <what> <value> <allowed after the first character, `-` last>
   case "$2" in
-    '' | -* | *[!$alnum$3]*) fail "$1 is outside [A-Za-z0-9$3]" ;;
+    '' | [!$alnum]* | *[!$alnum$3]* | *' ') fail "$1 is not a plain name: [A-Za-z0-9] then [A-Za-z0-9$3], no trailing space" ;;
   esac
 }
 check_name "the item name" "$item" '._ -'

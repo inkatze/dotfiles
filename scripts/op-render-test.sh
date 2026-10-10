@@ -414,9 +414,9 @@ fi
 echo "21. guards a deletion used to leave green"
 new_sandbox
 full_review_item
-for bad in -flag a/b a@b; do
+for bad in -flag a/b a@b .item "item "; do
   run "$review_tpl" "$bad" "$out"
-  expect_failed "item name $bad" "is outside"
+  expect_failed "item name $bad" "is not a plain name"
 done
 run "$review_tpl" "" "$out"
 expect_failed "an empty item name" "item name"
@@ -656,8 +656,9 @@ done
 for bad in "DOTFILES_OP_WORK_ACCOUNT=a b.example.com" "DOTFILES_OP_WORK_ACCOUNT=a/b" \
   "DOTFILES_OP_WORK_VAULT=-v" "DOTFILES_OP_WORK_VAULT=v@w" \
   "DOTFILES_OP_WORK_ITEM=a/b" "DOTFILES_OP_WORK_ITEM=-i" "DOTFILES_OP_WORK_ITEM=i@x" \
-  "DOTFILES_OP_WORK_VAULT=$(printf 'v\033[31mred')" "DOTFILES_OP_WORK_ACCOUNT=secretvalue=abc"; do
-  (export "${bad?}"; run "$review_tpl" dotfiles-bot-review "$out"; expect_failed "bad ${bad%%=*}" "${bad%%=*} is outside"
+  "DOTFILES_OP_WORK_VAULT=$(printf 'v\033[31mred')" "DOTFILES_OP_WORK_ACCOUNT=secretvalue=abc" \
+  "DOTFILES_OP_WORK_VAULT=Work Vault " "DOTFILES_OP_WORK_VAULT= v" "DOTFILES_OP_WORK_ITEM=.hidden" "DOTFILES_OP_WORK_ITEM=_x"; do
+  (export "${bad?}"; run "$review_tpl" dotfiles-bot-review "$out"; expect_failed "bad ${bad%%=*}" "${bad%%=*} is not a plain name"
    if grep -qF -- "${bad#*=}" <<<"$log"; then ko "bad ${bad%%=*}: the value reached the message"; else ok "bad ${bad%%=*}: the value stays out of the message"; fi
    echo "$pass $fail" >"$sandbox/counts")
   read -r pass fail <"$sandbox/counts"
@@ -666,14 +667,14 @@ unset DOTFILES_OP_WORK_ITEM
 export DOTFILES_OP_WORK_ITEM=work-item DOTFILES_OP_WORK_ACCOUNT=--evil
 : >"$OP_STUB_ARGV"
 run "$review_tpl" dotfiles-bot-review "$out"
-expect_failed "an account that reads as a flag" "DOTFILES_OP_WORK_ACCOUNT is outside"
+expect_failed "an account that reads as a flag" "DOTFILES_OP_WORK_ACCOUNT is not a plain name"
 [ -s "$OP_STUB_ARGV" ] && ko "a bad work setting still reached op" || ok "a bad work setting is refused before any op call"
 export DOTFILES_OP_WORK_ACCOUNT="wörk.example.com"
 LC_ALL=en_US.UTF-8 run "$review_tpl" dotfiles-bot-review "$out"
-expect_failed "a non-ASCII account under a UTF-8 locale" "is outside"
+expect_failed "a non-ASCII account under a UTF-8 locale" "is not a plain name"
 export DOTFILES_OP_WORK_ACCOUNT=work.example.com DOTFILES_OP_WORK_VAULT=a/b
 run "$review_tpl" dotfiles-bot-review "$out"
-expect_failed "a vault with a path separator" "is outside"
+expect_failed "a vault with a path separator" "is not a plain name"
 export DOTFILES_OP_WORK_VAULT="Work Vault"
 : >"$OP_STUB_ARGV"
 item_from "flight_pr_hosts=[a]"
