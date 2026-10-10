@@ -117,7 +117,7 @@ row names a writer. Keep machine-specific values here, never in tracked files.
 | `host` | `scripts/playbook.sh`, `roles/claude/files/skills/review-shared/backends.md` | This machine's inventory alias; empty or whitespace-only counts as absent |
 | `ssh-host` | the `sshc` function in `roles/fish/files/fish/config.fish` | `kitten ssh` target hostname |
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (`globinclude`) | Host-specific kitty `ssh.conf` sections |
-| `op-account` | `scripts/playbook.sh` | The 1Password account a playbook run's `op` calls use, exported as `OP_ACCOUNT` (set that yourself for a direct script run), where more than one is signed in |
+| `op-account`, `op-work-item` | `scripts/playbook.sh` | The 1Password account a playbook run's `op` calls use, exported as `OP_ACCOUNT` (set that yourself for a direct script run), where more than one is signed in; `op-work-item` names the account, vault and item of the second item a work-only reviewer renders from (0600) |
 | `op-service-account-token` | `scripts/op-token.sh`, for the 1Password syncs | Service-account token, a bearer credential (0600) |
 | `git-work-email` | `roles/git/defaults/main.yml` | The work identity written to `~/.gitconfig.work` |
 | `pushover-credentials` | `roles/osx/files/health/health-check.sh` | Health-check notification credentials (0600), written by `roles/osx/tasks/health-signal.yml` |

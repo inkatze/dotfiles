@@ -49,7 +49,7 @@ An item must hold every field its template references. A field left empty
 drops its key, and a reviewer entry whose fields are all empty drops out, so a
 host that does not run Copilot leaves the `copilot_` fields blank. A JSON
 template's reference ending in `| json` takes the field's value as JSON (a
-list or a map) rather than a string. The review template's `cli` blocks are
+list, a map or a boolean) rather than a string. The review template's `cli` blocks are
 literal, since they describe how to run a local CLI rather than the hosted
 bot's mechanics, so a rendered config carries them as committed, except that
 an empty list or map in one drops like any other.
@@ -59,8 +59,11 @@ A JSON template can also reference a second item, as
 template's `work-review` entry, a reviewer only work machines run, draws on it
 alone. `op-work-item` holds three `KEY=value` lines,
 `DOTFILES_OP_WORK_ACCOUNT`, `DOTFILES_OP_WORK_VAULT` and
-`DOTFILES_OP_WORK_ITEM`, which `scripts/playbook.sh` exports when none of the
-three is already set (export them yourself for a direct `op-render.sh` run).
+`DOTFILES_OP_WORK_ITEM`, which `scripts/playbook.sh` exports unless all three
+are already exported (export them yourself for a direct `op-render.sh` run,
+or one through `ansible-playbook` alone, which otherwise drops the entry).
+A partial export, a missing, repeated or unknown key, and a value that is not
+a plain 1Password name each refuse the run, without echoing the line.
 The renderer then reads that item with `op --account`, through the desktop
 app rather than the service-account token, which cannot reach another
 account; without the file every such reference resolves empty and the entry

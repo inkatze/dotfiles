@@ -936,11 +936,20 @@ require_normalized "$(skill_md bot-review)" "version refusal" \
 require_normalized "$(skill_md panel-review)" "version refusal" \
   "on another version, or none, stop, naming the file and the version it carries."
 
-# bot-review permits one confirmation-gated label add and forbids the rest.
+# bot-review permits one label add, confirmation-gated except where
+# auto_opt_in allows it unattended, and forbids the rest.
 require_phrases "$(skill_md bot-review)" "safety sentence" \
   "Never apply the code change in this bucket while nested." \
   "force-push, push to a protected branch, mark the PR ready, or merge" \
   "Do not add the opt-in label speculatively"
+
+# The unattended opt-in label add stays behind its flag and off --dry-run, and
+# a check-run reviewed head is fetched by its check name.
+require_normalized "$(skill_md bot-review)" "unattended opt-in sentence" \
+  "with \`auto_opt_in\` true, add it without asking and say so; never under \`--dry-run\`" \
+  "confirmation-gated on every run except the unattended one \`auto_opt_in\` allows"
+require_phrases "$(skill_md bot-review)" "check-runs fetch" \
+  "check-runs?check_name=<url-encoded name>&filter=all&per_page=100"
 
 # A metered hosted reviewer: full review once per PR, and a quota refusal is a
 # named stop rather than silence or a retry.
