@@ -50,7 +50,8 @@ def _own_check_runs($runs; $cfg):
 def _check_head($runs; $cfg):
   [_own_check_runs($runs; $cfg)[]
    | select(.status == "completed"
-            and (.conclusion | IN("success", "neutral", "failure", "action_required")))
+            and (.conclusion | IN("success", "neutral", "failure", "action_required"))
+            and (.head_sha | type == "string" and test("^[0-9a-f]{7,64}$")))
    | {value: .head_sha, surface: "check_run", id, at: (.completed_at // "")}]
   | sort_by(.at, .id) | last;
 # A run of the check still going that started after the reviewed head's run

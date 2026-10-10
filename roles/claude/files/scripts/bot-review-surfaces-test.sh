@@ -217,6 +217,10 @@ out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 57 "$HEAD_B" queue
 check check-head-pending-unstarted "$out" '.reviewed_head_pending == true'
 out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 58 "$HEAD_B" in_progress "" 2026-01-01T00:00:03Z)")")"
 check check-head-pending-same-start "$out" '.reviewed_head_pending == false'
+for bad_head in null '""' 42 '"not-a-sha"'; do
+  out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 59 "$HEAD_B" completed success 2026-01-01T00:00:09Z | jq ".head_sha = $bad_head")")")"
+  check "check-head-bad-sha ($bad_head)" "$out" ".reviewed_head.value == \"$HEAD_A\""
+done
 out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 52 "$HEAD_B" completed success 2026-01-01T00:00:09Z other-app)")")"
 check check-head-foreign-app "$out" ".reviewed_head.value == \"$HEAD_A\""
 out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 53 "$HEAD_B" completed success 2026-01-01T00:00:09Z acme-bot Other)")")"
