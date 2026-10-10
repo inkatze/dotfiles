@@ -352,6 +352,7 @@ expect_work work-env-skips-file 'a.example.com|V|I' DOTFILES_OP_WORK_ACCOUNT=a.e
 for v in DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM; do
     expect_work_refused "work-partial-env-$v" "together or not at all" "$v=x"
 done
+expect_work_refused work-partial-env-two "together or not at all" DOTFILES_OP_WORK_ACCOUNT=x DOTFILES_OP_WORK_VAULT=y
 reset_files
 work_file 'DOTFILES_OP_WORK_ACCOUNT=team.example.com\r\nDOTFILES_OP_WORK_VAULT=Team Vault\r\nDOTFILES_OP_WORK_ITEM=review-item\r\n'
 expect_work work-crlf-file 'team.example.com|Team Vault|review-item'
@@ -372,8 +373,8 @@ work_file "${good}ops_secretvalue\n"
 expect_work_refused work-bare-line "line 4 is not a KEY=value line"
 grep -q ops_secretvalue "$work/stderr" && fail work-bare-line-quiet "the line reached stderr" || ok work-bare-line-quiet "the line stays off stderr"
 reset_files
-work_file "${good}DOTFILES_OP_WORK_ITEM=other\n"
-expect_work_refused work-repeated-key "line 4 sets DOTFILES_OP_WORK_ITEM a second time"
+work_file "# c\n\n${good}DOTFILES_OP_WORK_ITEM=other\n"
+expect_work_refused work-repeated-key "line 6 sets DOTFILES_OP_WORK_ITEM a second time"
 for bad in 'ACCOUNT=--account=x' 'ACCOUNT=a b.example.com' 'VAULT=v/w' 'VAULT=v@w' 'ITEM=a/b' 'VAULT=Team Vault ' 'ITEM= item'; do
     reset_files
     work_file "$(printf "$good" | grep -v "^DOTFILES_OP_WORK_${bad%%=*}=")\nDOTFILES_OP_WORK_$bad\n"

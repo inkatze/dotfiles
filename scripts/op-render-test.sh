@@ -414,10 +414,12 @@ fi
 echo "21. guards a deletion used to leave green"
 new_sandbox
 full_review_item
-for bad in -flag a/b; do
+for bad in -flag a/b a@b; do
   run "$review_tpl" "$bad" "$out"
   expect_failed "item name $bad" "is outside"
 done
+run "$review_tpl" "" "$out"
+expect_failed "an empty item name" "item name"
 export DOTFILES_OP_VAULT="Other Vault"
 run "$review_tpl" dotfiles-bot-review "$out"
 unset DOTFILES_OP_VAULT
@@ -622,9 +624,11 @@ expect_failed "a number for the boolean" "reviewers.work-review.auto_opt_in: mus
 work_item "work_review_reviewed_head_regex=reviewed ([0-9a-f]{40})"
 run "$review_tpl" dotfiles-bot-review "$out"
 expect_failed "both reviewed-head sources" "set reviewed_head_regex or reviewed_head_check, not both"
-work_item "work_review_reviewed_head_check=Work Review "
-run "$review_tpl" dotfiles-bot-review "$out"
-expect_failed "a padded check name" "reviewed_head_check: leading or trailing whitespace"
+for padded in "Work Review " " Work Review"; do
+  work_item "work_review_reviewed_head_check=$padded"
+  run "$review_tpl" dotfiles-bot-review "$out"
+  expect_failed "a padded check name ('$padded')" "reviewed_head_check: leading or trailing whitespace"
+done
 work_item
 jq '.fields += [.fields[0]]' "$OP_STUB_WORK_ITEM" >"$sandbox/i" && mv "$sandbox/i" "$OP_STUB_WORK_ITEM"
 run "$review_tpl" dotfiles-bot-review "$out"
@@ -650,7 +654,8 @@ for v in DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM; 
   read -r pass fail <"$sandbox/counts"
 done
 for bad in "DOTFILES_OP_WORK_ACCOUNT=a b.example.com|work account" "DOTFILES_OP_WORK_ACCOUNT=a/b|work account" \
-  "DOTFILES_OP_WORK_VAULT=-v|work vault" "DOTFILES_OP_WORK_ITEM=a/b|work item" "DOTFILES_OP_WORK_ITEM=-i|work item"; do
+  "DOTFILES_OP_WORK_VAULT=-v|work vault" "DOTFILES_OP_WORK_VAULT=v@w|work vault" \
+  "DOTFILES_OP_WORK_ITEM=a/b|work item" "DOTFILES_OP_WORK_ITEM=-i|work item" "DOTFILES_OP_WORK_ITEM=i@x|work item"; do
   (export "${bad%%|*}"; run "$review_tpl" dotfiles-bot-review "$out"; expect_failed "bad ${bad%%|*}" "${bad#*|} '"; echo "$pass $fail" >"$sandbox/counts")
   read -r pass fail <"$sandbox/counts"
 done
@@ -681,6 +686,8 @@ unset DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM
 schema_dir="$repo/roles/claude/files/skills/bot-review"
 got="$(jq -r -L "$schema_dir" 'include "config-schema"; .reviewers.cubic.opt_in_label = "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/x }}" | review_template_errors' "$review_tpl")"
 grep -qF 'reviewers.cubic: references both the default item and the work item' <<<"$got" && ok "one entry draws on one item" || ko "one entry draws on one item ($got)"
+got="$(jq -n -r -L "$schema_dir" 'include "config-schema"; {reviewed_head_check: 5} | _rendered_value_errors("p")')"
+grep -qx 'p.reviewed_head_check: not a string' <<<"$got" && ok "a non-string check name is named, not a jq error" || ko "a non-string check name ($got)"
 got="$(jq -r -L "$schema_dir" 'include "config-schema"; .reviewers["work-review"].cli = {binary: "{{ op://__OP_VAULT__/__OP_ITEM__/x }}"} | review_template_errors' "$review_tpl")"
 [ -z "$got" ] && ok "a cli block is outside the one-item rule" || ko "a cli block is outside the one-item rule ($got)"
 

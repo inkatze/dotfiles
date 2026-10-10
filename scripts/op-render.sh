@@ -14,10 +14,10 @@
 #
 # JSON templates (`*.json.tpl`): a reference is a whole string value. With
 # ` | json` before the closing braces the field's value is parsed and lands
-# typed (a list, a map, a boolean); without, it lands as a string. A field left empty in
-# the item drops its key from the output, and an object or list left with
-# nothing in it drops in turn, so one template serves entries that use
-# different optional fields. Text templates: references are substituted raw,
+# typed (a list, a map, a boolean); without, it lands as a string. A field
+# left empty in the item drops its key from the output, and an object or list
+# left with nothing in it drops in turn, so one template serves entries that
+# use different optional fields. Text templates: references are substituted raw,
 # and a value holding a line break is refused.
 #
 # A JSON template may also reference
