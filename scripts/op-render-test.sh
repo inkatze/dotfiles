@@ -327,11 +327,12 @@ run "$review_tpl" 'bad;item' "$out"
 expect_failed "item name outside the charset" "item name"
 run "$review_tpl"
 expect_failed "wrong argument count" "usage"
-export OP_STUB_FAIL=1
-run "$review_tpl" dotfiles-bot-review "$out"
-expect_failed "op failure" "op item get failed"
+export OP_STUB_FAIL=1 DOTFILES_OP_VAULT=VaultValue7
+run "$review_tpl" itemvalue7 "$out"
+expect_failed "op failure" "op item get failed reading the item argument from the vault DOTFILES_OP_VAULT names"
+grep -qE 'itemvalue7|VaultValue7' <<<"$log" && ko "op failure: a setting's value reached the message" || ok "op failure: the values stay off stderr"
 [ -e "$out" ] && ko "op failure wrote output" || ok "op failure wrote nothing"
-unset OP_STUB_FAIL
+unset OP_STUB_FAIL DOTFILES_OP_VAULT
 item_from 'cubic_login_pattern=a' 'cubic_login_pattern=b'
 run "$review_tpl" dotfiles-bot-review "$out"
 expect_failed "duplicate field label" "more than one field labelled cubic_login_pattern"
@@ -644,7 +645,8 @@ work_item
 export OP_STUB_FAIL_WORK=1
 run "$review_tpl" dotfiles-bot-review "$out"
 unset OP_STUB_FAIL_WORK
-expect_failed "a failing work read" "op item get failed reading the work item"
+expect_failed "a failing work read" "op item get failed reading the work item DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM name"
+grep -qE 'work\.example\.com|Work Vault|work-item' <<<"$log" && ko "a failing work read: a setting's value reached the message" || ok "a failing work read: the values stay off stderr"
 printf '{"id":"stub"}\n' >"$OP_STUB_WORK_ITEM"
 run "$review_tpl" dotfiles-bot-review "$out"
 expect_failed "a work item with no fields" "could not read work item 'work-item'"

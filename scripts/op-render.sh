@@ -140,7 +140,7 @@ jq_or_fail() {
 }
 
 if ! op_run item get "$item" --vault "$VAULT" --format json --reveal >"$work/item.json"; then
-  fail "op item get failed reading vault='$VAULT' item='$item'; see the op error above (locked session? missing item?)"
+  fail "op item get failed reading the item argument from the vault DOTFILES_OP_VAULT names; see the op error above (locked session? missing item?)"
 fi
 
 # item_fields <item description> <op item json> <output>: the item's fields as
@@ -160,7 +160,7 @@ item_fields "item '$item'" "$work/item.json" "$work/fields.json"
 echo '{}' >"$work/work-fields.json"
 if [ "$work_on" = true ]; then
   if ! op item get "$w_item" --vault "$w_vault" --account "$w_account" --format json --reveal >"$work/work-item.json"; then
-    fail "op item get failed reading the work item (account='$w_account' vault='$w_vault' item='$w_item'); see the op error above"
+    fail "op item get failed reading the work item DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM name; see the op error above"
   fi
   item_fields "work item '$w_item'" "$work/work-item.json" "$work/work-fields.json"
 fi
