@@ -7,8 +7,9 @@
 #
 # A template reference is `{{ op://__OP_VAULT__/__OP_ITEM__/<field> }}`, the
 # shape scripts/ssh-lan-config-sync.sh uses, resolved against <item> in the
-# vault DOTFILES_OP_VAULT names. The item is read once and substituted with jq
-# rather than `op inject`, because inject pastes values raw: a regex like
+# vault DOTFILES_OP_VAULT names (Dotfiles Service Account when unset). The item
+# is read once and substituted with jq rather than `op inject`, because inject
+# pastes values raw: a regex like
 # `\[bot\]` inside a JSON string would need hand-escaping in 1Password, and a
 # missed one (`\b`) parses fine and means something else.
 #
@@ -140,7 +141,7 @@ jq_or_fail() {
 }
 
 if ! op_run item get "$item" --vault "$VAULT" --format json --reveal >"$work/item.json"; then
-  fail "op item get failed reading the item argument from the vault DOTFILES_OP_VAULT names; see the op error above (locked session? missing item?)"
+  fail "op item get failed reading the item argument from the vault DOTFILES_OP_VAULT names (Dotfiles Service Account when unset); see the op error above (locked session? missing item?)"
 fi
 
 # item_fields <item description> <op item json> <output>: the item's fields as

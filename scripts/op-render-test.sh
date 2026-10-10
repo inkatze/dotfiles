@@ -329,7 +329,7 @@ run "$review_tpl"
 expect_failed "wrong argument count" "usage"
 export OP_STUB_FAIL=1 DOTFILES_OP_VAULT=VaultValue7
 run "$review_tpl" itemvalue7 "$out"
-expect_failed "op failure" "op item get failed reading the item argument from the vault DOTFILES_OP_VAULT names"
+expect_failed "op failure" "op item get failed reading the item argument from the vault DOTFILES_OP_VAULT names (Dotfiles Service Account when unset)"
 grep -qE 'itemvalue7|VaultValue7' <<<"$log" && ko "op failure: a setting's value reached the message" || ok "op failure: the values stay off stderr"
 [ -e "$out" ] && ko "op failure wrote output" || ok "op failure wrote nothing"
 unset OP_STUB_FAIL DOTFILES_OP_VAULT
