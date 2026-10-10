@@ -123,7 +123,16 @@ work_env="${DOTFILES_OP_WORK_ACCOUNT:+a}${DOTFILES_OP_WORK_VAULT:+v}${DOTFILES_O
 if [[ -n "$work_env" && "$work_env" != avi ]]; then
     work_refuse environment "export DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM together or not at all"
 fi
-if [[ -z "$work_env" && -f "$OP_WORK_ITEM_FILE" ]]; then
+if [[ -z "$work_env" ]] && { [[ -e "$OP_WORK_ITEM_FILE" ]] || [[ -L "$OP_WORK_ITEM_FILE" ]]; }; then
+    # It picks the account the desktop app is asked to read, so only this user
+    # may write it, as for scripts/op-token.sh's token file.
+    [[ ! -L "$OP_WORK_ITEM_FILE" ]] || work_refuse "$OP_WORK_ITEM_FILE" "a symlink; replace it with a regular file"
+    [[ -f "$OP_WORK_ITEM_FILE" ]] || work_refuse "$OP_WORK_ITEM_FILE" "not a regular file"
+    work_mode="$(stat -c '%a' "$OP_WORK_ITEM_FILE" 2>/dev/null || stat -f '%Lp' "$OP_WORK_ITEM_FILE" 2>/dev/null || echo '')"
+    case "$work_mode" in
+        600 | 400) ;;
+        *) work_refuse "$OP_WORK_ITEM_FILE" "mode ${work_mode:-unknown}; must be 600 or 400 (chmod 600 it)" ;;
+    esac
     [[ -r "$OP_WORK_ITEM_FILE" ]] || work_refuse "$OP_WORK_ITEM_FILE" "not readable"
     # bash 3.2's read stops a line at a NUL, silently truncating its value.
     LC_ALL=C tr -d '\000' <"$OP_WORK_ITEM_FILE" | cmp -s - "$OP_WORK_ITEM_FILE" \

@@ -340,7 +340,7 @@ expect_work_refused() { # expect_work_refused <name> <stderr fragment> [env...]
         fail "$name-message" "expected \"$fragment\" in: $(cat "$work/stderr")"
     fi
 }
-work_file() { printf "$@" >"$work/op-work-item"; }
+work_file() { printf "$@" >"$work/op-work-item"; chmod 600 "$work/op-work-item"; }
 good='DOTFILES_OP_WORK_ACCOUNT=team.example.com\nDOTFILES_OP_WORK_VAULT=Team Vault\nDOTFILES_OP_WORK_ITEM=review-item\n'
 reset_files
 expect_work work-absent-file '<unset>|<unset>|<unset>'
@@ -381,13 +381,36 @@ for bad in 'ACCOUNT=--account=x' 'ACCOUNT=a b.example.com' 'VAULT=v/w' 'VAULT=v@
     expect_work_refused "work-bad-value ($bad)" "not a plain 1Password name"
 done
 reset_files
-printf 'DOTFILES_OP_WORK_ACCOUNT=a\0b.example.com\nDOTFILES_OP_WORK_VAULT=v\nDOTFILES_OP_WORK_ITEM=i\n' >"$work/op-work-item"
+work_file 'DOTFILES_OP_WORK_ACCOUNT=a\0b.example.com\nDOTFILES_OP_WORK_VAULT=v\nDOTFILES_OP_WORK_ITEM=i\n'
 expect_work_refused work-nul-byte "it holds a NUL byte"
+for mode in 644 640 660 604; do
+    reset_files
+    work_file "$good"
+    chmod "$mode" "$work/op-work-item"
+    expect_work_refused "work-mode-$mode" "mode $mode; must be 600 or 400"
+done
+reset_files
+work_file "$good"
+chmod 400 "$work/op-work-item"
+expect_work work-mode-400 'team.example.com|Team Vault|review-item'
+chmod 600 "$work/op-work-item"
+reset_files
+work_file "$good"
+mv "$work/op-work-item" "$work/op-work-item.real"
+ln -s "$work/op-work-item.real" "$work/op-work-item"
+expect_work_refused work-symlink "a symlink"
+rm -f "$work/op-work-item" "$work/op-work-item.real"
+ln -s "$work/missing-target" "$work/op-work-item"
+expect_work_refused work-dangling-symlink "a symlink"
+rm -f "$work/op-work-item"
+mkdir "$work/op-work-item"
+expect_work_refused work-directory "not a regular file"
+rmdir "$work/op-work-item"
 if [ "$(id -u)" -ne 0 ]; then
     reset_files
     work_file "$good"
     chmod 000 "$work/op-work-item"
-    expect_work_refused work-unreadable-file "not readable"
+    expect_work_refused work-unreadable-file "must be 600 or 400"
     chmod 600 "$work/op-work-item"
 fi
 
