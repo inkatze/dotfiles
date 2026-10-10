@@ -61,8 +61,9 @@ esac
 
 # A name reaches op as one argv element, never a shell word, but one that reads
 # as a flag or carries a path separator is a typo worth stopping on. The rule is
-# scripts/playbook.sh's plain_name: an explicit list, not a range (ranges follow
-# the locale), an alphanumeric first character, and no trailing space. The
+# scripts/playbook.sh's plain_name (an explicit list, not a range, since ranges
+# follow the locale, and an alphanumeric first character) plus, as its
+# op-work-item reader adds, no trailing space. The
 # message never repeats the value: a misplaced secret is the likeliest bad one.
 alnum='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 check_name() { # check_name <what> <value> <allowed after the first character, `-` last>

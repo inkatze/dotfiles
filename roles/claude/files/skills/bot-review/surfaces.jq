@@ -5,11 +5,12 @@
 # is matched on every surface; assuming one surface per marker misses vendors
 # that split them.
 #
-# Input: {reviews, issue_comments, review_comments}, each the flat array the
-# REST endpoint returns, plus check_runs, the runs of the reviewer's
-# reviewed_head_check (empty when it has none). $cfg is one reviewer entry of
-# the review config. Order is by time, the id breaking a tie. REST reviews carry no edit time,
-# so a review summary edited in place keeps its submission time.
+# Input: {reviews, issue_comments, review_comments, check_runs}, each the flat
+# array the REST endpoint returns, check_runs holding the runs of the
+# reviewer's reviewed_head_check (empty when it has none). $cfg is one
+# reviewer entry of the review config. Order is by time, the id breaking a
+# tie. REST reviews carry no edit time, so a review summary edited in place
+# keeps its submission time.
 
 def _surface_items($cfg):
   "^(?:\($cfg.login_pattern))$" as $login
