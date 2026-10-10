@@ -28,7 +28,7 @@ cat >"$work/bin/ansible-playbook" <<'SH'
 printf '%s\n' "$@" >"$STUB_ARGV"
 printf '%s' "${OP_ACCOUNT-<unset>}" >"$STUB_OP_ACCOUNT"
 printf '%s|%s|%s' "${DOTFILES_OP_WORK_ACCOUNT-<unset>}" "${DOTFILES_OP_WORK_VAULT-<unset>}" \
-    "${DOTFILES_OP_WORK_ITEM-<unset>}" >"$STUB_OP_ACCOUNT.work"
+    "${DOTFILES_OP_WORK_ITEM-<unset>}" >"$STUB_OP_WORK"
 SH
 cat >"$work/bin/hostname" <<'SH'
 #!/usr/bin/env bash
@@ -47,9 +47,9 @@ chmod +x "$work/bin/ansible-playbook" "$work/bin/hostname"
 # which is reported as such rather than as an empty limit. The exit status
 # lands in a file, since the caller reads this through a substitution.
 limit_for() {
-    rm -f "$work/argv" "$work/op" "$work/op.work"
+    rm -f "$work/argv" "$work/op" "$work/op-work"
     env -i PATH="$work/bin:$PATH" HOME="$work/home" \
-        STUB_ARGV="$work/argv" STUB_OP_ACCOUNT="$work/op" \
+        STUB_ARGV="$work/argv" STUB_OP_ACCOUNT="$work/op" STUB_OP_WORK="$work/op-work" \
         DOTFILES_HOST_FILE="$work/host" DOTFILES_OP_ACCOUNT_FILE="$work/op-account" \
         DOTFILES_OP_WORK_ITEM_FILE="$work/op-work-item" \
         "$@" bash "$playbook" >/dev/null 2>"$work/stderr"
@@ -315,38 +315,77 @@ else
     chmod 600 "$work/op-account"
 fi
 
-# 10. The work item: a complete file exports its three values, comments and
-#     blank lines aside; an already-exported value skips the file; a partial,
-#     unknown-key or unsafe value is refused.
+# 10. The work item: a complete file exports its three values, comments, blank
+#     lines and CRLF endings aside; all three exported skip the file and a
+#     partial export is refused; a partial, repeated, unknown-key or unsafe
+#     line is refused without its value reaching stderr.
 expect_work() {
     name="$1" want="$2"
     shift 2
     limit_for "$@" >/dev/null
-    got="$(cat "$work/op.work" 2>/dev/null || echo "<not run>")"
+    got="$(cat "$work/op-work" 2>/dev/null || echo "<not run>")"
     if [ "$got" = "$want" ]; then
         ok "$name" "$got"
     else
         fail "$name" "expected $want, got $got"
     fi
 }
+expect_work_refused() { # expect_work_refused <name> <stderr fragment> [env...]
+    name="$1" fragment="$2"
+    shift 2
+    expect_refused "$name" "$@"
+    if grep -qF -- "$fragment" "$work/stderr"; then
+        ok "$name-message" "names: $fragment"
+    else
+        fail "$name-message" "expected \"$fragment\" in: $(cat "$work/stderr")"
+    fi
+}
+work_file() { printf "$@" >"$work/op-work-item"; }
+good='DOTFILES_OP_WORK_ACCOUNT=team.example.com\nDOTFILES_OP_WORK_VAULT=Team Vault\nDOTFILES_OP_WORK_ITEM=review-item\n'
 reset_files
 expect_work work-absent-file '<unset>|<unset>|<unset>'
 reset_files
-printf '# work source\n\nDOTFILES_OP_WORK_ACCOUNT=team.example.com\nDOTFILES_OP_WORK_VAULT=Team Vault\nDOTFILES_OP_WORK_ITEM=review-item\n' >"$work/op-work-item"
+work_file "# work source\n\n  # indented comment\n$good"
 expect_work work-file 'team.example.com|Team Vault|review-item'
-expect_work work-env-skips-file 'other.example.com|<unset>|<unset>' DOTFILES_OP_WORK_ACCOUNT=other.example.com
+expect_work work-env-skips-file 'a.example.com|V|I' DOTFILES_OP_WORK_ACCOUNT=a.example.com \
+    DOTFILES_OP_WORK_VAULT=V DOTFILES_OP_WORK_ITEM=I
+for v in DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM; do
+    expect_work_refused "work-partial-env-$v" "together or not at all" "$v=x"
+done
 reset_files
-printf 'DOTFILES_OP_WORK_ACCOUNT=team.example.com\nDOTFILES_OP_WORK_VAULT=Team Vault\n' >"$work/op-work-item"
-expect_refused work-partial-file
+work_file 'DOTFILES_OP_WORK_ACCOUNT=team.example.com\r\nDOTFILES_OP_WORK_VAULT=Team Vault\r\nDOTFILES_OP_WORK_ITEM=review-item\r\n'
+expect_work work-crlf-file 'team.example.com|Team Vault|review-item'
 reset_files
-printf 'DOTFILES_OP_WORK_ACCOUNT=team.example.com\nDOTFILES_OP_WORK_VAULT=v\nDOTFILES_OP_WORK_ITEM=i\nOP_SERVICE_ACCOUNT_TOKEN=x\n' >"$work/op-work-item"
-expect_refused work-unknown-key
+work_file 'DOTFILES_OP_WORK_ACCOUNT=team.example.com\nDOTFILES_OP_WORK_VAULT=Team Vault\nDOTFILES_OP_WORK_ITEM=review-item'
+expect_work work-no-final-newline 'team.example.com|Team Vault|review-item'
+for missing in ACCOUNT VAULT ITEM; do
+    reset_files
+    work_file "$(printf "$good" | grep -v "^DOTFILES_OP_WORK_$missing=")\n"
+    expect_work_refused "work-file-missing-$missing" "must name"
+done
 reset_files
-printf 'DOTFILES_OP_WORK_ACCOUNT=--account=x\nDOTFILES_OP_WORK_VAULT=v\nDOTFILES_OP_WORK_ITEM=i\n' >"$work/op-work-item"
-expect_refused work-flag-value
+work_file "${good}OP_SERVICE_ACCOUNT_TOKEN=ops_secretvalue\n"
+expect_work_refused work-unknown-key "line 4 names a key other than"
+grep -q ops_secretvalue "$work/stderr" && fail work-unknown-key-quiet "the line's value reached stderr" || ok work-unknown-key-quiet "the value stays off stderr"
 reset_files
-printf 'DOTFILES_OP_WORK_ACCOUNT=a.example.com\nDOTFILES_OP_WORK_VAULT=v/w\nDOTFILES_OP_WORK_ITEM=i\n' >"$work/op-work-item"
-expect_refused work-path-value
+work_file "${good}ops_secretvalue\n"
+expect_work_refused work-bare-line "line 4 is not a KEY=value line"
+grep -q ops_secretvalue "$work/stderr" && fail work-bare-line-quiet "the line reached stderr" || ok work-bare-line-quiet "the line stays off stderr"
+reset_files
+work_file "${good}DOTFILES_OP_WORK_ITEM=other\n"
+expect_work_refused work-repeated-key "line 4 sets DOTFILES_OP_WORK_ITEM a second time"
+for bad in 'ACCOUNT=--account=x' 'ACCOUNT=a b.example.com' 'VAULT=v/w' 'VAULT=v@w' 'ITEM=a/b' 'VAULT=Team Vault ' 'ITEM= item'; do
+    reset_files
+    work_file "$(printf "$good" | grep -v "^DOTFILES_OP_WORK_${bad%%=*}=")\nDOTFILES_OP_WORK_$bad\n"
+    expect_work_refused "work-bad-value ($bad)" "not a plain 1Password name"
+done
+if [ "$(id -u)" -ne 0 ]; then
+    reset_files
+    work_file "$good"
+    chmod 000 "$work/op-work-item"
+    expect_work_refused work-unreadable-file "not readable"
+    chmod 600 "$work/op-work-item"
+fi
 
 if [ "$fails" -eq 0 ]; then
     echo "playbook-alias-test: all assertions hold"

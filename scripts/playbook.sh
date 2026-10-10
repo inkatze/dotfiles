@@ -110,36 +110,43 @@ if [[ -z "${OP_ACCOUNT:-}" && -f "$OP_ACCOUNT_FILE" ]]; then
 fi
 
 # Machine-local second 1Password source for scripts/op-render.sh's work
-# references: KEY=value lines naming DOTFILES_OP_WORK_ACCOUNT,
-# DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM. Untracked for the same
-# reason as op-account. Read only when none of the three is exported, and then
-# all three must be present, so a partial file fails here rather than as a
-# silently missing reviewer.
+# references (docs/machine-local-files.md), untracked for the same reason as
+# op-account. Anything odd in it refuses the run here rather than surfacing as
+# a silently missing reviewer, and no message echoes a line's value, since a
+# misplaced secret is the likeliest odd line.
 OP_WORK_ITEM_FILE="${DOTFILES_OP_WORK_ITEM_FILE:-$HOME/.config/dotfiles/op-work-item}"
-if [[ -z "${DOTFILES_OP_WORK_ACCOUNT:-}${DOTFILES_OP_WORK_VAULT:-}${DOTFILES_OP_WORK_ITEM:-}" && -f "$OP_WORK_ITEM_FILE" ]]; then
-    w_account="" w_vault="" w_item=""
+work_refuse() {
+    printf 'playbook.sh: %s: %s; refusing to run.\n' "$1" "$2" >&2
+    exit 1
+}
+work_env="${DOTFILES_OP_WORK_ACCOUNT:+a}${DOTFILES_OP_WORK_VAULT:+v}${DOTFILES_OP_WORK_ITEM:+i}"
+if [[ -n "$work_env" && "$work_env" != avi ]]; then
+    work_refuse environment "export DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM together or not at all"
+fi
+if [[ -z "$work_env" && -f "$OP_WORK_ITEM_FILE" ]]; then
+    [[ -r "$OP_WORK_ITEM_FILE" ]] || work_refuse "$OP_WORK_ITEM_FILE" "not readable"
+    w_account="" w_vault="" w_item="" n=0
     while IFS= read -r line || [[ -n "$line" ]]; do
+        n=$((n + 1))
         line="${line%$'\r'}"
-        [[ -z "${line//[[:space:]]/}" || "$line" == \#* ]] && continue
+        trimmed="${line#"${line%%[![:space:]]*}"}"
+        [[ -z "$trimmed" || "$trimmed" == \#* ]] && continue
+        [[ "$line" == *=* ]] || work_refuse "$OP_WORK_ITEM_FILE" "line $n is not a KEY=value line"
         key="${line%%=*}"
         value="${line#*=}"
         case "$key" in
-            DOTFILES_OP_WORK_ACCOUNT) w_account="$value"; extra='._@-' ;;
-            DOTFILES_OP_WORK_VAULT) w_vault="$value"; extra=' ._-' ;;
-            DOTFILES_OP_WORK_ITEM) w_item="$value"; extra=' ._-' ;;
-            *)
-                printf 'playbook.sh: %s holds the line %s, not one of DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT or DOTFILES_OP_WORK_ITEM; refusing to run.\n' "$OP_WORK_ITEM_FILE" "$(escape "$line")" >&2
-                exit 1
-                ;;
+            DOTFILES_OP_WORK_ACCOUNT) seen="$w_account"; w_account="$value"; extra='._@-' ;;
+            DOTFILES_OP_WORK_VAULT) seen="$w_vault"; w_vault="$value"; extra='._ -' ;;
+            DOTFILES_OP_WORK_ITEM) seen="$w_item"; w_item="$value"; extra='._ -' ;;
+            *) work_refuse "$OP_WORK_ITEM_FILE" "line $n names a key other than DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT or DOTFILES_OP_WORK_ITEM" ;;
         esac
-        if [[ "$line" != *=* ]] || ! plain_name "$value" "$extra"; then
-            printf 'playbook.sh: %s gives %s the value %s, not a plain 1Password name; refusing to run.\n' "$OP_WORK_ITEM_FILE" "$key" "$(escape "$value")" >&2
-            exit 1
+        [[ -z "$seen" ]] || work_refuse "$OP_WORK_ITEM_FILE" "line $n sets $key a second time"
+        if ! plain_name "$value" "$extra" || [[ "$value" == *[[:space:]] ]]; then
+            work_refuse "$OP_WORK_ITEM_FILE" "line $n gives $key a value that is not a plain 1Password name"
         fi
     done <"$OP_WORK_ITEM_FILE"
     if [[ -z "$w_account" || -z "$w_vault" || -z "$w_item" ]]; then
-        printf 'playbook.sh: %s must name DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM; refusing to run.\n' "$OP_WORK_ITEM_FILE" >&2
-        exit 1
+        work_refuse "$OP_WORK_ITEM_FILE" "it must name DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM"
     fi
     export DOTFILES_OP_WORK_ACCOUNT="$w_account" DOTFILES_OP_WORK_VAULT="$w_vault" DOTFILES_OP_WORK_ITEM="$w_item"
 fi
