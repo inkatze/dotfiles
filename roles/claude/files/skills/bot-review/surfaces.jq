@@ -1,13 +1,14 @@
 # What one hosted reviewer wrote on a PR, read off all three surfaces it can
-# write to: reviews, issue comments and inline review comments. A vendor may put
+# write to (reviews, issue comments and inline review comments), plus the
+# reviewed head off its check runs where it names no commit. A vendor may put
 # its run marker, reviewed head or finding keys on any of them, so each regex is
 # matched on every surface; assuming one surface per marker misses vendors that
 # split them.
 #
 # Input: {reviews, issue_comments, review_comments}, each the flat array the
 # REST endpoint returns, plus check_runs, the runs of the reviewer's
-# reviewed_head_check (empty when it has none). $cfg is one reviewer entry of the review config.
-# Order is by time, the id breaking a tie. REST reviews carry no edit time,
+# reviewed_head_check (empty when it has none). $cfg is one reviewer entry of
+# the review config. Order is by time, the id breaking a tie. REST reviews carry no edit time,
 # so a review summary edited in place keeps its submission time.
 
 def _surface_items($cfg):
@@ -33,18 +34,27 @@ def _latest_marker($items; $re):
     | sort_by(.at, .id) | last
   end;
 
-# The reviewed head read off check runs, for a vendor whose comments name no
-# commit: the latest completed run of the named check, and with a run marker,
-# only one whose details_url carries that build id.
-def _check_head($runs; $cfg; $build):
-  if ($cfg.reviewed_head_check // "") == "" then null
-  else [$runs[]? | select(.name == $cfg.reviewed_head_check and .status == "completed")
-        | select($build == null or ($cfg.build_id_regex // "") == ""
-                 or ([(.details_url // "") | match($cfg.build_id_regex; "g") | _value]
-                     | index([$build.value])) != null)
-        | {value: .head_sha, surface: "check_run", id, at: (.completed_at // "")}]
-    | sort_by(.at, .id) | last
-  end;
+# For a vendor whose comments name no commit, the reviewed head is the head of
+# the latest run of the named check that the bot's own app created and that
+# concluded with a review: any app can post a check under that name, and a
+# skipped or cancelled run reviewed nothing. The check's details_url is not
+# matched to the build id, since a vendor can mark its comments and its check
+# with different ids for one run.
+def _check_runs($runs; $cfg):
+  "^(?:\($cfg.login_pattern))$" as $login
+  | [$runs[]? | select(.name == $cfg.reviewed_head_check
+                       and ("\(.app.slug // "")[bot]" | test($login)))];
+def _check_head($runs; $cfg):
+  [_check_runs($runs; $cfg)[]
+   | select(.status == "completed"
+            and (.conclusion | IN("success", "neutral", "failure", "action_required")))
+   | {value: .head_sha, surface: "check_run", id, at: (.completed_at // "")}]
+  | sort_by(.at, .id) | last;
+# A run of the check still going, newer than the latest reviewed head: a poll
+# waits for it rather than reading the head as missing.
+def _check_pending($runs; $cfg; $head):
+  [_check_runs($runs; $cfg)[] | select(.status != "completed")
+   | select($head == null or (.started_at // "") > $head.at)] | length > 0;
 
 def bot_surfaces($cfg):
   if ($cfg | type) != "object" or ($cfg.login_pattern // "") == ""
@@ -52,6 +62,9 @@ def bot_surfaces($cfg):
   | [_surface_items($cfg)] as [$reviews, $issue, $inline]
   | ($reviews + $issue + $inline) as $all
   | _latest_marker($all; $cfg.build_id_regex) as $build
+  | (($cfg.reviewed_head_regex // "") == "" and ($cfg.reviewed_head_check // "") != "") as $by_check
+  | (if $by_check then _check_head(.check_runs; $cfg)
+     else _latest_marker($all; $cfg.reviewed_head_regex) end) as $head
   # Error text is read off summaries only: an inline finding can quote it.
   | ($cfg.errored_review_regex // "") as $err
   | (if $err == "" then null
@@ -79,9 +92,8 @@ def bot_surfaces($cfg):
                inline_findings: ([$findings[] | select(.surface == "review_comment")] | length),
                description_level_findings: ([$findings[] | select(.surface != "review_comment")] | length)},
       build_id: $build,
-      reviewed_head: (if ($cfg.reviewed_head_regex // "") != ""
-                      then _latest_marker($all; $cfg.reviewed_head_regex)
-                      else _check_head(.check_runs; $cfg; $build) end),
+      reviewed_head: $head,
+      reviewed_head_pending: ($by_check and _check_pending(.check_runs; $cfg; $head)),
       # Errored when the latest error summary is at least as new as the latest
       # run marker, or carries it with no clean summary of that run after it,
       # so a later clean run, or a clean retry of the same one, clears it.
