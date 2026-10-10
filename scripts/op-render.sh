@@ -164,7 +164,7 @@ if [ "$work_on" = true ]; then
   if ! op item get "$w_item" --vault "$w_vault" --account "$w_account" --format json --reveal >"$work/work-item.json"; then
     fail "op item get failed reading the work item DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM name; see the op error above"
   fi
-  item_fields "work item '$w_item'" "$work/work-item.json" "$work/work-fields.json"
+  item_fields "the work item DOTFILES_OP_WORK_ITEM names" "$work/work-item.json" "$work/work-fields.json"
 fi
 
 if [ "$format" = json ]; then

@@ -654,7 +654,8 @@ expect_failed "a failing work read" "op item get failed reading the work item DO
 grep -qE 'work\.example\.com|Work Vault|work-item' <<<"$log" && ko "a failing work read: a setting's value reached the message" || ok "a failing work read: the values stay off stderr"
 printf '{"id":"stub"}\n' >"$OP_STUB_WORK_ITEM"
 run "$review_tpl" dotfiles-bot-review "$out"
-expect_failed "a work item with no fields" "could not read work item 'work-item'"
+expect_failed "a work item with no fields" "could not read the work item DOTFILES_OP_WORK_ITEM names"
+grep -qE 'work-item|Work Vault|work\.example\.com' <<<"$log" && ko "an unreadable work item: a setting's value reached the message" || ok "an unreadable work item: the values stay off stderr"
 work_item
 for v in DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM; do
   (unset "$v"; run "$review_tpl" dotfiles-bot-review "$out"; expect_failed "a partial work source ($v unset)" "must be set together or not at all"; echo "$pass $fail" >"$sandbox/counts")
