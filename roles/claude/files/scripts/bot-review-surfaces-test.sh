@@ -201,6 +201,14 @@ for c in success neutral failure action_required; do
 done
 out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$(run 51 "$HEAD_B" completed success 2026-01-01T00:00:03Z)" "$a")")"
 check check-head-tie-break "$out" '.reviewed_head.id == 51'
+# The head is the run that completed last, whatever it started or its id.
+long="$(run 60 "$HEAD_A" completed success 2026-01-01T00:00:05Z | jq '.started_at = "2026-01-01T00:00:01Z"')"
+short="$(run 59 "$HEAD_B" completed success 2026-01-01T00:00:03Z | jq '.started_at = "2026-01-01T00:00:02Z"')"
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$long" "$short")")"
+check check-head-by-completion "$out" '.reviewed_head.id == 60'
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$(run 70 "$HEAD_A" completed success 2026-01-01T00:00:03Z)" \
+  "$(run 69 "$HEAD_B" completed success 2026-01-01T00:00:04Z)")")"
+check check-head-by-time-not-id "$out" '.reviewed_head.id == 69'
 # A poll fetches a run again: its earlier in-progress copy no longer counts.
 out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 51 "$HEAD_B" in_progress "" 2026-01-01T00:00:04Z)" \
   "$(run 51 "$HEAD_B" completed cancelled 2026-01-01T00:00:04Z)")")"
@@ -217,7 +225,7 @@ out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 57 "$HEAD_B" queue
 check check-head-pending-unstarted "$out" '.reviewed_head_pending == true'
 out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 58 "$HEAD_B" in_progress "" 2026-01-01T00:00:03Z)")")"
 check check-head-pending-same-start "$out" '.reviewed_head_pending == false'
-for bad_head in null '""' 42 '"not-a-sha"'; do
+for bad_head in null '""' 42 '"not-a-sha"' '"abc"' "\"$(printf 'a%.0s' $(seq 65))\""; do
   out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 59 "$HEAD_B" completed success 2026-01-01T00:00:09Z | jq ".head_sha = $bad_head")")")"
   check "check-head-bad-sha ($bad_head)" "$out" ".reviewed_head.value == \"$HEAD_A\""
 done
@@ -235,6 +243,9 @@ out="$(jq -n -L "$LIB" --argjson cfg "$(jq '.reviewed_head_regex = "reviewed ([0
   --argjson k "$(runs_of "$a")" --argjson r "[{\"id\": 62, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:05Z\", \"body\": \"reviewed $HEAD_B\"}]" \
   'include "surfaces"; {reviews: $r, issue_comments: [], review_comments: [], check_runs: $k} | bot_surfaces($cfg)')"
 check check-head-regex-wins "$out" ".reviewed_head.value == \"$HEAD_B\" and .reviewed_head.surface == \"review\" and .reviewed_head_pending == false"
+out="$(surfaces_with_runs "$(jq '.reviewed_head_regex = "reviewed ([0-9a-f]{40})"' <<< "$check_cfg")" \
+  "$(runs_of "$(run 71 "$HEAD_B" in_progress "" 2026-01-01T00:00:09Z)")")"
+check check-head-regex-no-pending "$out" '.reviewed_head_pending == false'
 out="$(surfaces_with_runs "$(jq 'del(.reviewed_head_check)' <<< "$check_cfg")" "$(runs_of "$a")")"
 check check-head-unconfigured "$out" '.reviewed_head == null'
 out="$(surfaces "[{\"id\": 61, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:05Z\", \"body\": \"acme:run=41\"}]" '[]' '[]')"

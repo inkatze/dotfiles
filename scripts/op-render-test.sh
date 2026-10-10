@@ -46,6 +46,7 @@ install_fake_op() {
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$OP_STUB_ARGV"
 printf '%s\n' "${OP_SERVICE_ACCOUNT_TOKEN:-}" >>"$OP_STUB_ENV"
+printf '%s\t%s\n' "${OP_SERVICE_ACCOUNT_TOKEN:-}" "$*" >>"$OP_STUB_ARGV.calls"
 # Stands in for whatever else writes the output path while op is running.
 [ -z "${OP_STUB_MKDIR:-}" ] || mkdir -p "$OP_STUB_MKDIR"
 if [ -n "${OP_STUB_FAIL:-}" ]; then
@@ -604,7 +605,11 @@ jq -e '.reviewers["work-review"] | .login_pattern == "work-bot(-2)?\\[bot\\]" an
   && ok "configured: values typed and verbatim, empty ones dropped" || ko "configured: values ($(jq -c '.reviewers["work-review"]' "$out"))"
 grep -qx -- 'item get work-item --vault Work Vault --account work.example.com --format json --reveal' "$OP_STUB_ARGV" \
   && ok "configured: the work read names its account" || ko "configured: the work read ($(cat "$OP_STUB_ARGV"))"
-[ "$(sed -n 2p "$OP_STUB_ENV")" = "" ] && ok "configured: no token on the work read" || ko "configured: the token reached the work read"
+if awk -F '\t' '$2 ~ / --account / { n++; if ($1 != "") bad = 1 } END { exit !(n == 1 && !bad) }' "$OP_STUB_ARGV.calls"; then
+  ok "configured: no token on the work read"
+else
+  ko "configured: the token reached the work read ($(cat "$OP_STUB_ARGV.calls"))"
+fi
 [ "$(jq -c '.reviewers.cubic.gating_checks' "$out")" = '["cubic/review"]' ] && ok "configured: the default item's entries unchanged" || ko "configured: the default item's entries unchanged"
 work_item "work_review_auto_opt_in=yes"
 run "$review_tpl" dotfiles-bot-review "$out"
@@ -683,6 +688,12 @@ item_from "flight_pr_hosts=[a]"
 run "$overlay_tpl" dotfiles-planwright-overlay "$sandbox/ov.yml"
 grep -q -- '--account' "$OP_STUB_ARGV" && ko "a template with no work reference read the work item" || ok "a template with no work reference reads one item"
 export DOTFILES_OP_WORK_ITEM=work-item
+: >"$OP_STUB_ARGV"
+printf 'flight_pr_hosts: {{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/flight_pr_hosts }}\n' >"$sandbox/tpl/planwright.yml.tpl"
+item_from "flight_pr_hosts=[a]"
+run "$sandbox/tpl/planwright.yml.tpl" dotfiles-planwright-overlay "$sandbox/ov2.yml"
+expect_failed "a work reference in a text template" "unsubstituted template expression"
+grep -q -- '--account' "$OP_STUB_ARGV" && ko "a text template read the work item" || ok "a text template never reads the work item"
 : >"$OP_STUB_ARGV"
 item_from 'repos={"acme/web":{"acme/api":"/src/api"}}'
 run "$sibling_tpl" dotfiles-sibling-repos "$HOME/.config/dotfiles/sibling-repos.json"

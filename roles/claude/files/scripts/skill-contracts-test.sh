@@ -725,6 +725,14 @@ for pin in \
   "confirmation-gated on every run except the unattended one \`auto_opt_in\` allows"; do
   PIN="$pin" expect_fail "bot-review-opt-in-dropped ($pin)" 'drop_pin "$PIN" "$(md bot-review)"' "unattended opt-in sentence"
 done
+for pin in \
+  "only extends the wait, within the same window; it never stands for a review" \
+  "or at the check-run walk depth in [limits.md](../review-shared/limits.md)" \
+  "| Opt-in missing | The PR is reviewed only with \`opt_in_label\`, which this run did not add (Pre-flight step 5) |"; do
+  PIN="$pin" expect_fail "bot-review-check-run-rule-dropped ($pin)" 'drop_pin "$PIN" "$(md bot-review)"' "check-run head rules"
+done
+expect_fail limits-walk-depth-dropped \
+  "perl -ni -e 'print unless /Check-run walk depth/' $SHARED/limits.md" "check-run walk depth"
 expect_fail bot-review-check-runs-fetch-drift \
   'swap_fixed "check-runs?check_name=" "check-runs?name=" "$(md bot-review)"' "check-runs fetch"
 expect_fail bot-review-surfaces-command-drift \

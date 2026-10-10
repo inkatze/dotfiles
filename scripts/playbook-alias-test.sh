@@ -345,7 +345,7 @@ good='DOTFILES_OP_WORK_ACCOUNT=team.example.com\nDOTFILES_OP_WORK_VAULT=Team Vau
 reset_files
 expect_work work-absent-file '<unset>|<unset>|<unset>'
 reset_files
-work_file "# work source\n\n  # indented comment\n$good"
+work_file "# work source\n\n   \n  # indented comment\n$good"
 expect_work work-file 'team.example.com|Team Vault|review-item'
 expect_work work-env-skips-file 'a.example.com|V|I' DOTFILES_OP_WORK_ACCOUNT=a.example.com \
     DOTFILES_OP_WORK_VAULT=V DOTFILES_OP_WORK_ITEM=I
@@ -375,7 +375,7 @@ grep -q ops_secretvalue "$work/stderr" && fail work-bare-line-quiet "the line re
 reset_files
 work_file "# c\n\n${good}DOTFILES_OP_WORK_ITEM=other\n"
 expect_work_refused work-repeated-key "line 6 sets DOTFILES_OP_WORK_ITEM a second time"
-for bad in 'ACCOUNT=--account=x' 'ACCOUNT=a b.example.com' 'VAULT=v/w' 'VAULT=v@w' 'ITEM=a/b' 'VAULT=Team Vault ' 'ITEM= item'; do
+for bad in 'ACCOUNT=--account=x' 'ACCOUNT=a b.example.com' 'VAULT=v/w' 'VAULT=v@w' 'ITEM=a/b' 'ITEM=i@x' 'VAULT=Team Vault ' 'ITEM= item'; do
     reset_files
     work_file "$(printf "$good" | grep -v "^DOTFILES_OP_WORK_${bad%%=*}=")\nDOTFILES_OP_WORK_$bad\n"
     expect_work_refused "work-bad-value ($bad)" "not a plain 1Password name"
@@ -410,7 +410,7 @@ if [ "$(id -u)" -ne 0 ]; then
     reset_files
     work_file "$good"
     chmod 000 "$work/op-work-item"
-    expect_work_refused work-unreadable-file "must be 600 or 400"
+    expect_work_refused work-mode-000 "must be 600 or 400"
     chmod 600 "$work/op-work-item"
 fi
 

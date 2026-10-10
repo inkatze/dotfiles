@@ -950,6 +950,11 @@ require_normalized "$(skill_md bot-review)" "unattended opt-in sentence" \
   "confirmation-gated on every run except the unattended one \`auto_opt_in\` allows"
 require_phrases "$(skill_md bot-review)" "check-runs fetch" \
   "check-runs?check_name=<url-encoded name>&filter=all&per_page=100"
+require_normalized "$(skill_md bot-review)" "check-run head rules" \
+  "only extends the wait, within the same window; it never stands for a review" \
+  "or at the check-run walk depth in [limits.md](../review-shared/limits.md)" \
+  "| Opt-in missing | The PR is reviewed only with \`opt_in_label\`, which this run did not add (Pre-flight step 5) |"
+require_phrases "$SHARED/limits.md" "check-run walk depth" "| Check-run walk depth | 20 commits, HEAD included |"
 
 # A metered hosted reviewer: full review once per PR, and a quota refusal is a
 # named stop rather than silence or a retry.
