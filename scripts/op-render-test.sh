@@ -692,6 +692,8 @@ unset DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM
 schema_dir="$repo/roles/claude/files/skills/bot-review"
 got="$(jq -r -L "$schema_dir" 'include "config-schema"; .reviewers.cubic.opt_in_label = "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/x }}" | review_template_errors' "$review_tpl")"
 grep -qF 'reviewers.cubic: references both the default item and the work item' <<<"$got" && ok "one entry draws on one item" || ko "one entry draws on one item ($got)"
+got="$(jq -n -r -L "$schema_dir" 'include "config-schema"; {reviewed_head_regex: "", reviewed_head_check: "C", rerequest: {method: "push"}} | _rendered_value_errors("p")')"
+grep -q 'not both' <<<"$got" && ko "an empty regex beside a check is refused ($got)" || ok "an empty regex beside a check is not 'both'"
 got="$(jq -n -r -L "$schema_dir" 'include "config-schema"; {reviewed_head_check: 5} | _rendered_value_errors("p")')"
 grep -qx 'p.reviewed_head_check: not a string' <<<"$got" && ok "a non-string check name is named, not a jq error" || ko "a non-string check name ($got)"
 got="$(jq -r -L "$schema_dir" 'include "config-schema"; .reviewers["work-review"].cli = {binary: "{{ op://__OP_VAULT__/__OP_ITEM__/x }}"} | review_template_errors' "$review_tpl")"

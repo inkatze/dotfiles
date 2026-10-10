@@ -61,7 +61,7 @@ def _rendered_value_errors($p):
     ( if .draft_policy == "skips-drafts" and ((.draft_setting // "") == "")
       then "\($p): draft_policy skips-drafts needs draft_setting naming the repository-side setting"
       else empty end ),
-    ( if has("reviewed_head_regex") and has("reviewed_head_check")
+    ( if (.reviewed_head_regex // "") != "" and (.reviewed_head_check // "") != ""
       then "\($p): set reviewed_head_regex or reviewed_head_check, not both" else empty end ),
     ( if has("reviewed_head_check") and (.reviewed_head_check | type) == "string"
         and (.reviewed_head_check | test("^\\s|\\s$"))
