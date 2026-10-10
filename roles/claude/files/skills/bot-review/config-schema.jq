@@ -5,20 +5,26 @@
 # Each emits one message per violation; none means valid.
 
 def required_hosted:
-  ["login_pattern", "rerequest", "reviewed_head_regex", "finding_key_regex",
-   "build_id_regex", "draft_policy", "opt_out_label", "addressed_marker_format"];
+  ["login_pattern", "rerequest", "reviewed_head_regex", "build_id_regex",
+   "draft_policy", "opt_out_label"];
 def optional_hosted:
-  ["draft_setting", "opt_in_label", "gating_checks", "requirement_level_hint",
-   "repo_config_path", "reply_suffix", "feedback_reaction",
-   "errored_review_regex", "quota_refusal_regex", "request_notes"];
+  ["finding_key_regex", "addressed_marker_format", "reviewed_head_check",
+   "draft_setting", "opt_in_label", "auto_opt_in", "gating_checks",
+   "requirement_level_hint", "repo_config_path", "reply_suffix",
+   "feedback_reaction", "errored_review_regex", "quota_refusal_regex",
+   "request_notes"];
+# Fields a template references with ` | json`, so they land typed.
+def json_hosted: ["gating_checks", "auto_opt_in"];
 def rerequest_methods: ["request", "comment", "push"];
 def draft_policies: ["reviews-drafts", "skips-drafts"];
-# The template reference syntax, for scripts/op-render.sh too: `f` captures
-# the item field, `j` the suffix that parses its value as JSON.
+# The template reference syntax, for scripts/op-render.sh too: `w` captures
+# the work source's prefix (null for the default item), `f` the item field,
+# `j` the suffix that parses its value as JSON. Text templates take the
+# default item only.
 def op_reference_inline:
   "\\{\\{ op://__OP_VAULT__/__OP_ITEM__/(?<f>[A-Za-z0-9_.-]+) \\}\\}";
 def op_reference:
-  "^\\{\\{ op://__OP_VAULT__/__OP_ITEM__/(?<f>[A-Za-z0-9_.-]+)(?<j> \\| json)? \\}\\}$";
+  "^\\{\\{ op://(?:__OP_VAULT__/__OP_ITEM__|(?<w>__OP_WORK_VAULT__/__OP_WORK_ITEM__))/(?<f>[A-Za-z0-9_.-]+)(?<j> \\| json)? \\}\\}$";
 
 def _one_of($p; $allowed):
   if (. as $v | $allowed | index([$v])) then empty
@@ -26,7 +32,7 @@ def _one_of($p; $allowed):
 
 def _rendered_value_errors($p):
   . as $e
-  | ( (keys - ["rerequest", "gating_checks", "cli"])[] as $k
+  | ( (keys - ["rerequest", "gating_checks", "auto_opt_in", "cli"])[] as $k
       | select(($e[$k] | type) != "string")
       | "\($p).\($k): not a string" ),
     ( (keys[] | select(test("_regex$|^login_pattern$"))) as $k
@@ -55,6 +61,12 @@ def _rendered_value_errors($p):
     ( if .draft_policy == "skips-drafts" and ((.draft_setting // "") == "")
       then "\($p): draft_policy skips-drafts needs draft_setting naming the repository-side setting"
       else empty end ),
+    ( if has("finding_key_regex") and (has("addressed_marker_format") | not)
+      then "\($p): finding_key_regex needs addressed_marker_format" else empty end ),
+    ( if has("auto_opt_in") and (.auto_opt_in | type) != "boolean"
+      then "\($p).auto_opt_in: must be true or false" else empty end ),
+    ( if (.auto_opt_in == true) and ((.opt_in_label // "") == "")
+      then "\($p): auto_opt_in needs opt_in_label" else empty end ),
     ( .addressed_marker_format | select(type == "string")
       | if contains("{key}") then empty
         else "\($p).addressed_marker_format: must contain {key}" end ),
@@ -70,9 +82,12 @@ def _template_value_errors($p):
     | "\($p).\($path | map(tostring) | join("."))" as $at
     | if ($v | type) != "string" or ($v | test(op_reference) | not)
       then "\($at): not an op:// reference"
-      elif ($path[0] == "gating_checks") != ($v | capture(op_reference).j != null)
-      then "\($at): a list takes a | json reference and a string a plain one"
-      else empty end );
+      elif (json_hosted | index([$path[0]]) != null) != ($v | capture(op_reference).j != null)
+      then "\($at): a list takes a | json reference and a string a plain one, auto_opt_in a | json one too"
+      else empty end ),
+  ( [del(.cli) | paths(scalars) as $path | getpath($path) | strings
+     | select(test(op_reference)) | capture(op_reference).w != null] | unique
+    | if length > 1 then "\($p): references both the default item and the work item" else empty end );
 
 def _entry_errors($name; $mode):
   "reviewers.\($name)" as $p
@@ -87,6 +102,7 @@ def _entry_errors($name; $mode):
           else
             ( required_hosted[] as $k
               | select(($e[$k] // "") == "")
+              | select($k != "reviewed_head_regex" or (($e.reviewed_head_check // "") == ""))
               | "\($p): missing required field \($k)" ),
             ( if $mode == "rendered" then _rendered_value_errors($p)
               else _template_value_errors($p) end )

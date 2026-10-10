@@ -5,7 +5,8 @@
 # split them.
 #
 # Input: {reviews, issue_comments, review_comments}, each the flat array the
-# REST endpoint returns. $cfg is one reviewer entry of the review config.
+# REST endpoint returns, plus check_runs, the runs of the reviewer's
+# reviewed_head_check (empty when it has none). $cfg is one reviewer entry of the review config.
 # Order is by time, the id breaking a tie. REST reviews carry no edit time,
 # so a review summary edited in place keeps its submission time.
 
@@ -29,6 +30,19 @@ def _latest_marker($items; $re):
   if ($re // "") == "" then null
   else [$items[] | ([.body | match($re; "g") | _value] | last) as $v
         | select($v != null) | {value: $v, surface, id, at}]
+    | sort_by(.at, .id) | last
+  end;
+
+# The reviewed head read off check runs, for a vendor whose comments name no
+# commit: the latest completed run of the named check, and with a run marker,
+# only one whose details_url carries that build id.
+def _check_head($runs; $cfg; $build):
+  if ($cfg.reviewed_head_check // "") == "" then null
+  else [$runs[]? | select(.name == $cfg.reviewed_head_check and .status == "completed")
+        | select($build == null or ($cfg.build_id_regex // "") == ""
+                 or ([(.details_url // "") | match($cfg.build_id_regex; "g") | _value]
+                     | index([$build.value])) != null)
+        | {value: .head_sha, surface: "check_run", id, at: (.completed_at // "")}]
     | sort_by(.at, .id) | last
   end;
 
@@ -65,7 +79,9 @@ def bot_surfaces($cfg):
                inline_findings: ([$findings[] | select(.surface == "review_comment")] | length),
                description_level_findings: ([$findings[] | select(.surface != "review_comment")] | length)},
       build_id: $build,
-      reviewed_head: _latest_marker($all; $cfg.reviewed_head_regex),
+      reviewed_head: (if ($cfg.reviewed_head_regex // "") != ""
+                      then _latest_marker($all; $cfg.reviewed_head_regex)
+                      else _check_head(.check_runs; $cfg; $build) end),
       # Errored when the latest error summary is at least as new as the latest
       # run marker, or carries it with no clean summary of that run after it,
       # so a later clean run, or a clean retry of the same one, clears it.

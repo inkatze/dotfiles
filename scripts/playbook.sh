@@ -109,5 +109,40 @@ if [[ -z "${OP_ACCOUNT:-}" && -f "$OP_ACCOUNT_FILE" ]]; then
     fi
 fi
 
+# Machine-local second 1Password source for scripts/op-render.sh's work
+# references: KEY=value lines naming DOTFILES_OP_WORK_ACCOUNT,
+# DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM. Untracked for the same
+# reason as op-account. Read only when none of the three is exported, and then
+# all three must be present, so a partial file fails here rather than as a
+# silently missing reviewer.
+OP_WORK_ITEM_FILE="${DOTFILES_OP_WORK_ITEM_FILE:-$HOME/.config/dotfiles/op-work-item}"
+if [[ -z "${DOTFILES_OP_WORK_ACCOUNT:-}${DOTFILES_OP_WORK_VAULT:-}${DOTFILES_OP_WORK_ITEM:-}" && -f "$OP_WORK_ITEM_FILE" ]]; then
+    w_account="" w_vault="" w_item=""
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%$'\r'}"
+        [[ -z "${line//[[:space:]]/}" || "$line" == \#* ]] && continue
+        key="${line%%=*}"
+        value="${line#*=}"
+        case "$key" in
+            DOTFILES_OP_WORK_ACCOUNT) w_account="$value"; extra='._@-' ;;
+            DOTFILES_OP_WORK_VAULT) w_vault="$value"; extra=' ._-' ;;
+            DOTFILES_OP_WORK_ITEM) w_item="$value"; extra=' ._-' ;;
+            *)
+                printf 'playbook.sh: %s holds the line %s, not one of DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT or DOTFILES_OP_WORK_ITEM; refusing to run.\n' "$OP_WORK_ITEM_FILE" "$(escape "$line")" >&2
+                exit 1
+                ;;
+        esac
+        if [[ "$line" != *=* ]] || ! plain_name "$value" "$extra"; then
+            printf 'playbook.sh: %s gives %s the value %s, not a plain 1Password name; refusing to run.\n' "$OP_WORK_ITEM_FILE" "$key" "$(escape "$value")" >&2
+            exit 1
+        fi
+    done <"$OP_WORK_ITEM_FILE"
+    if [[ -z "$w_account" || -z "$w_vault" || -z "$w_item" ]]; then
+        printf 'playbook.sh: %s must name DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM; refusing to run.\n' "$OP_WORK_ITEM_FILE" >&2
+        exit 1
+    fi
+    export DOTFILES_OP_WORK_ACCOUNT="$w_account" DOTFILES_OP_WORK_VAULT="$w_vault" DOTFILES_OP_WORK_ITEM="$w_item"
+fi
+
 echo "Running on host: $current_host"
 exec ansible-playbook -l "$current_host" main.yml "$@"

@@ -27,6 +27,8 @@ cat >"$work/bin/ansible-playbook" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$@" >"$STUB_ARGV"
 printf '%s' "${OP_ACCOUNT-<unset>}" >"$STUB_OP_ACCOUNT"
+printf '%s|%s|%s' "${DOTFILES_OP_WORK_ACCOUNT-<unset>}" "${DOTFILES_OP_WORK_VAULT-<unset>}" \
+    "${DOTFILES_OP_WORK_ITEM-<unset>}" >"$STUB_OP_ACCOUNT.work"
 SH
 cat >"$work/bin/hostname" <<'SH'
 #!/usr/bin/env bash
@@ -45,10 +47,11 @@ chmod +x "$work/bin/ansible-playbook" "$work/bin/hostname"
 # which is reported as such rather than as an empty limit. The exit status
 # lands in a file, since the caller reads this through a substitution.
 limit_for() {
-    rm -f "$work/argv" "$work/op"
+    rm -f "$work/argv" "$work/op" "$work/op.work"
     env -i PATH="$work/bin:$PATH" HOME="$work/home" \
         STUB_ARGV="$work/argv" STUB_OP_ACCOUNT="$work/op" \
         DOTFILES_HOST_FILE="$work/host" DOTFILES_OP_ACCOUNT_FILE="$work/op-account" \
+        DOTFILES_OP_WORK_ITEM_FILE="$work/op-work-item" \
         "$@" bash "$playbook" >/dev/null 2>"$work/stderr"
     echo $? >"$work/rc"
     if [ ! -f "$work/argv" ]; then
@@ -69,7 +72,7 @@ expect_limit() {
     fi
 }
 
-reset_files() { rm -f "$work/host" "$work/op-account"; }
+reset_files() { rm -f "$work/host" "$work/op-account" "$work/op-work-item"; }
 
 # 1. The regression: an empty file must not produce an empty limit.
 reset_files
@@ -311,6 +314,39 @@ else
     expect_abort op-unreadable-file-aborts "$work/op-account"
     chmod 600 "$work/op-account"
 fi
+
+# 10. The work item: a complete file exports its three values, comments and
+#     blank lines aside; an already-exported value skips the file; a partial,
+#     unknown-key or unsafe value is refused.
+expect_work() {
+    name="$1" want="$2"
+    shift 2
+    limit_for "$@" >/dev/null
+    got="$(cat "$work/op.work" 2>/dev/null || echo "<not run>")"
+    if [ "$got" = "$want" ]; then
+        ok "$name" "$got"
+    else
+        fail "$name" "expected $want, got $got"
+    fi
+}
+reset_files
+expect_work work-absent-file '<unset>|<unset>|<unset>'
+reset_files
+printf '# work source\n\nDOTFILES_OP_WORK_ACCOUNT=team.example.com\nDOTFILES_OP_WORK_VAULT=Team Vault\nDOTFILES_OP_WORK_ITEM=review-item\n' >"$work/op-work-item"
+expect_work work-file 'team.example.com|Team Vault|review-item'
+expect_work work-env-skips-file 'other.example.com|<unset>|<unset>' DOTFILES_OP_WORK_ACCOUNT=other.example.com
+reset_files
+printf 'DOTFILES_OP_WORK_ACCOUNT=team.example.com\nDOTFILES_OP_WORK_VAULT=Team Vault\n' >"$work/op-work-item"
+expect_refused work-partial-file
+reset_files
+printf 'DOTFILES_OP_WORK_ACCOUNT=team.example.com\nDOTFILES_OP_WORK_VAULT=v\nDOTFILES_OP_WORK_ITEM=i\nOP_SERVICE_ACCOUNT_TOKEN=x\n' >"$work/op-work-item"
+expect_refused work-unknown-key
+reset_files
+printf 'DOTFILES_OP_WORK_ACCOUNT=--account=x\nDOTFILES_OP_WORK_VAULT=v\nDOTFILES_OP_WORK_ITEM=i\n' >"$work/op-work-item"
+expect_refused work-flag-value
+reset_files
+printf 'DOTFILES_OP_WORK_ACCOUNT=a.example.com\nDOTFILES_OP_WORK_VAULT=v/w\nDOTFILES_OP_WORK_ITEM=i\n' >"$work/op-work-item"
+expect_refused work-path-value
 
 if [ "$fails" -eq 0 ]; then
     echo "playbook-alias-test: all assertions hold"

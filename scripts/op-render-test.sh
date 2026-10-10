@@ -21,6 +21,7 @@ ko() { echo "  FAIL: $1"; fail=$((fail + 1)); }
 
 ORIG_PATH="$PATH"
 unset OP_SERVICE_ACCOUNT_TOKEN DOTFILES_OP_TOKEN_FILE DOTFILES_OP_VAULT
+unset DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM
 
 root="$(mktemp -d)"
 trap 'rm -rf "$root"' EXIT
@@ -33,7 +34,7 @@ new_sandbox() {
   export OP_STUB_ITEM="$sandbox/item.json"
   export OP_STUB_ARGV="$sandbox/argv"
   export OP_STUB_ENV="$sandbox/env"
-  unset OP_STUB_FAIL OP_STUB_MKDIR
+  unset OP_STUB_FAIL OP_STUB_MKDIR OP_STUB_WORK_ITEM
   out="$HOME/.config/dotfiles/bot-review.json"
   install_fake_op
 }
@@ -52,7 +53,10 @@ if [ -n "${OP_STUB_FAIL:-}" ]; then
   exit 1
 fi
 [ "$1 $2" = "item get" ] || exit 2
-cat "$OP_STUB_ITEM"
+case " $* " in
+  *" --account "*) cat "${OP_STUB_WORK_ITEM:?the work item was read with no stub for it}" ;;
+  *) cat "$OP_STUB_ITEM" ;;
+esac
 FAKE
   chmod +x "$sandbox/bin/op"
 }
@@ -192,8 +196,7 @@ run "$sandbox/tpl/bot-review.json.tpl" dotfiles-bot-review "$out"
 expect_failed "foreign reference" "unsubstituted template expression"
 
 echo "9. a rendered config missing each required field fails naming it"
-for field in login_pattern reviewed_head_regex finding_key_regex build_id_regex \
-  draft_policy opt_out_label addressed_marker_format; do
+for field in login_pattern reviewed_head_regex build_id_regex draft_policy opt_out_label; do
   new_sandbox
   full_review_item "cubic_$field="
   run "$review_tpl" dotfiles-bot-review "$out"
@@ -534,6 +537,108 @@ run "$sandbox/tpl/planwright.yml.tpl" item "$sandbox/ov.yml"
 schema_dir="$repo/roles/claude/files/skills/bot-review"
 got="$(jq -n -r -L "$schema_dir" 'include "config-schema"; {reviewers: {a: {cli: {}}}} | review_config_errors')"
 grep -qF 'config: missing required field default' <<<"$got" && ok "a missing default is named" || ko "a missing default is named ($got)"
+
+echo "26. the finding key and its marker are optional together"
+new_sandbox
+full_review_item "cubic_finding_key_regex=" "cubic_addressed_marker_format="
+run "$review_tpl" dotfiles-bot-review "$out"
+[ "$rc" -eq 0 ] && ok "renders with neither" || ko "renders with neither ($log)"
+full_review_item "cubic_finding_key_regex="
+run "$review_tpl" dotfiles-bot-review "$out"
+[ "$rc" -eq 0 ] && ok "a marker without a key regex renders" || ko "a marker without a key regex renders ($log)"
+full_review_item "cubic_addressed_marker_format="
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "a key regex without its marker" "reviewers.cubic: finding_key_regex needs addressed_marker_format"
+
+echo "27. the work item: read only when configured, with its own account"
+work_fields() {
+  printf '%s\n' \
+    "work_review_login_pattern=work-bot(-2)?\\[bot\\]" \
+    "work_review_rerequest_method=push" "work_review_rerequest_login=" \
+    "work_review_rerequest_command=" "work_review_rerequest_incremental_command=" \
+    "work_review_reviewed_head_regex=" "work_review_reviewed_head_check=Work Review" \
+    "work_review_finding_key_regex=" "work_review_build_id_regex=/builds/([0-9a-f-]+)" \
+    "work_review_draft_policy=skips-drafts" "work_review_draft_setting=the opt-in label overrides it" \
+    "work_review_opt_out_label=no-review" "work_review_opt_in_label=review-me" \
+    "work_review_auto_opt_in=true" "work_review_addressed_marker_format=<!-- ack:{key} -->" \
+    "work_review_gating_checks=[\"Work Review\"]" "work_review_requirement_level_hint=" \
+    "work_review_repo_config_path=" "work_review_reply_suffix=[ack]" \
+    "work_review_feedback_reaction=" "work_review_errored_review_regex=not_reviewed" \
+    "work_review_quota_refusal_regex=" "work_review_request_notes="
+}
+# work_item [<label=value> overrides...]: the stubbed work item.
+work_item() {
+  local fields pair saved="$OP_STUB_ITEM"
+  fields="$(work_fields)"
+  for pair in "$@"; do
+    fields="$(printf '%s\n' "$fields" | grep -v "^${pair%%=*}=")"$'\n'"$pair"
+  done
+  export OP_STUB_ITEM="$sandbox/work-item.json"
+  printf '%s\n' "$fields" | to_item
+  export OP_STUB_ITEM="$saved" OP_STUB_WORK_ITEM="$sandbox/work-item.json"
+}
+new_sandbox
+full_review_item
+run "$review_tpl" dotfiles-bot-review "$out"
+[ "$rc" -eq 0 ] && ok "unconfigured: renders" || ko "unconfigured: renders ($log)"
+[ "$(jq -c '.reviewers | keys' "$out")" = '["copilot","cubic"]' ] && ok "unconfigured: the work entry drops out" || ko "unconfigured: the work entry drops out ($(jq -c '.reviewers | keys' "$out"))"
+grep -q -- '--account' "$OP_STUB_ARGV" && ko "unconfigured: op asked for another account" || ok "unconfigured: one op read"
+new_sandbox
+full_review_item
+work_item
+export DOTFILES_OP_WORK_ACCOUNT=work.example.com DOTFILES_OP_WORK_VAULT="Work Vault" DOTFILES_OP_WORK_ITEM=work-item
+export OP_SERVICE_ACCOUNT_TOKEN="ops_teststubtoken123"
+run "$review_tpl" dotfiles-bot-review "$out"
+unset OP_SERVICE_ACCOUNT_TOKEN
+[ "$rc" -eq 0 ] && ok "configured: renders" || ko "configured: renders ($log)"
+[ "$(jq -c '.reviewers | keys' "$out")" = '["copilot","cubic","work-review"]' ] && ok "configured: the work entry lands" || ko "configured: the work entry lands ($log)"
+jq -e '.reviewers["work-review"] | .login_pattern == "work-bot(-2)?\\[bot\\]" and .auto_opt_in == true
+  and .gating_checks == ["Work Review"] and .reviewed_head_check == "Work Review"
+  and (has("finding_key_regex") | not) and (has("reviewed_head_regex") | not)' "$out" >/dev/null \
+  && ok "configured: values typed and verbatim, empty ones dropped" || ko "configured: values ($(jq -c '.reviewers["work-review"]' "$out"))"
+grep -qx -- 'item get work-item --vault Work Vault --account work.example.com --format json --reveal' "$OP_STUB_ARGV" \
+  && ok "configured: the work read names its account" || ko "configured: the work read ($(cat "$OP_STUB_ARGV"))"
+[ "$(sed -n 2p "$OP_STUB_ENV")" = "" ] && ok "configured: no token on the work read" || ko "configured: the token reached the work read"
+[ "$(jq -c '.reviewers.cubic.gating_checks' "$out")" = '["cubic/review"]' ] && ok "configured: the default item's entries unchanged" || ko "configured: the default item's entries unchanged"
+work_item "work_review_auto_opt_in=yes"
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "a non-JSON boolean" "work_review_auto_opt_in does not hold valid JSON"
+work_item "work_review_auto_opt_in=\"true\""
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "a string boolean" "reviewers.work-review.auto_opt_in: must be true or false"
+work_item "work_review_opt_in_label="
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "auto opt-in with no label" "reviewers.work-review: auto_opt_in needs opt_in_label"
+work_item "work_review_reviewed_head_check=" "work_review_reviewed_head_regex="
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "the work entry still needs its required fields" "reviewers.work-review: missing required field reviewed_head_regex"
+work_item
+jq 'del(.fields[] | select(.label == "work_review_reply_suffix"))' "$OP_STUB_WORK_ITEM" >"$sandbox/i" && mv "$sandbox/i" "$OP_STUB_WORK_ITEM"
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "a field the work item lacks" "the work item has no field work_review_reply_suffix"
+work_item
+export OP_STUB_FAIL=1
+run "$review_tpl" dotfiles-bot-review "$out"
+unset OP_STUB_FAIL
+expect_failed "a failing op read" "op item get failed"
+unset DOTFILES_OP_WORK_ITEM
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "a partial work source" "must be set together or not at all"
+export DOTFILES_OP_WORK_ITEM=work-item DOTFILES_OP_WORK_ACCOUNT=--evil
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "an account that reads as a flag" "is outside"
+export DOTFILES_OP_WORK_ACCOUNT=work.example.com DOTFILES_OP_WORK_VAULT=a/b
+run "$review_tpl" dotfiles-bot-review "$out"
+expect_failed "a vault with a path separator" "is outside"
+export DOTFILES_OP_WORK_VAULT="Work Vault"
+: >"$OP_STUB_ARGV"
+item_from "flight_pr_hosts=[a]"
+run "$overlay_tpl" dotfiles-planwright-overlay "$sandbox/ov.yml"
+grep -q -- '--account' "$OP_STUB_ARGV" && ko "a template with no work reference read the work item" || ok "a template with no work reference reads one item"
+unset DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM
+schema_dir="$repo/roles/claude/files/skills/bot-review"
+got="$(jq -r -L "$schema_dir" 'include "config-schema"; .reviewers.cubic.opt_in_label = "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/x }}" | review_template_errors' "$review_tpl")"
+grep -qF 'reviewers.cubic: references both the default item and the work item' <<<"$got" && ok "one entry draws on one item" || ko "one entry draws on one item ($got)"
 
 echo
 echo "op-render: $pass passed, $fail failed"

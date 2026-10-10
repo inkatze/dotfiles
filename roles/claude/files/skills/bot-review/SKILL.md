@@ -26,13 +26,13 @@ Shape: a map of named reviewers plus a default, because one bot may not be insta
     "<name>": {
       "login_pattern": "...",
       "rerequest": { "method": "request | comment | push", "login": "...", "command": "...", "incremental_command": "..." },
-      "reviewed_head_regex": "...",
+      "reviewed_head_regex": "...", "reviewed_head_check": "...",
       "finding_key_regex": "...",
       "build_id_regex": "...",
       "draft_policy": "reviews-drafts | skips-drafts", "draft_setting": "...",
       "opt_out_label": "...",
       "addressed_marker_format": "...",
-      "opt_in_label": "...",
+      "opt_in_label": "...", "auto_opt_in": true,
       "gating_checks": ["...", "..."],
       "requirement_level_hint": "...",
       "repo_config_path": "...",
@@ -46,7 +46,7 @@ Shape: a map of named reviewers plus a default, because one bot may not be insta
 }
 ```
 
-The hosted fields, one schema for every vendor: `login_pattern` matches the bot's login in full (anchored, never a substring), in the REST form (`name[bot]` for an App); a reader holding GraphQL's form, which drops the suffix, tests the login with `[bot]` appended when `__typename` is `Bot`. `rerequest.method` is how a review is asked for: `request` (a reviewer request for `login`, in REST form, `name[bot]` for an App), `comment` (post `command`, or the cheaper `incremental_command` when one is set, per "## Requesting a review") or `push` (the bot reviews each push unasked). `reviewed_head_regex` captures, in its first group, the commit the bot says it reviewed. `finding_key_regex` extracts a finding's stable key. `build_id_regex` matches the bot's run marker and captures its build id. `draft_policy` says whether the bot reviews drafts, and when it skips them `draft_setting` names the repository-side setting that changes that. `opt_out_label` silences the bot on a PR. `request` needs `login`, `comment` needs `command`, and only `comment` takes `incremental_command`; `skips-drafts` needs `draft_setting`. Every value is a string except `rerequest` and `gating_checks` (a list of check names), every `_regex` field and `login_pattern` must compile, and a field the schema does not name is refused. Optional: `feedback_reaction`, the reaction the bot reads as feedback on a finding, and `errored_review_regex`, matching a summary that reports an errored review rather than a finding-free one.
+The hosted fields, one schema for every vendor: `login_pattern` matches the bot's login in full (anchored, never a substring), in the REST form (`name[bot]` for an App); a reader holding GraphQL's form, which drops the suffix, tests the login with `[bot]` appended when `__typename` is `Bot`. `rerequest.method` is how a review is asked for: `request` (a reviewer request for `login`, in REST form, `name[bot]` for an App), `comment` (post `command`, or the cheaper `incremental_command` when one is set, per "## Requesting a review") or `push` (the bot reviews each push unasked). `reviewed_head_regex` captures, in its first group, the commit the bot says it reviewed; for a bot whose comments never name a commit, leave it empty and set `reviewed_head_check`, a check-run name: the reviewed head is then the `head_sha` of that check's latest completed run, and with `build_id_regex` only a run whose `details_url` carries the latest build id counts. `finding_key_regex`, optional, extracts a finding's stable key, and needs `addressed_marker_format` beside it. `build_id_regex` matches the bot's run marker and captures its build id. `draft_policy` says whether the bot reviews drafts, and when it skips them `draft_setting` names the repository-side setting that changes that. `opt_out_label` silences the bot on a PR. `request` needs `login`, `comment` needs `command`, and only `comment` takes `incremental_command`; `skips-drafts` needs `draft_setting`. Every value is a string except `rerequest`, `gating_checks` (a list of check names) and `auto_opt_in` (a boolean, needing `opt_in_label`: Pre-flight step 5), every `_regex` field and `login_pattern` must compile, and a field the schema does not name is refused. Optional: `feedback_reaction`, the reaction the bot reads as feedback on a finding, and `errored_review_regex`, matching a summary that reports an errored review rather than a finding-free one.
 
 The `cli` block is read by `/panel-review`'s `reviewer:<name>` backend, not here; its keys are documented and checked there, when that backend runs. `cli.invocation_notes` is optional free text for you; nothing reads it. `reply_suffix` is optional: a vendor-specified tag appended as the last line of every inline reply (step 10), for bots that ask agent replies to carry one. `quota_refusal_regex` is optional and read by "## Requesting a review"; `request_notes` is free text for you, like `cli.invocation_notes`. `full_review_comment` and `rereview_comment` are retired into `rerequest.command` and `rerequest.incremental_command`. This skill never validates the schema itself (the renderer does, on fresh output), so a file still carrying either predates the change: ignore both, and say once to copy any value they held into the item's `<name>_rerequest_command` and `<name>_rerequest_incremental_command` fields, then re-run the claude role to re-render it.
 
@@ -54,7 +54,7 @@ The `cli` block is read by `/panel-review`'s `reviewer:<name>` backend, not here
 
 A PR-drain mode (standalone, `--nested` without `--local`, `--dry-run`) on a reviewer with no hosted mechanics stops and says so, suggesting `--local` if it has a `cli`. `--local` on a reviewer with no `cli` stops and says so, suggesting a drain mode if it has hosted mechanics. Never fall back silently between the two.
 
-PR-drain modes require `login_pattern`, `rerequest` with its `method`, `reviewed_head_regex`, `finding_key_regex`, `build_id_regex`, `draft_policy`, `opt_out_label` and `addressed_marker_format`, and the marker must contain `{key}` (a constant marker would make the first acknowledgment match every later finding). Every other hosted key is optional, with the degradation described where it is used. Name a missing required key and stop.
+PR-drain modes require `login_pattern`, `rerequest` with its `method`, `reviewed_head_regex` (empty when `reviewed_head_check` stands in), `build_id_regex`, `draft_policy` and `opt_out_label`, and a configured `addressed_marker_format` must contain `{key}` (a constant marker would make the first acknowledgment match every later finding). Every other hosted key is optional, with the degradation described where it is used. Name a missing required key and stop.
 
 ## The decision ledger
 
@@ -108,6 +108,7 @@ Read `--reviewer <name>`, `--local`, `--nested`, `--dry-run`, and `--effort <val
    - `opt_in_label` present → review is active regardless of draft state or `opt_out_label`. Opt-in wins.
    - No `opt_in_label`, `opt_out_label` present → review is suppressed. Say so; do not offer to remove someone else's label.
    - Neither, PR is a draft, `draft_policy` is `skips-drafts` → **no review can arrive while it stays a draft.** Say so and name `draft_setting`, the repository-side setting that changes it; this run drains the threads already present and never requests or waits on a review. If an `opt_in_label` is configured, **offer** (never silently apply) to add it: `y/N`, proceeding only on an explicit yes, and never under `--dry-run`; a yes lifts the no-wait rule for this run.
+   - Neither, PR is not a draft, and `requirement_level_hint` read against the gating checks says this PR is reviewed only with `opt_in_label` → **no review is coming without the label.** Interactively, offer to add it (`y/N`, as above). In a `--nested` run, or one with no operator present, with `auto_opt_in` true, add it without asking and say so; never under `--dry-run`.
    - Neither, PR is a draft, `draft_policy` is `reviews-drafts`, or the PR is not a draft → a review can arrive; continue.
 
    **Report the requirement-level hint and the opt-in label together, never the level alone as decisive**: a review can run at a level its own metadata calls excluded, because the opt-in label overrode it.
@@ -126,13 +127,15 @@ gh api --paginate 'repos/<o>/<r>/issues/<n>/comments?per_page=100' > '<d>/issue_
 gh api --paginate 'repos/<o>/<r>/pulls/<n>/comments?per_page=100' > '<d>/review_comments.json' || { echo "fetch failed: pulls/comments"; exit 1; }
 ```
 
+With `reviewed_head_check` set and `reviewed_head_regex` empty, also fetch that check's runs, newest commit first: `gh api --paginate 'repos/<o>/<r>/commits/<sha>/check-runs?check_name=<url-encoded name>&filter=all&per_page=100' --jq '.check_runs'` for HEAD, then for each earlier commit of `gh api --paginate 'repos/<o>/<r>/pulls/<n>/commits?per_page=100'` until one holds a completed run, all into `'<d>/check_runs.json'`; otherwise write `[]` there. Fetch them again on every poll.
+
 `--paginate` is not optional: an unpaginated read silently undercounts. Then read the reviewer's markers and finding keys off all three with [surfaces.jq](surfaces.jq):
 
 ```bash
-jq -n -L ~/.claude/skills/bot-review --slurpfile rv '<d>/reviews.json' --slurpfile ic '<d>/issue_comments.json' --slurpfile rc '<d>/review_comments.json' --slurpfile cfg ~/.config/dotfiles/bot-review.json --arg name '<reviewer>' 'include "surfaces"; {reviews: ($rv | add // []), issue_comments: ($ic | add // []), review_comments: ($rc | add // [])} | bot_surfaces($cfg[0].reviewers[$name])'
+jq -n -L ~/.claude/skills/bot-review --slurpfile rv '<d>/reviews.json' --slurpfile ic '<d>/issue_comments.json' --slurpfile rc '<d>/review_comments.json' --slurpfile cr '<d>/check_runs.json' --slurpfile cfg ~/.config/dotfiles/bot-review.json --arg name '<reviewer>' 'include "surfaces"; {reviews: ($rv | add // []), issue_comments: ($ic | add // []), review_comments: ($rc | add // []), check_runs: ($cr | add // [])} | bot_surfaces($cfg[0].reviewers[$name])'
 ```
 
-It keeps only what an author whose login `login_pattern` matches in full wrote, stops on a reviewer name the config lacks, and prints the counts, the latest `build_id` and `reviewed_head` (each with the surface it came from), `errored`, and every finding key with its surface. An inline finding is a top-level reviewer comment on `pulls/comments` (a reply in a thread is not one); a description-level finding is a review or issue-comment body `finding_key_regex` matches, unless an inline comment carries the same key. A summary is not a finding, and neither is a quota or plan refusal (see "## Requesting a review"): that stops the run with **Vendor quota**, standalone or nested, before triage (`--dry-run` excepted). Report `counts` as printed (per surface, then `inline_findings` and `description_level_findings`) **before** any filtering by resolution state, every run: a single-surface read that reports 3 findings while another carries 7 is the failure this step exists to prevent.
+It keeps only what an author whose login `login_pattern` matches in full wrote, stops on a reviewer name the config lacks, and prints the counts, the latest `build_id` and `reviewed_head` (each with the surface it came from, `check_run` for one read off `reviewed_head_check`), `errored`, and every finding key with its surface. An inline finding is a top-level reviewer comment on `pulls/comments` (a reply in a thread is not one); a description-level finding is a review or issue-comment body `finding_key_regex` matches, unless an inline comment carries the same key. A summary is not a finding, and neither is a quota or plan refusal (see "## Requesting a review"): that stops the run with **Vendor quota**, standalone or nested, before triage (`--dry-run` excepted). Report `counts` as printed (per surface, then `inline_findings` and `description_level_findings`) **before** any filtering by resolution state, every run: a single-surface read that reports 3 findings while another carries 7 is the failure this step exists to prevent.
 
 ### 2. Fetch resolution state via GraphQL
 
@@ -152,7 +155,7 @@ With `finding_key_regex` configured, the anchor is the vendor's own stable key e
 
 ### 5. Skip already-acknowledged description-level findings
 
-Search the viewer's `issues/comments` for `addressed_marker_format` with this key substituted; if present, a prior pass handled it.
+Search the viewer's `issues/comments` for `addressed_marker_format` with this key substituted; if present, a prior pass handled it. With no marker configured, say once that a handled description-level finding cannot be told from a new one.
 
 ### 6. Freshness, the reviewed head and errored reviews
 
@@ -297,7 +300,7 @@ On a new review, increment the counter, record the iteration's unresolved count 
 
 A transient failure on any other `gh` call (a label check, a poll, a reply, a resolve) is retried once; if it still fails, treat it as the nearest condition above, never a silent skip.
 
-**Never** force-push, push to a protected branch, mark the PR ready, or merge. `/bot-review` never marks a PR ready, for any reviewer, and offers no ready flip at convergence; any later flip is the user-global Pull Request Lifecycle rule's, outside this skill. This loop's only PR-lifecycle mutation is the optional opt-in-label add from Pre-flight step 5, confirmation-gated on every run; a review request is not a lifecycle change, and is governed by "## Requesting a review". **Never** push with `--no-verify`.
+**Never** force-push, push to a protected branch, mark the PR ready, or merge. `/bot-review` never marks a PR ready, for any reviewer, and offers no ready flip at convergence; any later flip is the user-global Pull Request Lifecycle rule's, outside this skill. This loop's only PR-lifecycle mutation is the optional opt-in-label add from Pre-flight step 5, confirmation-gated on every run except the unattended one `auto_opt_in` allows; a review request is not a lifecycle change, and is governed by "## Requesting a review". **Never** push with `--no-verify`.
 
 ## Local mode (`--local`)
 

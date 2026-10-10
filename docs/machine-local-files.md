@@ -54,6 +54,19 @@ literal, since they describe how to run a local CLI rather than the hosted
 bot's mechanics, so a rendered config carries them as committed, except that
 an empty list or map in one drops like any other.
 
+A JSON template can also reference a second item, as
+`{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/<field> }}`: the review
+template's `work-review` entry, a reviewer only work machines run, draws on it
+alone. `op-work-item` holds three `KEY=value` lines,
+`DOTFILES_OP_WORK_ACCOUNT`, `DOTFILES_OP_WORK_VAULT` and
+`DOTFILES_OP_WORK_ITEM`, which `scripts/playbook.sh` exports when none of the
+three is already set (export them yourself for a direct `op-render.sh` run).
+The renderer then reads that item with `op --account`, through the desktop
+app rather than the service-account token, which cannot reach another
+account; without the file every such reference resolves empty and the entry
+drops out. The file names an employer's account, so it stays untracked
+(0600), and each value must be a plain 1Password name.
+
 `cubic-api-key` is synced by `scripts/op-key-sync.sh` from the `credential`
 field of the `dotfiles-cubic-api-key` item (category API Credential), through a
 task in the same file and behind the same guards. It is a raw key, not a

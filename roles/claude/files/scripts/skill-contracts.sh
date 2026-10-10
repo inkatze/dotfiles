@@ -900,7 +900,7 @@ require_normalized "$(skill_md bot-review)" "generic drain mechanic" \
 # The filter call bot-review-surfaces-test.sh runs as the skill's own; a
 # change here must change the suite's copy too.
 require_phrases "$(skill_md bot-review)" "surfaces command" \
-  "'include \"surfaces\"; {reviews: (\$rv | add // []), issue_comments: (\$ic | add // []), review_comments: (\$rc | add // [])} | bot_surfaces(\$cfg[0].reviewers[\$name])'"
+  "'include \"surfaces\"; {reviews: (\$rv | add // []), issue_comments: (\$ic | add // []), review_comments: (\$rc | add // []), check_runs: (\$cr | add // [])} | bot_surfaces(\$cfg[0].reviewers[\$name])'"
 # Review-run discipline: one ledger, linked deferrals, replies as rules.
 require_normalized "$(skill_md bot-review)" "decision-ledger sentence" \
   "the only store of finding dispositions" \

@@ -172,18 +172,51 @@ for entry in null '{"build_id_regex": "x"}'; do
   fi
 done
 
+# A reviewer whose comments name no commit: the reviewed head is the latest
+# completed run of its check, the one carrying the latest build id.
+check_cfg='{"login_pattern": "acme-bot\\[bot\\]", "build_id_regex": "(?:acme:run=|/builds/)([0-9]+)",
+  "reviewed_head_check": "Acme Review"}'
+runs="[{\"id\": 50, \"name\": \"Acme Review\", \"status\": \"completed\", \"head_sha\": \"$HEAD_A\",
+    \"completed_at\": \"2026-01-01T00:00:03Z\", \"details_url\": \"https://ci.example/builds/41\"},
+  {\"id\": 51, \"name\": \"Acme Review\", \"status\": \"completed\", \"head_sha\": \"$HEAD_B\",
+    \"completed_at\": \"2026-01-01T00:00:04Z\", \"details_url\": \"https://ci.example/builds/42\"},
+  {\"id\": 52, \"name\": \"Acme Review\", \"status\": \"in_progress\", \"head_sha\": \"$HEAD_B\",
+    \"details_url\": \"https://ci.example/builds/43\"},
+  {\"id\": 53, \"name\": \"Other\", \"status\": \"completed\", \"head_sha\": \"$HEAD_B\",
+    \"completed_at\": \"2026-01-01T00:00:09Z\", \"details_url\": \"https://ci.example/builds/41\"}]"
+checked() { # checked <cfg> <review body> <runs>
+  jq -n -L "$LIB" --argjson cfg "$1" --argjson r "[{\"id\": 60, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:05Z\", \"body\": \"$2\"}]" \
+    --argjson k "$3" 'include "surfaces"; {reviews: $r, issue_comments: [], review_comments: [], check_runs: $k} | bot_surfaces($cfg)'
+}
+out="$(checked "$check_cfg" "acme:run=41" "$runs")"
+check check-head-build-match "$out" ".reviewed_head == {value: \"$HEAD_A\", surface: \"check_run\", id: 50, at: \"2026-01-01T00:00:03Z\"}"
+out="$(checked "$(jq 'del(.build_id_regex)' <<< "$check_cfg")" "no marker" "$runs")"
+check check-head-latest-completed "$out" ".reviewed_head.value == \"$HEAD_B\" and .reviewed_head.id == 51"
+out="$(checked "$check_cfg" "acme:run=99" "$runs")"
+check check-head-no-run-for-build "$out" '.reviewed_head == null'
+out="$(checked "$(jq '.reviewed_head_regex = "reviewed ([0-9a-f]{40})"' <<< "$check_cfg")" "acme:run=41 reviewed $HEAD_B" "$runs")"
+check check-head-regex-wins "$out" ".reviewed_head.value == \"$HEAD_B\" and .reviewed_head.surface == \"review\""
+out="$(checked "$(jq 'del(.reviewed_head_check)' <<< "$check_cfg")" "acme:run=41" "$runs")"
+check check-head-unconfigured "$out" '.reviewed_head == null'
+out="$(checked "$check_cfg" "acme:run=43" "$runs")"
+check check-head-in-progress "$out" '.reviewed_head == null'
+out="$(surfaces "[{\"id\": 61, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:05Z\", \"body\": \"acme:run=41\"}]" '[]' '[]')"
+check check-runs-absent "$out" '.build_id.value == "41"'
+
 # The command the skill runs: paginated pages slurped per surface, the config
 # read from its file.
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 printf '[{"id": 40, "user": %s, "submitted_at": "2026-01-01T00:00:05Z", "body": "acme:run=5"}][]' "$bot" > "$scratch/reviews.json"
 printf '[]' > "$scratch/issue_comments.json"
+printf '[]' > "$scratch/check_runs.json"
 printf '[{"id": 41, "user": %s, "updated_at": "2026-01-01T00:00:01Z", "path": "f.sh", "original_line": 2, "original_commit_id": "%s", "body": "acme:v=k8"}][{"id": 42, "user": %s, "updated_at": "2026-01-01T00:00:02Z", "path": "f.sh", "original_line": 3, "original_commit_id": "%s", "body": "acme:v=k9"}]' \
   "$bot" "$HEAD_A" "$bot" "$HEAD_A" > "$scratch/review_comments.json"
 jq -n --argjson e "$CFG" '{version: 1, default: "acme", reviewers: {acme: $e}}' > "$scratch/bot-review.json"
 out="$(jq -n -L "$LIB" --slurpfile rv "$scratch/reviews.json" --slurpfile ic "$scratch/issue_comments.json" \
-  --slurpfile rc "$scratch/review_comments.json" --slurpfile cfg "$scratch/bot-review.json" --arg name acme \
-  'include "surfaces"; {reviews: ($rv | add // []), issue_comments: ($ic | add // []), review_comments: ($rc | add // [])} | bot_surfaces($cfg[0].reviewers[$name])')"
+  --slurpfile rc "$scratch/review_comments.json" --slurpfile cr "$scratch/check_runs.json" \
+  --slurpfile cfg "$scratch/bot-review.json" --arg name acme \
+  'include "surfaces"; {reviews: ($rv | add // []), issue_comments: ($ic | add // []), review_comments: ($rc | add // []), check_runs: ($cr | add // [])} | bot_surfaces($cfg[0].reviewers[$name])')"
 check skill-command-pages "$out" '.build_id.value == "5" and [.findings[].key] == ["k8", "k9"]'
 
 # No errored pattern configured: errored is false, never an error.

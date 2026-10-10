@@ -437,6 +437,15 @@ expect_fail review-template-retired-trigger \
 expect_fail review-template-json-on-string \
   "perl -pi -e 's|copilot_opt_out_label \\}\\}|copilot_opt_out_label \\| json }}|' $SKILLS/bot-review/bot-review.json.tpl" \
   "a list takes a | json reference and a string a plain one"
+expect_fail review-template-mixed-sources \
+  "perl -pi -e 's|__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_opt_out_label|__OP_VAULT__/__OP_ITEM__/work_review_opt_out_label|' $SKILLS/bot-review/bot-review.json.tpl" \
+  "reviewers.work-review: references both the default item and the work item"
+expect_fail review-template-work-literal \
+  "perl -pi -e 's|\\{\\{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_opt_in_label \\}\\}|some-label|' $SKILLS/bot-review/bot-review.json.tpl" \
+  "reviewers.work-review.opt_in_label: not an op:// reference"
+expect_fail review-template-plain-boolean \
+  "perl -pi -e 's/(work_review_auto_opt_in) \\| json/\$1/' $SKILLS/bot-review/bot-review.json.tpl" \
+  "reviewers.work-review.auto_opt_in: a list takes a | json reference"
 expect_fail review-template-two-documents \
   "cp $SKILLS/bot-review/bot-review.json.tpl x && cat x >> $SKILLS/bot-review/bot-review.json.tpl" \
   "template: must hold exactly one JSON document"

@@ -19,6 +19,15 @@
 # different optional fields. Text templates: references are substituted raw,
 # and a value holding a line break is refused.
 #
+# A JSON template may also reference
+# `{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/<field> }}`, a second item read
+# only when DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and
+# DOTFILES_OP_WORK_ITEM are all set (scripts/playbook.sh exports them from
+# ~/.config/dotfiles/op-work-item). That read calls op directly with
+# --account, never with the service-account token, which cannot reach another
+# account. With all three unset every such reference resolves empty, so an
+# entry built only from them drops out.
+#
 # The template's basename picks the validation rule; a template with none is
 # refused rather than rendered unchecked.
 #
@@ -112,24 +121,58 @@ if ! op_run item get "$item" --vault "$VAULT" --format json --reveal >"$work/ite
   fail "op item get failed reading vault='$VAULT' item='$item'; see the op error above (locked session? missing item?)"
 fi
 
-jq_or_fail "could not read item '$item'" -c '
-  [.fields[]? | select((.label // "") != "")] as $f
-  | ($f | group_by(.label) | map(select(length > 1) | .[0].label)) as $dup
-  | if ($f | length) == 0 then error("op returned an item that holds no fields")
-    elif ($dup | length) > 0
-    then error("the item holds more than one field labelled \($dup[0])")
-    else $f | map({key: .label, value: (.value // "")}) | from_entries end' \
-  "$work/item.json" >"$work/fields.json"
+# item_fields <label> <op item json> <output>: the item's fields as one
+# label-to-value object.
+item_fields() {
+  jq_or_fail "could not read item '$1'" -c '
+    [.fields[]? | select((.label // "") != "")] as $f
+    | ($f | group_by(.label) | map(select(length > 1) | .[0].label)) as $dup
+    | if ($f | length) == 0 then error("op returned an item that holds no fields")
+      elif ($dup | length) > 0
+      then error("the item holds more than one field labelled \($dup[0])")
+      else $f | map({key: .label, value: (.value // "")}) | from_entries end' \
+    "$2" >"$3"
+}
+item_fields "$item" "$work/item.json" "$work/fields.json"
+
+work_on=false
+echo '{}' >"$work/work-fields.json"
+if [ "$format" = json ] && grep -qF '__OP_WORK_VAULT__' "$template"; then
+  w_account="${DOTFILES_OP_WORK_ACCOUNT:-}"
+  w_vault="${DOTFILES_OP_WORK_VAULT:-}"
+  w_item="${DOTFILES_OP_WORK_ITEM:-}"
+  if [ -n "$w_account$w_vault$w_item" ]; then
+    [ -n "$w_account" ] && [ -n "$w_vault" ] && [ -n "$w_item" ] \
+      || fail "DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM must be set together or not at all"
+    case "$w_account" in
+      -* | *[!A-Za-z0-9._@-]*) fail "work account '$w_account' is outside [A-Za-z0-9._@-]" ;;
+    esac
+    for name in "$w_vault" "$w_item"; do
+      case "$name" in
+        -* | *[!A-Za-z0-9._\ -]*) fail "work vault or item name '$name' is outside [A-Za-z0-9._ -]" ;;
+      esac
+    done
+    if ! op item get "$w_item" --vault "$w_vault" --account "$w_account" --format json --reveal >"$work/work-item.json"; then
+      fail "op item get failed reading the work item (account='$w_account' vault='$w_vault' item='$w_item'); see the op error above"
+    fi
+    item_fields "$w_item" "$work/work-item.json" "$work/work-fields.json"
+    work_on=true
+  fi
+fi
 
 if [ "$format" = json ]; then
   # Walks the template's own structure only, so a value parsed from a ` | json`
   # field is never pruned: an empty string inside it reaches the rule intact.
-  jq_or_fail "could not render $template" -L "$schema_dir" --slurpfile m "$work/fields.json" '
+  jq_or_fail "could not render $template" -L "$schema_dir" --slurpfile m "$work/fields.json" \
+    --slurpfile wm "$work/work-fields.json" --argjson work_on "$work_on" '
     include "config-schema";
     def none: {"__op_render_none__": true};
-    def resolve($fields):
+    def resolve($default):
       capture(op_reference) as $c
-      | if ($fields | has($c.f) | not) then error("the item has no field \($c.f)")
+      | (if $c.w == null then $default else $wm[0] end) as $fields
+      | if $c.w != null and ($work_on | not) then none
+        elif ($fields | has($c.f) | not)
+        then error("the \(if $c.w == null then "" else "work " end)item has no field \($c.f)")
         elif $fields[$c.f] == "" then none
         elif $c.j == null then $fields[$c.f]
         else $fields[$c.f]
