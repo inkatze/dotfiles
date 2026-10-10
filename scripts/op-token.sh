@@ -18,6 +18,21 @@ is_blank() {
   [ -z "$(printf '%s' "$1" | LC_ALL=C tr -d '[:space:]')" ]
 }
 
+# has_acl <path>: the file carries an access-control list, which mode bits do
+# not show. GNU ls marks one with a `+` after the mode; macOS ls prints a `@`
+# there instead when the file also has extended attributes, so its `-e` entry
+# lines are checked too (GNU ls has no `-e`, and prints nothing for it).
+has_acl() {
+  local mode_field
+  mode_field="$(LC_ALL=C ls -ld -- "$1" 2>/dev/null)"
+  mode_field="${mode_field%% *}"
+  case "$mode_field" in *+) return 0 ;; esac
+  [ -n "$(LC_ALL=C ls -lde -- "$1" 2>/dev/null | sed -n 2p)" ]
+}
+
+# owner_of <path>: the owning uid.
+owner_of() { stat -c '%u' "$1" 2>/dev/null || stat -f '%u' "$1" 2>/dev/null || echo ''; }
+
 resolve_op_token() {
   OP_TOKEN_FILE="${DOTFILES_OP_TOKEN_FILE:-$HOME/.config/dotfiles/op-service-account-token}"
   # Unset both: an inherited op_token stays exported, and an exported token,
@@ -50,6 +65,12 @@ resolve_op_token() {
       '') fail "could not stat token file $OP_TOKEN_FILE" ;;
       *) fail "$OP_TOKEN_FILE is mode $perms; must be 600 or 400 (chmod 600 it)" ;;
     esac
+    # Mode bits alone let another owner, or an ACL, grant someone else access.
+    [ "$(owner_of "$OP_TOKEN_FILE")" = "$(id -u)" ] \
+      || fail "$OP_TOKEN_FILE is not owned by this user; recreate it as this user"
+    if has_acl "$OP_TOKEN_FILE"; then
+      fail "$OP_TOKEN_FILE carries an access-control list; remove it (chmod -N on macOS, setfacl -b on Linux)"
+    fi
     # Through fail(): under `set -e` a root-owned file would abort on cat's
     # status with no FAILED: line.
     unreadable="$OP_TOKEN_FILE is not readable by this user (mode is $perms, but check the owner)"

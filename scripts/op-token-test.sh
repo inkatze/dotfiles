@@ -62,6 +62,9 @@ SHIM
 cat >"$root/bin/stat" <<SHIM
 #!/usr/bin/env bash
 [ ! -e "\$STUB_DIR/stat-fails" ] || exit 1
+if [ -e "\$STUB_DIR/stat-uid" ]; then
+  for a in "\$@"; do [ "\$a" = %u ] && { cat "\$STUB_DIR/stat-uid"; exit 0; }; done
+fi
 exec "$real_stat" "\$@"
 SHIM
 "$real_chmod" +x "$root/bin/op" "$root/bin/chmod" "$root/bin/stat"
@@ -212,15 +215,24 @@ for s in $subjects; do
   run "$s" DOTFILES_OP_TOKEN_FILE="$token_file"
   refused "stat fails" "could not stat token file $token_file"
 
-  # Mode 600 yet unreadable needs another owner or an ACL; only BSD chmod +a
-  # gives an unprivileged user the latter.
+  # Mode bits do not show another owner or an ACL; only BSD chmod +a gives an
+  # unprivileged user the latter.
   new_sandbox
   write_token "$good\n"
-  if "$real_chmod" +a "$(id -un) deny read" "$token_file" 2>/dev/null; then
+  echo $(( $(id -u) + 1 )) >"$sandbox/stat-uid"
+  run "$s" DOTFILES_OP_TOKEN_FILE="$token_file"
+  refused "another owner" "$token_file is not owned by this user; recreate it as this user"
+  rm -f "$sandbox/stat-uid"
+  new_sandbox
+  write_token "$good\n"
+  if "$real_chmod" +a "everyone allow read" "$token_file" 2>/dev/null; then
     run "$s" DOTFILES_OP_TOKEN_FILE="$token_file"
-    refused "unreadable" "$token_file is not readable by this user (mode is 600, but check the owner)"
+    refused "an ACL" "$token_file carries an access-control list; remove it (chmod -N on macOS, setfacl -b on Linux)"
+    xattr -w org.example.test x "$token_file" 2>/dev/null || true
+    run "$s" DOTFILES_OP_TOKEN_FILE="$token_file"
+    refused "an ACL behind an extended attribute" "$token_file carries an access-control list; remove it (chmod -N on macOS, setfacl -b on Linux)"
   else
-    echo "  skip: unreadable (no chmod +a here)"
+    echo "  skip: ACL (no chmod +a here)"
   fi
 
   echo "3. default path and absence"
