@@ -62,7 +62,8 @@ alone. `op-work-item` holds `KEY=value` lines for
 `DOTFILES_OP_WORK_ITEM`, which `scripts/playbook.sh` exports unless all three
 are already exported (export them yourself for a direct `op-render.sh` run,
 or one through `ansible-playbook` alone, which otherwise drops the entry).
-A partial export, a file that is a symlink or not mode 600 or 400, a missing,
+A partial export, a file that is a symlink, not mode 600 or 400, owned by
+another user or carrying an ACL (as the token file is held to), a missing,
 repeated or unknown key, and a value that is not a plain 1Password name each
 refuse the run, without echoing the line.
 The renderer then reads that item with `op --account`, through the desktop

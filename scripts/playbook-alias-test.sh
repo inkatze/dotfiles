@@ -34,7 +34,16 @@ cat >"$work/bin/hostname" <<'SH'
 #!/usr/bin/env bash
 echo "${STUB_HOSTNAME:-ci-runner}"
 SH
-chmod +x "$work/bin/ansible-playbook" "$work/bin/hostname"
+real_stat="$(command -v stat)"
+cat >"$work/bin/stat" <<SH
+#!/usr/bin/env bash
+# Reports another owner when the case asks for one; stat is otherwise real.
+if [ -e "\$STUB_STAT_UID" ]; then
+    for a in "\$@"; do [ "\$a" = %u ] && { cat "\$STUB_STAT_UID"; exit 0; }; done
+fi
+exec "$real_stat" "\$@"
+SH
+chmod +x "$work/bin/ansible-playbook" "$work/bin/hostname" "$work/bin/stat"
 # Without both stubs in place, PATH would resolve to the real ansible-playbook
 # and the first case would provision this machine.
 [ -x "$work/bin/ansible-playbook" ] && [ -x "$work/bin/hostname" ] || {
@@ -51,7 +60,7 @@ limit_for() {
     env -i PATH="$work/bin:$PATH" HOME="$work/home" \
         STUB_ARGV="$work/argv" STUB_OP_ACCOUNT="$work/op" STUB_OP_WORK="$work/op-work" \
         DOTFILES_HOST_FILE="$work/host" DOTFILES_OP_ACCOUNT_FILE="$work/op-account" \
-        DOTFILES_OP_WORK_ITEM_FILE="$work/op-work-item" \
+        DOTFILES_OP_WORK_ITEM_FILE="$work/op-work-item" STUB_STAT_UID="$work/stat-uid" \
         "$@" bash "$playbook" >/dev/null 2>"$work/stderr"
     echo $? >"$work/rc"
     if [ ! -f "$work/argv" ]; then
@@ -406,6 +415,22 @@ rm -f "$work/op-work-item"
 mkdir "$work/op-work-item"
 expect_work_refused work-directory "not a regular file"
 rmdir "$work/op-work-item"
+reset_files
+work_file "$good"
+echo $(( $(id -u) + 1 )) >"$work/stat-uid"
+expect_work_refused work-foreign-owner "not owned by this user"
+rm -f "$work/stat-uid"
+reset_files
+work_file "$good"
+if chmod +a "everyone allow write" "$work/op-work-item" 2>/dev/null; then
+    expect_work_refused work-acl "carries an access-control list"
+    xattr -w org.example.test x "$work/op-work-item" 2>/dev/null || true
+    expect_work_refused work-acl-with-xattr "carries an access-control list"
+    chmod -N "$work/op-work-item"
+    expect_work work-acl-removed 'team.example.com|Team Vault|review-item'
+else
+    skip work-acl "no chmod +a here"
+fi
 if [ "$(id -u)" -ne 0 ]; then
     reset_files
     work_file "$good"

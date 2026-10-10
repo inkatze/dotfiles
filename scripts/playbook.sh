@@ -133,6 +133,15 @@ if [[ -z "$work_env" ]] && { [[ -e "$OP_WORK_ITEM_FILE" ]] || [[ -L "$OP_WORK_IT
         600 | 400) ;;
         *) work_refuse "$OP_WORK_ITEM_FILE" "mode ${work_mode:-unknown}; must be 600 or 400 (chmod 600 it)" ;;
     esac
+    # Mode bits alone let another owner, or an ACL, grant someone else write.
+    work_owner="$(stat -c '%u' "$OP_WORK_ITEM_FILE" 2>/dev/null || stat -f '%u' "$OP_WORK_ITEM_FILE" 2>/dev/null || echo '')"
+    [[ "$work_owner" == "$(id -u)" ]] || work_refuse "$OP_WORK_ITEM_FILE" "not owned by this user; recreate it as this user"
+    work_ls="$(LC_ALL=C ls -ld -- "$OP_WORK_ITEM_FILE" 2>/dev/null)"
+    # GNU ls marks an ACL with `+`; macOS ls shows `@` there when extended
+    # attributes exist too, so its `-e` entry lines are checked as well.
+    if [[ "${work_ls%% *}" == *+ || -n "$(LC_ALL=C ls -lde -- "$OP_WORK_ITEM_FILE" 2>/dev/null | sed -n 2p)" ]]; then
+        work_refuse "$OP_WORK_ITEM_FILE" "it carries an access-control list; remove it (chmod -N on macOS, setfacl -b on Linux)"
+    fi
     [[ -r "$OP_WORK_ITEM_FILE" ]] || work_refuse "$OP_WORK_ITEM_FILE" "not readable"
     # bash 3.2's read stops a line at a NUL, silently truncating its value.
     LC_ALL=C tr -d '\000' <"$OP_WORK_ITEM_FILE" | cmp -s - "$OP_WORK_ITEM_FILE" \
