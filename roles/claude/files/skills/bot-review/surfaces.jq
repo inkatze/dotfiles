@@ -40,12 +40,13 @@ def _latest_marker($items; $re):
 # skipped or cancelled run reviewed nothing. The check's details_url is not
 # matched to the build id, since a vendor can mark its comments and its check
 # with different ids for one run. A run fetched again on a poll keeps its id,
-# and only its latest state counts.
+# and only its last-fetched copy counts: the fetches append in time order, and
+# group_by keeps that order within an id.
 def _own_check_runs($runs; $cfg):
   "^(?:\($cfg.login_pattern))$" as $login
   | [$runs[]? | select(.name == $cfg.reviewed_head_check
                        and ("\(.app.slug // "")[bot]" | test($login)))]
-  | group_by(.id) | map(sort_by(.status == "completed", .completed_at // "") | last);
+  | group_by(.id) | map(last);
 def _check_head($runs; $cfg):
   [_own_check_runs($runs; $cfg)[]
    | select(.status == "completed"

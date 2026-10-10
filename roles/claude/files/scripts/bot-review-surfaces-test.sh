@@ -205,6 +205,10 @@ check check-head-tie-break "$out" '.reviewed_head.id == 51'
 out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 51 "$HEAD_B" in_progress "" 2026-01-01T00:00:04Z)" \
   "$(run 51 "$HEAD_B" completed cancelled 2026-01-01T00:00:04Z)")")"
 check check-head-refetched-run "$out" ".reviewed_head.value == \"$HEAD_A\" and .reviewed_head_pending == false"
+# A rerun that reuses the id: the later in-progress copy is the current state.
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 51 "$HEAD_B" completed success 2026-01-01T00:00:04Z)" \
+  "$(run 51 "$HEAD_B" in_progress "" 2026-01-01T00:00:06Z)")")"
+check check-head-rerun-same-id "$out" ".reviewed_head.value == \"$HEAD_A\" and .reviewed_head_pending == true"
 # A run on a new head that started before the old head's run finished.
 early="$(jq '.started_at = "2026-01-01T00:00:01Z"' <<< "$a")"
 out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$early" "$(run 56 "$HEAD_B" in_progress "" 2026-01-01T00:00:02Z)")")"
