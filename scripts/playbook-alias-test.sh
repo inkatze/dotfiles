@@ -380,6 +380,9 @@ for bad in 'ACCOUNT=--account=x' 'ACCOUNT=a b.example.com' 'VAULT=v/w' 'VAULT=v@
     work_file "$(printf "$good" | grep -v "^DOTFILES_OP_WORK_${bad%%=*}=")\nDOTFILES_OP_WORK_$bad\n"
     expect_work_refused "work-bad-value ($bad)" "not a plain 1Password name"
 done
+reset_files
+printf 'DOTFILES_OP_WORK_ACCOUNT=a\0b.example.com\nDOTFILES_OP_WORK_VAULT=v\nDOTFILES_OP_WORK_ITEM=i\n' >"$work/op-work-item"
+expect_work_refused work-nul-byte "it holds a NUL byte"
 if [ "$(id -u)" -ne 0 ]; then
     reset_files
     work_file "$good"

@@ -125,6 +125,9 @@ if [[ -n "$work_env" && "$work_env" != avi ]]; then
 fi
 if [[ -z "$work_env" && -f "$OP_WORK_ITEM_FILE" ]]; then
     [[ -r "$OP_WORK_ITEM_FILE" ]] || work_refuse "$OP_WORK_ITEM_FILE" "not readable"
+    # bash 3.2's read stops a line at a NUL, silently truncating its value.
+    LC_ALL=C tr -d '\000' <"$OP_WORK_ITEM_FILE" | cmp -s - "$OP_WORK_ITEM_FILE" \
+        || work_refuse "$OP_WORK_ITEM_FILE" "it holds a NUL byte"
     w_account="" w_vault="" w_item="" n=0
     while IFS= read -r line || [[ -n "$line" ]]; do
         n=$((n + 1))
