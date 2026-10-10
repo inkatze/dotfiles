@@ -100,8 +100,8 @@ it; `/panel-review`'s `reviewer:cubic` backend reads it through the entry's
   `scripts/op-token.sh`**, tested by `scripts/op-token-test.sh` through
   `scripts/ssh-lan-config-sync.sh` and `scripts/claude-gemini-auth-sync.sh`,
   so a fix to the checks lands everywhere. Its
-  `resolve_op_token` refuses a file that is a symlink, is not regular, or is
-  not mode 0600 or 0400, and a value that is blank or holds anything outside
+  `resolve_op_token` refuses a file that is a symlink, is not regular, is
+  not mode 0600 or 0400, is owned by another user or carries an ACL, and a value that is blank or holds anything outside
   the token character set (NUL bytes included). An already-exported
   `OP_SERVICE_ACCOUNT_TOKEN` takes precedence, so CI can supply one without
   the file existing; an exported empty one is treated as absent.

@@ -231,8 +231,14 @@ for s in $subjects; do
     xattr -w org.example.test x "$token_file" 2>/dev/null || true
     run "$s" DOTFILES_OP_TOKEN_FILE="$token_file"
     refused "an ACL behind an extended attribute" "$token_file carries an access-control list; remove it (chmod -N on macOS, setfacl -b on Linux)"
+  elif command -v setfacl >/dev/null 2>&1 && setfacl -m "u:root:r" "$token_file" 2>/dev/null; then
+    # setfacl raises the mask into the group bits; mode 600 again leaves the
+    # ACL entry, marked by GNU ls with a `+`.
+    "$real_chmod" 600 "$token_file"
+    run "$s" DOTFILES_OP_TOKEN_FILE="$token_file"
+    refused "an ACL" "$token_file carries an access-control list; remove it (chmod -N on macOS, setfacl -b on Linux)"
   else
-    echo "  skip: ACL (no chmod +a here)"
+    echo "  skip: ACL (neither chmod +a nor setfacl here)"
   fi
 
   echo "3. default path and absence"

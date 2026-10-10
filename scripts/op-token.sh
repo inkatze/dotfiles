@@ -73,7 +73,7 @@ resolve_op_token() {
     fi
     # Through fail(): under `set -e` a root-owned file would abort on cat's
     # status with no FAILED: line.
-    unreadable="$OP_TOKEN_FILE is not readable by this user (mode is $perms, but check the owner)"
+    unreadable="$OP_TOKEN_FILE is not readable by this user despite its mode ($perms) and owner; check for a security policy denying it"
     [ -r "$OP_TOKEN_FILE" ] || fail "$unreadable"
     # Before the read: $(...) drops NUL bytes, and bash 4.4+ warns as it does.
     if ! LC_ALL=C tr -d '\000' <"$OP_TOKEN_FILE" | cmp -s - "$OP_TOKEN_FILE"; then

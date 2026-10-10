@@ -428,8 +428,11 @@ if chmod +a "everyone allow write" "$work/op-work-item" 2>/dev/null; then
     expect_work_refused work-acl-with-xattr "carries an access-control list"
     chmod -N "$work/op-work-item"
     expect_work work-acl-removed 'team.example.com|Team Vault|review-item'
+elif command -v setfacl >/dev/null 2>&1 && setfacl -m "u:root:r" "$work/op-work-item" 2>/dev/null; then
+    chmod 600 "$work/op-work-item"
+    expect_work_refused work-acl "carries an access-control list"
 else
-    skip work-acl "no chmod +a here"
+    skip work-acl "neither chmod +a nor setfacl here"
 fi
 if [ "$(id -u)" -ne 0 ]; then
     reset_files
