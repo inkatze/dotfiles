@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Render one machine-local file from a committed template and one 1Password
-# item, then validate it before it lands.
+# item (for a JSON template, optionally a second), then validate it before it
+# lands.
 #
 # Usage: op-render.sh <template> <item> <output>
 #
@@ -13,20 +14,18 @@
 #
 # JSON templates (`*.json.tpl`): a reference is a whole string value. With
 # ` | json` before the closing braces the field's value is parsed and lands
-# typed (a list, a map); without, it lands as a string. A field left empty in
+# typed (a list, a map, a boolean); without, it lands as a string. A field left empty in
 # the item drops its key from the output, and an object or list left with
 # nothing in it drops in turn, so one template serves entries that use
 # different optional fields. Text templates: references are substituted raw,
 # and a value holding a line break is refused.
 #
 # A JSON template may also reference
-# `{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/<field> }}`, a second item read
-# only when DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and
-# DOTFILES_OP_WORK_ITEM are all set (scripts/playbook.sh exports them from
-# ~/.config/dotfiles/op-work-item). That read calls op directly with
-# --account, never with the service-account token, which cannot reach another
-# account. With all three unset every such reference resolves empty, so an
-# entry built only from them drops out.
+# `{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/<field> }}`, the second item
+# DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM
+# name (docs/machine-local-files.md). It is read with --account and never the
+# service-account token, which cannot reach another account; with the three
+# unset, every such reference resolves empty.
 #
 # The template's basename picks the validation rule; a template with none is
 # refused rather than rendered unchecked.
@@ -59,11 +58,32 @@ case "${template##*/}" in
   *) fail "no validation rule for ${template##*/}; refusing to render it unchecked" ;;
 esac
 
-# The name reaches op as one argv element, never a shell word, but a name that
-# reads as a flag or carries a path separator is a typo worth stopping on.
-case "$item" in
-  '' | -* | *[!A-Za-z0-9._\ -]*) fail "item name '$item' is outside [A-Za-z0-9._ -]" ;;
-esac
+# A name reaches op as one argv element, never a shell word, but one that reads
+# as a flag or carries a path separator is a typo worth stopping on. An explicit
+# list, not a range: ranges follow the locale. `-` last so it stays literal.
+alnum='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+check_name() { # check_name <what> <value> <allowed besides alphanumerics, `-` last>
+  case "$2" in
+    '' | -* | *[!$alnum$3]*) fail "$1 '$2' is outside [A-Za-z0-9$3]" ;;
+  esac
+}
+check_name "item name" "$item" '._ -'
+
+# The work item is checked before any op call, so a bad setting costs no read.
+work_on=false
+if [ "$format" = json ] && grep -qF '__OP_WORK_VAULT__' "$template"; then
+  w_account="${DOTFILES_OP_WORK_ACCOUNT:-}"
+  w_vault="${DOTFILES_OP_WORK_VAULT:-}"
+  w_item="${DOTFILES_OP_WORK_ITEM:-}"
+  if [ -n "$w_account$w_vault$w_item" ]; then
+    [ -n "$w_account" ] && [ -n "$w_vault" ] && [ -n "$w_item" ] \
+      || fail "DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM must be set together or not at all"
+    check_name "work account" "$w_account" '._@-'
+    check_name "work vault" "$w_vault" '._ -'
+    check_name "work item" "$w_item" '._ -'
+    work_on=true
+  fi
+fi
 
 check_output() {
   if [ -e "$output" ] || [ -L "$output" ]; then
@@ -121,10 +141,10 @@ if ! op_run item get "$item" --vault "$VAULT" --format json --reveal >"$work/ite
   fail "op item get failed reading vault='$VAULT' item='$item'; see the op error above (locked session? missing item?)"
 fi
 
-# item_fields <label> <op item json> <output>: the item's fields as one
-# label-to-value object.
+# item_fields <item description> <op item json> <output>: the item's fields as
+# one label-to-value object.
 item_fields() {
-  jq_or_fail "could not read item '$1'" -c '
+  jq_or_fail "could not read $1" -c '
     [.fields[]? | select((.label // "") != "")] as $f
     | ($f | group_by(.label) | map(select(length > 1) | .[0].label)) as $dup
     | if ($f | length) == 0 then error("op returned an item that holds no fields")
@@ -133,31 +153,14 @@ item_fields() {
       else $f | map({key: .label, value: (.value // "")}) | from_entries end' \
     "$2" >"$3"
 }
-item_fields "$item" "$work/item.json" "$work/fields.json"
+item_fields "item '$item'" "$work/item.json" "$work/fields.json"
 
-work_on=false
 echo '{}' >"$work/work-fields.json"
-if [ "$format" = json ] && grep -qF '__OP_WORK_VAULT__' "$template"; then
-  w_account="${DOTFILES_OP_WORK_ACCOUNT:-}"
-  w_vault="${DOTFILES_OP_WORK_VAULT:-}"
-  w_item="${DOTFILES_OP_WORK_ITEM:-}"
-  if [ -n "$w_account$w_vault$w_item" ]; then
-    [ -n "$w_account" ] && [ -n "$w_vault" ] && [ -n "$w_item" ] \
-      || fail "DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM must be set together or not at all"
-    case "$w_account" in
-      -* | *[!A-Za-z0-9._@-]*) fail "work account '$w_account' is outside [A-Za-z0-9._@-]" ;;
-    esac
-    for name in "$w_vault" "$w_item"; do
-      case "$name" in
-        -* | *[!A-Za-z0-9._\ -]*) fail "work vault or item name '$name' is outside [A-Za-z0-9._ -]" ;;
-      esac
-    done
-    if ! op item get "$w_item" --vault "$w_vault" --account "$w_account" --format json --reveal >"$work/work-item.json"; then
-      fail "op item get failed reading the work item (account='$w_account' vault='$w_vault' item='$w_item'); see the op error above"
-    fi
-    item_fields "$w_item" "$work/work-item.json" "$work/work-fields.json"
-    work_on=true
+if [ "$work_on" = true ]; then
+  if ! op item get "$w_item" --vault "$w_vault" --account "$w_account" --format json --reveal >"$work/work-item.json"; then
+    fail "op item get failed reading the work item (account='$w_account' vault='$w_vault' item='$w_item'); see the op error above"
   fi
+  item_fields "work item '$w_item'" "$work/work-item.json" "$work/work-fields.json"
 fi
 
 if [ "$format" = json ]; then
@@ -176,7 +179,7 @@ if [ "$format" = json ]; then
         elif $fields[$c.f] == "" then none
         elif $c.j == null then $fields[$c.f]
         else $fields[$c.f]
-          | try fromjson catch error("item field \($c.f) does not hold valid JSON")
+          | try fromjson catch error("\(if $c.w == null then "" else "work " end)item field \($c.f) does not hold valid JSON")
         end;
     def render($fields):
       if type == "object" then
