@@ -653,17 +653,20 @@ for v in DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM; 
   (unset "$v"; run "$review_tpl" dotfiles-bot-review "$out"; expect_failed "a partial work source ($v unset)" "must be set together or not at all"; echo "$pass $fail" >"$sandbox/counts")
   read -r pass fail <"$sandbox/counts"
 done
-for bad in "DOTFILES_OP_WORK_ACCOUNT=a b.example.com|work account" "DOTFILES_OP_WORK_ACCOUNT=a/b|work account" \
-  "DOTFILES_OP_WORK_VAULT=-v|work vault" "DOTFILES_OP_WORK_VAULT=v@w|work vault" \
-  "DOTFILES_OP_WORK_ITEM=a/b|work item" "DOTFILES_OP_WORK_ITEM=-i|work item" "DOTFILES_OP_WORK_ITEM=i@x|work item"; do
-  (export "${bad%%|*}"; run "$review_tpl" dotfiles-bot-review "$out"; expect_failed "bad ${bad%%|*}" "${bad#*|} '"; echo "$pass $fail" >"$sandbox/counts")
+for bad in "DOTFILES_OP_WORK_ACCOUNT=a b.example.com" "DOTFILES_OP_WORK_ACCOUNT=a/b" \
+  "DOTFILES_OP_WORK_VAULT=-v" "DOTFILES_OP_WORK_VAULT=v@w" \
+  "DOTFILES_OP_WORK_ITEM=a/b" "DOTFILES_OP_WORK_ITEM=-i" "DOTFILES_OP_WORK_ITEM=i@x" \
+  "DOTFILES_OP_WORK_VAULT=$(printf 'v\033[31mred')" "DOTFILES_OP_WORK_ACCOUNT=secretvalue=abc"; do
+  (export "${bad?}"; run "$review_tpl" dotfiles-bot-review "$out"; expect_failed "bad ${bad%%=*}" "${bad%%=*} is outside"
+   if grep -qF -- "${bad#*=}" <<<"$log"; then ko "bad ${bad%%=*}: the value reached the message"; else ok "bad ${bad%%=*}: the value stays out of the message"; fi
+   echo "$pass $fail" >"$sandbox/counts")
   read -r pass fail <"$sandbox/counts"
 done
 unset DOTFILES_OP_WORK_ITEM
 export DOTFILES_OP_WORK_ITEM=work-item DOTFILES_OP_WORK_ACCOUNT=--evil
 : >"$OP_STUB_ARGV"
 run "$review_tpl" dotfiles-bot-review "$out"
-expect_failed "an account that reads as a flag" "work account '--evil' is outside"
+expect_failed "an account that reads as a flag" "DOTFILES_OP_WORK_ACCOUNT is outside"
 [ -s "$OP_STUB_ARGV" ] && ko "a bad work setting still reached op" || ok "a bad work setting is refused before any op call"
 export DOTFILES_OP_WORK_ACCOUNT="wörk.example.com"
 LC_ALL=en_US.UTF-8 run "$review_tpl" dotfiles-bot-review "$out"

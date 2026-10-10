@@ -60,14 +60,15 @@ esac
 
 # A name reaches op as one argv element, never a shell word, but one that reads
 # as a flag or carries a path separator is a typo worth stopping on. An explicit
-# list, not a range: ranges follow the locale. `-` last so it stays literal.
+# list, not a range: ranges follow the locale. `-` last so it stays literal. The
+# message never repeats the value: a misplaced secret is the likeliest bad one.
 alnum='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 check_name() { # check_name <what> <value> <allowed besides alphanumerics, `-` last>
   case "$2" in
-    '' | -* | *[!$alnum$3]*) fail "$1 '$2' is outside [A-Za-z0-9$3]" ;;
+    '' | -* | *[!$alnum$3]*) fail "$1 is outside [A-Za-z0-9$3]" ;;
   esac
 }
-check_name "item name" "$item" '._ -'
+check_name "the item name" "$item" '._ -'
 
 # The work item is checked before any op call, so a bad setting costs no read.
 work_on=false
@@ -78,9 +79,9 @@ if [ "$format" = json ] && grep -qF '__OP_WORK_VAULT__' "$template"; then
   if [ -n "$w_account$w_vault$w_item" ]; then
     [ -n "$w_account" ] && [ -n "$w_vault" ] && [ -n "$w_item" ] \
       || fail "DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM must be set together or not at all"
-    check_name "work account" "$w_account" '._@-'
-    check_name "work vault" "$w_vault" '._ -'
-    check_name "work item" "$w_item" '._ -'
+    check_name DOTFILES_OP_WORK_ACCOUNT "$w_account" '._@-'
+    check_name DOTFILES_OP_WORK_VAULT "$w_vault" '._ -'
+    check_name DOTFILES_OP_WORK_ITEM "$w_item" '._ -'
     work_on=true
   fi
 fi
