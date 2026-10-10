@@ -1,9 +1,9 @@
 # What one hosted reviewer wrote on a PR, read off all three surfaces it can
 # write to (reviews, issue comments and inline review comments), plus the
 # reviewed head off its check runs where it names no commit. A vendor may put
-# its run marker, reviewed head or finding keys on any of them, so each regex is
-# matched on every surface; assuming one surface per marker misses vendors that
-# split them.
+# its run marker, reviewed head or finding keys on any of them, so each regex
+# is matched on every surface; assuming one surface per marker misses vendors
+# that split them.
 #
 # Input: {reviews, issue_comments, review_comments}, each the flat array the
 # REST endpoint returns, plus check_runs, the runs of the reviewer's
@@ -39,22 +39,28 @@ def _latest_marker($items; $re):
 # concluded with a review: any app can post a check under that name, and a
 # skipped or cancelled run reviewed nothing. The check's details_url is not
 # matched to the build id, since a vendor can mark its comments and its check
-# with different ids for one run.
-def _check_runs($runs; $cfg):
+# with different ids for one run. A run fetched again on a poll keeps its id,
+# and only its latest state counts.
+def _own_check_runs($runs; $cfg):
   "^(?:\($cfg.login_pattern))$" as $login
   | [$runs[]? | select(.name == $cfg.reviewed_head_check
-                       and ("\(.app.slug // "")[bot]" | test($login)))];
+                       and ("\(.app.slug // "")[bot]" | test($login)))]
+  | group_by(.id) | map(sort_by(.status == "completed", .completed_at // "") | last);
 def _check_head($runs; $cfg):
-  [_check_runs($runs; $cfg)[]
+  [_own_check_runs($runs; $cfg)[]
    | select(.status == "completed"
             and (.conclusion | IN("success", "neutral", "failure", "action_required")))
    | {value: .head_sha, surface: "check_run", id, at: (.completed_at // "")}]
   | sort_by(.at, .id) | last;
-# A run of the check still going, newer than the latest reviewed head: a poll
-# waits for it rather than reading the head as missing.
+# A run of the check still going that started after the reviewed head's run
+# did (or has not started): a poll waits for it rather than reading the head
+# as missing. A run stuck from before the head's run is not waited on.
 def _check_pending($runs; $cfg; $head):
-  [_check_runs($runs; $cfg)[] | select(.status != "completed")
-   | select($head == null or (.started_at // "") > $head.at)] | length > 0;
+  _own_check_runs($runs; $cfg) as $own
+  | ($own | map(select(.id == $head.id)) | first | .started_at // "") as $since
+  | [$own[] | select(.status != "completed")
+     | select($head == null or .started_at == null or .started_at > $since)]
+  | length > 0;
 
 def bot_surfaces($cfg):
   if ($cfg | type) != "object" or ($cfg.login_pattern // "") == ""
