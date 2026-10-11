@@ -900,7 +900,7 @@ require_normalized "$(skill_md bot-review)" "generic drain mechanic" \
 # The filter call bot-review-surfaces-test.sh runs as the skill's own; a
 # change here must change the suite's copy too.
 require_phrases "$(skill_md bot-review)" "surfaces command" \
-  "'include \"surfaces\"; {reviews: (\$rv | add // []), issue_comments: (\$ic | add // []), review_comments: (\$rc | add // [])} | bot_surfaces(\$cfg[0].reviewers[\$name])'"
+  "'include \"surfaces\"; {reviews: (\$rv | add // []), issue_comments: (\$ic | add // []), review_comments: (\$rc | add // []), check_runs: (\$cr | add // [])} | bot_surfaces(\$cfg[0].reviewers[\$name])'"
 # Review-run discipline: one ledger, linked deferrals, replies as rules.
 require_normalized "$(skill_md bot-review)" "decision-ledger sentence" \
   "the only store of finding dispositions" \
@@ -936,11 +936,25 @@ require_normalized "$(skill_md bot-review)" "version refusal" \
 require_normalized "$(skill_md panel-review)" "version refusal" \
   "on another version, or none, stop, naming the file and the version it carries."
 
-# bot-review permits one confirmation-gated label add and forbids the rest.
+# bot-review permits one label add, confirmation-gated except where
+# auto_opt_in allows it unattended, and forbids the rest.
 require_phrases "$(skill_md bot-review)" "safety sentence" \
   "Never apply the code change in this bucket while nested." \
   "force-push, push to a protected branch, mark the PR ready, or merge" \
   "Do not add the opt-in label speculatively"
+
+# The unattended opt-in label add stays behind its flag and off --dry-run, and
+# a check-run reviewed head is fetched by its check name.
+require_normalized "$(skill_md bot-review)" "unattended opt-in sentence" \
+  "with \`auto_opt_in\` true, add it without asking and say so; never under \`--dry-run\`" \
+  "confirmation-gated on every run except the unattended one \`auto_opt_in\` allows"
+require_phrases "$(skill_md bot-review)" "check-runs fetch" \
+  "check-runs?check_name=<url-encoded name>&filter=all&per_page=100"
+require_normalized "$(skill_md bot-review)" "check-run head rules" \
+  "only extends the wait, within the same window; it never stands for a review" \
+  "or at the check-run walk depth in [limits.md](../review-shared/limits.md)" \
+  "| Opt-in missing | The PR is reviewed only with \`opt_in_label\`, which this run did not add (Pre-flight step 5) |"
+require_phrases "$SHARED/limits.md" "check-run walk depth" "| Check-run walk depth | 20 commits, HEAD included |"
 
 # A metered hosted reviewer: full review once per PR, and a quota refusal is a
 # named stop rather than silence or a retry.

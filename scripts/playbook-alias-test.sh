@@ -27,12 +27,23 @@ cat >"$work/bin/ansible-playbook" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$@" >"$STUB_ARGV"
 printf '%s' "${OP_ACCOUNT-<unset>}" >"$STUB_OP_ACCOUNT"
+printf '%s|%s|%s' "${DOTFILES_OP_WORK_ACCOUNT-<unset>}" "${DOTFILES_OP_WORK_VAULT-<unset>}" \
+    "${DOTFILES_OP_WORK_ITEM-<unset>}" >"$STUB_OP_WORK"
 SH
 cat >"$work/bin/hostname" <<'SH'
 #!/usr/bin/env bash
 echo "${STUB_HOSTNAME:-ci-runner}"
 SH
-chmod +x "$work/bin/ansible-playbook" "$work/bin/hostname"
+real_stat="$(command -v stat)"
+cat >"$work/bin/stat" <<SH
+#!/usr/bin/env bash
+# Reports another owner when the case asks for one; stat is otherwise real.
+if [ -e "\$STUB_STAT_UID" ]; then
+    for a in "\$@"; do [ "\$a" = %u ] && { cat "\$STUB_STAT_UID"; exit 0; }; done
+fi
+exec "$real_stat" "\$@"
+SH
+chmod +x "$work/bin/ansible-playbook" "$work/bin/hostname" "$work/bin/stat"
 # Without both stubs in place, PATH would resolve to the real ansible-playbook
 # and the first case would provision this machine.
 [ -x "$work/bin/ansible-playbook" ] && [ -x "$work/bin/hostname" ] || {
@@ -45,10 +56,11 @@ chmod +x "$work/bin/ansible-playbook" "$work/bin/hostname"
 # which is reported as such rather than as an empty limit. The exit status
 # lands in a file, since the caller reads this through a substitution.
 limit_for() {
-    rm -f "$work/argv" "$work/op"
+    rm -f "$work/argv" "$work/op" "$work/op-work"
     env -i PATH="$work/bin:$PATH" HOME="$work/home" \
-        STUB_ARGV="$work/argv" STUB_OP_ACCOUNT="$work/op" \
+        STUB_ARGV="$work/argv" STUB_OP_ACCOUNT="$work/op" STUB_OP_WORK="$work/op-work" \
         DOTFILES_HOST_FILE="$work/host" DOTFILES_OP_ACCOUNT_FILE="$work/op-account" \
+        DOTFILES_OP_WORK_ITEM_FILE="$work/op-work-item" STUB_STAT_UID="$work/stat-uid" \
         "$@" bash "$playbook" >/dev/null 2>"$work/stderr"
     echo $? >"$work/rc"
     if [ ! -f "$work/argv" ]; then
@@ -69,7 +81,7 @@ expect_limit() {
     fi
 }
 
-reset_files() { rm -f "$work/host" "$work/op-account"; }
+reset_files() { rm -f "$work/host" "$work/op-account" "$work/op-work-item"; }
 
 # 1. The regression: an empty file must not produce an empty limit.
 reset_files
@@ -310,6 +322,124 @@ else
     expect_op op-env-skips-unreadable-file other.1password.com OP_ACCOUNT=other.1password.com
     expect_abort op-unreadable-file-aborts "$work/op-account"
     chmod 600 "$work/op-account"
+fi
+
+# 10. The work item: a complete file exports its three values, comments, blank
+#     lines and CRLF endings aside; all three exported skip the file and a
+#     partial export is refused; a partial, repeated, unknown-key or unsafe
+#     line is refused without its value reaching stderr.
+expect_work() {
+    name="$1" want="$2"
+    shift 2
+    limit_for "$@" >/dev/null
+    got="$(cat "$work/op-work" 2>/dev/null || echo "<not run>")"
+    if [ "$got" = "$want" ]; then
+        ok "$name" "$got"
+    else
+        fail "$name" "expected $want, got $got"
+    fi
+}
+expect_work_refused() { # expect_work_refused <name> <stderr fragment> [env...]
+    name="$1" fragment="$2"
+    shift 2
+    expect_refused "$name" "$@"
+    if grep -qF -- "$fragment" "$work/stderr"; then
+        ok "$name-message" "names: $fragment"
+    else
+        fail "$name-message" "expected \"$fragment\" in: $(cat "$work/stderr")"
+    fi
+}
+work_file() { printf "$@" >"$work/op-work-item"; chmod 600 "$work/op-work-item"; }
+good='DOTFILES_OP_WORK_ACCOUNT=team.example.com\nDOTFILES_OP_WORK_VAULT=Team Vault\nDOTFILES_OP_WORK_ITEM=review-item\n'
+reset_files
+expect_work work-absent-file '<unset>|<unset>|<unset>'
+reset_files
+work_file "# work source\n\n   \n  # indented comment\n$good"
+expect_work work-file 'team.example.com|Team Vault|review-item'
+expect_work work-env-skips-file 'a.example.com|V|I' DOTFILES_OP_WORK_ACCOUNT=a.example.com \
+    DOTFILES_OP_WORK_VAULT=V DOTFILES_OP_WORK_ITEM=I
+for v in DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM; do
+    expect_work_refused "work-partial-env-$v" "together or not at all" "$v=x"
+done
+expect_work_refused work-partial-env-two "together or not at all" DOTFILES_OP_WORK_ACCOUNT=x DOTFILES_OP_WORK_VAULT=y
+reset_files
+work_file 'DOTFILES_OP_WORK_ACCOUNT=team.example.com\r\nDOTFILES_OP_WORK_VAULT=Team Vault\r\nDOTFILES_OP_WORK_ITEM=review-item\r\n'
+expect_work work-crlf-file 'team.example.com|Team Vault|review-item'
+reset_files
+work_file 'DOTFILES_OP_WORK_ACCOUNT=team.example.com\nDOTFILES_OP_WORK_VAULT=Team Vault\nDOTFILES_OP_WORK_ITEM=review-item'
+expect_work work-no-final-newline 'team.example.com|Team Vault|review-item'
+for missing in ACCOUNT VAULT ITEM; do
+    reset_files
+    work_file "$(printf "$good" | grep -v "^DOTFILES_OP_WORK_$missing=")\n"
+    expect_work_refused "work-file-missing-$missing" "must name"
+done
+reset_files
+work_file "${good}OP_SERVICE_ACCOUNT_TOKEN=ops_secretvalue\n"
+expect_work_refused work-unknown-key "line 4 names a key other than"
+grep -q ops_secretvalue "$work/stderr" && fail work-unknown-key-quiet "the line's value reached stderr" || ok work-unknown-key-quiet "the value stays off stderr"
+reset_files
+work_file "${good}ops_secretvalue\n"
+expect_work_refused work-bare-line "line 4 is not a KEY=value line"
+grep -q ops_secretvalue "$work/stderr" && fail work-bare-line-quiet "the line reached stderr" || ok work-bare-line-quiet "the line stays off stderr"
+reset_files
+work_file "# c\n\n${good}DOTFILES_OP_WORK_ITEM=other\n"
+expect_work_refused work-repeated-key "line 6 sets DOTFILES_OP_WORK_ITEM a second time"
+for bad in 'ACCOUNT=--account=x' 'ACCOUNT=a b.example.com' 'VAULT=v/w' 'VAULT=v@w' 'ITEM=a/b' 'ITEM=i@x' 'VAULT=Team Vault ' 'ITEM= item'; do
+    reset_files
+    work_file "$(printf "$good" | grep -v "^DOTFILES_OP_WORK_${bad%%=*}=")\nDOTFILES_OP_WORK_$bad\n"
+    expect_work_refused "work-bad-value ($bad)" "not a plain 1Password name"
+done
+reset_files
+work_file 'DOTFILES_OP_WORK_ACCOUNT=a\0b.example.com\nDOTFILES_OP_WORK_VAULT=v\nDOTFILES_OP_WORK_ITEM=i\n'
+expect_work_refused work-nul-byte "it holds a NUL byte"
+for mode in 644 640 660 604; do
+    reset_files
+    work_file "$good"
+    chmod "$mode" "$work/op-work-item"
+    expect_work_refused "work-mode-$mode" "mode $mode; must be 600 or 400"
+done
+reset_files
+work_file "$good"
+chmod 400 "$work/op-work-item"
+expect_work work-mode-400 'team.example.com|Team Vault|review-item'
+chmod 600 "$work/op-work-item"
+reset_files
+work_file "$good"
+mv "$work/op-work-item" "$work/op-work-item.real"
+ln -s "$work/op-work-item.real" "$work/op-work-item"
+expect_work_refused work-symlink "a symlink"
+rm -f "$work/op-work-item" "$work/op-work-item.real"
+ln -s "$work/missing-target" "$work/op-work-item"
+expect_work_refused work-dangling-symlink "a symlink"
+rm -f "$work/op-work-item"
+mkdir "$work/op-work-item"
+expect_work_refused work-directory "not a regular file"
+rmdir "$work/op-work-item"
+reset_files
+work_file "$good"
+echo $(( $(id -u) + 1 )) >"$work/stat-uid"
+expect_work_refused work-foreign-owner "not owned by this user"
+rm -f "$work/stat-uid"
+reset_files
+work_file "$good"
+if chmod +a "everyone allow write" "$work/op-work-item" 2>/dev/null; then
+    expect_work_refused work-acl "carries an access-control list"
+    xattr -w org.example.test x "$work/op-work-item" 2>/dev/null || true
+    expect_work_refused work-acl-with-xattr "carries an access-control list"
+    chmod -N "$work/op-work-item"
+    expect_work work-acl-removed 'team.example.com|Team Vault|review-item'
+elif command -v setfacl >/dev/null 2>&1 && setfacl -m "u:root:r" "$work/op-work-item" 2>/dev/null; then
+    chmod 600 "$work/op-work-item"
+    expect_work_refused work-acl "carries an access-control list"
+else
+    skip work-acl "neither chmod +a nor setfacl here"
+fi
+if [ "$(id -u)" -ne 0 ]; then
+    reset_files
+    work_file "$good"
+    chmod 000 "$work/op-work-item"
+    expect_work_refused work-mode-000 "must be 600 or 400"
+    chmod 600 "$work/op-work-item"
 fi
 
 if [ "$fails" -eq 0 ]; then

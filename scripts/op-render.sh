@@ -1,23 +1,32 @@
 #!/usr/bin/env bash
 # Render one machine-local file from a committed template and one 1Password
-# item, then validate it before it lands.
+# item (for a JSON template, optionally a second), then validate it before it
+# lands.
 #
 # Usage: op-render.sh <template> <item> <output>
 #
 # A template reference is `{{ op://__OP_VAULT__/__OP_ITEM__/<field> }}`, the
 # shape scripts/ssh-lan-config-sync.sh uses, resolved against <item> in the
-# vault DOTFILES_OP_VAULT names. The item is read once and substituted with jq
-# rather than `op inject`, because inject pastes values raw: a regex like
+# vault DOTFILES_OP_VAULT names (Dotfiles Service Account when unset). The item
+# is read once and substituted with jq rather than `op inject`, because inject
+# pastes values raw: a regex like
 # `\[bot\]` inside a JSON string would need hand-escaping in 1Password, and a
 # missed one (`\b`) parses fine and means something else.
 #
 # JSON templates (`*.json.tpl`): a reference is a whole string value. With
 # ` | json` before the closing braces the field's value is parsed and lands
-# typed (a list, a map); without, it lands as a string. A field left empty in
-# the item drops its key from the output, and an object or list left with
-# nothing in it drops in turn, so one template serves entries that use
-# different optional fields. Text templates: references are substituted raw,
+# typed (a list, a map, a boolean); without, it lands as a string. A field
+# left empty in the item drops its key from the output, and an object or list
+# left with nothing in it drops in turn, so one template serves entries that
+# use different optional fields. Text templates: references are substituted raw,
 # and a value holding a line break is refused.
+#
+# A JSON template may also reference
+# `{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/<field> }}`, the second item
+# DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM
+# name (docs/machine-local-files.md). It is read with --account and never the
+# service-account token, which cannot reach another account; with the three
+# unset, every such reference resolves empty.
 #
 # The template's basename picks the validation rule; a template with none is
 # refused rather than rendered unchecked.
@@ -50,11 +59,35 @@ case "${template##*/}" in
   *) fail "no validation rule for ${template##*/}; refusing to render it unchecked" ;;
 esac
 
-# The name reaches op as one argv element, never a shell word, but a name that
-# reads as a flag or carries a path separator is a typo worth stopping on.
-case "$item" in
-  '' | -* | *[!A-Za-z0-9._\ -]*) fail "item name '$item' is outside [A-Za-z0-9._ -]" ;;
-esac
+# A name reaches op as one argv element, never a shell word, but one that reads
+# as a flag or carries a path separator is a typo worth stopping on. The rule is
+# scripts/playbook.sh's plain_name (an explicit list, not a range, since ranges
+# follow the locale, and an alphanumeric first character) plus, as its
+# op-work-item reader adds, no trailing space. The
+# message never repeats the value: a misplaced secret is the likeliest bad one.
+alnum='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+check_name() { # check_name <what> <value> <allowed after the first character, `-` last>
+  case "$2" in
+    '' | [!$alnum]* | *[!$alnum$3]* | *' ') fail "$1 is not a plain name: [A-Za-z0-9] then [A-Za-z0-9$3], no trailing space" ;;
+  esac
+}
+check_name "the item name" "$item" '._ -'
+
+# The work item is checked before any op call, so a bad setting costs no read.
+work_on=false
+if [ "$format" = json ] && grep -qF '__OP_WORK_VAULT__' "$template"; then
+  w_account="${DOTFILES_OP_WORK_ACCOUNT:-}"
+  w_vault="${DOTFILES_OP_WORK_VAULT:-}"
+  w_item="${DOTFILES_OP_WORK_ITEM:-}"
+  if [ -n "$w_account$w_vault$w_item" ]; then
+    [ -n "$w_account" ] && [ -n "$w_vault" ] && [ -n "$w_item" ] \
+      || fail "DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM must be set together or not at all"
+    check_name DOTFILES_OP_WORK_ACCOUNT "$w_account" '._@-'
+    check_name DOTFILES_OP_WORK_VAULT "$w_vault" '._ -'
+    check_name DOTFILES_OP_WORK_ITEM "$w_item" '._ -'
+    work_on=true
+  fi
+fi
 
 check_output() {
   if [ -e "$output" ] || [ -L "$output" ]; then
@@ -109,31 +142,48 @@ jq_or_fail() {
 }
 
 if ! op_run item get "$item" --vault "$VAULT" --format json --reveal >"$work/item.json"; then
-  fail "op item get failed reading vault='$VAULT' item='$item'; see the op error above (locked session? missing item?)"
+  fail "op item get failed reading the item argument from the vault DOTFILES_OP_VAULT names (Dotfiles Service Account when unset); see the op error above (locked session? missing item?)"
 fi
 
-jq_or_fail "could not read item '$item'" -c '
-  [.fields[]? | select((.label // "") != "")] as $f
-  | ($f | group_by(.label) | map(select(length > 1) | .[0].label)) as $dup
-  | if ($f | length) == 0 then error("op returned an item that holds no fields")
-    elif ($dup | length) > 0
-    then error("the item holds more than one field labelled \($dup[0])")
-    else $f | map({key: .label, value: (.value // "")}) | from_entries end' \
-  "$work/item.json" >"$work/fields.json"
+# item_fields <item description> <op item json> <output>: the item's fields as
+# one label-to-value object.
+item_fields() {
+  jq_or_fail "could not read $1" -c '
+    [.fields[]? | select((.label // "") != "")] as $f
+    | ($f | group_by(.label) | map(select(length > 1) | .[0].label)) as $dup
+    | if ($f | length) == 0 then error("op returned an item that holds no fields")
+      elif ($dup | length) > 0
+      then error("the item holds more than one field labelled \($dup[0])")
+      else $f | map({key: .label, value: (.value // "")}) | from_entries end' \
+    "$2" >"$3"
+}
+item_fields "item '$item'" "$work/item.json" "$work/fields.json"
+
+echo '{}' >"$work/work-fields.json"
+if [ "$work_on" = true ]; then
+  if ! op item get "$w_item" --vault "$w_vault" --account "$w_account" --format json --reveal >"$work/work-item.json"; then
+    fail "op item get failed reading the work item DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM name; see the op error above"
+  fi
+  item_fields "the work item DOTFILES_OP_WORK_ITEM names" "$work/work-item.json" "$work/work-fields.json"
+fi
 
 if [ "$format" = json ]; then
   # Walks the template's own structure only, so a value parsed from a ` | json`
   # field is never pruned: an empty string inside it reaches the rule intact.
-  jq_or_fail "could not render $template" -L "$schema_dir" --slurpfile m "$work/fields.json" '
+  jq_or_fail "could not render $template" -L "$schema_dir" --slurpfile m "$work/fields.json" \
+    --slurpfile wm "$work/work-fields.json" --argjson work_on "$work_on" '
     include "config-schema";
     def none: {"__op_render_none__": true};
-    def resolve($fields):
+    def resolve($default):
       capture(op_reference) as $c
-      | if ($fields | has($c.f) | not) then error("the item has no field \($c.f)")
+      | (if $c.w == null then $default else $wm[0] end) as $fields
+      | if $c.w != null and ($work_on | not) then none
+        elif ($fields | has($c.f) | not)
+        then error("the \(if $c.w == null then "" else "work " end)item has no field \($c.f)")
         elif $fields[$c.f] == "" then none
         elif $c.j == null then $fields[$c.f]
         else $fields[$c.f]
-          | try fromjson catch error("item field \($c.f) does not hold valid JSON")
+          | try fromjson catch error("\(if $c.w == null then "" else "work " end)item field \($c.f) does not hold valid JSON")
         end;
     def render($fields):
       if type == "object" then

@@ -1,7 +1,8 @@
 ---
 
 # Machine-local files rendered from 1Password items in the service-account
-# vault by scripts/op-render.sh, which validates each before it lands, and
+# vault (and, where op-work-item exists, one item read with `op --account`
+# outside it) by scripts/op-render.sh, which validates each before it lands, and
 # API keys synced by scripts/op-key-sync.sh. Behind
 # the same `op` probe split as the Gemini key sync in main.yml: a host without
 # op is skipped with a notice, a host with op that still fails is an error.

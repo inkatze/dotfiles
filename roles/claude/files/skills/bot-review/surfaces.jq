@@ -1,13 +1,16 @@
 # What one hosted reviewer wrote on a PR, read off all three surfaces it can
-# write to: reviews, issue comments and inline review comments. A vendor may put
-# its run marker, reviewed head or finding keys on any of them, so each regex is
-# matched on every surface; assuming one surface per marker misses vendors that
-# split them.
+# write to (reviews, issue comments and inline review comments), plus the
+# reviewed head off its check runs where it names no commit. A vendor may put
+# its run marker, reviewed head or finding keys on any of them, so each regex
+# is matched on every surface; assuming one surface per marker misses vendors
+# that split them.
 #
-# Input: {reviews, issue_comments, review_comments}, each the flat array the
-# REST endpoint returns. $cfg is one reviewer entry of the review config.
-# Order is by time, the id breaking a tie. REST reviews carry no edit time,
-# so a review summary edited in place keeps its submission time.
+# Input: {reviews, issue_comments, review_comments, check_runs}, each the flat
+# array the REST endpoint returns, check_runs holding the runs of the
+# reviewer's reviewed_head_check (empty when it has none). $cfg is one
+# reviewer entry of the review config. Order is by time, the id breaking a
+# tie. REST reviews carry no edit time, so a review summary edited in place
+# keeps its submission time.
 
 def _surface_items($cfg):
   "^(?:\($cfg.login_pattern))$" as $login
@@ -32,21 +35,58 @@ def _latest_marker($items; $re):
     | sort_by(.at, .id) | last
   end;
 
+# For a vendor whose comments name no commit, the reviewed head is the head of
+# the latest run of the named check that the bot's own app created and that
+# concluded with a review: any app can post a check under that name, and a
+# skipped or cancelled run reviewed nothing. The check's details_url is not
+# matched to the build id, since a vendor can mark its comments and its check
+# with different ids for one run. A run fetched again on a poll keeps its id,
+# and only its last-fetched copy counts: the fetches append in time order, and
+# group_by keeps that order within an id.
+def _own_check_runs($runs; $cfg):
+  "^(?:\($cfg.login_pattern))$" as $login
+  | [$runs[]? | select(.name == $cfg.reviewed_head_check
+                       and ("\(.app.slug // "")[bot]" | test($login)))]
+  | group_by(.id) | map(last);
+def _check_head($runs; $cfg):
+  [_own_check_runs($runs; $cfg)[]
+   | select(.status == "completed"
+            and (.conclusion | IN("success", "neutral", "failure", "action_required"))
+            and (.head_sha | type == "string" and test("^[0-9a-f]{7,64}$")))
+   | {value: .head_sha, surface: "check_run", id, at: (.completed_at // "")}]
+  | sort_by(.at, .id) | last;
+# A run of the check still going that started after the reviewed head's run
+# did (or has not started): a poll waits for it rather than reading the head
+# as missing. A run stuck from before the head's run is not waited on.
+def _check_pending($runs; $cfg; $head):
+  _own_check_runs($runs; $cfg) as $own
+  | ($own | map(select(.id == $head.id)) | first | .started_at // "") as $since
+  | [$own[] | select(.status != "completed")
+     | select($head == null or .started_at == null or .started_at > $since)]
+  | length > 0;
+
 def bot_surfaces($cfg):
   if ($cfg | type) != "object" or ($cfg.login_pattern // "") == ""
   then error("no such reviewer in the config, or it has no login_pattern") else . end
   | [_surface_items($cfg)] as [$reviews, $issue, $inline]
   | ($reviews + $issue + $inline) as $all
   | _latest_marker($all; $cfg.build_id_regex) as $build
+  | (($cfg.reviewed_head_regex // "") == "" and ($cfg.reviewed_head_check // "") != "") as $by_check
+  | (if $by_check then _check_head(.check_runs; $cfg)
+     else _latest_marker($all; $cfg.reviewed_head_regex) end) as $head
   # Error text is read off summaries only: an inline finding can quote it.
   | ($cfg.errored_review_regex // "") as $err
   | (if $err == "" then null
      else [($reviews + $issue)[] | select(.body | test($err))] | sort_by(.at, .id) | last end) as $error
+  # With no finding_key_regex every top-level inline comment is a keyless
+  # finding (null), anchored by path and line; with one, an inline comment that
+  # carries no key is a marker, not a finding.
   | [ $all[] as $i
-      | if ($cfg.finding_key_regex // "") == "" then empty
+      | if ($cfg.finding_key_regex // "") == ""
+        then (if $i.surface == "review_comment" then null else empty end)
         else $i.body | match($cfg.finding_key_regex; "g") | _value end
       | {surface: $i.surface, id: $i.id, key: ., at: $i.at,
-         key_ok: test("\\A[A-Za-z0-9._:-]{1,128}\\z")}
+         key_ok: (. != null and test("\\A[A-Za-z0-9._:-]{1,128}\\z"))}
         + (if $i.surface == "review_comment"
            then {path: $i.path, original_line: $i.original_line,
                  original_commit_id: $i.original_commit_id}
@@ -65,7 +105,8 @@ def bot_surfaces($cfg):
                inline_findings: ([$findings[] | select(.surface == "review_comment")] | length),
                description_level_findings: ([$findings[] | select(.surface != "review_comment")] | length)},
       build_id: $build,
-      reviewed_head: _latest_marker($all; $cfg.reviewed_head_regex),
+      reviewed_head: $head,
+      reviewed_head_pending: ($by_check and _check_pending(.check_runs; $cfg; $head)),
       # Errored when the latest error summary is at least as new as the latest
       # run marker, or carries it with no clean summary of that run after it,
       # so a later clean run, or a clean retry of the same one, clears it.

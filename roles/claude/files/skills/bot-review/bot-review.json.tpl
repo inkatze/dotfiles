@@ -77,6 +77,33 @@
       "errored_review_regex": "{{ op://__OP_VAULT__/__OP_ITEM__/copilot_errored_review_regex }}",
       "quota_refusal_regex": "{{ op://__OP_VAULT__/__OP_ITEM__/copilot_quota_refusal_regex }}",
       "request_notes": "{{ op://__OP_VAULT__/__OP_ITEM__/copilot_request_notes }}"
+    },
+    "work-review": {
+      "login_pattern": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_login_pattern }}",
+      "rerequest": {
+        "method": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_rerequest_method }}",
+        "login": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_rerequest_login }}",
+        "command": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_rerequest_command }}",
+        "incremental_command": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_rerequest_incremental_command }}"
+      },
+      "reviewed_head_regex": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_reviewed_head_regex }}",
+      "reviewed_head_check": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_reviewed_head_check }}",
+      "finding_key_regex": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_finding_key_regex }}",
+      "build_id_regex": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_build_id_regex }}",
+      "draft_policy": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_draft_policy }}",
+      "draft_setting": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_draft_setting }}",
+      "opt_out_label": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_opt_out_label }}",
+      "addressed_marker_format": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_addressed_marker_format }}",
+      "opt_in_label": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_opt_in_label }}",
+      "auto_opt_in": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_auto_opt_in | json }}",
+      "gating_checks": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_gating_checks | json }}",
+      "requirement_level_hint": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_requirement_level_hint }}",
+      "repo_config_path": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_repo_config_path }}",
+      "reply_suffix": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_reply_suffix }}",
+      "feedback_reaction": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_feedback_reaction }}",
+      "errored_review_regex": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_errored_review_regex }}",
+      "quota_refusal_regex": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_quota_refusal_regex }}",
+      "request_notes": "{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_request_notes }}"
     }
   }
 }

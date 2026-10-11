@@ -64,6 +64,18 @@ check build-id-review-only "$out" '.build_id.value == "7" and .build_id.surface 
 check reviewed-head-inline-only "$out" ".reviewed_head.value == \"$HEAD_B\" and .reviewed_head.surface == \"review_comment\""
 check finding-keys-review-body "$out" '[.findings[] | select(.surface == "review") | .key] == ["k2", "k3"]'
 check inline-without-key "$out" '[.findings[] | select(.surface == "review_comment")] | length == 0'
+# With no key regex at all, every top-level inline comment is a keyless finding.
+CFG_SAVED="$CFG"
+CFG="$(jq 'del(.finding_key_regex)' <<< "$CFG")"
+out="$(surfaces "[{\"id\": 12, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:05Z\", \"body\": \"Summary acme:v=k9\"}]" '[]' \
+  "[{\"id\": 32, \"user\": $bot, \"updated_at\": \"2026-01-01T00:00:04Z\", \"path\": \"b.sh\", \"original_line\": 1, \"original_commit_id\": \"$HEAD_B\", \"body\": \"Guard missing.\"},
+    {\"id\": 33, \"user\": $bot, \"updated_at\": \"2026-01-01T00:00:06Z\", \"path\": \"b.sh\", \"original_line\": 1, \"original_commit_id\": \"$HEAD_B\", \"body\": \"Quote it.\"},
+    {\"id\": 34, \"user\": $bot, \"in_reply_to_id\": 32, \"updated_at\": \"2026-01-01T00:00:07Z\", \"path\": \"b.sh\", \"original_line\": 1, \"body\": \"a reply\"}]")"
+check inline-keyless-without-regex "$out" '[.findings[] | select(.surface == "review_comment") | {id, key, key_ok, path}]
+  == [{id: 32, key: null, key_ok: false, path: "b.sh"}, {id: 33, key: null, key_ok: false, path: "b.sh"}]
+  and ([.findings[] | select(.surface != "review_comment")] | length == 0)
+  and .counts.inline_findings == 2'
+CFG="$CFG_SAVED"
 
 # The latest marker wins across surfaces, an edited summary by its edit time.
 out="$(surfaces \
@@ -172,18 +184,99 @@ for entry in null '{"build_id_regex": "x"}'; do
   fi
 done
 
+# A reviewer whose comments name no commit: the reviewed head is the latest
+# run of its check that the bot's app created and that concluded with a review.
+check_cfg='{"login_pattern": "acme-bot\\[bot\\]", "reviewed_head_check": "Acme Review"}'
+run() { # run <id> <head> <status> <conclusion> <time> [<app slug> [<name>]]
+  jq -n --argjson id "$1" --arg h "$2" --arg s "$3" --arg c "$4" --arg t "$5" \
+    --arg app "${6:-acme-bot}" --arg name "${7:-Acme Review}" \
+    '{id: $id, name: $name, app: {slug: $app}, head_sha: $h, status: $s, started_at: $t,
+      conclusion: (if $c == "" then null else $c end), completed_at: (if $s == "completed" then $t else null end)}'
+}
+runs_of() { jq -s . <<< "$*"; }
+surfaces_with_runs() { # surfaces_with_runs <cfg> <runs>
+  jq -n -L "$LIB" --argjson cfg "$1" --argjson k "$2" \
+    'include "surfaces"; {reviews: [], issue_comments: [], review_comments: [], check_runs: $k} | bot_surfaces($cfg)'
+}
+a="$(run 50 "$HEAD_A" completed success 2026-01-01T00:00:03Z)"
+b="$(run 51 "$HEAD_B" completed failure 2026-01-01T00:00:04Z)"
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$b")")"
+check check-head-latest "$out" ".reviewed_head == {value: \"$HEAD_B\", surface: \"check_run\", id: 51, at: \"2026-01-01T00:00:04Z\"}
+  and .reviewed_head_pending == false"
+for c in skipped cancelled stale timed_out; do
+  out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 51 "$HEAD_B" completed "$c" 2026-01-01T00:00:04Z)")")"
+  check "check-head-not-a-review ($c)" "$out" ".reviewed_head.value == \"$HEAD_A\" and .reviewed_head_pending == false"
+done
+for c in success neutral failure action_required; do
+  out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 51 "$HEAD_B" completed "$c" 2026-01-01T00:00:04Z)")")"
+  check "check-head-a-review ($c)" "$out" ".reviewed_head.value == \"$HEAD_B\""
+done
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$(run 51 "$HEAD_B" completed success 2026-01-01T00:00:03Z)" "$a")")"
+check check-head-tie-break "$out" '.reviewed_head.id == 51'
+# The head is the run that completed last, whatever it started or its id.
+long="$(run 60 "$HEAD_A" completed success 2026-01-01T00:00:05Z | jq '.started_at = "2026-01-01T00:00:01Z"')"
+short="$(run 59 "$HEAD_B" completed success 2026-01-01T00:00:03Z | jq '.started_at = "2026-01-01T00:00:02Z"')"
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$long" "$short")")"
+check check-head-by-completion "$out" '.reviewed_head.id == 60'
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$(run 70 "$HEAD_A" completed success 2026-01-01T00:00:03Z)" \
+  "$(run 69 "$HEAD_B" completed success 2026-01-01T00:00:04Z)")")"
+check check-head-by-time-not-id "$out" '.reviewed_head.id == 69'
+# A poll fetches a run again: its earlier in-progress copy no longer counts.
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 51 "$HEAD_B" in_progress "" 2026-01-01T00:00:04Z)" \
+  "$(run 51 "$HEAD_B" completed cancelled 2026-01-01T00:00:04Z)")")"
+check check-head-refetched-run "$out" ".reviewed_head.value == \"$HEAD_A\" and .reviewed_head_pending == false"
+# A rerun that reuses the id: the later in-progress copy is the current state.
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 51 "$HEAD_B" completed success 2026-01-01T00:00:04Z)" \
+  "$(run 51 "$HEAD_B" in_progress "" 2026-01-01T00:00:06Z)")")"
+check check-head-rerun-same-id "$out" ".reviewed_head.value == \"$HEAD_A\" and .reviewed_head_pending == true"
+# A run on a new head that started before the old head's run finished.
+early="$(jq '.started_at = "2026-01-01T00:00:01Z"' <<< "$a")"
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$early" "$(run 56 "$HEAD_B" in_progress "" 2026-01-01T00:00:02Z)")")"
+check check-head-pending-on-new-head "$out" '.reviewed_head.id == 50 and .reviewed_head_pending == true'
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 57 "$HEAD_B" queued "" 2026-01-01T00:00:09Z | jq '.started_at = null')")")"
+check check-head-pending-unstarted "$out" '.reviewed_head_pending == true'
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 58 "$HEAD_B" in_progress "" 2026-01-01T00:00:03Z)")")"
+check check-head-pending-same-start "$out" '.reviewed_head_pending == false'
+for bad_head in null '""' 42 '"not-a-sha"' '"abc"' "\"$(printf 'a%.0s' $(seq 65))\""; do
+  out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 59 "$HEAD_B" completed success 2026-01-01T00:00:09Z | jq ".head_sha = $bad_head")")")"
+  check "check-head-bad-sha ($bad_head)" "$out" ".reviewed_head.value == \"$HEAD_A\""
+done
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 52 "$HEAD_B" completed success 2026-01-01T00:00:09Z other-app)")")"
+check check-head-foreign-app "$out" ".reviewed_head.value == \"$HEAD_A\""
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 53 "$HEAD_B" completed success 2026-01-01T00:00:09Z acme-bot Other)")")"
+check check-head-other-check "$out" ".reviewed_head.value == \"$HEAD_A\""
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$a" "$(run 54 "$HEAD_B" in_progress "" 2026-01-01T00:00:09Z)")")"
+check check-head-pending "$out" ".reviewed_head.value == \"$HEAD_A\" and .reviewed_head_pending == true"
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$(run 54 "$HEAD_B" in_progress "" 2026-01-01T00:00:09Z)")")"
+check check-head-pending-only "$out" '.reviewed_head == null and .reviewed_head_pending == true'
+out="$(surfaces_with_runs "$check_cfg" "$(runs_of "$(run 55 "$HEAD_B" queued "" 2026-01-01T00:00:01Z)" "$a")")"
+check check-head-stale-pending "$out" ".reviewed_head.value == \"$HEAD_A\" and .reviewed_head_pending == false"
+out="$(jq -n -L "$LIB" --argjson cfg "$(jq '.reviewed_head_regex = "reviewed ([0-9a-f]{40})"' <<< "$check_cfg")" \
+  --argjson k "$(runs_of "$a")" --argjson r "[{\"id\": 62, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:05Z\", \"body\": \"reviewed $HEAD_B\"}]" \
+  'include "surfaces"; {reviews: $r, issue_comments: [], review_comments: [], check_runs: $k} | bot_surfaces($cfg)')"
+check check-head-regex-wins "$out" ".reviewed_head.value == \"$HEAD_B\" and .reviewed_head.surface == \"review\" and .reviewed_head_pending == false"
+out="$(surfaces_with_runs "$(jq '.reviewed_head_regex = "reviewed ([0-9a-f]{40})"' <<< "$check_cfg")" \
+  "$(runs_of "$(run 71 "$HEAD_B" in_progress "" 2026-01-01T00:00:09Z)")")"
+check check-head-regex-no-pending "$out" '.reviewed_head_pending == false'
+out="$(surfaces_with_runs "$(jq 'del(.reviewed_head_check)' <<< "$check_cfg")" "$(runs_of "$a")")"
+check check-head-unconfigured "$out" '.reviewed_head == null'
+out="$(surfaces "[{\"id\": 61, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:05Z\", \"body\": \"acme:run=41\"}]" '[]' '[]')"
+check check-runs-absent "$out" '.build_id.value == "41" and .reviewed_head_pending == false'
+
 # The command the skill runs: paginated pages slurped per surface, the config
 # read from its file.
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 printf '[{"id": 40, "user": %s, "submitted_at": "2026-01-01T00:00:05Z", "body": "acme:run=5"}][]' "$bot" > "$scratch/reviews.json"
 printf '[]' > "$scratch/issue_comments.json"
+printf '[]' > "$scratch/check_runs.json"
 printf '[{"id": 41, "user": %s, "updated_at": "2026-01-01T00:00:01Z", "path": "f.sh", "original_line": 2, "original_commit_id": "%s", "body": "acme:v=k8"}][{"id": 42, "user": %s, "updated_at": "2026-01-01T00:00:02Z", "path": "f.sh", "original_line": 3, "original_commit_id": "%s", "body": "acme:v=k9"}]' \
   "$bot" "$HEAD_A" "$bot" "$HEAD_A" > "$scratch/review_comments.json"
 jq -n --argjson e "$CFG" '{version: 1, default: "acme", reviewers: {acme: $e}}' > "$scratch/bot-review.json"
 out="$(jq -n -L "$LIB" --slurpfile rv "$scratch/reviews.json" --slurpfile ic "$scratch/issue_comments.json" \
-  --slurpfile rc "$scratch/review_comments.json" --slurpfile cfg "$scratch/bot-review.json" --arg name acme \
-  'include "surfaces"; {reviews: ($rv | add // []), issue_comments: ($ic | add // []), review_comments: ($rc | add // [])} | bot_surfaces($cfg[0].reviewers[$name])')"
+  --slurpfile rc "$scratch/review_comments.json" --slurpfile cr "$scratch/check_runs.json" \
+  --slurpfile cfg "$scratch/bot-review.json" --arg name acme \
+  'include "surfaces"; {reviews: ($rv | add // []), issue_comments: ($ic | add // []), review_comments: ($rc | add // []), check_runs: ($cr | add // [])} | bot_surfaces($cfg[0].reviewers[$name])')"
 check skill-command-pages "$out" '.build_id.value == "5" and [.findings[].key] == ["k8", "k9"]'
 
 # No errored pattern configured: errored is false, never an error.

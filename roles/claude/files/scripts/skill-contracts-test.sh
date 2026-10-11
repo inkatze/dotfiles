@@ -436,7 +436,16 @@ expect_fail review-template-retired-trigger \
   "reviewers.cubic: unknown field rereview_comment"
 expect_fail review-template-json-on-string \
   "perl -pi -e 's|copilot_opt_out_label \\}\\}|copilot_opt_out_label \\| json }}|' $SKILLS/bot-review/bot-review.json.tpl" \
-  "a list takes a | json reference and a string a plain one"
+  "reviewers.copilot.opt_out_label: takes a plain reference"
+expect_fail review-template-mixed-sources \
+  "perl -pi -e 's|__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_opt_out_label|__OP_VAULT__/__OP_ITEM__/work_review_opt_out_label|' $SKILLS/bot-review/bot-review.json.tpl" \
+  "reviewers.work-review: references both the default item and the work item"
+expect_fail review-template-work-literal \
+  "perl -pi -e 's|\\{\\{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/work_review_opt_in_label \\}\\}|some-label|' $SKILLS/bot-review/bot-review.json.tpl" \
+  "reviewers.work-review.opt_in_label: not an op:// reference"
+expect_fail review-template-plain-boolean \
+  "perl -pi -e 's/(work_review_auto_opt_in) \\| json/\$1/' $SKILLS/bot-review/bot-review.json.tpl" \
+  "reviewers.work-review.auto_opt_in: takes a | json reference"
 expect_fail review-template-two-documents \
   "cp $SKILLS/bot-review/bot-review.json.tpl x && cat x >> $SKILLS/bot-review/bot-review.json.tpl" \
   "template: must hold exactly one JSON document"
@@ -711,6 +720,30 @@ for pin in \
   "**Every reply states the decision and its evidence in one paragraph**"; do
   PIN="$pin" expect_fail "bot-review-ledger-dropped ($pin)" 'drop_pin "$PIN" "$(md bot-review)"' "decision-ledger sentence"
 done
+for pin in \
+  "with \`auto_opt_in\` true, add it without asking and say so; never under \`--dry-run\`" \
+  "confirmation-gated on every run except the unattended one \`auto_opt_in\` allows"; do
+  PIN="$pin" expect_fail "bot-review-opt-in-dropped ($pin)" 'drop_pin "$PIN" "$(md bot-review)"' "unattended opt-in sentence"
+done
+for pin in \
+  "only extends the wait, within the same window; it never stands for a review" \
+  "or at the check-run walk depth in [limits.md](../review-shared/limits.md)" \
+  "| Opt-in missing | The PR is reviewed only with \`opt_in_label\`, which this run did not add (Pre-flight step 5) |"; do
+  PIN="$pin" expect_fail "bot-review-check-run-rule-dropped ($pin)" 'drop_pin "$PIN" "$(md bot-review)"' "check-run head rules"
+done
+expect_fail limits-walk-depth-dropped \
+  "perl -ni -e 'print unless /Check-run walk depth/' $SHARED/limits.md" "check-run walk depth"
+expect_fail bot-review-check-runs-fetch-drift \
+  'swap_fixed "check-runs?check_name=" "check-runs?name=" "$(md bot-review)"' "check-runs fetch"
+expect_fail bot-review-check-runs-filter-drift \
+  'swap_fixed "&filter=all&per_page=100'"'"' --jq '"'"'.check_runs'"'"'" "&per_page=100'"'"' --jq '"'"'.check_runs'"'"'" "$(md bot-review)"' "check-runs fetch"
+expect_fail bot-review-check-runs-paging-drift \
+  'swap_fixed "check_name=<url-encoded name>&filter=all&per_page=100" "check_name=<url-encoded name>&filter=all" "$(md bot-review)"' "check-runs fetch"
+# Each clause of a pinned sentence fails on its own, not only the whole sentence.
+expect_fail bot-review-opt-in-dry-run-clause \
+  'swap_fixed "and say so; never under \`--dry-run\`" "and say so" "$(md bot-review)"' "unattended opt-in sentence"
+expect_fail bot-review-pending-review-clause \
+  'swap_fixed "within the same window; it never stands for a review" "within the same window" "$(md bot-review)"' "check-run head rules"
 expect_fail bot-review-surfaces-command-drift \
   'swap_fixed "issue_comments: (\$ic | add // [])" "issue_comments: (\$ic | add)" "$(md bot-review)"' "surfaces command"
 PIN="**The ledger is never pruned automatically**" \

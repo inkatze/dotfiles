@@ -49,10 +49,27 @@ An item must hold every field its template references. A field left empty
 drops its key, and a reviewer entry whose fields are all empty drops out, so a
 host that does not run Copilot leaves the `copilot_` fields blank. A JSON
 template's reference ending in `| json` takes the field's value as JSON (a
-list or a map) rather than a string. The review template's `cli` blocks are
-literal, since they describe how to run a local CLI rather than the hosted
-bot's mechanics, so a rendered config carries them as committed, except that
-an empty list or map in one drops like any other.
+list, a map or a boolean) rather than a string. The review template's `cli`
+blocks are literal, since they describe how to run a local CLI rather than the
+hosted bot's mechanics, so a rendered config carries them as committed, except
+that an empty list or map in one drops like any other.
+
+A JSON template can also reference a second item, as
+`{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/<field> }}`: the review
+template's `work-review` entry, a reviewer only work machines run, draws on it
+alone. `op-work-item` holds `KEY=value` lines for
+`DOTFILES_OP_WORK_ACCOUNT`, `DOTFILES_OP_WORK_VAULT` and
+`DOTFILES_OP_WORK_ITEM`, which `scripts/playbook.sh` exports unless all three
+are already exported (export them yourself for a direct `op-render.sh` run,
+or one through `ansible-playbook` alone, which otherwise drops the entry).
+A partial export, a file that is a symlink, not mode 600 or 400, owned by
+another user or carrying an ACL (as the token file is held to), a missing,
+repeated or unknown key, and a value that is not a plain 1Password name each
+refuse the run, without echoing the line.
+The renderer then reads that item with `op --account`, through the desktop
+app rather than the service-account token, which cannot reach another
+account; with neither the file nor the three variables exported, every such
+reference resolves empty and the entry drops out. The file names an employer's account, so it stays untracked.
 
 `cubic-api-key` is synced by `scripts/op-key-sync.sh` from the `credential`
 field of the `dotfiles-cubic-api-key` item (category API Credential), through a
@@ -83,8 +100,8 @@ it; `/panel-review`'s `reviewer:cubic` backend reads it through the entry's
   `scripts/op-token.sh`**, tested by `scripts/op-token-test.sh` through
   `scripts/ssh-lan-config-sync.sh` and `scripts/claude-gemini-auth-sync.sh`,
   so a fix to the checks lands everywhere. Its
-  `resolve_op_token` refuses a file that is a symlink, is not regular, or is
-  not mode 0600 or 0400, and a value that is blank or holds anything outside
+  `resolve_op_token` refuses a file that is a symlink, is not regular, is
+  not mode 0600 or 0400, is owned by another user or carries an ACL, and a value that is blank or holds anything outside
   the token character set (NUL bytes included). An already-exported
   `OP_SERVICE_ACCOUNT_TOKEN` takes precedence, so CI can supply one without
   the file existing; an exported empty one is treated as absent.
