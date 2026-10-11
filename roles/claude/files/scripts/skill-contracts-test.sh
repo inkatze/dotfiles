@@ -735,6 +735,15 @@ expect_fail limits-walk-depth-dropped \
   "perl -ni -e 'print unless /Check-run walk depth/' $SHARED/limits.md" "check-run walk depth"
 expect_fail bot-review-check-runs-fetch-drift \
   'swap_fixed "check-runs?check_name=" "check-runs?name=" "$(md bot-review)"' "check-runs fetch"
+expect_fail bot-review-check-runs-filter-drift \
+  'swap_fixed "&filter=all&per_page=100'"'"' --jq '"'"'.check_runs'"'"'" "&per_page=100'"'"' --jq '"'"'.check_runs'"'"'" "$(md bot-review)"' "check-runs fetch"
+expect_fail bot-review-check-runs-paging-drift \
+  'swap_fixed "check_name=<url-encoded name>&filter=all&per_page=100" "check_name=<url-encoded name>&filter=all" "$(md bot-review)"' "check-runs fetch"
+# Each clause of a pinned sentence fails on its own, not only the whole sentence.
+expect_fail bot-review-opt-in-dry-run-clause \
+  'swap_fixed "and say so; never under \`--dry-run\`" "and say so" "$(md bot-review)"' "unattended opt-in sentence"
+expect_fail bot-review-pending-review-clause \
+  'swap_fixed "within the same window; it never stands for a review" "within the same window" "$(md bot-review)"' "check-run head rules"
 expect_fail bot-review-surfaces-command-drift \
   'swap_fixed "issue_comments: (\$ic | add // [])" "issue_comments: (\$ic | add)" "$(md bot-review)"' "surfaces command"
 PIN="**The ledger is never pruned automatically**" \

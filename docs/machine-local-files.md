@@ -68,8 +68,8 @@ repeated or unknown key, and a value that is not a plain 1Password name each
 refuse the run, without echoing the line.
 The renderer then reads that item with `op --account`, through the desktop
 app rather than the service-account token, which cannot reach another
-account; without the file every such reference resolves empty and the entry
-drops out. The file names an employer's account, so it stays untracked.
+account; with neither the file nor the three variables exported, every such
+reference resolves empty and the entry drops out. The file names an employer's account, so it stays untracked.
 
 `cubic-api-key` is synced by `scripts/op-key-sync.sh` from the `credential`
 field of the `dotfiles-cubic-api-key` item (category API Credential), through a
