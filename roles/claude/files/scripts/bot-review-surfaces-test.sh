@@ -64,6 +64,18 @@ check build-id-review-only "$out" '.build_id.value == "7" and .build_id.surface 
 check reviewed-head-inline-only "$out" ".reviewed_head.value == \"$HEAD_B\" and .reviewed_head.surface == \"review_comment\""
 check finding-keys-review-body "$out" '[.findings[] | select(.surface == "review") | .key] == ["k2", "k3"]'
 check inline-without-key "$out" '[.findings[] | select(.surface == "review_comment")] | length == 0'
+# With no key regex at all, every top-level inline comment is a keyless finding.
+CFG_SAVED="$CFG"
+CFG="$(jq 'del(.finding_key_regex)' <<< "$CFG")"
+out="$(surfaces "[{\"id\": 12, \"user\": $bot, \"submitted_at\": \"2026-01-01T00:00:05Z\", \"body\": \"Summary acme:v=k9\"}]" '[]' \
+  "[{\"id\": 32, \"user\": $bot, \"updated_at\": \"2026-01-01T00:00:04Z\", \"path\": \"b.sh\", \"original_line\": 1, \"original_commit_id\": \"$HEAD_B\", \"body\": \"Guard missing.\"},
+    {\"id\": 33, \"user\": $bot, \"updated_at\": \"2026-01-01T00:00:06Z\", \"path\": \"b.sh\", \"original_line\": 1, \"original_commit_id\": \"$HEAD_B\", \"body\": \"Quote it.\"},
+    {\"id\": 34, \"user\": $bot, \"in_reply_to_id\": 32, \"updated_at\": \"2026-01-01T00:00:07Z\", \"path\": \"b.sh\", \"original_line\": 1, \"body\": \"a reply\"}]")"
+check inline-keyless-without-regex "$out" '[.findings[] | select(.surface == "review_comment") | {id, key, key_ok, path}]
+  == [{id: 32, key: null, key_ok: false, path: "b.sh"}, {id: 33, key: null, key_ok: false, path: "b.sh"}]
+  and ([.findings[] | select(.surface != "review_comment")] | length == 0)
+  and .counts.inline_findings == 2'
+CFG="$CFG_SAVED"
 
 # The latest marker wins across surfaces, an edited summary by its edit time.
 out="$(surfaces \

@@ -78,11 +78,15 @@ def bot_surfaces($cfg):
   | ($cfg.errored_review_regex // "") as $err
   | (if $err == "" then null
      else [($reviews + $issue)[] | select(.body | test($err))] | sort_by(.at, .id) | last end) as $error
+  # With no finding_key_regex every top-level inline comment is a keyless
+  # finding (null), anchored by path and line; with one, an inline comment that
+  # carries no key is a marker, not a finding.
   | [ $all[] as $i
-      | if ($cfg.finding_key_regex // "") == "" then empty
+      | if ($cfg.finding_key_regex // "") == ""
+        then (if $i.surface == "review_comment" then null else empty end)
         else $i.body | match($cfg.finding_key_regex; "g") | _value end
       | {surface: $i.surface, id: $i.id, key: ., at: $i.at,
-         key_ok: test("\\A[A-Za-z0-9._:-]{1,128}\\z")}
+         key_ok: (. != null and test("\\A[A-Za-z0-9._:-]{1,128}\\z"))}
         + (if $i.surface == "review_comment"
            then {path: $i.path, original_line: $i.original_line,
                  original_commit_id: $i.original_commit_id}

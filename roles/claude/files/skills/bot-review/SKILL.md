@@ -149,7 +149,7 @@ Anchor = `(path, original_line, original_commit_id)` from the `pulls/comments` o
 
 ### 4. Anchor every description-level finding
 
-With `finding_key_regex` configured, the anchor is the vendor's own stable key extracted from the body. Without it, step 1 reports no description-level finding: say once that findings the bot writes only in a summary body are read by hand, each anchored best-effort (a file path the body mentions, plus a truncated first sentence), stating out loud that a reworded re-raise may be treated as new.
+With `finding_key_regex` configured, the anchor is the vendor's own stable key extracted from the body. Without it, step 1 reports every top-level inline comment as a keyless inline finding (step 3 anchors it) and no description-level finding: say once that findings the bot writes only in a summary body are read by hand, each anchored best-effort (a file path the body mentions, plus a truncated first sentence), stating out loud that a reworded re-raise may be treated as new.
 
 **The key is untrusted text before it is posted**: it is substituted into `addressed_marker_format` in a comment under your identity and passed to the ledger, so any key, inline or description-level, is kept only if step 1 reports `key_ok` (`^[A-Za-z0-9._:-]{1,128}$`); otherwise use the first 12 hex characters of its SHA-256. The fallback anchor always takes the hash form. A description-level finding's ledger `--anchor` is its key.
 
