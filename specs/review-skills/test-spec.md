@@ -1,7 +1,7 @@
 # Review Skills — Test Spec
 
 **Status:** Ready
-**Last reviewed:** 2026-10-08
+**Last reviewed:** 2026-10-19
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -67,6 +67,24 @@ the first request of the run issues the full form.
 The renderer suite, the helper's fixture and the ledger fixture each feed a
 file carrying an unknown version and assert the refusal names the file and
 the version; a file with no version key is refused the same way.
+
+### REQ-A1.7 — Request form decided from the ledger [test + manual]
+
+The ledger fixture drives `request decide` through each arm: no recorded
+review prints `full`; a completed review prints `incremental`; a reviewer
+comment matching the refusal regex prints `full` once and `incremental`
+after the next completed review; the flag prints `full`; a pending request
+for the current head prints `none`; a `request record` row carries every
+field. The contract checker pins the posts-what-the-helper-prints sentence.
+Manual: a `--nested` run's ledger shows one `full` row and `incremental`
+rows after it. Task 11.
+
+### REQ-A1.8 — Rules rendered from 1Password [test]
+
+The renderer suite renders the rules template from a fixture item into a
+conforming file at 0600, refuses an item whose rules carry an unknown
+version or a rule missing a field, and leaves a hand-written file at the
+output overwritten as the other renders do. Task 12.
 
 ## REQ-B — Retire `/copilot-review`
 
@@ -141,6 +159,12 @@ helper scripts under the scripts directory are outside the sweep.
 
 The first run asks consent once per repository and reviewer binary, the
 second run does not, and the consent record carries the reviewer key.
+
+### REQ-C1.7 — Lockdown per host platform [test]
+
+The suite names the platform package it read in its output; the Linux and
+macOS CI jobs name different packages; a fixture with a changed integrity
+value fails before any read. Task 13.
 
 ## REQ-D — Shared evidence
 
@@ -362,3 +386,34 @@ record.
 
 The contract checker pins the one-paragraph decision-plus-evidence sentence
 in `/bot-review`'s reply step.
+
+### REQ-I1.9 — Owed threads enumerated [test + manual]
+
+A handoff fixture with one unreplied thread opens with that thread's link
+and anchor, and `ledger show` lists it; the contract checker pins the
+enumeration-not-counts convergence sentence. Manual: a `--nested` run that
+stops with an owed thread hands off with the thread first. Task 11.
+
+### REQ-I1.10 — Bounded wait for the final head's review [manual]
+
+Under a planwright step on a PR whose final push is followed by a review
+within the window, the handoff reports the drained review of that head;
+with the reviewer silent past the window, the handoff's first line names
+the unreviewed head and the step's outcome is not clean. Task 11.
+
+### REQ-I1.11 — Rule-decided triage and proposals [test + manual]
+
+The ledger fixture shows a finding a matching rule decides carrying the
+rule id in its row, and a finding with evidence outside the rule's statement
+routed to Needs sign-off naming the rule; the contract checker pins the
+never-writes-the-rules-file sentence and the proposal-in-handoff sentence in
+all three skills. Manual: a real rejection whose reply states a new rule
+produces a drafted entry in the handoff. Task 12.
+
+### REQ-I1.12 — Dashboard paste hash and drift [test + manual]
+
+The state helper's fixture records a paste hash with its version key,
+refuses an unknown version, and the drift check reports when the exporter's
+hash differs. Manual: after pasting the exported block and recording it, an
+edit to the item makes the next pre-flight report drift for that
+repository. Task 12.

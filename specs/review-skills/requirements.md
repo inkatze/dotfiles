@@ -1,7 +1,7 @@
 # Review Skills — Requirements
 
 **Status:** Ready
-**Last reviewed:** 2026-10-08
+**Last reviewed:** 2026-10-19
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -55,8 +55,26 @@ retrospective (Sources).)*
 - A pending note into the planwright repository carrying the planwright-owned
   items this bundle cannot change here.
 
+- The review request's form decided by the state helper from the recorded
+  request history, every stop's handoff enumerating the threads still owed a
+  reply, and a bounded wait for the reviewer's review of the final pushed
+  head under a planwright step.
+- The standing rules rendered from a 1Password item in planwright's
+  standing-rules file format, consulted at triage, proposed from rule-stating
+  replies, and exported to the reviewer's instruction surface with drift
+  reported by hash.
+- The CLI lockdown suite reading the host's own platform package, every
+  platform package's integrity pinned.
+
 ### Out of scope
 
+- **The standing-rules capability itself.** The file format, the knob, the
+  triage semantics and the exporter are planwright's (review-effectiveness
+  REQ-J); this bundle renders the operator's rules into that format and
+  consumes it (D-17).
+- **A ready-flip or merge precondition on an external review of the final
+  head.** planwright's human-gates owns the flip's preconditions; this bundle
+  only makes the drain wait and say when it could not.
 - **Changing planwright core from this repository.** Lens-list additions, the
   parallel-steps gate, and the evidence-contract convergence are seeded into
   planwright's pending notes (REQ-H) and decided there.
@@ -118,6 +136,24 @@ retrospective (Sources).)*
   rendered adopter overlay config is planwright's format and carries no key
   of ours.
   *(Cites: D-6, D-9, D-13, kickoff decision (2026-10-03).)*
+- **REQ-A1.7** `/bot-review` SHALL record every review request it posts in
+  the per-PR ledger (reviewer, form, head, reason, time) and SHALL take the
+  form from the state helper's decision over that record: the full form
+  only when the ledger holds no completed review by this reviewer for the
+  PR, when the reviewer's latest comment matches the entry's optional
+  `incremental_refusal_regex` (its history-changed refusal), or when the run
+  carries `--full`; every other request is the incremental form, and a
+  request the helper refuses is not posted. The contract checker SHALL pin
+  the rule and the helper's fixture SHALL cover each arm.
+  *(Cites: D-21, REQ-A1.5, obs:1fe57b3f, the external review audit
+  (Sources).)*
+- **REQ-A1.8** The standing rules SHALL render from the `dotfiles-review-rules`
+  1Password item through a committed template to
+  `~/.config/dotfiles/review-rules.json` (0600) in planwright's
+  standing-rules file format, validated against that format before landing;
+  the item holds the rules and nothing vendor-specific, and the rendered file
+  is the one every review skill reads.
+  *(Cites: D-13, D-23, planwright review-effectiveness REQ-J1.1 (Sources).)*
 
 ## REQ-B — Retire `/copilot-review`
 
@@ -182,6 +218,12 @@ retrospective (Sources).)*
   CLI exactly as to any other reviewer binary.
   *(Cites: D-5, the drafting-session survey of the review commands
   (Sources).)*
+- **REQ-C1.7** The lockdown suite SHALL read the platform package the host's
+  mise pin resolves to, never a fixed platform's, and the tracked mise
+  configuration SHALL pin every platform package's integrity, so a suite
+  passing on one platform makes no claim about another and a changed package
+  on any platform fails the pin.
+  *(Cites: D-24, obs:35b6e190.)*
 
 ## REQ-D — Shared evidence
 
@@ -423,8 +465,50 @@ retrospective (Sources).)*
   decision and its evidence in one paragraph, so a reviewer that learns from
   replies records the rule rather than the instance.
   *(Cites: D-9, research: cubic.dev documentation (Sources).)*
+- **REQ-I1.9** Every stop's handoff, and `ledger show`, SHALL enumerate each
+  finding thread that carries no viewer reply, by link and anchor, and the
+  convergence check SHALL enumerate the threads it declares resolved rather
+  than compare counts; a handoff with an owed thread SHALL say so in its
+  first line.
+  *(Cites: D-22, REQ-I1.4, the external review audit (Sources).)*
+- **REQ-I1.10** Under a planwright step with no operator present, the nested
+  loop SHALL wait, bounded by the review-poll window, for the reviewer's
+  review of the final pushed head and drain it before handing off; a head
+  still unreviewed at the bound SHALL be named in the handoff's first line,
+  and such a handoff SHALL never read as clean.
+  *(Cites: D-22, the planwright handoff-before-review observation
+  (Sources), the shared thresholds (Sources).)*
+- **REQ-I1.11** Triage SHALL consult the rendered standing rules under
+  planwright's triage semantics: a finding a matching rule decides takes the
+  rule's disposition with the rule id in its ledger row and its reply, and a
+  finding carrying evidence the rule did not consider routes to Needs
+  sign-off naming the rule; a rejection or deferral whose reply states a
+  rule the file lacks SHALL have its proposed entry drafted in the handoff,
+  in the file's format, for the operator to add to the item; no skill writes
+  the rules file.
+  *(Cites: D-23, planwright review-effectiveness REQ-J1.3 (Sources), the
+  external review audit (Sources).)*
+- **REQ-I1.12** The vendor-neutral block planwright's exporter prints from
+  the rendered rules SHALL be placed on the reviewer's instruction surface
+  by the operator; the skill SHALL record the pasted block's content hash
+  per repository in the machine-local review state (with a version key per
+  REQ-A1.6) when the operator confirms the paste, and SHALL report at
+  pre-flight when the exporter's current hash differs, naming the
+  repository, posting nothing.
+  *(Cites: D-23, planwright review-effectiveness REQ-J1.4 (Sources).)*
 
 ## Changelog
+
+- 2026-10-19 — Extension, meaning-class, Draft content pending a
+  `/spec-kickoff` delta re-walkthrough: the external review audit (Sources)
+  measured the drain posting the full review form on most re-requests
+  against REQ-A1.5, stopping with findings still unreplied on merged PRs
+  against REQ-I1.4, and deciding one class two ways across PRs. New
+  REQ-A1.7, REQ-A1.8, REQ-C1.7 and REQ-I1.9 to REQ-I1.12; decisions D-21 to
+  D-24; Tasks 11 to 13; the scope lists gain the three items and two
+  exclusions. The standing-rules capability itself went upstream to
+  planwright's review-effectiveness (its REQ-J) under D-17; this bundle
+  renders and consumes it.
 
 - 2026-10-08 — Meaning-class, at a delta re-walkthrough: REQ-F1.1 is
   superseded by REQ-F1.5 and D-12 by D-20. Task 8 found, before
@@ -555,6 +639,38 @@ retrospective (Sources).)*
   (REQ-E1.4).
 - **planwright decision-domains catalog.** Walked in design; the
   cross-cutting section records where each touched domain is decided.
+- **The external review audit (2026-10-13).** A read of every thread the
+  default reviewer posted on this repository's and the planwright
+  repository's pull requests over eleven days, with the operator's
+  disposition per thread and each PR's request timeline; its datasets stayed
+  in the drafting session's scratchpad. Against this bundle it found: the
+  full review form posted on most re-requests (REQ-A1.5 unmet in practice),
+  stops that left findings unreplied on PRs later merged (REQ-I1.4's
+  convergence declared from counts), and one finding class fixed on one PR
+  and declined on the next. Vendor logins, markers and commands are not
+  recorded here.
+- **The extension invocation (2026-10-19).** The operator's ask for a spec
+  covering every detail the audit found, the question whether the rule
+  ledger should be portable rather than personal, and the pointer at this
+  repository's 1Password rendering as the home for private machine-local
+  values.
+- **planwright review-effectiveness, the 2026-10-19 extension** — its
+  requirements review-effectiveness REQ-J1.1 to REQ-J1.4, its decision
+  review-effectiveness D-21 and its review-effectiveness Task 6.1, Draft on
+  that bundle's spec branch pending its delta re-walkthrough: the
+  standing-rules file format, knob, triage semantics and exporter this
+  bundle consumes; until it merges the template is shaped to the Draft
+  format and Task 12's Done-when waits for it.
+- **The planwright handoff-before-review observation** — planwright's
+  observation 3d66ac61 (2026-10-06): a worker handed its PR off after
+  requesting the post-PR review, before the review of the final head came
+  back; the ready-flip precondition stays planwright's, the wait is this
+  bundle's.
+- **The shared thresholds** — `roles/claude/files/skills/review-shared/limits.md`:
+  the review-poll window that bounds REQ-I1.10's wait.
+- **obs:1fe57b3f**, **obs:35b6e190** — the metered full re-review that
+  exhausted an allowance, and the lockdown suite reading one platform's
+  package only.
 - **Research: cubic.dev documentation (consulted 2026-10-02).** The
   quickstart, review settings, repository config, interactive comments,
   auto-approval and dismissal, memory and learning, MCP server, CLI review,

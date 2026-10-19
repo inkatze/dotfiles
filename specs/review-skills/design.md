@@ -1,7 +1,7 @@
 # Review Skills — Design
 
 **Status:** Ready
-**Last reviewed:** 2026-10-08
+**Last reviewed:** 2026-10-19
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -570,6 +570,116 @@ overlay root, which the resolver's containment check accepts, and the marker
 keeps the role from touching a file it did not write. The list stays the
 repo-tracked layer's documented purpose.
 
+### D-21: The review request's form is a state-helper decision over the ledger, not skill prose  (N)
+
+**Decision:** `review-state.sh ledger request record` writes every request
+(reviewer, form, head, reason, time) into the per-PR ledger, and
+`ledger request decide` prints the form the next request may take: `full`
+only with no completed review by the reviewer on record, or when the
+reviewer's latest comment matches the entry's `incremental_refusal_regex`,
+or when the run carries `--full`; `incremental` otherwise; `none` when a
+request for the current head is already pending. `/bot-review` posts what
+the helper prints and nothing else, and the contract checker pins the rule.
+
+**Alternatives considered:**
+- Keep the rule in skill prose, as REQ-A1.5 already states it. Rejected
+  because: the audit measured the loop posting the full form on most
+  re-requests with that prose in force; an instruction a model follows can
+  be pencil-whipped, a helper's decision cannot (planwright's autopilot
+  reflex, step 5).
+- A vendor-side cap (the allowance). Rejected because: it fires after the
+  lines are spent and answers with a refusal the loop must then treat as a
+  stop.
+- One full request per calendar day. Rejected because: a timer encodes no
+  reason; the ledger holds the facts the decision turns on.
+
+**Chosen because:** the request history already lives beside the
+dispositions in the ledger, so the decision reads what the loop already
+records, and a refused request posts nothing.
+
+### D-22: Owed threads are enumerated in every handoff, and a step waits for the final head's review  (N)
+
+**Decision:** Every stop's handoff and `ledger show` list each thread that
+carries no viewer reply by link and anchor, and convergence is declared from
+that enumeration, never from counts. Under a planwright step with no
+operator present, the loop waits up to the review-poll window for the
+reviewer's review of the final pushed head and drains it; a head unreviewed
+at the bound heads the handoff's first line, and such a handoff never reads
+as clean to the step's classifier.
+
+**Alternatives considered:**
+- A ready-flip precondition in planwright (the bot reviewed the final
+  head). Rejected because: human-gates owns the flip's preconditions and
+  its observation stays live there; this bundle can only make its own drain
+  wait and say when it could not.
+- Doubling the poll window. Rejected because: the audit's unreplied
+  threads were not slow reviews but stops that handed off with findings
+  open, and the operator merged on a handoff that did not name them.
+- Blocking the merge from the drain. Rejected because: merging is the
+  operator's reserved control; the drain informs, it never gates.
+
+**Chosen because:** the audit found high-priority findings unreplied on
+merged PRs where the handoff's residue was a count the operator did not
+expand; a list of
+links in the first line is the smallest change that makes the owed work
+visible, and the bounded wait closes the hand-off-before-review gap the
+planwright observation records.
+
+### D-23: The standing rules render from 1Password in planwright's format; the vendor surface is the dashboard, with a recorded hash  (N)
+
+**Decision:** The operator's rules live in the `dotfiles-review-rules`
+1Password item and render through `op-render.sh` and a committed template to
+`~/.config/dotfiles/review-rules.json` in planwright's standing-rules file
+format (review-effectiveness REQ-J1.1), validated against that format
+before landing. Every
+review skill reads the rendered file at triage under planwright's semantics;
+a rejection or deferral that states a new rule has its entry drafted in the
+handoff for the operator to add to the item. planwright's exporter prints
+the vendor-neutral block; the operator pastes it into the reviewer's
+dashboard instructions per repository, the helper records the block's hash,
+and pre-flight reports drift.
+
+**Alternatives considered:**
+- A committed vendor file at each repository root. Rejected because: in
+  planwright it would name the reviewer product in a tracked artifact
+  against that bundle's D-16, and here it adds a vendor-named tracked file
+  beyond the docs that already name it, for a saving of one paste.
+- A private per-account configuration repository. Rejected because: the
+  vendor documents it for organizations and its behaviour for a personal
+  account is unverified, and it would be a second shared store beside the
+  1Password item this repository already renders from (D-13).
+- The skill writes rules as it declines. Rejected because: a rejection is
+  the operator's decision (D-9), so the loop proposes and the operator
+  curates.
+- A local format of this bundle's own. Rejected because: the capability
+  went upstream (D-17) once the operator asked that it be portable, and two
+  formats would diverge.
+
+**Chosen because:** D-13 already renders private machine-local values from
+1Password across every host, the rules are exactly that class (private, not
+secret), and the dashboard is the one surface that names no product in
+either repository.
+
+### D-24: The lockdown suite reads the host's platform package, and every platform package is pinned  (N)
+
+**Decision:** `scripts/cubic-lockdown-test.sh` resolves the platform package
+the host's mise pin installs and reads that one; the tracked mise
+configuration pins each platform package's integrity, and the suite runs on
+both CI runners, so the lockdown is verified per platform and a changed
+package on any platform fails.
+
+**Alternatives considered:**
+- Keep reading the Linux package everywhere. Rejected because: the
+  packages are separate native binaries, so the Linux read verifies nothing
+  for the Macs (obs:35b6e190).
+- Read every platform's package on every host. Rejected because: four
+  downloads per run for a check whose other three results the host cannot
+  act on; the integrity pins carry the cross-platform claim instead.
+
+**Chosen because:** the suite already caches the package it reads, the CI
+matrix already has a macOS runner, and the pins make a swapped binary fail
+without a run.
+
 ## Cross-cutting concerns
 
 ### Decision-domains walk
@@ -601,3 +711,14 @@ deprecation (a retired name stops naming the replacement: D-3). Product
 strategy, packaging, knowledge engineering, org design, IP posture (the
 cubic license is confirmed at pin time, D-5) and LLM output quality do not
 apply beyond the gates already in force.
+
+The 2026-10-19 extension touches: secrets and configuration (one more
+1Password-rendered file, the rules, and one optional review-config field,
+the refusal regex: D-21, D-23); API surface (the ledger gains request rows
+and the review state a paste record, both versioned: D-21, D-22, D-23,
+REQ-A1.6); existing-seam reuse (planwright's standing-rules format and
+exporter consumed, never re-minted: D-23); observability (owed threads and an
+unreviewed head named in the handoff's first line, drift named at
+pre-flight: D-22, D-23); dependency adoption (no new tool; the lockdown
+pins widen to every platform package: D-24). Auth, deploy, product and IP
+posture are unchanged.
