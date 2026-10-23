@@ -44,6 +44,7 @@ YAML
 inv="$work/hosts"
 cat >"$inv" <<INI
 server ansible_connection=local ansible_python_interpreter=$(command -v python3)
+work ansible_connection=local ansible_python_interpreter=$(command -v python3)
 personal ansible_connection=local ansible_python_interpreter=$(command -v python3)
 INI
 
@@ -81,17 +82,19 @@ run_role() {
 }
 
 # 1. A listed host offers only its on-disk key.
-h="$(fresh_home)"
-run_role "$h" server
-cmd="$(git config --file "$h/.gitconfig.local" --get core.sshCommand)"
-case "$cmd" in
-    *"-i $h/.ssh/id_github_auth"*) ok listed-key "sshCommand names the on-disk key" ;;
-    *) fail listed-key "sshCommand is '$cmd'" ;;
-esac
-case "$cmd" in
-    *"IdentitiesOnly=yes"*) ok listed-identities-only "agent identities are not offered" ;;
-    *) fail listed-identities-only "sshCommand is '$cmd'" ;;
-esac
+for alias in server work; do
+    h="$(fresh_home)"
+    run_role "$h" "$alias"
+    cmd="$(git config --file "$h/.gitconfig.local" --get core.sshCommand)"
+    case "$cmd" in
+        *"-i $h/.ssh/id_github_auth"*) ok "listed-key-$alias" "sshCommand names the on-disk key" ;;
+        *) fail "listed-key-$alias" "sshCommand is '$cmd'" ;;
+    esac
+    case "$cmd" in
+        *"IdentitiesOnly=yes"*) ok "listed-identities-only-$alias" "agent identities are not offered" ;;
+        *) fail "listed-identities-only-$alias" "sshCommand is '$cmd'" ;;
+    esac
+done
 
 # 2. A host off the list gets no sshCommand, so its agent keeps working as is.
 h="$(fresh_home)"
