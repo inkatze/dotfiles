@@ -488,7 +488,9 @@ by that task. Blocks are listed in dependency order.
 
 ## Awaiting input
 
-(none yet)
+- **Spec PR ready-flip** — pending (2026-10-23): the extension re-sign-off's
+  spec PR stays draft; the CI wait expired before the head commit's checks
+  completed. Re-run the ready-flip once CI is green.
 
 ## Deferred
 
