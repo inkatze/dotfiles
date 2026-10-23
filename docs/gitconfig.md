@@ -41,7 +41,7 @@ value, it adds a second helper that also receives every credential.
 |---|---|---|
 | `roles/git/files/gitconfig` | tracked | identity, aliases, shared defaults |
 | `~/.gitconfig.local` | the git role, rewritten on every run | host-resolved values: signer path, unattended key paths, credential helper |
-| `~/.gitconfig.work` | the git role, included only for repositories under the work directory prefix | the work identity, from the machine-local `git-work-email` file |
+| `~/.gitconfig.work` | the git role, included for repositories under the work directory prefix or with a remote owned by a GitHub owner in the machine-local `git-work-orgs` file | the work identity, from the machine-local `git-work-email` file |
 | `~/.gitconfig` | you, and every other tool on the machine | whatever `git config --global` writes |
 
 `~/.gitconfig` and `~/.gitconfig.local` are asserted 0600, since a tool

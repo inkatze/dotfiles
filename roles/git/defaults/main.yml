@@ -24,6 +24,15 @@ git_work_email: >-
             ansible_facts.env.HOME ~ '/.config/dotfiles/git-work-email',
             errors='ignore') | default('', true) | trim }}
 
+# GitHub owners whose repositories also take the work identity, wherever they
+# are cloned. Rendered from 1Password (names separated by whitespace) because
+# they name an employer.
+git_work_orgs_file: "{{ ansible_facts.env.HOME }}/.config/dotfiles/git-work-orgs"
+git_work_orgs: >-
+  {{ ((lookup('ansible.builtin.file', git_work_orgs_file, errors='ignore')
+       | default('', true)).splitlines() | map('trim') | reject('match', '#')
+      | join(' ')).split() | select('match', '^[A-Za-z0-9-]+$') | list }}
+
 # role_path, not the playbook's cwd, so the include keeps naming this clone.
 git_tracked_config: "{{ role_path }}/files/gitconfig"
 

@@ -171,6 +171,31 @@
   check_mode: false
   tags: [git]
 
+# Before the overrides below, which read the rendered file. Same op probe split
+# as the ssh role: no op is skipped, op that fails is an error.
+- name: Detect the 1Password CLI
+  ansible.builtin.command: op --version
+  register: git_op_probe
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  tags: [git]
+
+- name: Render the work GitHub owners from 1Password
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_facts.env.PWD }}/scripts/op-render.sh"
+      - "{{ role_path }}/files/git-work-orgs.tpl"
+      - dotfiles-git-work-orgs
+      - "{{ git_work_orgs_file }}"
+  register: git_render_work_orgs
+  changed_when: "'CHANGED' in git_render_work_orgs.stdout"
+  when:
+    - git_work_email | length > 0
+    - git_op_probe.rc == 0
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
+  tags: [git]
+
 - name: Inspect the machine-local git overrides
   ansible.builtin.stat:
     path: "{{ git_local_config }}"
@@ -243,6 +268,14 @@
       # through to git's normal credential handling.
       [credential "https://github.com"]
           helper = !{{ git_gh_probe.stdout | trim }} auth git-credential
+      {% endif %}
+      {% if git_work_email | length > 0 %}
+      {% for org in git_work_orgs %}
+      {% for prefix in ['git@github.com:', 'ssh://git@github.com/', 'https://github.com/'] %}
+      [includeIf "hasconfig:remote.*.url:{{ prefix ~ org }}/**"]
+          path = {{ git_work_config }}
+      {% endfor %}
+      {% endfor %}
       {% endif %}
   tags: [git]
 

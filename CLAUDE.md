@@ -119,7 +119,7 @@ row names a writer. Keep machine-specific values here, never in tracked files.
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (`globinclude`) | Host-specific kitty `ssh.conf` sections |
 | `op-account`, `op-work-item` | `scripts/playbook.sh` | The 1Password account a playbook run's `op` calls use, exported as `OP_ACCOUNT` (set that yourself for a direct script run), where more than one is signed in; `op-work-item` names the account, vault and item of the second item a work-only reviewer renders from (0600) |
 | `op-service-account-token` | `scripts/op-token.sh`, for the 1Password syncs | Service-account token, a bearer credential (0600) |
-| `git-work-email` | `roles/git/defaults/main.yml` | The work identity written to `~/.gitconfig.work` |
+| `git-work-email`, `git-work-orgs` | `roles/git/defaults/main.yml` | The work identity written to `~/.gitconfig.work`; `git-work-orgs` names the GitHub owners whose repositories also take it, rendered by `scripts/op-render.sh` from `roles/git/files/git-work-orgs.tpl` |
 | `pushover-credentials` | `roles/osx/files/health/health-check.sh` | Health-check notification credentials (0600), written by `roles/osx/tasks/health-signal.yml` |
 | `health-target` | `roles/osx/files/health/health-check.sh` | The host the health check polls; absent means nothing is polled |
 | `work-shell-init` | `roles/fish/files/work-init.fish` | Path of a second config manager's shell init to source |

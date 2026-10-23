@@ -13,6 +13,7 @@ subject="$script_dir/op-render.sh"
 review_tpl="$repo/roles/claude/files/skills/bot-review/bot-review.json.tpl"
 sibling_tpl="$repo/roles/claude/files/skills/review-shared/sibling-repos.json.tpl"
 overlay_tpl="$repo/roles/claude/files/planwright/planwright.yml.tpl"
+orgs_tpl="$repo/roles/git/files/git-work-orgs.tpl"
 
 pass=0
 fail=0
@@ -315,6 +316,15 @@ item_from 'flight_pr_hosts=x'
 jq '.fields[0].value = "a\nsteps_x: b"' "$OP_STUB_ITEM" >"$sandbox/i" && mv "$sandbox/i" "$OP_STUB_ITEM"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 expect_failed "multi-line value in a text template" "flight_pr_hosts holds a line break"
+
+echo "14b. work GitHub owners: renders owner names, refuses anything else"
+new_sandbox
+item_from 'orgs=AcmeCo acme-labs'
+run "$orgs_tpl" dotfiles-git-work-orgs "$HOME/.config/dotfiles/git-work-orgs"
+[ "$rc" -eq 0 ] && grep -qx 'AcmeCo acme-labs' "$HOME/.config/dotfiles/git-work-orgs" && ok "owner names render" || ko "owner names render ($log)"
+item_from 'orgs=AcmeCo bad"name'
+run "$orgs_tpl" dotfiles-git-work-orgs "$sandbox/orgs"
+expect_failed "a non-owner name" "is not a GitHub owner name"
 
 echo "15. preconditions"
 new_sandbox
