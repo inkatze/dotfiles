@@ -1,7 +1,7 @@
 # Review Skills — Tasks
 
 **Status:** Ready
-**Last reviewed:** 2026-10-19
+**Last reviewed:** 2026-10-23
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -352,10 +352,11 @@ by that task. Blocks are listed in dependency order.
 - **Done when:** The task PR carries one row per skill with the run's
   outcome, the drills' outcomes, and the measurement table with the baseline
   and the post-change values; every `[manual]` entry of `test-spec.md` whose
-  requirement a task in this repository implements cites a row (the
-  planwright note's entry is verified in that repository).
+  requirement one of this task's dependencies implements cites a row (the
+  planwright note's entry is verified in that repository; later tasks
+  verify their own manual entries in their after-merge Done-when).
 - **Dependencies:** 3, 4, 5, 6, 7, 8
-- **Citations:** D-18 · REQ-A1.1, REQ-A1.3, REQ-A1.4, REQ-A1.5, REQ-B1.1,
+- **Citations:** D-18 · REQ-A1.1, REQ-A1.3, REQ-A1.4, REQ-B1.1,
   REQ-C1.1, REQ-C1.2, REQ-C1.3, REQ-C1.6, REQ-D1.3, REQ-D1.4, REQ-E1.1,
   REQ-E1.3, REQ-E1.6, REQ-E1.8, REQ-F1.5, REQ-G1.1, REQ-I1.4, REQ-I1.5,
   REQ-I1.6, REQ-I1.7
@@ -363,31 +364,51 @@ by that task. Blocks are listed in dependency order.
 
 ### Task 11 — Request discipline from recorded state and complete handoffs
 
-- **Deliverables:** `review-state.sh ledger request record` and
-  `ledger request decide` (the fields and arms D-21 names, reading the
-  per-PR ledger and the reviewer's latest comment, printing the form and
-  its reason, refusing a form the arms do not allow); `/bot-review`'s
-  "Requesting a review" taking the form from `decide`, a `--full` flag, and
-  the new optional `incremental_refusal_regex` field in the review template,
-  the schema, the 1Password item and the config documentation; owed-thread
-  enumeration (link and anchor) in every stop's handoff and in
-  `ledger show`, convergence declared from the enumeration, the owed-thread
-  line first; the bounded wait for the final pushed head's review under a
-  planwright step with no operator present, the unreviewed-head line first
-  in the handoff and the step classifier reading it as not clean; contract
-  checker pins for each rule with a fixture per pin; ledger fixtures for
-  every `decide` arm (no review recorded, a completed review, the refusal
-  match, the flag, a pending request) and for the owed-thread listing.
-- **Done when:** On the branch: the ledger and checker fixtures pass (a
-  second full request without refusal evidence or the flag is refused; the
-  refusal match allows exactly one full; a handoff fixture with an owed
-  thread opens with it); the suites are wired into the CI workflow and
-  `lefthook.yml`; the renderer suite accepts the new optional field and a
-  template without it. After merge: one `--nested` run on a real PR shows
-  the ledger's request rows with their forms and reasons, and its handoff
-  lists every owed thread when any exists.
+- **Deliverables:** In `review-state.sh`: `ledger request record`
+  (refusing a `full` row unless `decide` would print it), `ledger review
+  record`, `ledger request decide` (the arms D-21 names, the reviewer's
+  latest comment on stdin, `--window <seconds>` from the shared thresholds,
+  printing the decision and its reason), `ledger owed` (owed threads by link
+  and anchor from the fetched thread JSON on stdin), and the ledger's own
+  version key (split from the helper's shared one, every shipped ledger
+  version read, the current one stamped on the next locked append). In
+  `/bot-review`: "Requesting a review" taking each request from `decide`;
+  every run's first fetch and each poll recording completed reviews and
+  unrecorded requests, each write under the writer lock taken and released
+  around it; a `--full` flag in the argument hint, the Invocation modes
+  line and the contract checker's `expected_hint`; the new optional
+  `incremental_refusal_regex` field in the review template's entries for
+  both 1Password items, the schema and the config documentation, the
+  review-config version unchanged (the field is optional); every stop's
+  handoff listing `ledger owed`'s output, convergence declared from the
+  enumerated unresolved threads, and the Writer lock held row using the
+  owed-thread term; under a planwright step with no operator present, the
+  stop after a push waiting for the final head's review per REQ-I1.10 and
+  handing off with the unreviewed head first, then the owed threads, as a
+  stop the step runner classifies as halted. In the shared reference
+  directory: `state.md`'s Version key and Decision ledger sections, and
+  `limits.md`'s review-poll window row naming the pending-request expiry.
+  Contract checker pins for each rule with a fixture per pin; helper
+  fixtures for every `decide` arm (no review recorded, a completed review,
+  a refusal newer than the last full request and one older, the flag, a
+  pending request, a pending request ended by a refusal, an expired one,
+  method `request` and a `comment` reviewer without `incremental_command`),
+  for `request record --form full` refused, for a version-1 ledger read and
+  upgraded, and for `ledger owed` (an owed thread listed; resolved-unreplied
+  and replied threads not); budget rows re-derived for every grown surface.
+- **Done when:** On the branch: the helper and checker fixtures pass; the
+  suites are wired into the CI workflow and `lefthook.yml`; the renderer
+  suite accepts the new optional field and a template without it; the
+  instruction-budget and contract suites pass. After merge, each recorded as
+  a comment on the merged PR: a `--nested` run on a fresh PR shows exactly
+  one `full` request row, review rows, and `incremental` rows after it; a
+  second run on the same PR opens with the incremental form; a `--nested`
+  run that stops with an owed thread names it in its handoff's first line;
+  under a planwright step, one run drains a review of the final head within
+  the window, and one with the reviewer silent past the window hands off
+  with the unreviewed head first and is classified halted.
 - **Dependencies:** none
-- **Citations:** D-21, D-22 · REQ-A1.7, REQ-I1.9, REQ-I1.10
+- **Citations:** D-21, D-22 · REQ-A1.7, REQ-A1.9, REQ-I1.9, REQ-I1.10
 - **Estimated effort:** 1.5 days
 
 ### Task 12 — Standing rules: render, triage, proposals and the dashboard hash
@@ -396,49 +417,71 @@ by that task. Blocks are listed in dependency order.
   directory in planwright's standing-rules format (the rules list a `| json`
   field), its validation rule in `scripts/op-render.sh` (planwright's
   `review-rules.sh` validator when the install root resolves, else the
-  rule's own jq shape check, never unchecked), the render task in
-  `roles/claude/tasks/op-render.yml` with its failure and skip reporting,
-  the `CLAUDE.md` machine-local table row and `docs/machine-local-files.md`;
-  `/bot-review`, `/panel-review` and `/code-review` consulting the rendered
-  file at triage under planwright's semantics (rule id in the ledger row
-  and the reply, new evidence to Needs sign-off naming the rule) and
-  drafting a proposed entry in the handoff for a rule-stating rejection or
-  deferral the file lacks; `review-state.sh rules paste --repo <o/r>
-  --hash <h>` recording the pasted block's hash with a version key, and the
-  pre-flight drift report comparing it with planwright's exporter output;
-  contract checker pins and fixtures; the renderer suite's cases for the new
-  template (a conforming item, an unknown version, a rule missing a field).
+  rule's own jq shape check of that format, never unchecked), the render
+  task in `roles/claude/tasks/op-render.yml` with its failure and skip
+  reporting; the machine-local file documentation in
+  `docs/machine-local-files.md` and `CLAUDE.md`'s table (the rules file, and
+  the `review/` row naming the paste record) within `CLAUDE.md`'s line
+  ceiling, folded into existing rows or offset by a trim in the same
+  commit. In `review-state.sh`: `rules read` (reading the rendered file,
+  reporting absence, refusing an unreadable file or an unknown version,
+  printing the rules), `ledger record --rule <id>`, `rules paste --repo
+  <o/r> --hash <h>` and `rules paste show --repo <o/r>` over the
+  repository's file under `~/.config/dotfiles/review/rules-paste/` (the
+  ledger's layout, path encoding, symlink refusal and file lock, version
+  stamped per REQ-A1.9), and the drift check comparing it with planwright's
+  exporter output through an exporter seam the fixtures stub, reporting no
+  paste once and an absent or refusing exporter as unverified. In
+  `/bot-review`, `/panel-review` and `/code-review`: triage through `rules
+  read` under planwright's semantics per REQ-I1.11 (in `/bot-review` the
+  rule id in the ledger row and the reply, a rule-decided reply posting
+  unattended like any drained reply; in the other two the rule id in the
+  finding's handoff row; new evidence to the skill's human-judgment bucket
+  naming the rule), and a proposed entry drafted in the handoff for a
+  rule-stating rejection or deferral the file lacks; `/bot-review`'s
+  pre-flight drift report and paste confirmation. Contract checker pins and
+  fixtures; the renderer suite's cases for the new template (a conforming
+  item, a template or item-supplied version that is unknown, a rule missing
+  a field); budget rows re-derived for every grown surface.
 - **Done when:** planwright's standing-rules format and exporter are merged
   on that repository's main (review-effectiveness Task 6.1). On the branch:
-  the renderer and checker fixtures pass; a ledger fixture shows a
-  rule-decided row carrying the rule id and a new-evidence finding routed to
-  Needs sign-off; the paste record fixture refuses an unknown version and
-  the drift fixture reports a changed hash; the suites are wired into CI and
-  `lefthook.yml`. After merge: the role renders the file from the item on
-  one host; one `--nested` run on a PR with a finding a rule decides shows
-  the rule id in the reply; the exported block is pasted into the reviewer's
-  dashboard for this repository and its hash recorded, and a later edit to
-  the item makes pre-flight report drift.
-- **Dependencies:** none
-- **Citations:** D-13, D-23 · REQ-A1.8, REQ-I1.11, REQ-I1.12
+  the renderer, helper and checker fixtures pass (`rules read` reports an
+  absent file and refuses an unknown version; `ledger record --rule` keeps
+  the id; the paste record refuses an unknown version and a symlinked path
+  and serializes concurrent writes; the drift check reports a changed hash,
+  no paste, and a stubbed refusing exporter as unverified); the suites are
+  wired into CI and `lefthook.yml`; the instruction-budget suite passes.
+  After merge, each recorded as a comment on the merged PR: the role renders
+  the file from the item on one host and the identifier check over it
+  reports no vendor names; one `--nested` run on a PR with a finding a rule
+  decides shows the rule id in the reply, and a rejection whose reply
+  states a rule the file lacks shows a drafted entry in the handoff; the
+  exported block is pasted into the reviewer's dashboard for this
+  repository and its hash recorded, and after an edit to the item and a
+  role re-run, pre-flight reports drift.
+- **Dependencies:** 11
+- **Citations:** D-13, D-23 · REQ-A1.8, REQ-A1.9, REQ-I1.11, REQ-I1.12
 - **Estimated effort:** 2 days
 
 ### Task 13 — Lockdown suite per host platform
 
-- **Deliverables:** `scripts/cubic-lockdown-test.sh` resolving the platform
-  package the host's mise pin installs (the per-platform package name and
-  version read from the tracked mise configuration, never guessed) and
-  reading that one, its cache keyed by platform; every platform package's
-  integrity pinned in `roles/environments/files/mise.toml` or, where mise's
-  npm backend cannot pin an optional platform package, in a committed
-  checksum file the suite verifies before reading; the suite added to the
-  macOS CI job beside the Linux one; `docs/review-backends.md` describing
-  the per-platform read; obs:35b6e190 consumed.
+- **Deliverables:** `scripts/cubic-lockdown-test.sh` reading the version
+  from `roles/environments/files/mise.toml` and naming the platform package
+  from the host's OS and architecture against the reviewed umbrella
+  package's optional dependencies (held with the integrity pins, never
+  guessed), reading that one, its cache keyed by platform; every platform
+  package's integrity pinned in tracked configuration the suite verifies
+  before reading (its reviewed values or a committed checksum file), with an
+  override seam for the pin source; a fixture suite planting a changed
+  integrity value, wired into the CI workflow and `lefthook.yml`; the suite
+  added to the macOS CI job beside the Linux one; `docs/review-backends.md`
+  describing the per-platform read; obs:35b6e190 consumed.
 - **Done when:** On the branch: the Linux and macOS CI jobs each pass the
-  suite and their logs name different platform packages; a fixture with a
-  changed checksum fails the pin; the lint and syntax checks pass. After
-  merge: `mise run environments` on a Mac installs the pinned package and
-  the suite passes there by hand, recorded as a comment on the merged PR.
+  suite and their logs name different platform packages; the fixture suite's
+  changed integrity value fails the pin before any read; the lint and syntax
+  checks pass. After merge: `mise run environments` on a Mac installs the
+  pinned package and the suite passes there by hand, recorded as a comment
+  on the merged PR.
 - **Dependencies:** none
 - **Citations:** D-24 · REQ-C1.7
 - **Estimated effort:** 1 day

@@ -1,7 +1,7 @@
 # Review Skills — Design
 
 **Status:** Ready
-**Last reviewed:** 2026-10-19
+**Last reviewed:** 2026-10-23
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -573,13 +573,36 @@ repo-tracked layer's documented purpose.
 ### D-21: The review request's form is a state-helper decision over the ledger, not skill prose  (N)
 
 **Decision:** `review-state.sh ledger request record` writes every request
-(reviewer, form, head, reason, time) into the per-PR ledger, and
-`ledger request decide` prints the form the next request may take: `full`
-only with no completed review by the reviewer on record, or when the
-reviewer's latest comment matches the entry's `incremental_refusal_regex`,
-or when the run carries `--full`; `incremental` otherwise; `none` when a
-request for the current head is already pending. `/bot-review` posts what
-the helper prints and nothing else, and the contract checker pins the rule.
+(reviewer, form, head, reason, time) into the per-PR ledger, refusing a
+`full` row unless `decide` would print `full`; `ledger review record` writes
+each completed, non-errored review (reviewer, reviewed head or the pushed
+head when the vendor exposes none, build id, time); and
+`ledger request decide` prints what the next request may be, reading the
+ledger, the reviewer's latest comment passed on stdin (the helper applies
+the regex, never the model) and the review-poll window passed as
+`--window` from the shared thresholds. On method `comment` with an
+`incremental_command`: `full` only with no completed review by the reviewer
+on record, when a reviewer comment newer than the latest recorded full
+request matches `incremental_refusal_regex`, or when the run carries
+`--full`; `incremental` otherwise. Any other method, or no
+`incremental_command`: the method's single request, or nothing where the
+skill's request rules post nothing. `none` while a request for the current
+head is pending: no completed review of that head recorded, no newer
+matching refusal, and the window not passed since it was posted. Every
+run's first fetch records the completed reviews and the trigger comments or
+reviewer requests the ledger lacks, so a review that landed between runs,
+a hand-posted request, or one posted before the upgrade or a crash is on
+record before `decide` reads it. The ledger carries its own version key,
+independent of the helper's other files: the reader accepts every ledger
+version shipped (an older ledger reads as having no request or review rows)
+and the next locked append stamps the current one; rollback is forward
+only, since a reverted helper refuses a ledger already stamped newer.
+`/bot-review` posts what the helper decides and nothing else, and the
+contract checker pins the rule.
+*(Amended at kickoff delta re-walkthrough 2026-10-21: completed-review rows
+added; 2026-10-23: pending expiry, the ledger's own version, the method
+scope, refusal recency, run-start reconciliation and the helper's
+interfaces.)*
 
 **Alternatives considered:**
 - Keep the rule in skill prose, as REQ-A1.5 already states it. Rejected
@@ -599,13 +622,19 @@ records, and a refused request posts nothing.
 
 ### D-22: Owed threads are enumerated in every handoff, and a step waits for the final head's review  (N)
 
-**Decision:** Every stop's handoff and `ledger show` list each thread that
-carries no viewer reply by link and anchor, and convergence is declared from
-that enumeration, never from counts. Under a planwright step with no
-operator present, the loop waits up to the review-poll window for the
-reviewer's review of the final pushed head and drains it; a head unreviewed
-at the bound heads the handoff's first line, and such a handoff never reads
-as clean to the step's classifier.
+**Decision:** Every stop's handoff lists each owed thread (reviewer-opened,
+unresolved, no viewer reply) by link and anchor, computed by the state
+helper (`ledger owed`) from the fetched thread list, and convergence is
+declared from the enumerated unresolved threads (REQ-I1.4), never from
+counts. Under a planwright step with no operator present, the stop after a
+push waits up to the review-poll window for the reviewer's review of the
+final pushed head and drains it without pushing again; where a review is
+ruled out (REQ-A1.4, a missing opt-in label, a quota refusal, no
+`build_id_regex`) it does not wait. An unreviewed head leads the handoff's
+first line, the owed threads following, and the stop is one the step
+runner classifies as halted.
+*(Amended at kickoff delta re-walkthrough 2026-10-23: owed-thread term,
+convergence source, wait scope and first-line order.)*
 
 **Alternatives considered:**
 - A ready-flip precondition in planwright (the bot reviewed the final
@@ -631,13 +660,21 @@ planwright observation records.
 1Password item and render through `op-render.sh` and a committed template to
 `~/.config/dotfiles/review-rules.json` in planwright's standing-rules file
 format (review-effectiveness REQ-J1.1), validated against that format
-before landing. Every
-review skill reads the rendered file at triage under planwright's semantics;
+before landing. `/bot-review`, `/panel-review` and `/code-review` read the
+rendered file at triage, through the state helper (`rules read`), under
+planwright's semantics, a rule-decided reply posting unattended in
+`/bot-review` like any drained reply;
 a rejection or deferral that states a new rule has its entry drafted in the
 handoff for the operator to add to the item. planwright's exporter prints
 the vendor-neutral block; the operator pastes it into the reviewer's
-dashboard instructions per repository, the helper records the block's hash,
-and pre-flight reports drift.
+dashboard instructions per repository, the helper records the block's hash
+in that repository's file under `~/.config/dotfiles/review/rules-paste/`,
+laid out and locked as the ledger is,
+and pre-flight reports drift, a missing paste once, and an install whose
+exporter is absent or refuses as unverified.
+*(Amended at kickoff delta re-walkthrough 2026-10-21 and 2026-10-23: paste
+record's per-repository file named, written under a lock; the three skills
+named; unattended rule-decided replies; absent-exporter reporting.)*
 
 **Alternatives considered:**
 - A committed vendor file at each repository root. Rejected because: in
@@ -662,11 +699,17 @@ either repository.
 
 ### D-24: The lockdown suite reads the host's platform package, and every platform package is pinned  (N)
 
-**Decision:** `scripts/cubic-lockdown-test.sh` resolves the platform package
-the host's mise pin installs and reads that one; the tracked mise
-configuration pins each platform package's integrity, and the suite runs on
-both CI runners, so the lockdown is verified per platform and a changed
-package on any platform fails.
+**Decision:** `scripts/cubic-lockdown-test.sh` names the platform package
+from the host's OS and architecture against the reviewed umbrella package's
+optional dependencies, at the version the host's mise pin installs, and
+reads that one; the tracked mise
+configuration pins the version, tracked configuration the suite verifies
+before reading (its reviewed values or a committed checksum file) pins each
+platform package's integrity, and the suite runs on both CI runners, so the
+lockdown is verified per platform and a changed package fails the next
+suite run on its platform. *(Amended at kickoff delta re-walkthrough
+2026-10-21 and 2026-10-23: integrity pins held where the suite verifies
+them, mise.toml pinning the version; the package named from the host.)*
 
 **Alternatives considered:**
 - Keep reading the Linux package everywhere. Rejected because: the
@@ -678,7 +721,7 @@ package on any platform fails.
 
 **Chosen because:** the suite already caches the package it reads, the CI
 matrix already has a macOS runner, and the pins make a swapped binary fail
-without a run.
+on its platform's next run without anyone re-reading the code.
 
 ## Cross-cutting concerns
 
@@ -703,7 +746,7 @@ as the seams, with the stand-in's divergence recorded in the seed note:
 D-1, D-6, D-17, D-19); human comprehension (the handoff projection follows the
 shared workflow file; nothing novel: D-9); versioning (a version key on
 every file the skills read, readers refusing an unknown one: D-13,
-REQ-A1.6; the undocumented inbox-socket line kept in one place with the
+REQ-A1.9, superseding REQ-A1.6; the undocumented inbox-socket line kept in one place with the
 Claude Code version it was verified on, and the messaging floor: D-19); data storage and retention (ledgers kept, dead inboxes and
 registrations pruned at reclaim: D-7, D-19, D-9); queues (inbox files
 consumed once, dead-holder files named and removed: D-19); API surface
@@ -714,11 +757,19 @@ apply beyond the gates already in force.
 
 The 2026-10-19 extension touches: secrets and configuration (one more
 1Password-rendered file, the rules, and one optional review-config field,
-the refusal regex: D-21, D-23); API surface (the ledger gains request rows
-and the review state a paste record, both versioned: D-21, D-22, D-23,
-REQ-A1.6); existing-seam reuse (planwright's standing-rules format and
-exporter consumed, never re-minted: D-23); observability (owed threads and an
+the refusal regex: D-21, D-23); API surface (the ledger gains request and
+review rows and the review state a paste record, both versioned: D-21, D-22,
+D-23, REQ-A1.9); existing-seam reuse (planwright's standing-rules format and
+exporter consumed, never re-minted: D-23); versioning and deploy and
+migration (per-kind keys, readers accepting every shipped version, a locked
+rewrite stamping the current one, rollback forward only: D-21, REQ-A1.9);
+concurrency (one locked paste record per repository: D-23); queues (a
+pending request ending at a recorded review, a newer refusal or the
+review-poll window: D-21); knowledge engineering and LLM output quality
+(the rules' format and triage semantics are planwright's, curated by the
+operator, and a rule-decided reply posts citing its rule: D-17, D-23);
+observability (owed threads and an
 unreviewed head named in the handoff's first line, drift named at
 pre-flight: D-22, D-23); dependency adoption (no new tool; the lockdown
-pins widen to every platform package: D-24). Auth, deploy, product and IP
-posture are unchanged.
+pins widen to every platform package: D-24). Auth, product and IP posture
+are unchanged.
