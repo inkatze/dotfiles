@@ -1,7 +1,7 @@
 # Review Skills — Test Spec
 
 **Status:** Ready
-**Last reviewed:** 2026-10-08
+**Last reviewed:** 2026-10-23
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -11,7 +11,9 @@ it (the shell-only job for pure fixtures, the job that installs Ansible for
 role fixtures) on every pull request and push to `main`, and by lefthook
 before each commit; `[manual]` for everything that needs a real PR,
 a real reviewer, a second session or a host with 1Password signed in,
-recorded in Task 10's verification table; `[design-level]` where the
+recorded in Task 10's verification table for the tasks it depends on and
+in the owning task's after-merge Done-when for later tasks;
+`[design-level]` where the
 artifact's existence and content is the verification. A requirement that
 cannot be verified on a given host is recorded as unverified with its
 reason, never marked passed by inference. Two ownership rules: every
@@ -56,17 +58,47 @@ this bundle; the rendered config's `default` names the cubic.dev entry
 prints the policy and the repository-side setting and exits its wait without
 polling.
 
-### REQ-A1.5 — Incremental re-request after a push [manual]
+### REQ-A1.9 — Version key on every machine-local file this bundle defines [test]
 
-A `--nested` iteration that pushes a fix issues the incremental form of the
-re-request (observed in the PR's comment or reviewer-request timeline), and
-the first request of the run issues the full form.
+The renderer suite, the helper's fixture, the ledger fixture and the
+paste-record fixture each feed a file carrying an unknown version and
+assert the refusal names the file and the version; a file with no version
+key is refused the same way. The ledger fixture reads a version-1 ledger
+as having no request or review rows, and the next `ledger record` rewrites
+it at the current version with its entries kept; the registry and evidence
+fixtures still read their unchanged version; lock holder records, inbox
+files and the egress consent record carry none. The standing-rules file is
+validated by planwright's `review-rules.sh` where installed, else by the
+renderer's own shape check of planwright's format, never by a version key
+of ours.
 
-### REQ-A1.6 — Version key on every machine-local file [test]
+### REQ-A1.7 — Request form decided from the ledger [test + manual]
 
-The renderer suite, the helper's fixture and the ledger fixture each feed a
-file carrying an unknown version and assert the refusal names the file and
-the version; a file with no version key is refused the same way.
+The helper fixture drives `request decide` through each arm: no recorded
+review prints `full`; a completed review prints `incremental`; a reviewer
+comment matching the refusal regex and newer than the last recorded full
+request prints `full`, and one older than it prints `incremental`; the
+flag prints `full`; a pending request for the current head prints `none`,
+and a recorded completed review of that head, a newer matching refusal, or
+the review-poll window passing (the request's recorded time set back past
+`--window`) each end it; a reviewer on method `request`, and a `comment`
+reviewer without `incremental_command`, print the method's single request
+or nothing, never a form; `request record --form full` is refused when
+`decide` would not print `full`; a `request record` row and a `review
+record` row each carry every field. The contract checker pins the
+posts-what-the-helper-decides sentence, the never-record-an-errored-review
+sentence and the first-fetch reconciliation sentence. Manual: a `--nested`
+run on a fresh PR shows exactly one `full` request row, review rows, and
+`incremental` request rows after it; a second run on the same PR opens
+with `incremental`. Task 11.
+
+### REQ-A1.8 — Rules rendered from 1Password [test + manual]
+
+The renderer suite renders the rules template from a fixture item into a
+conforming file at 0600, refuses a template or item-supplied version that
+is unknown and a rule missing a field, and leaves a hand-written file at
+the output overwritten as the other renders do. Manual: the identifier
+check over the rendered file reports no vendor names. Task 12.
 
 ## REQ-B — Retire `/copilot-review`
 
@@ -141,6 +173,13 @@ helper scripts under the scripts directory are outside the sweep.
 
 The first run asks consent once per repository and reviewer binary, the
 second run does not, and the consent record carries the reviewer key.
+
+### REQ-C1.7 — Lockdown per host platform [test]
+
+The suite names the platform package it read in its output; the Linux and
+macOS CI jobs name different packages; the fixture suite, through the pin
+source's override seam, plants a changed integrity value and the suite
+fails before any read. Task 13.
 
 ## REQ-D — Shared evidence
 
@@ -362,3 +401,48 @@ record.
 
 The contract checker pins the one-paragraph decision-plus-evidence sentence
 in `/bot-review`'s reply step.
+
+### REQ-I1.9 — Owed threads enumerated [test + manual]
+
+The helper fixture feeds `ledger owed` a thread list with an owed thread
+(reviewer-opened, unresolved, no viewer reply), a thread resolved without a
+viewer reply, and a thread the viewer replied in, and only the first is
+printed, by link and anchor; the contract checker pins the
+enumeration-not-counts convergence sentence and the first-line order
+(unreviewed head, then owed threads). Manual: a `--nested` run that stops
+with an owed thread names it in its handoff's first line. Task 11.
+
+### REQ-I1.10 — Bounded wait for the final head's review [manual]
+
+Under a planwright step on a PR whose final push is followed by a review
+within the window, the handoff reports the drained review of that head and
+nothing further is pushed; with the reviewer silent past the window, the
+handoff's first line names the unreviewed head and the step runner
+classifies the stop as halted. The contract checker pins the no-wait
+sentence for stops that rule a review out. Task 11.
+
+### REQ-I1.11 — Rule-decided triage and proposals [test + manual]
+
+The helper fixture shows `rules read` reporting an absent file, refusing an
+unreadable file and an unknown version, and `ledger record --rule` keeping
+the rule id in the row. The contract checker pins, in all three skills,
+the rule-id sentence, the new-evidence-to-human-judgment sentence, the
+absent-file sentence, the never-writes-the-rules-file sentence and the
+proposal-in-handoff sentence, and in `/bot-review` the unattended
+rule-decided reply sentence. Manual: a `--nested` run on a PR with a
+finding a rule decides shows the rule id in the reply, and a real rejection
+whose reply states a new rule produces a drafted entry in the handoff.
+Task 12.
+
+### REQ-I1.12 — Dashboard paste hash and drift [test + manual]
+
+The state helper's fixture records a paste hash with its version key in
+the repository's own file, reads it back with `rules paste show`, refuses
+an unknown version and a symlinked path, and serializes two concurrent
+records for one repository so both land in order and neither file is
+partial; through the exporter seam, the drift check reports a changed hash
+as drift, a repository with no record as no paste recorded, and a stubbed
+absent or refusing exporter as unverified, never clean. Manual: after
+pasting the exported block and recording it, an edit to the item and a
+role re-run make the next pre-flight report drift for that repository.
+Task 12.

@@ -602,3 +602,183 @@ Class: meaning
 Lens-pass: the delta-scoped lens review pass recorded in this entry, every finding dispositioned
 Anchor: `140ee98d998c446342243fadb951b442f4dce62c` — computed as
 `spec-anchor.sh specs/review-skills`
+
+### 2026-10-20 — External review audit extension (delta re-walkthrough)
+
+**Scope and mode.** Delta re-walkthrough, entered on an anchor mismatch at
+pre-flight: the recorded anchor no longer matched after the 2026-10-19
+extension commit. Spec commit at walkthrough start: `cfbc6e9`. The validator
+reported no findings; the bundle derives Active (Tasks 1 to 8 completed, Task
+9 deferred, Tasks 10 to 13 ready). The operator scoped the walk to the
+extension delta: REQ-A1.7, REQ-A1.8, REQ-C1.7, REQ-I1.9 to REQ-I1.12, D-21 to
+D-24, Tasks 11 to 13, their test-spec entries, and the scope, Sources and
+decision-domains additions. The sections above stay as signed. No
+harness-provided decision log exists, so the transcript mirror is skipped.
+
+**Goal and glossary (delta).** The extension moves four gaps the external
+review audit measured from skill prose into mechanism: the request form
+decided by the state helper over the recorded request history (REQ-A1.7,
+D-21); owed threads enumerated first in every handoff, plus a bounded wait
+for the final head's review under a planwright step (REQ-I1.9, REQ-I1.10,
+D-22); standing rules rendered from 1Password in planwright's standing-rules
+format, applied at triage, proposed from rule-stating replies and exported to
+the vendor dashboard with drift by hash (REQ-A1.8, REQ-I1.11, REQ-I1.12,
+D-23); and the lockdown suite reading the host's own platform package, with
+every package pinned (REQ-C1.7, D-24). It rules out the standing-rules
+capability itself (planwright review-effectiveness REQ-J) and any ready-flip
+or merge precondition on the final-head review (planwright's human-gates). It
+assumes that planwright's REQ-J lands (Task 12 waits on it), that the
+reviewer offers an incremental form and refuses it in a matchable way, and
+that the dashboard paste stays manual. Terms resolved: **viewer** is the
+authenticated `gh` user, as `review-shared/github.md` uses it, and an **owed
+thread** is a finding thread without a viewer reply; **no operator present**
+is `/bot-review`'s existing concept; **the reviewer's latest comment** is
+searched across every comment surface (reviews, issue comments, inline
+comments). "Completed review on record" and "pending request" are taken up
+under the requirements below.
+
+Signed off: 2026-10-20
+
+**Requirements (delta).** Outcomes, decided by the operator:
+
+- **Inconsistency halt, resolved by spec edit.** REQ-A1.5's full form on
+  "the first request of a run" contradicted REQ-A1.7's full-form arms on a
+  second run against a reviewed PR. REQ-A1.5 is superseded by REQ-A1.7; its
+  test-spec entry is replaced by A1.7's; Task 10 drops the citation, and
+  Task 3, completed, keeps it as the record of what it implemented.
+- **REQ-A1.7 and D-21, completed-review rows.** Nothing wrote the
+  completed-review fact the helper's arms read. The loop now records each
+  completed, non-errored review (reviewer, reviewed head, build id, time) in
+  the ledger, and a request stays pending until a review of its head is
+  recorded; a review landing between runs errs toward pending, never toward
+  a full request.
+- **REQ-A1.6 superseded by REQ-A1.9.** The exact six-file list could not
+  admit the paste record; the version key becomes a rule over every
+  machine-local file whose format this bundle defines, other bundles'
+  formats carrying their own key.
+- **REQ-I1.9.** An owed thread is one the reviewer opened that is unresolved
+  and carries no viewer reply.
+- **REQ-I1.11.** Names `/bot-review`, `/panel-review` and `/code-review`; an
+  absent rules file is said once with triage unchanged, an unreadable or
+  unknown-version file stops the run.
+- **REQ-I1.12.** The paste record lives at
+  `~/.config/dotfiles/review/rules-paste.json`.
+- REQ-A1.8, REQ-C1.7, REQ-I1.10 and the scope bullets stand as drafted.
+
+**Spec edits (consolidated).** The full list is the `requirements.md`
+Changelog entry dated 2026-10-21. Mid-walk lens, scoped to each edit and
+its dependents: a grep sweep for the superseded IDs found only historical
+references (completed tasks, signed design prose, Sources), no stale live
+reference; the validator reported no findings after the edits.
+
+Signed off: 2026-10-21
+
+**Design ledger (delta).** D-21 amended (completed reviews recorded in the
+ledger; pending read from them). D-22 confirmed: "never reads as clean" is
+carried by `/bot-review`'s existing park-per-pause-protocol stop, so no
+planwright change is implied. D-23 amended (the paste record's file named).
+D-24 amended after an inconsistency halt: REQ-C1.7 and D-24 required the
+integrity pins in the mise configuration while Task 13 allowed a checksum
+file; resolved by spec edit, mise.toml pinning the version and tracked
+configuration the suite verifies before reading pinning every platform
+package's integrity, where the reviewed integrity already lives. No earlier
+D-ID changed.
+
+Signed off: 2026-10-21
+
+**Verification approach (delta).** Every new requirement has a test-spec
+entry; the tags are in `test-spec.md`. `[test]` entries run in the GitHub
+Actions workflow and `lefthook.yml`, REQ-C1.7's on both the Linux and the
+macOS job; `[manual]` entries are swept by the operator in the implementing
+task's after-merge Done-when. Dead path found and resolved by spec edit:
+Task 10's "every `[manual]` entry a task in this repository implements"
+reached Tasks 11 and 12's entries without depending on them, while the
+A1.7 second-run, I1.10 and I1.11 proposal checks had no owner. Task 10's
+sweep is now scoped to its dependencies, and Tasks 11 and 12 carry those
+checks.
+
+Signed off: 2026-10-21
+
+**Task graph (delta).** Reconstructed from the `Dependencies:` lines in
+`tasks.md`. Task 10's dependencies are all completed; Tasks 11 and 13 have
+none; Task 12 now depends on Task 11 (operator decision): both change the
+ledger's versioned format (REQ-A1.9) and the same helper, skill and checker
+files, so parallel branches would collide on the version bump, and Task 12
+waits on planwright's standing-rules merge regardless. Parallel now:
+Tasks 10, 11 and 13. Critical path: Task 11 then Task 12, plus Task 12's
+external wait in its Done-when (planwright's standing-rules format and
+exporter merged), which is not a graph edge. Deliberate non-edges, not to be
+"fixed": Task 10 does not depend on Tasks 11 to 13 (each owns its own manual
+checks); Task 13 is independent of every other task.
+
+Signed off: 2026-10-23
+
+**Risk register (delta).** Appended rows; the section 7 rows above stand.
+
+| # | Risk | Mitigation / early signal |
+| --- | --- | --- |
+| D1 | planwright's standing-rules format (review-effectiveness REQ-J) changes during its in-progress re-walk, after Task 12's template is shaped to it | Task 12's Done-when waits for that format's merge. Signal: the planwright spec PR touching REQ-J1.1 or REQ-J1.4. |
+| D2 | The reviewer's history-changed refusal wording drifts from `incremental_refusal_regex` (accepted) | The regex is config, edited in the 1Password item. Signal: a refusal comment after an incremental request with no full request following it. |
+| D3 | Deploy and migration (gap check): the ledger's version bump would refuse every existing ledger, which D-9 never prunes | Decided: each file kind versions independently; readers accept every shipped version, and a locked rewrite stamps the current one (REQ-A1.9, D-21, Task 11). Rollback is forward only (lens pass): a reverted helper refuses a ledger already stamped newer, recovered by a forward fix or a hand edit of its version. Signal: a version refusal on a ledger written before the upgrade, or right after a revert. |
+| D4 | Concurrency (gap check): one shared paste record written by any session | Decided: one file per repository under `~/.config/dotfiles/review/rules-paste/`, laid out and locked as the ledger is (REQ-I1.12, D-23, Task 12); this supersedes the single file the requirements record above names. Signal: a drift report straight after a recorded paste. |
+| D5 | A request whose head the reviewer never reviews stays pending and blocks every later request on that head | Decided: pending expires at the review-poll window (REQ-A1.7, D-21). Signal: `none` on a head with no review in flight past the window. |
+
+Decision-domains gap check: walked against the merged catalog; the delta's
+domains are recorded in the design's decision-domains paragraph, and the
+three undecided questions it found are rows D3 to D5 above, each now
+decided. The applied edits are in the 2026-10-21 Changelog entry.
+
+Signed off: 2026-10-23
+
+**Lens review pass (delta-scoped, spec class).** Class: meaning (the delta
+adds requirements and decisions). Fan-out: three read-only sub-agents, each
+owning three of the nine spec-set lenses, briefed to be exhaustive within
+their lenses with severity pruning forbidden; the coordinator merged,
+deduped and re-checked the claims against the helper, the skills, the
+shared reference files, `CLAUDE.md`'s line ceiling, the lockdown suite, the
+mise pin and planwright's standing-rules bundle on its spec branch. Tooling
+grounding: `spec-validate.sh`, with and without `--baseline origin/main`
+(no findings before or after the edits), and `gitleaks` over the bundle
+(no leaks).
+
+| Lens (spec set) | Findings | Notes |
+| --- | --- | --- |
+| Contract correctness and internal consistency | 10 | D-22's owed-thread wording and convergence source against REQ-I1.4 and I1.9; I1.10's wait against REQ-A1.4 and the no-poll stops; two rules both claiming the first line; "exactly one full" not following from the refusal arm; a refusal not ending a pending request; "every review skill" against three; ledger rows required of skills without a ledger; A1.9 reaching lock, inbox and egress files no task versions; "not ours" against the renderer's fallback check. Applied. |
+| Ambiguity and interpretation forks | 8 | Which runs record reviews (and unrecorded or pre-upgrade requests); `decide` as query or validator; how the latest comment reaches the helper; the window's source; what a completed review is with no reviewed head; I1.10's stop scope and drain; which skill records the paste and what no record means; "history-changed refusal" undefined. Applied. |
+| Citation and coverage integrity | 7 | Sources still calling planwright's standing rules Draft; the versioning walk citing superseded REQ-A1.6; missing supersedes markers; the Awaiting-input clear absent from the Changelog; the test-spec preamble against the new manual ownership; A1.8's vendor-free clause unchecked; the kickoff Sources heading pinned to one date. Applied. |
+| Dead verification paths | 6 | Owed threads with no helper input; an errored review the helper cannot see; rule triage fixtures with no helper; the exporter's absence or refusal unhandled; the lockdown fixture with no seam or wiring; an item-supplied unknown version impossible under the template. Applied (`ledger owed`, `rules read`, `ledger record --rule`, `rules paste show`, the exporter seam, the pin override seam). |
+| Decision-domain gaps | 3 | The domains paragraph omitting migration, concurrency, queues, knowledge engineering and LLM output quality; ledger rollback undecided (operator: forward only); an unattended rule-decided rejection undecided (operator: posts citing the rule). Applied. |
+| Testability | 2 | Task 11's after-merge checks looser than the manual entries (fresh PR, the owed-thread stop, both I1.10 outcomes); Task 12's results with no recorded artifact and no role re-run. Applied. |
+| Cross-file consistency | 6 | Task 13 reading a platform name `mise.toml` lacks; D-24's "fails without a run"; A1.7 dropping "when it offers one" against the method rules; "not clean" against the step runner's outcomes (now halted); the poll's ledger write outside the writer lock; the optional field needed in both 1Password items. Applied. |
+| Documentation and glossary drift | 5 | `CLAUDE.md` at its line ceiling for Task 12's new row; budget rows and `--full`'s hint and `expected_hint` unnamed; `state.md` and `limits.md` left stale; the Writer lock held row's wider "owed". Applied. |
+| Rendered-content safety | n/a | The bundle is not rendered into an executing or markup context; data hygiene checked: no secrets, hostnames, private names or vendor markers. |
+
+Overlapping findings are counted once, under the lens that owns the fix;
+none was refuted on re-check. Operator decisions within the pass: a
+rule-decided rejection or deferral posts unattended citing its rule; an
+unreviewed head leads the first line, the owed threads following; rollback
+of the ledger version is forward only (risk row D3 now records it).
+Kickoff-specific checks: altitude, applicable and met (D-1, cited from the
+goal, still holds: the portability question went upstream through D-17 and
+D-23, and Tasks 11 to 13 are local mechanism consuming it); ship-gate, none
+(each out-of-band item, the upstream merge, the dashboard paste and the Mac
+run, sits in a task's Done-when). Not run: the identifier check, since this
+host has no `private-identifiers` file.
+
+Post-lens stale-reference sweep: grep for REQ-A1.5, REQ-A1.6, `ledger
+show`, "not clean" and the single paste file across the bundle and this
+entry; remaining hits are historical (completed tasks, signed prose,
+Sources) or re-pointed in risk row D4.
+
+**Spec edits.** Recorded in the `requirements.md` Changelog entry dated
+2026-10-21, whose last part covers the sign-off lens pass; `Last reviewed:`
+bumped to 2026-10-23 on all four files, with no status flip (the stored
+status rests at Ready).
+
+Approved by the operator on 2026-10-23 after the approval summary; the
+validator reported no findings after the edits.
+
+Class: meaning
+Lens-pass: the delta-scoped lens review pass recorded in this entry, every finding dispositioned
+Anchor: `a999c5148a69bba14d316eb72960f34290822765` — computed as
+`spec-anchor.sh specs/review-skills`
