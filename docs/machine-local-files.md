@@ -45,6 +45,11 @@ key in the overlay since a step list is a per-repository decision, and
 overwrites a hand-written file at its output: carry anything worth keeping
 into the item before the first run.
 
+`git-work-orgs` is rendered the same way from the item
+`dotfiles-git-work-orgs` (field `orgs`, owner names separated by whitespace),
+by a task in the git role rather than the claude role, because the git role
+reads it and runs first. It only runs where `git-work-email` is set.
+
 An item must hold every field its template references. A field left empty
 drops its key, and a reviewer entry whose fields are all empty drops out, so a
 host that does not run Copilot leaves the `copilot_` fields blank. A JSON

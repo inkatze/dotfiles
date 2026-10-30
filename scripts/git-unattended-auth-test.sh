@@ -44,6 +44,7 @@ YAML
 inv="$work/hosts"
 cat >"$inv" <<INI
 server ansible_connection=local ansible_python_interpreter=$(command -v python3)
+work ansible_connection=local ansible_python_interpreter=$(command -v python3)
 personal ansible_connection=local ansible_python_interpreter=$(command -v python3)
 INI
 
@@ -62,7 +63,8 @@ fresh_home() {
 # $1: home, $2: inventory alias. Run from the scratch directory because the
 # role builds a symlink source from the working directory.
 run_role() {
-    (cd "$work" && HOME="$1" ansible-playbook -i "$inv" -l "$2" "$play") >"$work/out" 2>&1
+    # CI keeps the 1Password render off, so the fixture files are what is read.
+    (cd "$work" && CI=1 HOME="$1" ansible-playbook -i "$inv" -l "$2" "$play") >"$work/out" 2>&1
     if ! grep -q 'PLAY RECAP' "$work/out"; then
         printf 'FAIL[harness]: the playbook did not run; no PLAY RECAP\n'
         sed 's/^/    /' "$work/out" | head -12
@@ -81,17 +83,19 @@ run_role() {
 }
 
 # 1. A listed host offers only its on-disk key.
-h="$(fresh_home)"
-run_role "$h" server
-cmd="$(git config --file "$h/.gitconfig.local" --get core.sshCommand)"
-case "$cmd" in
-    *"-i $h/.ssh/id_github_auth"*) ok listed-key "sshCommand names the on-disk key" ;;
-    *) fail listed-key "sshCommand is '$cmd'" ;;
-esac
-case "$cmd" in
-    *"IdentitiesOnly=yes"*) ok listed-identities-only "agent identities are not offered" ;;
-    *) fail listed-identities-only "sshCommand is '$cmd'" ;;
-esac
+for alias in server work; do
+    h="$(fresh_home)"
+    run_role "$h" "$alias"
+    cmd="$(git config --file "$h/.gitconfig.local" --get core.sshCommand)"
+    case "$cmd" in
+        *"-i $h/.ssh/id_github_auth"*) ok "listed-key-$alias" "sshCommand names the on-disk key" ;;
+        *) fail "listed-key-$alias" "sshCommand is '$cmd'" ;;
+    esac
+    case "$cmd" in
+        *"IdentitiesOnly=yes"*) ok "listed-identities-only-$alias" "agent identities are not offered" ;;
+        *) fail "listed-identities-only-$alias" "sshCommand is '$cmd'" ;;
+    esac
+done
 
 # 2. A host off the list gets no sshCommand, so its agent keeps working as is.
 h="$(fresh_home)"
@@ -155,6 +159,39 @@ if grep -q "path = $repo/roles/git/files/gitconfig" "$h/.gitconfig"; then
     ok migrate-include "the migrated file includes the tracked config"
 else
     fail migrate-include "no include of the tracked config"
+fi
+
+# 6. A repository owned by a listed work org takes the work email wherever it is
+# cloned; one with any other owner keeps the default, and a line that is not an
+# org name never reaches the config.
+h="$(fresh_home)"
+mkdir -p "$h/.config/dotfiles"
+printf 'work@example.com\n' >"$h/.config/dotfiles/git-work-email"
+printf '# header\nExampleOrg bad"name\n' >"$h/.config/dotfiles/git-work-orgs"
+run_role "$h" personal
+email_for() {
+    r="$h/dev/$1"
+    git init -q "$r" && git -C "$r" remote add origin "$2"
+    HOME="$h" GIT_CONFIG_NOSYSTEM=1 git -C "$r" config user.email
+}
+for url in git@github.com:ExampleOrg/app.git ssh://git@github.com/ExampleOrg/app https://github.com/ExampleOrg/app.git; do
+    got="$(email_for "org$RANDOM" "$url")"
+    if [ "$got" = work@example.com ]; then
+        ok work-org "$url takes the work email"
+    else
+        fail work-org "$url gave '$got'"
+    fi
+done
+got="$(email_for personal git@github.com:someone/dotfiles)"
+if [ "$got" != work@example.com ]; then
+    ok work-org-personal "a personal remote keeps the default email"
+else
+    fail work-org-personal "a personal remote took the work email"
+fi
+if grep -qE 'bad|header' "$h/.gitconfig.local"; then
+    fail work-org-filter "a comment or invalid name reached the config"
+else
+    ok work-org-filter "comments and invalid names are dropped"
 fi
 
 if [ "$fails" -eq 0 ]; then

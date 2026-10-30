@@ -56,6 +56,7 @@ case "${template##*/}" in
   bot-review.json.tpl) rule=review-config format=json ;;
   sibling-repos.json.tpl) rule=sibling-map format=json ;;
   planwright.yml.tpl) rule=planwright-overlay format=text ;;
+  git-work-orgs.tpl) rule=work-orgs format=text ;;
   *) fail "no validation rule for ${template##*/}; refusing to render it unchecked" ;;
 esac
 
@@ -268,6 +269,21 @@ case "$rule" in
       elif [ "${line#steps_}" != "$line" ]; then
         errors="${errors}sets ${line%%:*}, a step list this layer must not carry"$'\n'
       fi
+    done <"$work/rendered"
+    ;;
+  work-orgs)
+    # The git role writes each name into an includeIf pattern, so anything but
+    # a GitHub owner name would reach the gitconfig as syntax.
+    errors=""
+    n=0
+    while IFS= read -r line || [ -n "$line" ]; do
+      n=$((n + 1))
+      case "$line" in
+        '' | '#'*) continue ;;
+      esac
+      for org in $line; do
+        [[ "$org" =~ ^[A-Za-z0-9-]+$ ]] || errors="${errors}line $n: '$org' is not a GitHub owner name"$'\n'
+      done
     done <"$work/rendered"
     ;;
 esac

@@ -118,7 +118,8 @@ pre-commit:
       # The suite is what notices a guard being dropped from the renderer; the
       # renderer alone still writes a file, just one nothing checked.
       glob: "{scripts/op-render.sh,scripts/op-render-test.sh,scripts/op-token.sh,\
-        roles/claude/files/skills/*/*.{tpl,jq},roles/claude/files/planwright/*.tpl}"
+        roles/claude/files/skills/*/*.{tpl,jq},roles/claude/files/planwright/*.tpl,\
+        roles/git/files/*.tpl}"
       run: scripts/op-render-test.sh
     op-key-sync:
       # The suite is what notices a mode or blank-value guard being dropped;

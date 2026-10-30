@@ -24,6 +24,15 @@ git_work_email: >-
             ansible_facts.env.HOME ~ '/.config/dotfiles/git-work-email',
             errors='ignore') | default('', true) | trim }}
 
+# GitHub owners whose repositories also take the work identity, wherever they
+# are cloned. Rendered from 1Password (names separated by whitespace) because
+# they name an employer.
+git_work_orgs_file: "{{ ansible_facts.env.HOME }}/.config/dotfiles/git-work-orgs"
+git_work_orgs: >-
+  {{ ((lookup('ansible.builtin.file', git_work_orgs_file, errors='ignore')
+       | default('', true)).splitlines() | map('trim') | reject('match', '#')
+      | join(' ')).split() | select('match', '^[A-Za-z0-9-]+$') | list }}
+
 # role_path, not the playbook's cwd, so the include keeps naming this clone.
 git_tracked_config: "{{ role_path }}/files/gitconfig"
 
@@ -50,9 +59,8 @@ git_tracked_config_suffix: /roles/git/files/gitconfig
 # It is NOT the reason a laptop is listed, and an earlier version of this
 # comment claimed it was. Measured on the work Mac with the app unlocked,
 # signing through 1Password returns immediately and prompts for nothing. The
-# reason that survives measurement is narrower: an on-disk key means a locked
-# app stops pushes but not commits, so local work continues and lands at the
-# next unlock.
+# reason that survives measurement is narrower: the app relocks on its own
+# after an idle timeout, and an on-disk key keeps commits working through it.
 #
 # THE FIX. Listed hosts sign with an on-disk ed25519 key that `ssh-keygen` uses
 # directly -- no daemon, no GUI, no network, no approval.
@@ -121,17 +129,14 @@ git_unattended_signing_key: "{{ ansible_facts.env.HOME }}/.ssh/id_signing"
 # Which hosts authenticate to GitHub with their own on-disk key rather than
 # through an SSH agent.
 #
-# A NARROWER LIST THAN SIGNING ABOVE, deliberately. Signing through 1Password is
-# friction anywhere you commit often, which is why `work` is on that list.
-# Authentication is different: it only breaks where nobody is there to approve
-# the agent, whether because none is running or because its app is locked with
-# no one at the screen. `work` has a human and a working 1Password agent, so
-# putting it here would force it onto a key whose public half is not registered
-# yet and break its pushes for no gain. Listed hosts skip the agent entirely
-# (IdentitiesOnly), so a host belongs here only if it must push with no agent at
-# all. Adding one is one line plus the registration step below.
+# Listed hosts skip the agent entirely (IdentitiesOnly), so every git-over-ssh
+# remote on them, not only GitHub, is offered this key alone. `work` is listed
+# because 1Password relocks after an idle timeout, which stalls pushes the same
+# way an unattended boot does. Adding a host is one line plus the registration
+# step below.
 git_unattended_auth_hosts:
   - server
+  - work
 
 git_authenticates_unattended: "{{ inventory_hostname in git_unattended_auth_hosts }}"
 
