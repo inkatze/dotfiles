@@ -203,10 +203,12 @@ if [ "$format" = json ]; then
 else
   # The {{ check reads the template line, not the substituted one, so a value
   # that holds {{ is data. A `key: <reference>` line whose value is empty is
-  # dropped, as an empty JSON field drops its key.
-  jq_or_fail "could not render $template" -R -r -L "$schema_dir" --slurpfile m "$work/fields.json" '
+  # dropped, as an empty JSON field drops its key. One program reads every line
+  # (-n with inputs): run per line, jq reports only the last line's error.
+  jq_or_fail "could not render $template" -n -R -r -L "$schema_dir" --slurpfile m "$work/fields.json" '
     include "config-schema";
     $m[0] as $fields
+    | inputs
     | input_line_number as $n
     | if gsub(op_reference_inline; "") | contains("{{")
       then error("unsubstituted template expression on template line \($n)") else . end

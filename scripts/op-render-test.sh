@@ -302,6 +302,7 @@ item_from 'flight_pr_hosts=[github.com/acme]'
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 [ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$log" && ok "renders, creating the directory" || ko "renders ($log)"
 grep -qx 'flight_pr_hosts: \[github.com/acme\]' "$ov" 2>/dev/null && ok "value substituted raw" || ko "value substituted raw"
+grep -qx 'ready_guard_behind_base: conflict-only' "$ov" 2>/dev/null && ok "literal line kept verbatim" || ko "literal line kept verbatim"
 [ -f "$ov" ] && [ "$(mode_of "$ov")" = 600 ] && ok "mode 0600" || ko "mode 0600"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 grep -q '^OK:' <<<"$log" && ok "second run prints OK" || ko "second run prints OK ($log)"
@@ -315,6 +316,9 @@ item_from 'flight_pr_hosts=x'
 jq '.fields[0].value = "a\nsteps_x: b"' "$OP_STUB_ITEM" >"$sandbox/i" && mv "$sandbox/i" "$OP_STUB_ITEM"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 expect_failed "multi-line value in a text template" "flight_pr_hosts holds a line break"
+printf 'flight_pr_hosts: {{ op://__OP_VAULT__/__OP_ITEM__/nope }}\nlast: line\n' >"$sandbox/tpl/planwright.yml.tpl"
+run "$sandbox/tpl/planwright.yml.tpl" item "$sandbox/ov.yml"
+expect_failed "an error on a line before the last" "the item has no field nope"
 
 echo "15. preconditions"
 new_sandbox
