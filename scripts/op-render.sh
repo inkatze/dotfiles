@@ -204,7 +204,8 @@ else
   # The {{ check reads the template line, not the substituted one, so a value
   # that holds {{ is data. A `key: <reference>` line whose value is empty is
   # dropped, as an empty JSON field drops its key. One program reads every line
-  # (-n with inputs): run per line, jq reports only the last line's error.
+  # (-n with inputs), so an error on any line fails the run; a per-line run
+  # exits by the last line alone.
   jq_or_fail "could not render $template" -n -R -r -L "$schema_dir" --slurpfile m "$work/fields.json" '
     include "config-schema";
     $m[0] as $fields
