@@ -188,8 +188,9 @@ if command -v jq >/dev/null 2>&1; then
       and (["cubic.json", "cubic.jsonc", ".cubic"] - $r | length == 0)' "$review_tpl" >/dev/null 2>&1; then
     err "$review_tpl: the cubic entry's cli.refuse_paths must list cubic.json, cubic.jsonc and .cubic"
   fi
-  # The other two templates commit no values either: a literal there would
-  # publish a private repository name or push destination.
+  # The other two templates commit no private values either: a literal there
+  # would publish a private repository name or push destination. The overlay
+  # allows a bare lowercase word, which cannot carry a host or a path.
   sibling_tpl="$SHARED/sibling-repos.json.tpl"
   if [ ! -f "$sibling_tpl" ]; then
     err "$sibling_tpl does not exist"
@@ -214,7 +215,8 @@ if command -v jq >/dev/null 2>&1; then
       | select(test("^(#.*|---)?$") | not)
       | if test("^steps_") then "line \($n) sets a step list"
         elif test("^[a-z][a-z0-9_]*: " + op_reference_inline + "$") then empty
-        else "line \($n) is not a key: <op:// reference> line" end' "$overlay_tpl" 2>&1)"; then
+        elif test("^[a-z][a-z0-9_]*: [a-z][a-z0-9-]*$") then empty
+        else "line \($n) is not a key: <op:// reference> or key: <bare word> line" end' "$overlay_tpl" 2>&1)"; then
     err "$overlay_tpl could not be checked: $tpl_errors"
   else
     while IFS= read -r line; do

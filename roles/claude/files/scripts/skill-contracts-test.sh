@@ -468,7 +468,9 @@ expect_pass overlay-template-document-marker \
   "perl -0pi -e 's/^/---\\n/' roles/claude/files/planwright/planwright.yml.tpl"
 expect_fail overlay-template-literal \
   "echo 'flight_pr_hosts: [github.com/someone]' >> roles/claude/files/planwright/planwright.yml.tpl" \
-  "is not a key: <op:// reference> line"
+  "is not a key: <op:// reference> or key: <bare word> line"
+expect_pass overlay-template-literal-word \
+  "echo 'some_knob: some-value' >> roles/claude/files/planwright/planwright.yml.tpl"
 expect_fail overlay-template-step-list \
   "echo 'steps_convergence: {{ op://__OP_VAULT__/__OP_ITEM__/steps }}' >> roles/claude/files/planwright/planwright.yml.tpl" \
   "sets a step list"
