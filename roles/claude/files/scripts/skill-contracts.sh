@@ -216,7 +216,8 @@ if command -v jq >/dev/null 2>&1; then
       | if test("^steps_") then "line \($n) sets a step list"
         elif test("^[a-z][a-z0-9_]*: " + op_reference_inline + "$") then empty
         elif test("^[a-z][a-z0-9_]*: [a-z][a-z0-9-]*$") then empty
-        else "line \($n) is not a key: <op:// reference> or key: <bare word> line" end' "$overlay_tpl" 2>&1)"; then
+        elif test("^[a-z][a-z0-9_]*: [1-9][0-9]*$") then empty
+        else "line \($n) is not a key: <op:// reference>, key: <bare word> or key: <whole number> line" end' "$overlay_tpl" 2>&1)"; then
     err "$overlay_tpl could not be checked: $tpl_errors"
   else
     while IFS= read -r line; do
