@@ -6,22 +6,6 @@ set -uo pipefail
 
 input=$(cat)
 
-# Mirror the account's rate-limit windows for tools that pace on usage (the
-# fleet and mission control); best-effort, never breaks the status line. The
-# stderr redirect wraps the group because a failed `>` reports before any
-# redirect on its own command applies; the rename keeps readers off a
-# half-written file.
-rl_dir="${XDG_CACHE_HOME:-$HOME/.cache}/claude-usage"
-if rl=$(printf '%s' "$input" | jq -ce '.rate_limits | objects' 2>/dev/null); then
-    {
-        if ! { mkdir -p "$rl_dir" &&
-            printf '%s\n' "$rl" >"$rl_dir/.rl.$$" &&
-            mv -f "$rl_dir/.rl.$$" "$rl_dir/rate-limits.json"; }; then
-            rm -f "$rl_dir/.rl.$$"
-        fi
-    } 2>/dev/null
-fi
-
 # The branch lookup gets the path exactly as sent: sanitizing it first, or
 # letting $(...) eat a trailing newline, could point git at a neighbouring
 # directory that the shortened name spells. The sentinel keeps the newline;
@@ -59,11 +43,30 @@ fields=$(printf '%s' "$input" | jq -r --arg branch "$raw_branch" '
     ($branch | sanitized),
     (.model.display_name | sanitized),
     (.context_window.used_percentage
-      | if type == "number" then floor | tostring else "" end)
+      | if type == "number" then floor | tostring else "" end),
+    (.rate_limits | if type == "object" then tojson else "" end)
   ] | join("\u001f")
 ' 2>/dev/null) || exit 0
 
-IFS=$'\x1f' read -r dir branch model pct <<<"$fields"
+IFS=$'\x1f' read -r dir branch model pct limits <<<"$fields"
+
+# Mirror the account's rate-limit windows for tools that pace on usage (the
+# fleet and mission control). It rides the display pass rather than its own
+# jq, which would cost the line a process start on every refresh. tojson
+# escapes every control character, so the field cannot split the read. The
+# stderr redirect wraps the group because a failed `>` reports before any
+# redirect on its own command applies; the rename keeps readers off a
+# half-written file.
+if [ -n "$limits" ]; then
+    rl_dir="${XDG_CACHE_HOME:-$HOME/.cache}/claude-usage"
+    {
+        if ! { { [ -d "$rl_dir" ] || mkdir -p "$rl_dir"; } &&
+            printf '%s\n' "$limits" >"$rl_dir/.rl.$$" &&
+            mv -f "$rl_dir/.rl.$$" "$rl_dir/rate-limits.json"; }; then
+            rm -f "$rl_dir/.rl.$$"
+        fi
+    } 2>/dev/null
+fi
 
 location=""
 if [ -n "$dir" ]; then
