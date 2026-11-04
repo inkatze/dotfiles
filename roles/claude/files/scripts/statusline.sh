@@ -6,6 +6,22 @@ set -uo pipefail
 
 input=$(cat)
 
+# Mirror the account's rate-limit windows for tools that pace on usage (the
+# fleet and mission control); best-effort, never breaks the status line. The
+# stderr redirect wraps the group because a failed `>` reports before any
+# redirect on its own command applies; the rename keeps readers off a
+# half-written file.
+rl_dir="${XDG_CACHE_HOME:-$HOME/.cache}/claude-usage"
+if rl=$(printf '%s' "$input" | jq -ce '.rate_limits | objects' 2>/dev/null); then
+    {
+        if ! { mkdir -p "$rl_dir" &&
+            printf '%s\n' "$rl" >"$rl_dir/.rl.$$" &&
+            mv -f "$rl_dir/.rl.$$" "$rl_dir/rate-limits.json"; }; then
+            rm -f "$rl_dir/.rl.$$"
+        fi
+    } 2>/dev/null
+fi
+
 # The branch lookup gets the path exactly as sent: sanitizing it first, or
 # letting $(...) eat a trailing newline, could point git at a neighbouring
 # directory that the shortened name spells. The sentinel keeps the newline;
