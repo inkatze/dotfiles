@@ -230,6 +230,15 @@ else
     fail mirror-home-fallback "no mirror under \$HOME/.cache with XDG_CACHE_HOME unset"
 fi
 
+# With no cache home to resolve, `set -u` must not take the line down too.
+got=$(printf '%s' "{\"model\":{\"display_name\":\"Opus 5.5\"},\"rate_limits\":$limits}" |
+    env -u XDG_CACHE_HOME -u HOME "$statusline" 2>&1; printf 'rc=%s' "$?")
+if [ "$got" = "Opus 5.5${nl}rc=0" ]; then
+    ok no-cache-home-renders "'Opus 5.5'"
+else
+    fail no-cache-home-renders "got $(printf '%q' "$got")"
+fi
+
 # An unusable cache home (a file where the directory belongs) costs only the
 # mirror, never the line.
 : >"$work/not-a-dir"
