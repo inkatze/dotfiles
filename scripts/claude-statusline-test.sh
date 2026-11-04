@@ -207,10 +207,27 @@ updated='{"five_hour":{"used_percentage":90,"resets_at":1762300000}}'
 check limits-update-renders "Opus 5.5" \
     "{\"model\":{\"display_name\":\"Opus 5.5\"},\"rate_limits\":$updated}"
 expect_mirror limits-replaced "$updated"
+# The limits ride the display pass's unit-separated row, so a separator or
+# newline inside them must neither split the row nor reach the file raw.
+tricky='{"note":"a\u001fb\nc","five_hour":{"used_percentage":1}}'
+check limits-with-separators-render "Opus 5.5 · ctx 3%" \
+    "{\"model\":{\"display_name\":\"Opus 5.5\"},\"context_window\":{\"used_percentage\":3},\"rate_limits\":$tricky}"
+expect_mirror limits-with-separators-mirrored "$tricky"
+check limits-update-renders "Opus 5.5" \
+    "{\"model\":{\"display_name\":\"Opus 5.5\"},\"rate_limits\":$updated}"
 if [ "$(leftovers)" = 0 ]; then
     ok mirror-no-temp-files "no .rl.* left behind"
 else
     fail mirror-no-temp-files "$(leftovers) temporary file(s) left in the cache"
+fi
+
+mkdir -p "$work/home"
+printf '%s' "{\"rate_limits\":$limits}" |
+    env -u XDG_CACHE_HOME HOME="$work/home" "$statusline" >/dev/null 2>&1
+if [ "$(cat "$work/home/.cache/claude-usage/rate-limits.json" 2>/dev/null)" = "$limits" ]; then
+    ok mirror-home-fallback "unset XDG_CACHE_HOME falls back to ~/.cache"
+else
+    fail mirror-home-fallback "no mirror under \$HOME/.cache with XDG_CACHE_HOME unset"
 fi
 
 # An unusable cache home (a file where the directory belongs) costs only the

@@ -28,6 +28,14 @@ Claude Code's own "context left until auto-compact" warning, which cannot be
 moved or turned off from here. The line stays blank in a folder whose trust
 dialog has not been accepted, and when `disableAllHooks` is true.
 
+Each refresh also mirrors the session's `rate_limits` object to
+`${XDG_CACHE_HOME:-~/.cache}/claude-usage/rate-limits.json`, replaced by
+rename so a reader never sees a partial file, for tools that pace on account
+usage. Only a refreshing status line writes it, so it goes stale while no
+session is open (or every open one sits where the line stays blank): readers
+judge freshness by the windows' reset times or the file's age. A failed write
+costs the mirror, never the line.
+
 A hook is removed by dropping its entry from the tracked event, or, for the
 event's last entry, by declaring the event as `[]`; deleting the event key
 leaves our entries live. `statusLine` has no such handle, since the merge
