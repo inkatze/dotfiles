@@ -8,6 +8,10 @@
 # $HOME/.claude/scripts/. Declaring an empty array therefore still removes our
 # hooks from that event without touching anyone else's.
 #
+# An allow rule whose pattern opens with $HOME/ is written expanded, because
+# Claude Code matches a Bash rule against the literal command and never
+# expands it; the tracked file stays free of any one machine's home path.
+#
 # Prints OK, or CHANGED after writing. Usage: claude-settings-merge.sh <live> <tracked>
 set -euo pipefail
 
@@ -48,6 +52,12 @@ updated=$(jq -n --slurpfile l "$live" --slurpfile m "$managed" --arg home "$HOME
         )
       )
     )
+  | if (.permissions.allow | type) == "array"
+    then .permissions.allow |= map(
+      if type == "string" and test("^[A-Za-z_]+\\(\\$HOME/")
+      then sub("\\(\\$HOME/"; "(" + $home + "/")
+      else . end)
+    else . end
 ')
 
 if [ "$(cat "$live")" = "$updated" ]; then
