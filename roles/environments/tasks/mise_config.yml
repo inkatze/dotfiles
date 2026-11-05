@@ -87,3 +87,62 @@
       so it was left alone. mise reads it as a project file of $HOME, ahead of the global config.
   when: environments_mise_legacy_config_owner == 'foreign'
   tags: [environments]
+
+- name: Inspect the mise idiomatic-version config
+  ansible.builtin.stat:
+    path: "{{ environments_mise_idiomatic_config }}"
+    follow: false
+  register: environments_mise_idiomatic_config_stat
+  check_mode: false
+  tags: [environments]
+
+- name: Classify the mise idiomatic-version config
+  ansible.builtin.set_fact:
+    environments_mise_idiomatic_config_owner: >-
+      {{ 'none' if not environments_mise_idiomatic_config_stat.stat.exists else
+         ('repo' if (environments_mise_idiomatic_config_stat.stat.islnk
+                     and (environments_mise_idiomatic_config_stat.stat.lnk_target
+                          is search('/roles/environments/files/mise-idiomatic[.]toml$')))
+          else 'foreign') }}
+  tags: [environments]
+
+- name: Ensure the mise conf.d directory exists
+  ansible.builtin.file:
+    path: "{{ environments_mise_idiomatic_config | dirname }}"
+    state: directory
+    mode: "0755"
+  when:
+    - environments_mise_idiomatic_enabled | bool
+    - environments_mise_idiomatic_config_owner != 'foreign'
+  tags: [environments]
+
+- name: Symlink the mise idiomatic-version config
+  ansible.builtin.file:
+    src: "{{ ansible_facts.env.PWD }}/roles/environments/files/mise-idiomatic.toml"
+    dest: "{{ environments_mise_idiomatic_config }}"
+    state: link
+    force: true
+  when:
+    - environments_mise_idiomatic_enabled | bool
+    - environments_mise_idiomatic_config_owner != 'foreign'
+  tags: [environments]
+
+# Work hosts: the system toolchain's doctor fails while a user config sets
+# idiomatic_version_file_enable_tools, so a link left by an earlier run goes.
+- name: Remove the mise idiomatic-version link where it is disabled
+  ansible.builtin.file:
+    path: "{{ environments_mise_idiomatic_config }}"
+    state: absent
+  when:
+    - not (environments_mise_idiomatic_enabled | bool)
+    - environments_mise_idiomatic_config_owner == 'repo'
+  tags: [environments]
+
+- name: Report a mise idiomatic-version config left untouched
+  ansible.builtin.debug:
+    msg: >-
+      {{ environments_mise_idiomatic_config }} is not this repo's link
+      ({{ environments_mise_idiomatic_config_stat.stat.lnk_target | default('a real file') }}),
+      so it was left alone.
+  when: environments_mise_idiomatic_config_owner == 'foreign'
+  tags: [environments]

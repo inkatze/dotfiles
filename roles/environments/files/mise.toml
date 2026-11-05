@@ -1,8 +1,3 @@
-# A user setting replaces a system-level one outright rather than merging with
-# it, so this list has to name every tool a host relies on, not just node.
-[settings]
-idiomatic_version_file_enable_tools = ["node", "ruby"]
-
 [tools]
 ruby = '3.4.2'
 node = { version = "24", postinstall = "corepack enable" }

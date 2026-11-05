@@ -22,6 +22,7 @@ fail() { printf 'FAIL[%s]: %s\n' "$1" "$2"; fails=$((fails + 1)); }
 # roles tree. See credential-path-guard-test.sh.
 ln -s "$repo/roles" "$work/roles"
 pins="$work/roles/environments/files/mise.toml"
+idiomatic="$work/roles/environments/files/mise-idiomatic.toml"
 
 play="$work/play.yml"
 cat >"$play" <<'YAML'
@@ -37,7 +38,8 @@ cat >"$play" <<'YAML'
 YAML
 
 run_role() {
-    HOME="$1" ansible-playbook "$play" >"$work/out" 2>&1
+    h_="$1"; shift
+    HOME="$h_" ansible-playbook "$play" "$@" >"$work/out" 2>&1
     if ! grep -q 'PLAY RECAP' "$work/out" || grep -qE '^fatal' "$work/out"; then
         printf 'FAIL[harness]: the playbook did not complete\n'
         sed 's/^/    /' "$work/out" | tail -12
@@ -56,6 +58,10 @@ fresh_home() {
     mkdir -p "$h/.config"
     printf '%s\n' "$h"
 }
+
+idiomatic_path() { printf '%s/.config/mise/conf.d/dotfiles-idiomatic.toml' "$1"; }
+idiomatic_is_ours() { [ -L "$(idiomatic_path "$1")" ] && [ "$(readlink "$(idiomatic_path "$1")")" = "$idiomatic" ]; }
+work_host=(-e environments_mise_idiomatic_enabled=false)
 
 global_is_ours() { [ -L "$1/.config/mise/config.toml" ] && [ "$(readlink "$1/.config/mise/config.toml")" = "$pins" ]; }
 
@@ -136,6 +142,49 @@ if [ "$foreign_ok" = 1 ] && [ -f "$h/.config/mise.toml" ] && [ ! -L "$h/.config/
     ok foreign-legacy-kept "foreign link and real file at the old path untouched and reported"
 else
     fail foreign-legacy-kept "foreign_ok=$foreign_ok real=$(ls -l "$h/.config/mise.toml" 2>&1)"
+fi
+
+# 7. The idiomatic-version setting lives in its own conf.d link, never in the
+#    global pins, and a personal host gets that link.
+h="$(fresh_home)"
+run_role "$h"
+if idiomatic_is_ours "$h" && ! grep -q 'idiomatic_version_file_enable_tools' "$pins"; then
+    ok idiomatic-linked "conf.d link in place, pins free of the setting"
+else
+    fail idiomatic-linked "idiomatic=$(ls -l "$(idiomatic_path "$h")" 2>&1)"
+fi
+
+# 8. A work host gets no link, an earlier run's link is removed, and a second
+#    run changes nothing.
+h="$(fresh_home)"
+run_role "$h" "${work_host[@]}"
+none_ok=0
+[ ! -e "$(idiomatic_path "$h")" ] && [ ! -L "$(idiomatic_path "$h")" ] && global_is_ours "$h" && none_ok=1
+mkdir -p "$(dirname "$(idiomatic_path "$h")")"
+ln -s /elsewhere/clone/roles/environments/files/mise-idiomatic.toml "$(idiomatic_path "$h")"
+run_role "$h" "${work_host[@]}"
+removed_ok=0
+[ ! -L "$(idiomatic_path "$h")" ] && removed_ok=1
+run_role "$h" "${work_host[@]}"
+if [ "$none_ok" = 1 ] && [ "$removed_ok" = 1 ] && [ "$(changed)" = 0 ]; then
+    ok idiomatic-work-host "no link created, earlier link removed, rerun changed=0"
+else
+    fail idiomatic-work-host "none_ok=$none_ok removed_ok=$removed_ok changed=$(changed)"
+fi
+
+# 9. A foreign file at the conf.d path is left alone on either kind of host.
+h="$(fresh_home)"
+mkdir -p "$(dirname "$(idiomatic_path "$h")")"
+printf '[settings]\n' >"$(idiomatic_path "$h")"
+run_role "$h"
+personal_kept=0
+[ -f "$(idiomatic_path "$h")" ] && [ ! -L "$(idiomatic_path "$h")" ] && personal_kept=1
+run_role "$h" "${work_host[@]}"
+if [ "$personal_kept" = 1 ] && [ -f "$(idiomatic_path "$h")" ] && [ ! -L "$(idiomatic_path "$h")" ] &&
+   grep -q 'was left alone' "$work/out"; then
+    ok idiomatic-foreign-kept "real conf.d file untouched and reported"
+else
+    fail idiomatic-foreign-kept "personal_kept=$personal_kept idiomatic=$(ls -l "$(idiomatic_path "$h")" 2>&1)"
 fi
 
 if [ "$fails" -gt 0 ]; then

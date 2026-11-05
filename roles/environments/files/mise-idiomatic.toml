@@ -1,0 +1,6 @@
+# A user setting replaces a system-level one outright rather than merging with
+# it, so this list has to name every tool a host relies on, not just node. Work
+# hosts never get this file: their system config owns the list, and a user
+# override fails that toolchain's doctor check.
+[settings]
+idiomatic_version_file_enable_tools = ["node", "ruby"]
