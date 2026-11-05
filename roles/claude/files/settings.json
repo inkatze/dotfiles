@@ -60,9 +60,9 @@
   "permissions": {
     "defaultMode": "auto",
     "allow": [
-      "Bash($HOME/.claude/plugins/cache/planwright/planwright/0.65.0/scripts/fleet-streamjson.sh answer:*)",
-      "Bash($HOME/.claude/plugins/cache/planwright/planwright/0.65.0/scripts/fleet-streamjson.sh pending:*)",
-      "Bash($HOME/.claude/plugins/cache/planwright/planwright/0.65.0/scripts/mc-reclaim.sh reclaim:*)",
+      "Bash($HOME/.claude/plugins/cache/planwright/planwright/0.66.0/scripts/fleet-streamjson.sh answer:*)",
+      "Bash($HOME/.claude/plugins/cache/planwright/planwright/0.66.0/scripts/fleet-streamjson.sh pending:*)",
+      "Bash($HOME/.claude/plugins/cache/planwright/planwright/0.66.0/scripts/mc-reclaim.sh reclaim:*)",
       "Bash(cat:*)",
       "Bash(cd:*)",
       "Bash(cut:*)",
