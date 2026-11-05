@@ -34,7 +34,8 @@ fi
 # is attacker-choosable text from a cloned repo, and the line goes straight
 # to the terminal. The directory is cut to its last component before that
 # strip, so a name made only of stripped characters vanishes instead of
-# turning into its parent's.
+# turning into its parent's. The rate limits ride along unstripped, as JSON
+# for the mirror below, never for the terminal.
 fields=$(printf '%s' "$input" | jq -r --arg branch "$raw_branch" '
   def sanitized: if type == "string" then gsub("[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}]"; "") else "" end;
   def basename: if type != "string" or . == "" then ""
@@ -43,11 +44,31 @@ fields=$(printf '%s' "$input" | jq -r --arg branch "$raw_branch" '
     ($branch | sanitized),
     (.model.display_name | sanitized),
     (.context_window.used_percentage
-      | if type == "number" then floor | tostring else "" end)
+      | if type == "number" then floor | tostring else "" end),
+    (.rate_limits | if type == "object" then tojson else "" end)
   ] | join("\u001f")
 ' 2>/dev/null) || exit 0
 
-IFS=$'\x1f' read -r dir branch model pct <<<"$fields"
+IFS=$'\x1f' read -r dir branch model pct limits <<<"$fields"
+
+# Mirror the account's rate-limit windows for tools that pace on usage (the
+# fleet and mission control). It rides the display pass rather than its own
+# jq, which would cost the line a process start on every refresh. tojson
+# escapes every control character, so the field cannot split the read. The
+# stderr redirect wraps the group because a failed `>` reports before any
+# redirect on its own command applies; the rename keeps readers off a
+# half-written file.
+rl_cache=${XDG_CACHE_HOME:-${HOME:+$HOME/.cache}}
+if [ -n "$limits" ] && [ -n "$rl_cache" ]; then
+    rl_dir="$rl_cache/claude-usage"
+    {
+        if ! { { [ -d "$rl_dir" ] || mkdir -p "$rl_dir"; } &&
+            printf '%s\n' "$limits" >"$rl_dir/.rl.$$" &&
+            mv -f "$rl_dir/.rl.$$" "$rl_dir/rate-limits.json"; }; then
+            rm -f "$rl_dir/.rl.$$"
+        fi
+    } 2>/dev/null
+fi
 
 location=""
 if [ -n "$dir" ]; then

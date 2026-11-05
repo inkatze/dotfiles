@@ -19,8 +19,10 @@ fi
 here="$(cd -- "$(dirname "$0")" && pwd -P)"
 statusline="$here/../roles/claude/files/scripts/statusline.sh"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+trap 'chmod -R u+w "$work" 2>/dev/null; rm -rf "$work"' EXIT
 fails=0
+# The script mirrors rate limits under the cache home; keep that in $work.
+export XDG_CACHE_HOME="$work/cache"
 
 nl=$'\n'
 ok()   { printf 'ok[%s]: %s\n' "$1" "$2"; }
@@ -161,6 +163,92 @@ check detached-head "myrepo · Opus 5.5" \
 check empty-object "" '{}'
 check invalid-json "" 'not json'
 check empty-input "" ''
+
+# Rate-limit mirror: tools that pace on account usage read this file, and the
+# status line must render the same whether or not the write succeeds.
+mirror="$XDG_CACHE_HOME/claude-usage/rate-limits.json"
+limits='{"five_hour":{"used_percentage":12.5,"resets_at":1762300000},"seven_day":{"used_percentage":40,"resets_at":1762800000}}'
+# expect_mirror <name> <expected file content, empty for absent>
+expect_mirror() {
+    local got
+    if [ -z "$2" ]; then
+        if [ -e "$mirror" ]; then
+            fail "$1" "mirror exists: $(printf '%q' "$(cat "$mirror")")"
+        else
+            ok "$1" "no mirror"
+        fi
+        return
+    fi
+    got=$(cat "$mirror" 2>/dev/null)
+    if [ "$got" = "$2" ]; then
+        ok "$1" "mirror holds $2"
+    else
+        fail "$1" "mirror expected $(printf '%q' "$2"), got $(printf '%q' "$got")"
+    fi
+}
+leftovers() { find "$XDG_CACHE_HOME" -name '.rl.*' 2>/dev/null | wc -l | tr -d ' '; }
+
+check no-limits-renders "Opus 5.5" '{"model":{"display_name":"Opus 5.5"}}'
+expect_mirror no-limits-writes-nothing ""
+
+check limits-renders "Opus 5.5" \
+    "{\"model\":{\"display_name\":\"Opus 5.5\"},\"rate_limits\":$limits}"
+expect_mirror limits-mirrored "$limits"
+
+for absent in '{"model":{"display_name":"Opus 5.5"}}' \
+    '{"model":{"display_name":"Opus 5.5"},"rate_limits":null}' \
+    '{"model":{"display_name":"Opus 5.5"},"rate_limits":"oops"}' \
+    'not json'; do
+    printf '%s' "$absent" | "$statusline" >/dev/null 2>&1
+done
+expect_mirror non-object-limits-keep-last "$limits"
+
+updated='{"five_hour":{"used_percentage":90,"resets_at":1762300000}}'
+check limits-update-renders "Opus 5.5" \
+    "{\"model\":{\"display_name\":\"Opus 5.5\"},\"rate_limits\":$updated}"
+expect_mirror limits-replaced "$updated"
+# The limits ride the display pass's unit-separated row, so a separator or
+# newline inside them must neither split the row nor reach the file raw.
+tricky='{"note":"a\u001fb\nc","five_hour":{"used_percentage":1}}'
+check limits-with-separators-render "Opus 5.5 · ctx 3%" \
+    "{\"model\":{\"display_name\":\"Opus 5.5\"},\"context_window\":{\"used_percentage\":3},\"rate_limits\":$tricky}"
+expect_mirror limits-with-separators-mirrored "$tricky"
+check limits-update-renders "Opus 5.5" \
+    "{\"model\":{\"display_name\":\"Opus 5.5\"},\"rate_limits\":$updated}"
+if [ "$(leftovers)" = 0 ]; then
+    ok mirror-no-temp-files "no .rl.* left behind"
+else
+    fail mirror-no-temp-files "$(leftovers) temporary file(s) left in the cache"
+fi
+
+mkdir -p "$work/home"
+printf '%s' "{\"rate_limits\":$limits}" |
+    env -u XDG_CACHE_HOME HOME="$work/home" "$statusline" >/dev/null 2>&1
+if [ "$(cat "$work/home/.cache/claude-usage/rate-limits.json" 2>/dev/null)" = "$limits" ]; then
+    ok mirror-home-fallback "unset XDG_CACHE_HOME falls back to ~/.cache"
+else
+    fail mirror-home-fallback "no mirror under \$HOME/.cache with XDG_CACHE_HOME unset"
+fi
+
+# With no cache home to resolve, `set -u` must not take the line down too.
+got=$(printf '%s' "{\"model\":{\"display_name\":\"Opus 5.5\"},\"rate_limits\":$limits}" |
+    env -u XDG_CACHE_HOME -u HOME "$statusline" 2>&1; printf 'rc=%s' "$?")
+if [ "$got" = "Opus 5.5${nl}rc=0" ]; then
+    ok no-cache-home-renders "'Opus 5.5'"
+else
+    fail no-cache-home-renders "got $(printf '%q' "$got")"
+fi
+
+# An unusable cache home (a file where the directory belongs) costs only the
+# mirror, never the line.
+: >"$work/not-a-dir"
+XDG_CACHE_HOME="$work/not-a-dir" check unwritable-cache-renders "Opus 5.5" \
+    "{\"model\":{\"display_name\":\"Opus 5.5\"},\"rate_limits\":$limits}"
+mkdir -p "$work/ro/claude-usage"
+chmod a-w "$work/ro/claude-usage"
+XDG_CACHE_HOME="$work/ro" check readonly-cache-renders "Opus 5.5" \
+    "{\"model\":{\"display_name\":\"Opus 5.5\"},\"rate_limits\":$limits}"
+chmod u+w "$work/ro/claude-usage"
 
 # The wiring, since a renamed script or a dropped key leaves the status line
 # silently blank rather than failing anywhere.
