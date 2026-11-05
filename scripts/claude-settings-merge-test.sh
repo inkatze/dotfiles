@@ -148,6 +148,21 @@ else
     fail creates-missing "did not create the live file"
 fi
 
+# 10. a tracked allow rule opening with $HOME/ lands expanded, since Claude
+#     Code matches Bash rules against the literal command and never expands
+#     it; a $HOME later in a rule is left as written, and a re-run is a no-op
+ALLOW='{"permissions":{"allow":["Bash($HOME/bin/tool run:*)","Bash(echo $HOME/x:*)","Read($HOME/notes)"]}}'
+printf '{}\n' >"$work/live.json"
+printf '%s\n' "$ALLOW" >"$work/managed.json"
+HOME=/fake/home "$merge" "$work/live.json" "$work/managed.json" >/dev/null
+got=$(jq -c '.permissions.allow' "$work/live.json")
+want='["Bash(/fake/home/bin/tool run:*)","Bash(echo $HOME/x:*)","Read(/fake/home/notes)"]'
+if [ "$got" = "$want" ] && [ "$(HOME=/fake/home "$merge" "$work/live.json" "$work/managed.json")" = OK ]; then
+    ok allow-home-expanded "leading \$HOME/ expanded, later ones kept, re-run OK"
+else
+    fail allow-home-expanded "got $got"
+fi
+
 if [ "$fails" -ne 0 ]; then
     printf 'claude-settings-merge-test: %d assertion(s) failed\n' "$fails"
     exit 1
