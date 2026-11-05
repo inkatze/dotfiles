@@ -82,6 +82,14 @@ delete by hand.
 | Per-repo tracked | `<repo>/.claude/settings.json` | Project-specific durable allows | Durable, committed |
 | Per-repo local | `<repo>/.claude/settings.local.json` | Ephemeral, short rules | Nukeable, gitignored |
 
+A global allow rule naming a path under the home directory opens its pattern
+with `$HOME/`, which `scripts/claude-settings-merge.sh` expands per machine,
+since Claude Code matches a Bash rule against the literal command. A rule
+naming a script inside the planwright plugin cache pins its version directory,
+so a planwright update needs every such rule bumped;
+`scripts/claude-planwright-pin-check.sh roles/claude/files/settings.json
+~/.claude/plugins/installed_plugins.json` fails while one is stale.
+
 This repo gitignores the contents of every `.claude/` directory rather than
 the directory itself, since git never re-includes a file under an excluded
 directory, and un-ignores one path: `.claude/planwright.yml`, its tracked
