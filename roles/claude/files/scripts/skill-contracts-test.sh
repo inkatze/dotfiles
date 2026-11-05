@@ -473,6 +473,11 @@ expect_pass overlay-template-literal-word \
   "echo 'some_knob: some-value' >> roles/claude/files/planwright/planwright.yml.tpl"
 expect_pass overlay-template-literal-number \
   "echo 'some_knob: 10' >> roles/claude/files/planwright/planwright.yml.tpl"
+expect_pass overlay-template-block-line \
+  "echo '{{ op://__OP_VAULT__/__OP_ITEM__/other_block }}' >> roles/claude/files/planwright/planwright.yml.tpl"
+expect_fail overlay-template-block-line-trailing \
+  "echo '{{ op://__OP_VAULT__/__OP_ITEM__/other_block }} extra' >> roles/claude/files/planwright/planwright.yml.tpl" \
+  "or a bare <op:// reference> block line"
 expect_fail overlay-template-literal-decimal \
   "echo 'some_knob: 1.5' >> roles/claude/files/planwright/planwright.yml.tpl" \
   "key: <whole number> line"

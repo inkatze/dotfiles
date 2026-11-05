@@ -19,7 +19,8 @@
 # left empty in the item drops its key from the output, and an object or list
 # left with nothing in it drops in turn, so one template serves entries that
 # use different optional fields. Text templates: references are substituted raw,
-# and a value holding a line break is refused.
+# and a value holding a line break is refused, except that in the planwright
+# overlay a line holding only a reference expands to the field's lines.
 #
 # A JSON template may also reference
 # `{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/<field> }}`, the second item
@@ -207,14 +208,28 @@ else
   # dropped, as an empty JSON field drops its key. One program reads every line
   # (-n with inputs), so an error on any line fails the run; a per-line run
   # exits by the last line alone.
-  jq_or_fail "could not render $template" -n -R -r -L "$schema_dir" --slurpfile m "$work/fields.json" '
+  # In the overlay, a line that is one bare reference expands to the field's
+  # lines, so a block whose keys must stay private lives whole in the item; the
+  # overlay rule below still checks every expanded line. Other text rules keep
+  # one line per reference.
+  blocks=false
+  [ "$rule" != planwright-overlay ] || blocks=true
+  jq_or_fail "could not render $template" -n -R -r -L "$schema_dir" --slurpfile m "$work/fields.json" \
+    --argjson blocks "$blocks" '
     include "config-schema";
     $m[0] as $fields
     | inputs
     | input_line_number as $n
     | if gsub(op_reference_inline; "") | contains("{{")
       then error("unsubstituted template expression on template line \($n)") else . end
-    | if test("^[a-z][a-z0-9_]*: " + op_reference_inline + "$")
+    | if $blocks and test("^" + op_reference_inline + "$") then
+        capture(op_reference_inline).f as $f
+        | if ($fields | has($f) | not) then error("the item has no field \($f)")
+          elif $fields[$f] | test("\r")
+          then error("item field \($f) holds a carriage return")
+          elif $fields[$f] == "" then empty
+          else $fields[$f] | rtrimstr("\n") | split("\n")[] end
+      elif test("^[a-z][a-z0-9_]*: " + op_reference_inline + "$")
         and $fields[capture(op_reference_inline).f] == ""
       then empty
       else gsub(op_reference_inline;

@@ -299,7 +299,7 @@ echo "14. overlay template: no step list, renders, refuses a steps_ key"
 if grep -Eq '^[[:space:]]*steps_' "$overlay_tpl"; then ko "tracked overlay template sets a steps_ key"; else ok "tracked overlay template sets no steps_ key"; fi
 new_sandbox
 ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
-item_from 'flight_pr_hosts=[github.com/acme]'
+item_from 'flight_pr_hosts=[github.com/acme]' mission_control=
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 [ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$log" && ok "renders, creating the directory" || ko "renders ($log)"
 grep -qx 'flight_pr_hosts: \[github.com/acme\]' "$ov" 2>/dev/null && ok "value substituted raw" || ko "value substituted raw"
@@ -313,13 +313,57 @@ expect_failed "steps_ key in the overlay" "sets steps_convergence"
 printf 'nested:\n  key: {{ op://__OP_VAULT__/__OP_ITEM__/flight_pr_hosts }}\n' >"$sandbox/tpl/planwright.yml.tpl"
 run "$sandbox/tpl/planwright.yml.tpl" item "$sandbox/ov.yml"
 expect_failed "non-flat overlay" "not a flat key: value line"
-item_from 'flight_pr_hosts=x'
+item_from 'flight_pr_hosts=x' mission_control=
 jq '.fields[0].value = "a\nsteps_x: b"' "$OP_STUB_ITEM" >"$sandbox/i" && mv "$sandbox/i" "$OP_STUB_ITEM"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 expect_failed "multi-line value in a text template" "flight_pr_hosts holds a line break"
 printf 'flight_pr_hosts: {{ op://__OP_VAULT__/__OP_ITEM__/nope }}\nlast: line\n' >"$sandbox/tpl/planwright.yml.tpl"
 run "$sandbox/tpl/planwright.yml.tpl" item "$sandbox/ov.yml"
 expect_failed "an error on a line before the last" "the item has no field nope"
+
+echo "14a. overlay block line: a bare reference expands to the field's lines"
+new_sandbox
+ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
+# block_item <value>: an item whose mission_control field holds <value>, line
+# breaks included, which to_item's one-line-per-field input cannot carry.
+block_item() {
+  item_from 'flight_pr_hosts=[a]' mission_control=
+  jq --arg v "$1" '(.fields[] | select(.label == "mission_control") | .value) = $v' \
+    "$OP_STUB_ITEM" >"$sandbox/i" && mv "$sandbox/i" "$OP_STUB_ITEM"
+}
+grep -qx '{{ op://__OP_VAULT__/__OP_ITEM__/mission_control }}' "$overlay_tpl" \
+  && ok "tracked template carries the block line" || ko "tracked template carries the block line"
+block_item $'mission_control_programs: [alpha, beta]\nprogram_alpha_spec_root: /src/alpha/specs\nprogram_alpha_sources: {code-state: forge:snapshot}\n'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && ok "renders a block" || ko "renders a block ($log)"
+if [ "$(tail -n 3 "$ov" 2>/dev/null)" = $'mission_control_programs: [alpha, beta]\nprogram_alpha_spec_root: /src/alpha/specs\nprogram_alpha_sources: {code-state: forge:snapshot}' ]; then
+  ok "each block line lands verbatim, one trailing newline trimmed"
+else
+  ko "each block line lands verbatim ($(tail -n 4 "$ov" 2>/dev/null))"
+fi
+grep -q '{{' "$ov" && ko "a reference survived in the output" || ok "no reference survives"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+grep -q '^OK:' <<<"$log" && ok "a block renders the same twice" || ko "a block renders the same twice ($log)"
+block_item $'program_alpha_home: /x\nsteps_convergence: polish'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "a steps_ key inside a block" "sets steps_convergence"
+block_item $'program_alpha_home: /x\n  nested: y'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "an indented line inside a block" "not a flat key: value line"
+block_item $'program_alpha_home: /x\r\nother: y'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "a carriage return inside a block" "mission_control holds a carriage return"
+item_from 'flight_pr_hosts=[a]'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "an item without the block field" "the item has no field mission_control"
+item_from 'flight_pr_hosts=x' mission_control=
+jq '.fields[0].value = "a\nb: c"' "$OP_STUB_ITEM" >"$sandbox/i" && mv "$sandbox/i" "$OP_STUB_ITEM"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "a keyed reference still refuses a line break" "flight_pr_hosts holds a line break"
+item_from 'orgs=x'
+jq '.fields[0].value = "AcmeCo\nacme-labs"' "$OP_STUB_ITEM" >"$sandbox/i" && mv "$sandbox/i" "$OP_STUB_ITEM"
+run "$orgs_tpl" dotfiles-git-work-orgs "$sandbox/orgs"
+expect_failed "a bare reference outside the overlay still refuses a line break" "orgs holds a line break"
 
 echo "14b. work GitHub owners: renders owner names, refuses anything else"
 new_sandbox
@@ -399,14 +443,14 @@ expect_failed "an empty string inside a json value is kept for the rule" "repos.
 echo "19. text templates: empty values drop their line, values are not template"
 new_sandbox
 ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
-item_from 'flight_pr_hosts='
+item_from 'flight_pr_hosts=' mission_control=
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 [ "$rc" -eq 0 ] && ok "renders with the value unset" || ko "renders with the value unset ($log)"
 if grep -q '^flight_pr_hosts' "$ov" 2>/dev/null; then ko "the empty key's line is dropped"; else ok "the empty key's line is dropped"; fi
-item_from 'flight_pr_hosts=[a {{ b }}]'
+item_from 'flight_pr_hosts=[a {{ b }}]' mission_control=
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 grep -qxF 'flight_pr_hosts: [a {{ b }}]' "$ov" 2>/dev/null && ok "a value holding {{ lands as data" || ko "a value holding {{ lands as data ($log)"
-item_from 'flight_pr_hosts=x'
+item_from 'flight_pr_hosts=x' mission_control=
 jq '.fields[0].value = "a\rb"' "$OP_STUB_ITEM" >"$sandbox/i" && mv "$sandbox/i" "$OP_STUB_ITEM"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 expect_failed "carriage return in a text value" "flight_pr_hosts holds a line break"
@@ -699,7 +743,7 @@ run "$review_tpl" dotfiles-bot-review "$out"
 expect_failed "a vault with a path separator" "is not a plain name"
 export DOTFILES_OP_WORK_VAULT="Work Vault"
 : >"$OP_STUB_ARGV"
-item_from "flight_pr_hosts=[a]"
+item_from "flight_pr_hosts=[a]" mission_control=
 run "$overlay_tpl" dotfiles-planwright-overlay "$sandbox/ov.yml"
 grep -q -- '--account' "$OP_STUB_ARGV" && ko "a template with no work reference read the work item" || ok "a template with no work reference reads one item"
 export DOTFILES_OP_WORK_ITEM=work-item
