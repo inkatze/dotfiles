@@ -98,6 +98,15 @@ so a planwright update needs every such rule bumped;
 `scripts/claude-planwright-pin-check.sh roles/claude/files/settings.json
 ~/.claude/plugins/installed_plugins.json` fails while one is stale.
 
+The plugin-cache rules serve mission control: `fleet-streamjson.sh pending`
+and `answer` let it list and answer a stream-json worker's permission
+prompts, and `mc-reclaim.sh reclaim` lets it remove a finished worktree,
+which the auto-mode classifier otherwise refuses as destructive. The reclaim
+removes only a worktree its own checks clear (no live user, nothing
+uncommitted or unpushed, the PR merged or closed; `mc-reclaim.sh --help`
+holds the full predicate) and backs its audit files up first. To revert,
+drop the rule and run the role.
+
 This repo gitignores the contents of every `.claude/` directory rather than
 the directory itself, since git never re-includes a file under an excluded
 directory, and un-ignores one path: `.claude/planwright.yml`, its tracked
