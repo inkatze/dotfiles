@@ -18,7 +18,11 @@ def _surface_items($cfg):
      [.issue_comments[]? | {surface: "issue_comment", at: (.updated_at // .created_at // "")} + .],
      [.review_comments[]? | select(.in_reply_to_id == null)
       | {surface: "review_comment", at: (.updated_at // .created_at // "")} + .])
-  | map(select((.user.login // "") | test($login)) | .body = (.body // ""));
+  | map(select((.user.login // "") | test($login)) | .body = (.body // ""))
+  # A login other workflows share (github-actions[bot]) is the bot's only on
+  # bodies carrying its marker.
+  | ($cfg.body_marker_regex // "") as $marker
+  | if $marker == "" then . else map(select(.body | test($marker))) end;
 
 # The value a match yields: the first capture group that took part, or the
 # whole match when the regex has no group, so an alternation never hands back

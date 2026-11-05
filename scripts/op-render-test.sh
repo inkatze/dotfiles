@@ -113,6 +113,29 @@ full_review_fields() {
     "copilot_rerequest_login=requester-placeholder" \
     "copilot_rerequest_command=" \
     "copilot_rerequest_incremental_command="
+  printf '%s\n' \
+    "pr_agent_login_pattern=github-actions\\[bot\\]" \
+    "pr_agent_body_marker_regex=(?:\\A|\\n)<!-- pr-agent-run: " \
+    "pr_agent_rerequest_method=comment" \
+    "pr_agent_rerequest_login=" \
+    "pr_agent_rerequest_command=/review" \
+    "pr_agent_rerequest_incremental_command=/review -i" \
+    "pr_agent_reviewed_head_regex=head=([0-9a-f]{40}) status=success" \
+    "pr_agent_finding_key_regex=<!-- pr-agent-dedup: ([a-f0-9]{12}) -->" \
+    "pr_agent_build_id_regex=<!-- pr-agent-run: id=([0-9.]+) " \
+    "pr_agent_draft_policy=reviews-drafts" \
+    "pr_agent_draft_setting=" \
+    "pr_agent_opt_out_label=skip-pr-agent" \
+    "pr_agent_addressed_marker_format=<!-- ack:{key} -->" \
+    "pr_agent_opt_in_label=" \
+    "pr_agent_gating_checks=[\"PR-Agent\"]" \
+    "pr_agent_requirement_level_hint=" \
+    "pr_agent_repo_config_path=" \
+    "pr_agent_reply_suffix=" \
+    "pr_agent_feedback_reaction=" \
+    "pr_agent_errored_review_regex=" \
+    "pr_agent_quota_refusal_regex=" \
+    "pr_agent_request_notes="
 }
 
 # with_overrides <fields function> [<label=value> overrides...]
@@ -530,6 +553,10 @@ schema_says "an entry with nothing" '.reviewers.copilot = {}' "reviewers.copilot
 got="$(jq -r -L "$schema_dir" 'include "config-schema"; .reviewers.copilot = {cli: {}} | review_config_errors' <<<"$valid")"
 [ -z "$got" ] && ok "a cli-only entry is valid" || ko "a cli-only entry is valid: $got"
 schema_says "gating checks holding a number" '.reviewers.cubic.gating_checks = [1]' "gating_checks: must be an array of non-empty strings"
+schema_says "body marker that does not compile" '.reviewers.pr_agent.body_marker_regex = "a(["' "reviewers.pr_agent.body_marker_regex: does not compile"
+schema_says "a non-string body marker" '.reviewers.pr_agent.body_marker_regex = 1' "reviewers.pr_agent.body_marker_regex: not a string"
+[ "$(jq -r '.reviewers.pr_agent.body_marker_regex' <<<"$valid")" = '(?:\A|\n)<!-- pr-agent-run: ' ] \
+  && ok "the body marker renders as a string" || ko "the body marker renders as a string"
 
 echo "23. arrays of references, documents, text-mode gaps, write failures"
 new_sandbox
@@ -646,7 +673,7 @@ new_sandbox
 full_review_item
 run "$review_tpl" dotfiles-bot-review "$out"
 [ "$rc" -eq 0 ] && ok "unconfigured: renders" || ko "unconfigured: renders ($log)"
-[ "$(jq -c '.reviewers | keys' "$out")" = '["copilot","cubic"]' ] && ok "unconfigured: the work entry drops out" || ko "unconfigured: the work entry drops out ($(jq -c '.reviewers | keys' "$out"))"
+[ "$(jq -c '.reviewers | keys' "$out")" = '["copilot","cubic","pr_agent"]' ] && ok "unconfigured: the work entry drops out" || ko "unconfigured: the work entry drops out ($(jq -c '.reviewers | keys' "$out"))"
 grep -q -- '--account' "$OP_STUB_ARGV" && ko "unconfigured: op asked for another account" || ok "unconfigured: one op read"
 new_sandbox
 full_review_item
@@ -656,7 +683,7 @@ export OP_SERVICE_ACCOUNT_TOKEN="ops_teststubtoken123"
 run "$review_tpl" dotfiles-bot-review "$out"
 unset OP_SERVICE_ACCOUNT_TOKEN
 [ "$rc" -eq 0 ] && ok "configured: renders" || ko "configured: renders ($log)"
-[ "$(jq -c '.reviewers | keys' "$out")" = '["copilot","cubic","work-review"]' ] && ok "configured: the work entry lands" || ko "configured: the work entry lands ($log)"
+[ "$(jq -c '.reviewers | keys' "$out")" = '["copilot","cubic","pr_agent","work-review"]' ] && ok "configured: the work entry lands" || ko "configured: the work entry lands ($log)"
 jq -e '.reviewers["work-review"] | .login_pattern == "work-bot(-2)?\\[bot\\]" and .auto_opt_in == true
   and .gating_checks == ["Work Review"] and .reviewed_head_check == "Work Review"
   and (has("finding_key_regex") | not) and (has("reviewed_head_regex") | not)' "$out" >/dev/null \

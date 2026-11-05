@@ -89,6 +89,16 @@ for step in panel-review bot-review; do
     fail "tracked-$step" "the tracked catalog does not declare $step as a --nested skill step"
   fi
 done
+if awk '
+    /^  - id: / { cur = $3; next }
+    cur == "bot-review-pr-agent" && $1 == "kind:" && $2 == "skill" { k = 1 }
+    cur == "bot-review-pr-agent" && $1 == "target:" && $2 == "bot-review" { t = 1 }
+    cur == "bot-review-pr-agent" && $0 == "    args: --nested --reviewer pr_agent" { a = 1 }
+    END { exit !(k && t && a) }' "$tracked"; then
+  ok tracked-bot-review-pr-agent "the tracked catalog declares the PR-Agent pass as a nested bot-review step"
+else
+  fail tracked-bot-review-pr-agent "the tracked catalog does not declare bot-review-pr-agent as /bot-review --nested --reviewer pr_agent"
+fi
 
 # --- Fresh host ---
 fresh_home

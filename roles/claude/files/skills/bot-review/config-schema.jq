@@ -8,7 +8,7 @@ def required_hosted:
   ["login_pattern", "rerequest", "reviewed_head_regex", "build_id_regex",
    "draft_policy", "opt_out_label"];
 def optional_hosted:
-  ["finding_key_regex", "addressed_marker_format", "reviewed_head_check",
+  ["body_marker_regex", "finding_key_regex", "addressed_marker_format", "reviewed_head_check",
    "draft_setting", "opt_in_label", "auto_opt_in", "gating_checks",
    "requirement_level_hint", "repo_config_path", "reply_suffix",
    "feedback_reaction", "errored_review_regex", "quota_refusal_regex",
