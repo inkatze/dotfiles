@@ -9,3 +9,8 @@ ready_guard_behind_base: conflict-only
 # workers running at once; planwright's weekly usage ladder still throttles near
 # the weekly wall.
 fleet_max_parallel_units: 10
+
+# Mission control's program settings, kept whole in one item field because
+# their keys name private repositories. Mission control writes them to this
+# file, so copy any change it makes into the field before the next Ansible run.
+{{ op://__OP_VAULT__/__OP_ITEM__/mission_control }}

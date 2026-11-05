@@ -54,7 +54,12 @@ An item must hold every field its template references. A field left empty
 drops its key, and a reviewer entry whose fields are all empty drops out, so a
 host that does not run Copilot leaves the `copilot_` fields blank. A JSON
 template's reference ending in `| json` takes the field's value as JSON (a
-list, a map or a boolean) rather than a string. The review template's `cli`
+list, a map or a boolean) rather than a string. A text template refuses a
+value holding a line break, except in the overlay template, where a line
+holding only a reference expands to the field's lines, each still checked as
+a flat key: value line: mission control's program settings arrive this way,
+from the item's `mission_control` field, because their key names would
+otherwise publish private repository names. The review template's `cli`
 blocks are literal, since they describe how to run a local CLI rather than the
 hosted bot's mechanics, so a rendered config carries them as committed, except
 that an empty list or map in one drops like any other.
