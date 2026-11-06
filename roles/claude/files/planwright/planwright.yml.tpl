@@ -10,6 +10,12 @@ ready_guard_behind_base: conflict-only
 # the weekly wall.
 fleet_max_parallel_units: 10
 
+allocation_model_offload: sonnet
+allocation_effort_offload: medium
+
+# Written here, not by `mc-config.sh knob`, since this file is rendered over.
+mission_control_guidance: standard
+
 # Mission control's program settings, kept whole in one item field because
 # their keys name private repositories. Mission control writes them to this
 # file, so copy any change it makes into the field before the next Ansible run.

@@ -3,6 +3,7 @@
 # that is not the installed planwright. Such a rule matches nothing after a
 # planwright update, and nothing else reports it: the session it served is
 # just blocked again. Bump every pinned version in the tracked settings.json.
+# A `*` in the version segment is a glob, not a pin, and never goes stale.
 #
 # Prints OK, or FAILED naming each stale version. Usage:
 #   claude-planwright-pin-check.sh <tracked-settings> <installed_plugins.json>
@@ -14,7 +15,8 @@ installed="${2:?installed_plugins.json path required}"
 jq -e . "$tracked" >/dev/null 2>&1 || { echo "FAILED: tracked settings is not valid JSON: $tracked" >&2; exit 2; }
 
 pinned=$(jq -r '.. | strings
-  | scan("plugins/cache/planwright/planwright/([^/]+)/") | .[0]' "$tracked" | sort -u)
+  | scan("plugins/cache/planwright/planwright/([^/]+)/") | .[0]
+  | select(. != "*")' "$tracked" | sort -u)
 [ -n "$pinned" ] || { echo OK; exit 0; }
 
 jq -e . "$installed" >/dev/null 2>&1 || { echo "FAILED: settings pin planwright, but no readable plugin record at $installed" >&2; exit 2; }

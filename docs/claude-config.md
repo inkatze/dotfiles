@@ -93,19 +93,29 @@ delete by hand.
 A global allow rule naming a path under the home directory opens its pattern
 with `$HOME/`, which `scripts/claude-settings-merge.sh` expands per machine,
 since Claude Code matches a Bash rule against the literal command. A rule
-naming a script inside the planwright plugin cache pins its version directory,
-so a planwright update needs every such rule bumped;
+naming a script inside the planwright plugin cache writes its version
+directory as `*`, so a planwright update needs no bump; a rule that pins a
+version instead goes stale on the next update, and
 `scripts/claude-planwright-pin-check.sh roles/claude/files/settings.json
-~/.claude/plugins/installed_plugins.json` fails while one is stale.
+~/.claude/plugins/installed_plugins.json` fails while one is.
 
-The plugin-cache rules serve mission control: `fleet-streamjson.sh pending`
-and `answer` let it list and answer a stream-json worker's permission
-prompts, and `mc-reclaim.sh reclaim` lets it remove a finished worktree,
-which the auto-mode classifier otherwise refuses as destructive. The reclaim
+The plugin-cache rules serve the attended mission-control hub, which is
+started by hand and so gets none of planwright's `--settings` profiles or
+their command guards: `fleet-streamjson.sh pending` and `answer` let it list
+and answer a stream-json worker's permission prompts, and
+`mc-reclaim.sh reclaim` lets it remove a finished worktree, which the
+auto-mode classifier otherwise refuses as destructive. The reclaim
 removes only a worktree its own checks clear (no live user, nothing
 uncommitted or unpushed, the PR merged or closed; `mc-reclaim.sh --help`
 holds the full predicate) and backs its audit files up first. To revert,
 drop the rule and run the role.
+
+The hub also drives every tmux pane and posts PR reviews, hence
+`tmux send-keys`, `tmux kill-window` and `gh pr review`. Global allows reach
+every session, dispatched workers included, and `send-keys` can type into any
+pane, so it is the widest rule here. The read-only rules stay global for the
+same reason the hub rules exist: planwright's profiles cover only the sessions
+it launches with `--settings`.
 
 This repo gitignores the contents of every `.claude/` directory rather than
 the directory itself, since git never re-includes a file under an excluded
