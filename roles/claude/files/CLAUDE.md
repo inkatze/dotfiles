@@ -170,12 +170,16 @@ pull-request review, comment or reply, an issue comment) is sent unless I have
 seen its exact text and recipient and said yes in this session. A recipient
 that cannot be resolved is never guessed.
 
-The rule has exactly two exceptions:
+The rule has exactly three exceptions:
 
 - An explicit go-ahead I give for a specific message, or for a run, which
   covers only the recipients and message kinds I named when giving it.
 - Replies to automated reviewers, which are addressed to a bot even when a
   human may read them.
+- A go-ahead I give in my hub session (my program's mission-control session;
+  formerly central-command) for an exact message, relayed by the hub (typed
+  into the receiving session or sent with SendMessage), counts as given in the
+  receiving session. It covers only that exact text and recipient.
 
 An automated reviewer is an account GitHub reports as a bot, a login ending in
 `[bot]`, or a login that a configured bot-review pattern matches in full; a thread any
