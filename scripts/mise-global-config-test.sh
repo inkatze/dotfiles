@@ -164,7 +164,7 @@ mkdir -p "$(dirname "$(idiomatic_path "$h")")"
 ln -s /elsewhere/clone/roles/environments/files/mise-idiomatic.toml "$(idiomatic_path "$h")"
 run_role "$h" "${work_host[@]}"
 removed_ok=0
-[ ! -L "$(idiomatic_path "$h")" ] && removed_ok=1
+[ ! -e "$(idiomatic_path "$h")" ] && [ ! -L "$(idiomatic_path "$h")" ] && removed_ok=1
 run_role "$h" "${work_host[@]}"
 if [ "$none_ok" = 1 ] && [ "$removed_ok" = 1 ] && [ "$(changed)" = 0 ]; then
     ok idiomatic-work-host "no link created, earlier link removed, rerun changed=0"
@@ -175,13 +175,15 @@ fi
 # 9. A foreign file at the conf.d path is left alone on either kind of host.
 h="$(fresh_home)"
 mkdir -p "$(dirname "$(idiomatic_path "$h")")"
-printf '[settings]\n' >"$(idiomatic_path "$h")"
+printf '[settings]\nfoo = "seeded"\n' >"$(idiomatic_path "$h")"
+cp "$(idiomatic_path "$h")" "$work/idiomatic-seed"
 run_role "$h"
 personal_kept=0
-[ -f "$(idiomatic_path "$h")" ] && [ ! -L "$(idiomatic_path "$h")" ] && personal_kept=1
+[ -f "$(idiomatic_path "$h")" ] && [ ! -L "$(idiomatic_path "$h")" ] &&
+    cmp -s "$work/idiomatic-seed" "$(idiomatic_path "$h")" && personal_kept=1
 run_role "$h" "${work_host[@]}"
 if [ "$personal_kept" = 1 ] && [ -f "$(idiomatic_path "$h")" ] && [ ! -L "$(idiomatic_path "$h")" ] &&
-   grep -q 'was left alone' "$work/out"; then
+   cmp -s "$work/idiomatic-seed" "$(idiomatic_path "$h")" && grep -q 'was left alone' "$work/out"; then
     ok idiomatic-foreign-kept "real conf.d file untouched and reported"
 else
     fail idiomatic-foreign-kept "personal_kept=$personal_kept idiomatic=$(ls -l "$(idiomatic_path "$h")" 2>&1)"
