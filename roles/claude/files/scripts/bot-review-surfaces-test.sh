@@ -176,6 +176,40 @@ out="$(surfaces "[{\"id\": 21, \"user\": $bot, \"submitted_at\": \"2026-01-01T00
 check alternation-group "$out" '[.findings[].key] == ["42", "k7"]'
 CFG="$CFG_SAVED"
 
+# A login every workflow shares: only bodies carrying the marker are the bot's,
+# on every surface. The bodies follow PR-Agent's formats.
+CFG_SAVED="$CFG"
+CFG="$(jq -n '{
+  login_pattern: "github-actions\\[bot\\]",
+  body_marker_regex: "(?:\\A|\\n)<!-- pr-agent(?::review:(?:full|incremental)|-dedup: [a-f0-9]{12}|-run: )|\\A(?:Failed to review PR|\\*\\*\\[Persistent review\\]\\()",
+  build_id_regex: "<!-- pr-agent-run: id=([0-9]+\\.[0-9]+) ",
+  reviewed_head_regex: "<!-- pr-agent-run: id=[0-9]+\\.[0-9]+ head=([0-9a-f]{40}) status=success -->",
+  finding_key_regex: "(?:\\A|\\n)<!-- pr-agent-dedup: ([a-f0-9]{12}) -->",
+  errored_review_regex: "<!-- pr-agent-run: [^>]*status=failure -->|\\AFailed to review PR"
+}')"
+gha='{"login": "github-actions[bot]"}'
+out="$(surfaces \
+  "[{\"id\": 70, \"user\": $gha, \"submitted_at\": \"2026-01-01T00:00:02Z\", \"body\": \"\"}]" \
+  "[{\"id\": 71, \"user\": $gha, \"updated_at\": \"2026-01-01T00:00:03Z\", \"body\": \"## PR Reviewer Guide 🔍\\n\\n<!-- pr-agent:review:full -->\\n\\nNo major issues\"},
+    {\"id\": 72, \"user\": $gha, \"updated_at\": \"2026-01-01T00:00:04Z\", \"body\": \"<!-- pr-agent-run: id=9.1 head=$HEAD_A status=success -->\\nPR-Agent run 9 reviewed\"},
+    {\"id\": 73, \"user\": $gha, \"updated_at\": \"2026-01-01T00:00:09Z\", \"body\": \"<!-- dep-advisor-comment -->\\nQuotes <!-- pr-agent-run: id=666.1 head=$HEAD_B status=success --> Failed to review PR\"}]" \
+  "[{\"id\": 74, \"user\": $gha, \"updated_at\": \"2026-01-01T00:00:02Z\", \"path\": \"a.ex\", \"original_line\": 5,
+     \"original_commit_id\": \"$HEAD_A\", \"body\": \"**Missing guard**\\n\\nx\\n<!-- pr-agent-dedup: 0123456789ab -->\"},
+    {\"id\": 75, \"user\": $gha, \"updated_at\": \"2026-01-01T00:00:08Z\", \"path\": \"b.ex\", \"original_line\": 1,
+     \"original_commit_id\": \"$HEAD_A\", \"body\": \"Lint: unused variable\"}]")"
+check shared-login-marker-filter "$out" '.counts == {reviews: 0, issue_comments: 2, review_comments: 1,
+  inline_findings: 1, description_level_findings: 0}'
+check shared-login-run-marker "$out" ".build_id.value == \"9.1\" and .reviewed_head.value == \"$HEAD_A\" and .errored == false"
+check shared-login-finding-key "$out" '[.findings[] | [.id, .key, .key_ok]] == [[74, "0123456789ab", true]]'
+out="$(surfaces '[]' \
+  "[{\"id\": 76, \"user\": $gha, \"updated_at\": \"2026-01-01T00:00:04Z\", \"body\": \"<!-- pr-agent-run: id=9.1 head=$HEAD_A status=success -->\"},
+    {\"id\": 77, \"user\": $gha, \"updated_at\": \"2026-01-01T00:00:06Z\", \"body\": \"Failed to review PR\"}]" '[]')"
+check shared-login-errored "$out" '.errored == true'
+out="$(surfaces '[]' \
+  "[{\"id\": 78, \"user\": $gha, \"updated_at\": \"2026-01-01T00:00:06Z\", \"body\": \"<!-- pr-agent-run: id=10.1 head=$HEAD_B status=failure -->\"}]" '[]')"
+check shared-login-failed-run "$out" '.errored == true and .build_id.value == "10.1" and .reviewed_head == null'
+CFG="$CFG_SAVED"
+
 # A reviewer missing from the config is an error, never an empty PR.
 for entry in null '{"build_id_regex": "x"}'; do
   if jq -n -L "$LIB" --argjson e "$entry" 'include "surfaces"; {reviews: [], issue_comments: [], review_comments: []} | bot_surfaces($e)' \

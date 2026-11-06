@@ -15,3 +15,7 @@ steps:
     kind: skill
     target: bot-review
     args: --nested
+  - id: bot-review-pr-agent
+    kind: skill
+    target: bot-review
+    args: --nested --reviewer pr_agent
