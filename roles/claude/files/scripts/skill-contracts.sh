@@ -698,7 +698,7 @@ if [ -n "$global_ok" ]; then
   # Slack mechanics live in the shared directory.
   EXC1="An explicit go-ahead I give for a specific message, or for a run, which covers only the recipients and message kinds I named when giving it."
   EXC2="Replies to automated reviewers, which are addressed to a bot even when a human may read them."
-  EXC3="A go-ahead I give in my hub session (my program's mission-control session; formerly central-command) for an exact message, relayed by the hub (typed into the receiving session or sent with SendMessage), counts as given in the receiving session. It covers only that exact text and recipient."
+  EXC3="A go-ahead I give in my hub session (my program's mission-control session; formerly central-command) for an exact message, relayed by the hub (typed into the receiving session or sent with SendMessage), counts as given in the receiving session. It covers only that exact text and recipient. A standing go-ahead I give there, which the hub records as a program rule naming its recipients and message kinds, covers those messages in every session of the program until I withdraw it."
   require_normalized "$GLOBAL_MD" "outbound-message rule" \
     "No message addressed to another person (a chat message, an email, a pull-request review, comment or reply, an issue comment) is sent unless I have seen its exact text and recipient $OUTBOUND_ANCHOR." \
     "A recipient that cannot be resolved is never guessed." \

@@ -179,7 +179,10 @@ The rule has exactly three exceptions:
 - A go-ahead I give in my hub session (my program's mission-control session;
   formerly central-command) for an exact message, relayed by the hub (typed
   into the receiving session or sent with SendMessage), counts as given in the
-  receiving session. It covers only that exact text and recipient.
+  receiving session. It covers only that exact text and recipient. A standing
+  go-ahead I give there, which the hub records as a program rule naming its
+  recipients and message kinds, covers those messages in every session of the
+  program until I withdraw it.
 
 An automated reviewer is an account GitHub reports as a bot, a login ending in
 `[bot]`, or a login that a configured bot-review pattern matches in full; a thread any

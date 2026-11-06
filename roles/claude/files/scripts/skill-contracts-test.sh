@@ -1180,9 +1180,13 @@ expect_fail second-exception-dropped \
 expect_fail prose-fourth-exception \
   "perl -0pi -e 's/(human may read them\\.\\n)/\$1\\nA fourth: messages to my team.\\n/' $GLOBAL_MD" "besides its three exceptions"
 expect_fail hub-exception-dropped \
-  "perl -0pi -e 's/- A go-ahead I give in my hub session.*?that exact text and recipient\\.\\n//s' $GLOBAL_MD" "outbound-message rule"
+  "perl -0pi -e 's/- A go-ahead I give in my hub session.*?until I withdraw it\\.\\n//s' $GLOBAL_MD" "outbound-message rule"
 expect_fail unscoped-hub-go-ahead \
   "perl -0pi -e 's/\\s+It covers only that exact text and recipient\\.//' $GLOBAL_MD" "outbound-message rule"
+expect_fail standing-go-ahead-unrecorded \
+  "perl -0pi -e 's/, which the hub records as a program rule\\s+naming its\\s+recipients and message kinds,//' $GLOBAL_MD" "outbound-message rule"
+expect_fail standing-go-ahead-unbounded \
+  "perl -0pi -e 's/\\s+until I withdraw it\\.//' $GLOBAL_MD" "outbound-message rule"
 expect_fail exceptions-anchor-missing \
   "perl -0pi -e 's/The rule has exactly three exceptions:/The exceptions:/' $GLOBAL_MD" "no \"exactly three exceptions:\" list"
 expect_pass exceptions-reflowed \
