@@ -93,11 +93,16 @@ delete by hand.
 A global allow rule naming a path under the home directory opens its pattern
 with `$HOME/`, which `scripts/claude-settings-merge.sh` expands per machine,
 since Claude Code matches a Bash rule against the literal command. A rule
-naming a script inside the planwright plugin cache writes its version
-directory as `*`, so a planwright update needs no bump; a rule that pins a
-version instead goes stale on the next update, and
+naming a script inside the planwright plugin cache pins its version directory,
+so a planwright update needs every such rule bumped;
 `scripts/claude-planwright-pin-check.sh roles/claude/files/settings.json
-~/.claude/plugins/installed_plugins.json` fails while one is.
+~/.claude/plugins/installed_plugins.json` fails while one is stale. The
+`fleet-streamjson.sh answer` rule is the deliberate exception: it writes the
+version as `*` so it survives updates. Because `*` also spans spaces and `/..`
+segments, that rule pre-approves any command that merely contains its script
+path and verb (`<cache>/<v>/../../../../../../bin/rm ... /scripts/fleet-streamjson.sh
+answer x` included), an exposure accepted for this one rule. Do not copy the
+glob into a new rule.
 
 The plugin-cache rules serve the attended mission-control hub, which is
 started by hand and so gets none of planwright's `--settings` profiles or
@@ -111,9 +116,12 @@ holds the full predicate) and backs its audit files up first. To revert,
 drop the rule and run the role.
 
 The hub also drives every tmux pane and posts PR reviews, hence
-`tmux send-keys`, `tmux kill-window` and `gh pr review`. Global allows reach
-every session, dispatched workers included, and `send-keys` can type into any
-pane, so it is the widest rule here. The read-only rules stay global for the
+`tmux send-keys`, `tmux kill-window`, `tmux kill-pane -t %<id>` and
+`gh pr review`. Global allows reach every session, dispatched workers
+included, and `send-keys` can type into any pane, so it is the widest rule
+here. The `kill-pane` allow is held to one pane by its `ask` twins: a flag
+after the pane id (`-a` kills every other pane) or a `;` (tmux's own command
+separator) prompts instead. The read-only rules stay global for the
 same reason the hub rules exist: planwright's profiles cover only the sessions
 it launches with `--settings`.
 
