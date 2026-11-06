@@ -698,20 +698,21 @@ if [ -n "$global_ok" ]; then
   # Slack mechanics live in the shared directory.
   EXC1="An explicit go-ahead I give for a specific message, or for a run, which covers only the recipients and message kinds I named when giving it."
   EXC2="Replies to automated reviewers, which are addressed to a bot even when a human may read them."
+  EXC3="A go-ahead I give in my hub session (my program's mission-control session; formerly central-command) for an exact message, relayed by the hub (typed into the receiving session or sent with SendMessage), counts as given in the receiving session. It covers only that exact text and recipient."
   require_normalized "$GLOBAL_MD" "outbound-message rule" \
     "No message addressed to another person (a chat message, an email, a pull-request review, comment or reply, an issue comment) is sent unless I have seen its exact text and recipient $OUTBOUND_ANCHOR." \
     "A recipient that cannot be resolved is never guessed." \
-    "$EXC1" "$EXC2" \
+    "$EXC1" "$EXC2" "$EXC3" \
     "An automated reviewer is an account GitHub reports as a bot, a login ending in \`[bot]\`, or a login that a configured bot-review pattern matches in full" \
     "a thread any human has replied in is a message to that human." \
     "The bodies of my own pull requests and issues, and review requests on them, are not messages." \
     "With no operator present, a message this rule would hold back is drafted, with its recipient, into the run's handoff and never sent."
-  # The list between its anchor and the bot definition holds the two
+  # The list between its anchor and the bot definition holds the three
   # exceptions and nothing else, however it is wrapped.
   case "$global_norm" in
-    *"exactly two exceptions: "*"An automated reviewer is"*)
+    *"exactly three exceptions: "*"An automated reviewer is"*)
       # ${x#*needle} is quadratic on a string this long; cut by length.
-      anchor="exactly two exceptions: "
+      anchor="exactly three exceptions: "
       pre="${global_norm%%"$anchor"*}"
       exceptions_text="${global_norm:$((${#pre} + ${#anchor}))}"
       pre="${exceptions_text%%"An automated reviewer is"*}"
@@ -720,19 +721,19 @@ if [ -n "$global_ok" ]; then
       exceptions_text="$pre"
       # A missing exception is reported by its pin above; only extra content
       # is reported here. Any list marker, or none, counts as formatting.
-      if [[ "$exceptions_text" == *"$EXC1"* && "$exceptions_text" == *"$EXC2"* ]]; then
-        rest="${exceptions_text//"$EXC1"/}"; rest="${rest//"$EXC2"/}"; rest="${rest//[[:space:]]/}"
-        markers='^(([-*+]|[0-9]+[.)]){2})?$'
+      if [[ "$exceptions_text" == *"$EXC1"* && "$exceptions_text" == *"$EXC2"* && "$exceptions_text" == *"$EXC3"* ]]; then
+        rest="${exceptions_text//"$EXC1"/}"; rest="${rest//"$EXC2"/}"; rest="${rest//"$EXC3"/}"; rest="${rest//[[:space:]]/}"
+        markers='^(([-*+]|[0-9]+[.)]){3})?$'
         [[ "$rest" =~ $markers ]] \
-          || err "$GLOBAL_MD's exceptions list holds something besides its two exceptions; the rule has exactly two"
+          || err "$GLOBAL_MD's exceptions list holds something besides its three exceptions; the rule has exactly three"
       else
-        err "$GLOBAL_MD's exceptions list does not hold both pinned exceptions"
+        err "$GLOBAL_MD's exceptions list does not hold all three pinned exceptions"
       fi
       shopt -s nocasematch
       [[ "$section_tail" != *exception* ]] \
-        || err "$GLOBAL_MD names a further exception after the outbound rule's two; the rule has exactly two"
+        || err "$GLOBAL_MD names a further exception after the outbound rule's three; the rule has exactly three"
       shopt -u nocasematch ;;
-    *) err "$GLOBAL_MD has no \"exactly two exceptions:\" list ahead of the automated-reviewer definition" ;;
+    *) err "$GLOBAL_MD has no \"exactly three exceptions:\" list ahead of the automated-reviewer definition" ;;
   esac
   forbid_normalized "$GLOBAL_MD" "Slack mechanics" "$RESOLUTION_ANCHOR" "$FIXED_TEMPLATE"
   if grep -qi slack <<< "$global_raw"; then

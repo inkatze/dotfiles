@@ -1067,8 +1067,8 @@ expect_fail outbound-rule-dropped \
   "perl -0pi -e 's/and said yes in this session/and it seems fine/' $GLOBAL_MD" "outbound-message rule"
 expect_fail never-guess-dropped \
   "perl -0pi -e 's/A recipient\\s+that cannot be resolved is never guessed\\.//' $GLOBAL_MD" "outbound-message rule"
-expect_fail third-exception \
-  "perl -0pi -e 's/(human may read them\\.\\n)/\$1- Messages to colleagues on my team.\\n/' $GLOBAL_MD" "besides its two exceptions"
+expect_fail fourth-exception \
+  "perl -0pi -e 's/(human may read them\\.\\n)/\$1- Messages to colleagues on my team.\\n/' $GLOBAL_MD" "besides its three exceptions"
 expect_fail unscoped-go-ahead \
   "perl -0pi -e 's/, which\\s+covers only the recipients and message kinds I named when giving it//' $GLOBAL_MD" "outbound-message rule"
 expect_fail outbound-rule-in-skill \
@@ -1177,12 +1177,16 @@ expect_fail workflow-heading-renamed \
 # The outbound rule's exceptions and its one home.
 expect_fail second-exception-dropped \
   "perl -0pi -e 's/- Replies to automated reviewers, which are addressed to a bot even when a\\s+human may read them\\.\\n//' $GLOBAL_MD" "outbound-message rule"
-expect_fail prose-third-exception \
-  "perl -0pi -e 's/(human may read them\\.\\n)/\$1\\nA third: messages to my team.\\n/' $GLOBAL_MD" "besides its two exceptions"
+expect_fail prose-fourth-exception \
+  "perl -0pi -e 's/(human may read them\\.\\n)/\$1\\nA fourth: messages to my team.\\n/' $GLOBAL_MD" "besides its three exceptions"
+expect_fail hub-exception-dropped \
+  "perl -0pi -e 's/- A go-ahead I give in my hub session.*?that exact text and recipient\\.\\n//s' $GLOBAL_MD" "outbound-message rule"
+expect_fail unscoped-hub-go-ahead \
+  "perl -0pi -e 's/\\s+It covers only that exact text and recipient\\.//' $GLOBAL_MD" "outbound-message rule"
 expect_fail exceptions-anchor-missing \
-  "perl -0pi -e 's/The rule has exactly two exceptions:/The exceptions:/' $GLOBAL_MD" "no \"exactly two exceptions:\" list"
+  "perl -0pi -e 's/The rule has exactly three exceptions:/The exceptions:/' $GLOBAL_MD" "no \"exactly three exceptions:\" list"
 expect_pass exceptions-reflowed \
-  "perl -0pi -e 's/exactly two exceptions:/exactly two\\nexceptions:/' $GLOBAL_MD"
+  "perl -0pi -e 's/exactly three exceptions:/exactly three\\nexceptions:/' $GLOBAL_MD"
 expect_fail outbound-rule-in-root \
   "printf '\\nNothing is sent unless I have seen it and said yes in this session.\\n' >> CLAUDE.md" "copy of a global rule or the Slack mechanics"
 expect_fail slack-resolution-in-root \
@@ -1195,7 +1199,7 @@ expect_pass slack-mcp-optional-reflowed \
 expect_fail first-exception-dropped \
   "perl -0pi -e 's/- An explicit go-ahead I give for a specific message, or for a run, which\\s+covers only the recipients and message kinds I named when giving it\\.\\n//' $GLOBAL_MD" "outbound-message rule"
 expect_pass exceptions-other-marker \
-  "perl -0pi -e 's/^- (An explicit go-ahead|Replies to automated)/* \$1/mg' $GLOBAL_MD"
+  "perl -0pi -e 's/^- (An explicit go-ahead|Replies to automated|A go-ahead I give in my hub)/* \$1/mg' $GLOBAL_MD"
 expect_fail slack-mcp-second-sentence \
   "perl -0pi -e 's/(The Slack MCP server is optional;)/A Slack MCP server must always run. \$1/' $GLOBAL_MD" "without calling it optional"
 expect_fail origin-numbered-item \
@@ -1230,9 +1234,9 @@ expect_fail fixed-template-in-root \
 expect_fail slack-resolution-anchor-removed \
   "perl -0pi -e 's/Resolve the GitHub login\\s+to a Slack user/Look them up/' $SHARED/slack.md" "shared block anchor missing"
 expect_fail exception-after-definition \
-  "perl -0pi -e 's/(into the run.s handoff and never sent\\.\\n)/\$1\\nMessages to my team are a third exception.\\n/' $GLOBAL_MD" "further exception after"
+  "perl -0pi -e 's/(into the run.s handoff and never sent\\.\\n)/\$1\\nMessages to my team are a fourth exception.\\n/' $GLOBAL_MD" "further exception after"
 expect_pass exceptions-as-prose \
-  "perl -0pi -e 's/^- (An explicit go-ahead|Replies to automated)/\$1/mg' $GLOBAL_MD"
+  "perl -0pi -e 's/^- (An explicit go-ahead|Replies to automated|A go-ahead I give in my hub)/\$1/mg' $GLOBAL_MD"
 expect_pass doctrine-pointer-nested-bullet \
   "perl -0pi -e 's/^- \\*\\*Review doctrine is planwright.s\\.\\*\\*/  - **Review doctrine is planwright.s.**/m' $GLOBAL_MD"
 expect_fail origin-bold-colon-outside \
@@ -1273,7 +1277,7 @@ expect_fail slack-mcp-not-optional-negated \
 expect_fail commit-reference-uppercase \
   "printf '\\nFixed in EE7A5F8.\\n' >> $GLOBAL_MD" "commit reference"
 expect_fail exceptions-moved-out \
-  "perl -0pi -e 's/(exactly two exceptions:\\n\\n)- An explicit go-ahead.*?human may read them\\.\\n/\$1- Anything I say.\\n/s; s/\\z/\\nAn explicit go-ahead I give for a specific message, or for a run, which covers only the recipients and message kinds I named when giving it. Replies to automated reviewers, which are addressed to a bot even when a human may read them.\\n/' $GLOBAL_MD" "does not hold both pinned exceptions"
+  "perl -0pi -e 's/(exactly three exceptions:\\n\\n)- An explicit go-ahead.*?human may read them\\.\\n/\$1- Anything I say.\\n/s; s/\\z/\\nAn explicit go-ahead I give for a specific message, or for a run, which covers only the recipients and message kinds I named when giving it. Replies to automated reviewers, which are addressed to a bot even when a human may read them.\\n/' $GLOBAL_MD" "does not hold all three pinned exceptions"
 
 # --- File-missing guards ---
 expect_fail missing-skill \
