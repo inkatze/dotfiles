@@ -99,6 +99,8 @@ target="$HOME/.ssh/config.local"
 has_line "$target" '^Host testbox 10\.9\.9\.9$' "alias+ip line rendered"
 has_line "$target" '^    User tester$' "user rendered"
 has_line "$target" '^    Hostname testbox\.local$' "hostname rendered"
+has_line "$target" '^Host planwright-relay$' "relay alias rendered"
+has_line "$target" '^    ForwardAgent no$' "relay alias forwards no agent"
 lacks_line "$target" '\{\{' "no unsubstituted expressions"
 # GNU stat first: its -f is --file-system, so it "succeeds" on a format string
 # and never falls through to BSD's -f. BSD has no -c, so it errors and does.

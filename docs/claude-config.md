@@ -121,7 +121,13 @@ The hub also drives every tmux pane and posts PR reviews, hence
 included, and `send-keys` can type into any pane, so it is the widest rule
 here. The `kill-pane` allow is held to one pane by its `ask` twins: a flag
 after the pane id (`-a` kills every other pane) or a `;` (tmux's own command
-separator) prompts instead. The read-only rules stay global for the
+separator) prompts instead.
+
+The hub relays planwright reports to a session on another host with one exact
+`ssh ... planwright-relay '<tmux paste>'` rule, no wildcard, since any extra
+word would run on the remote side. `planwright-relay` is an alias from the
+1Password-rendered LAN ssh config (`roles/ssh/files/config.lan.tpl`), so the
+public rule names no host. The alias exists only after that config renders. The read-only rules stay global for the
 same reason the hub rules exist: planwright's profiles cover only the sessions
 it launches with `--settings`.
 
