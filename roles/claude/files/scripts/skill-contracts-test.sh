@@ -998,12 +998,6 @@ done
 # --- The user-global file ---
 
 # Ready flips (REQ-A1.1, REQ-A1.2, REQ-A1.5, REQ-A1.6)
-PIN=" or that my hub dispatched" \
-  expect_fail walk-hub-dispatch-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
-PIN=" of my branch that runs unattended" \
-  expect_fail walk-branch-scope-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
-PIN="then let me choose how to walk it" \
-  expect_fail walk-choice-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
 expect_fail ready-flip-base-current \
   "perl -0pi -e 's/CI is green and\\s+the review/the branch current with its base, CI is green and the review/' $GLOBAL_MD" "forbidden currency condition"
 expect_fail ready-flip-sync-ritual \
@@ -1064,6 +1058,12 @@ expect_fail global-doctrine-pointer-missing \
   "perl -0pi -e 's{\\\`~/\\.claude/skills/review-shared/doctrine\\.md\\\`}{the shared notes}g' $GLOBAL_MD" "outside a pointer bullet naming review-shared/doctrine.md"
 expect_fail global-lens-list \
   "printf '\\n1. Correctness, logic, edge cases (null, empty)\\n' >> $GLOBAL_MD" "copied lens list"
+PIN=" or that my hub dispatched" \
+  expect_fail walk-hub-dispatch-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
+PIN=" of my branch that runs unattended" \
+  expect_fail walk-branch-scope-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
+PIN="then let me choose how to walk it" \
+  expect_fail walk-choice-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
 expect_fail workflow-description \
   "perl -0pi -e 's/(### Review Workflows\\n\\n)/\$1Each review workflow has a slash command. Pick the one that fits.\\n/' $GLOBAL_MD" "not a one-line pointer bullet"
 expect_fail workflow-bullet-no-pointer \
