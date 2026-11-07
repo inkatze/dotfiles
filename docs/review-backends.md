@@ -19,6 +19,7 @@ chosen automatically.
 | `work` | `codex` | `Brewfile` (`cask "codex"`) | `codex login`, interactive |
 | `personal`, `alt` | `gemini` | `Brewfile` (`brew "gemini-cli"`) | `scripts/claude-gemini-auth-sync.sh` |
 | `server` | `gemini` | mise, pinned in `roles/linux/files/mise/linux.toml` | same script, service-account path |
+| `offload` | `gemini` | `Brewfile`, or the owner's Homebrew when her account owns the prefix ([offload-host.md](offload-host.md)) | same script, service-account path |
 
 The cubic.dev CLI, run as `--backends reviewer:cubic`, is pinned for every
 platform in `roles/environments/files/mise.toml` through mise's npm backend,

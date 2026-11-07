@@ -20,8 +20,8 @@ SSH, only when the operator says the Mac is free; deciding that automatically
   1Password agent prompt. The Mac trusts it through
   `~/.ssh/authorized_keys.offload`, rendered from 1Password by
   `scripts/op-render.sh`, which restricts it to `server`'s address (`from=`)
-  and grants a terminal and nothing else (`restrict,pty`: no agent, X11 or
-  port forwarding). The account's own `~/.ssh/authorized_keys` stays
+  and grants a login session with a terminal and no forwarding
+  (`restrict,pty`: no agent, X11 or port forwarding); any command still runs. The account's own `~/.ssh/authorized_keys` stays
   unmanaged.
 - **No password login.** `roles/osx/files/sshd/050-dotfiles-hardening.conf`
   turns off password and keyboard-interactive login and root login for every
@@ -32,7 +32,7 @@ SSH, only when the operator says the Mac is free; deciding that automatically
 
 ## The 1Password LAN item
 
-`dotfiles-lan-ssh` (vault `Dotfiles Service Account`) gains four fields beside
+`dotfiles-lan-ssh` (vault `Dotfiles Service Account`) gains these fields beside
 the ones in [roles/ssh/README.md](../roles/ssh/README.md):
 
 | Field | Holds |
@@ -43,9 +43,14 @@ the ones in [roles/ssh/README.md](../roles/ssh/README.md):
 | `offload_client_pubkey` | `server`'s `~/.ssh/id_offload.pub` |
 
 `server_ip` is reused as the `from=` address. If `server`'s address changes,
-update that field and re-run the playbook on the Mac. Every host renders the
-alias block, so the first three fields must exist before any host's next
-playbook run, or its LAN alias sync fails.
+update that field and re-run the playbook on the Mac at its console, logged in
+as `fleet`: with password login off, the key trusted only from the old address
+was the one way in over SSH. To revoke the key, delete
+`~/.ssh/authorized_keys.offload` there the same way; emptying
+`offload_client_pubkey` does not, since the render refuses an empty field and
+leaves the old file in place. Every host renders the alias block, so
+`offload_alias`, `offload_host` and `offload_user` must exist before any
+host's next playbook run, or its LAN alias sync fails.
 
 ## One-time setup
 
@@ -109,10 +114,11 @@ In order; each step needs a person, except the playbook run on `server`.
    read-only, runs no Homebrew install, update or upgrade (the GitHub MCP
    sync and planwright updates still run), and refuses to go on while any
    of `osx_offload_required_tools` is missing from PATH, naming them. Check
-   first with:
+   first with the line below, in the account's zsh, since fish may be among
+   the missing:
 
-   ```fish
-   for t in brew op jq mise fish tmux gh git ansible-playbook; command -q $t; or echo missing: $t; end
+   ```zsh
+   for t in brew op jq mise fish tmux gh git ansible-playbook; do command -v "$t" >/dev/null || echo "missing: $t"; done
    ```
 
 6. **Sign the work account in**, over `ssh <alias>`, all to the operator's
@@ -125,9 +131,12 @@ In order; each step needs a person, except the playbook run on `server`.
    gh auth login --insecure-storage --scopes admin:public_key,admin:ssh_signing_key
    gh ssh-key add ~/.ssh/id_github_auth.pub --type authentication --title 'dotfiles offload auth'
    gh ssh-key add ~/.ssh/id_signing.pub --type signing --title 'dotfiles offload signing'
+   gh auth refresh --remove-scopes admin:public_key,admin:ssh_signing_key
    ```
 
-   Claude Code keeps its login in the account's keychain, which an SSH
+   The last line drops the key-admin scopes once the keys are added, since
+   the token sits in a plain file that anyone with this account's shell can
+   read. Claude Code keeps its login in the account's keychain, which an SSH
    session does not unlock by itself: after a reboot, run the
    `security unlock-keychain` line again before dispatching. Add
    `~/.ssh/id_signing.pub` to `roles/ssh/files/allowed_signers` in a
