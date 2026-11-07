@@ -86,15 +86,17 @@ for t in head:
         ko(f"{t['name']}: tagged {tags}, not always")
 # By what each task does, not its name: the two account checks' names share
 # their words, so a name match let either stand in for the other.
+def arg(task, module, key):
+    v = task.get(module)
+    return v.get(key) if isinstance(v, dict) else None
+
+
 def probes(argv, register):
-    return any(
-        t.get("ansible.builtin.command", {}).get("argv") == argv and t.get("register") == register
-        for t in head
-    )
+    return any(arg(t, "ansible.builtin.command", "argv") == argv and t.get("register") == register for t in head)
 
 
 def asserts(that):
-    return any(t.get("ansible.builtin.assert", {}).get("that") == that for t in head)
+    return any(arg(t, "ansible.builtin.assert", "that") == that for t in head)
 
 
 for label, present in (
@@ -104,7 +106,7 @@ for label, present in (
     ("the not-an-administrator check is among them", asserts("'admin' not in osx_offload_groups.stdout.split()")),
 ):
     ok(label) if present else ko(f"{label}: not found ahead of the imports")
-writable = [t["ansible.builtin.set_fact"]["osx_brew_writable"] for t in head if "osx_brew_writable" in t.get("ansible.builtin.set_fact", {})]
+writable = [arg(t, "ansible.builtin.set_fact", "osx_brew_writable") for t in head if arg(t, "ansible.builtin.set_fact", "osx_brew_writable") is not None]
 if writable == ["{{ inventory_hostname not in osx_offload_hosts }}"]:
     ok("osx_brew_writable is false exactly on the offload hosts")
 else:
