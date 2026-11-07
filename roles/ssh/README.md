@@ -10,6 +10,7 @@ companions.
 | `~/.ssh/allowed_signers` | yes — `files/allowed_signers` | Commit-signature verification |
 | `~/.ssh/config.local` | **no** | LAN host aliases |
 | `~/.ssh/known_hosts.local` | **no** | Accepted LAN host keys |
+| `~/.ssh/id_offload`, `.pub` | **no** | The key that reaches the offload host, generated on `ssh_offload_client_hosts` only ([docs/offload-host.md](../../docs/offload-host.md)) |
 
 ## Why the split
 
