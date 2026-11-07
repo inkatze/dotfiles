@@ -41,7 +41,7 @@ roles/claude/files/skills/review-shared/limits.md          163    500    1000
 roles/claude/files/skills/review-shared/siblings.md        487    750    1250
 roles/claude/files/skills/review-shared/slack.md           703    1000   1500
 roles/claude/files/skills/review-shared/state.md           4911   5250   5750
-roles/claude/files/skills/review-shared/workflow.md        378    750    1250
+roles/claude/files/skills/review-shared/workflow.md        392    750    1250
 "
 
 # Whitespace-separated words, byte-wise in the C locale. Not `wc -w`: GNU and
