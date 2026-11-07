@@ -1008,9 +1008,14 @@ expect_fail ready-flip-unknown-dropped \
   "perl -0pi -e 's/, including a mergeability GitHub still\\s+reports as \`UNKNOWN\` after one re-query a few seconds later//' $GLOBAL_MD" "ready-flip sentence"
 expect_pass ready-flip-reflow \
   "perl -0pi -e 's/only once it is/only\\nonce it is/' $GLOBAL_MD"
-PIN="In a work or collaborative repo, marking a PR ready is mine to request" \
+PIN="Any other flip there is mine to request and yours to perform" \
   expect_fail ready-flip-collaborative-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
-PIN="In a solo repo," expect_fail ready-flip-everywhere 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN="; another person's PR is never yours to flip" \
+  expect_fail ready-flip-other-persons-pr 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN=" once I have asked for its work or a program my hub runs carries it" \
+  expect_fail ready-flip-unasked-work-repo 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN="In a solo repo the cadence flip covers every PR." \
+  expect_fail ready-flip-everywhere 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN=", re-checking each condition and the repo's kind immediately before the flip" \
   expect_fail ready-flip-recheck-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN="a repository whose owner you cannot tell counts as one" \
@@ -1023,12 +1028,12 @@ PIN="automated accounts are not another person" \
   expect_fail ready-flip-own-agents-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN="moving the rewrite scope or naming its kind does not move the flip" \
   expect_fail ready-flip-override-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
-PIN="; where a config exists without it, say so, keep configured flips from marking a PR ready" \
-  expect_fail ready-flip-policy-missing-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN=", which reserves its configured flips: offer the flip to me in one line" \
+  expect_fail ready-flip-human-policy-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN=" and the repo's kind" \
   expect_fail ready-flip-kind-recheck-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 expect_fail ready-flip-scope-duplicated \
-  "perl -0ne 'print \"\\n\$1\\n\" if /(In a solo repo, the session.*?in its reply or handoff\\.)/s' $GLOBAL_MD > solo.tmp && cat solo.tmp >> $GLOBAL_MD && rm solo.tmp" "states the solo ready flip 2 times"
+  "perl -0ne 'print \"\\n\$1\\n\" if /(The cadence flip: the session.*?in its reply or\\s+handoff\\.)/s' $GLOBAL_MD > solo.tmp && cat solo.tmp >> $GLOBAL_MD && rm solo.tmp" "states the cadence flip 2 times"
 expect_fail ready-flip-never-rule-restored \
   "printf '\\nNever flip a PR ready on your own initiative.\\n' >> $GLOBAL_MD" "forbidden never-flip rule"
 PIN="the spec PR after a signed-off kickoff, which planwright marks ready by configuration" \
@@ -1037,9 +1042,9 @@ PIN="count as you flipping and follow the same scope" \
   expect_fail ready-flip-planwright-scope-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "kickoff and confirmed flips"
 PIN="A flip I confirm when a run asks me is one I requested" \
   expect_fail operator-confirmed-clause-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "kickoff and confirmed flips"
-PIN="and a no I give when asked holds: do not then flip that PR as the solo flip" \
+PIN="and a no I give when asked holds: do not then flip that PR as the cadence flip" \
   expect_fail ready-flip-decline-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "kickoff and confirmed flips"
-PIN="stays confirmation-gated in every repository, never counts as the solo flip" \
+PIN="stays confirmation-gated in every repository, never counts as the cadence flip" \
   expect_fail nested-flip-gate-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "kickoff and confirmed flips"
 expect_fail hook-denial-dropped \
   "perl -0pi -e 's/report the denial to me and never work around it/sync and retry/' $GLOBAL_MD" "hook-denial sentence"

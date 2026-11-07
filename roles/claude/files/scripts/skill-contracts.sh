@@ -673,24 +673,27 @@ if [ -n "$global_ok" ]; then
     "Evaluate every condition against the PR's current head immediately before the flip; a condition you cannot confirm, including a mergeability GitHub still reports as \`UNKNOWN\` after one re-query a few seconds later, counts as unmet."
   forbid_normalized "$GLOBAL_MD" "currency condition" \
     "current with its base" "up to date with its base" "up-to-date with its base" "sync, push and re-run"
-  # Who flips follows ownership: the agent in a solo repo, the operator's
-  # request elsewhere. The solo clause is stated once, so a second copy cannot
-  # drift from the first.
-  SOLO_FLIP="In a solo repo, the session that completes the last step of the review cadence the PR calls for marks it ready itself once every step of that cadence has run to completion, CI is green on the current head and the PR is mergeable, re-checking each condition and the repo's kind immediately before the flip, and states the flip and the conditions it checked in its reply or handoff."
+  # Who flips follows ownership: the agent on every PR in a solo repo and on
+  # the operator's own PRs elsewhere, never on another person's. The cadence
+  # flip is stated once, so a second copy cannot drift from the first.
+  CADENCE_FLIP="The cadence flip: the session that completes the last step of the review cadence the PR calls for marks it ready itself once every step of that cadence has run to completion, CI is green on the current head and the PR is mergeable, re-checking each condition and the repo's kind immediately before the flip, and states the flip and the conditions it checked in its reply or handoff."
   require_normalized "$GLOBAL_MD" "ready-flip scope" \
     "a repo's own \`CLAUDE.md\` moving the rewrite scope or naming its kind does not move the flip." \
     "A **solo repo** is one I own (not an employer or another organization) where no other person works; my own sessions, worktrees, dispatched agents and automated accounts are not another person." \
     "A **work repo** is one I do not own (an employer's, another organization's or another person's); a repository whose owner you cannot tell counts as one." \
     "A **collaborative repo** is one I own where another person works; one where you cannot tell whether another person works counts as one." \
-    "$SOLO_FLIP" \
-    "In a work or collaborative repo, marking a PR ready is mine to request and yours to perform, and a planwright config there sets \`ready_flip_policy: human\`; where a config exists without it, say so, keep configured flips from marking a PR ready and report any that already did."
+    "$CADENCE_FLIP" \
+    "In a solo repo the cadence flip covers every PR." \
+    "In a work or collaborative repo it covers a PR I authored (a session opening it under my account counts) once I have asked for its work or a program my hub runs carries it; another person's PR is never yours to flip." \
+    "Any other flip there is mine to request and yours to perform; once I have asked, do not hand it back to me as a manual step." \
+    "A planwright config there may set \`ready_flip_policy: human\`, which reserves its configured flips: offer the flip to me in one line, my yes being the request."
   occurrences "$global_norm" "the session that completes the last step of the review cadence" n
-  [ "$n" -le 1 ] || err "$GLOBAL_MD states the solo ready flip $n times; state it once: \"$SOLO_FLIP\""
+  [ "$n" -le 1 ] || err "$GLOBAL_MD states the cadence flip $n times; state it once: \"$CADENCE_FLIP\""
   forbid_normalized "$GLOBAL_MD" "never-flip rule" "Never flip a PR ready on your own initiative"
   require_normalized "$GLOBAL_MD" "kickoff and confirmed flips" \
     "planwright's configured flips count as you flipping and follow the same scope, except one kept in every repository: the spec PR after a signed-off kickoff, which planwright marks ready by configuration." \
-    "A flip I confirm when a run asks me is one I requested, and a no I give when asked holds: do not then flip that PR as the solo flip." \
-    "A nested review loop's own convergence flip stays confirmation-gated in every repository, never counts as the solo flip, and evaluates these same conditions first."
+    "A flip I confirm when a run asks me is one I requested, and a no I give when asked holds: do not then flip that PR as the cadence flip." \
+    "A nested review loop's own convergence flip stays confirmation-gated in every repository, never counts as the cadence flip, and evaluates these same conditions first."
   require_normalized "$GLOBAL_MD" "hook-denial sentence" \
     "If planwright's ready-guard hook denies a flip on a branch that meets these conditions, report the denial to me and never work around it: no sync to satisfy it, no bypass."
 
