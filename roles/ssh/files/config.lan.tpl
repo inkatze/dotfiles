@@ -28,3 +28,12 @@ Host {{ op://__OP_VAULT__/__OP_ITEM__/server_alias }} {{ op://__OP_VAULT__/__OP_
 
 Host {{ op://__OP_VAULT__/__OP_ITEM__/server_alias }}
     Hostname {{ op://__OP_VAULT__/__OP_ITEM__/server_host }}
+
+# A fixed name, since the global Claude allow rule for mission control's relay
+# names it literally. No agent or environment forwarding: that rule runs
+# without a prompt.
+Host planwright-relay
+    Hostname {{ op://__OP_VAULT__/__OP_ITEM__/server_host }}
+    User {{ op://__OP_VAULT__/__OP_ITEM__/server_user }}
+    ForwardAgent no
+    BatchMode yes

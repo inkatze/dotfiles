@@ -44,6 +44,14 @@ else
     fail no-pin "expected OK"
 fi
 
+# 3b. a version glob is not a pin, whatever is installed
+pinned '*' >"$work/s.json"
+if [ "$("$check" "$work/s.json" "$work/absent.json")" = OK ]; then
+    ok glob "version glob never stale"
+else
+    fail glob "expected OK for a version glob"
+fi
+
 # 4. a pin with no plugin record fails rather than passing
 pinned 1.2.0 >"$work/s.json"
 if "$check" "$work/s.json" "$work/absent.json" >/dev/null 2>&1; then
