@@ -536,8 +536,28 @@ for bad in " always" "tmux, all" "$(printf 'tagged\t')" "$(printf '\302\240alway
     fi
 done
 
+for near in ANSIBLEX XANSIBLE_A; do
+    run_env="$near=1"
+    run_args --user-config
+    if [ "$(cat "$work/rc")" = 0 ] && [ "$(argv_line)" = "$uc_want" ]; then
+        ok "user-config-allows-env[$near]" "a name that is not an Ansible setting still runs"
+    else
+        fail "user-config-allows-env[$near]" "rc $(cat "$work/rc"), argv '$(argv_line)'"
+    fi
+    run_env=""
+done
+run_env="ANSIBLE_X="
+run_args --user-config
+if refused_before_run "ANSIBLE_X"; then ok user-config-refuses-empty-env "an empty ANSIBLE_* variable is still refused"
+else fail user-config-refuses-empty-env "rc $(cat "$work/rc"), argv '$(argv_line)'"; fi
+run_env=""
+run_args --user-config --skip-tags ""
+if refused_before_run "takes plain tag names"; then ok user-config-refuses-empty-skip "an empty --skip-tags value is refused"
+else fail user-config-refuses-empty-skip "rc $(cat "$work/rc"), argv '$(argv_line)'"; fi
+
 for v in ANSIBLE_RUN_TAGS ANSIBLE_CONFIG ANSIBLE_ASK_PASS ANSIBLE_BECOME_PASSWORD_FILE \
-    ANSIBLE_ENABLE_TASK_DEBUGGER ANSIBLE_CONNECTION_PLUGINS ANSIBLE_HOME ANSIBLE_NOCOLOR; do
+    ANSIBLE_ENABLE_TASK_DEBUGGER ANSIBLE_CONNECTION_PLUGINS ANSIBLE_HOME ANSIBLE_NOCOLOR \
+    _ANSIBLE_CONNECTION_PATH; do
     run_env="$v=x"
     run_args --user-config
     if refused_before_run "$v"; then

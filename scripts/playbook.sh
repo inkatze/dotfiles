@@ -46,13 +46,13 @@ user_config_skip() {
 if [[ "${1:-}" == --user-config ]]; then
     shift
     user_config=1
-    # Every ANSIBLE_* setting, not a list: run tags join `--tags`, password
-    # and debugger settings wait on a prompt, and config, inventory and plugin
-    # paths can retarget the run or replace the connection under the refusal.
-    for v in $(compgen -e); do
-        case "$v" in
-            ANSIBLE_*) user_config_refuse "runs only with no ANSIBLE_* variable set (found $(escape "$v"))" ;;
-        esac
+    # Every ANSIBLE_* setting (and the internal _ANSIBLE_* ones), not a list:
+    # run tags join `--tags`, password and debugger settings wait on a prompt,
+    # and config, inventory and plugin paths can retarget the run or replace
+    # the connection under the refusal. Name expansion rather than compgen,
+    # which a bash built without readline lacks, silently emptying the loop.
+    for v in "${!ANSIBLE_@}" "${!_ANSIBLE_@}"; do
+        user_config_refuse "runs only with no ANSIBLE_* variable set (found $v)"
     done
     skip_value=""
     for arg in "$@"; do
