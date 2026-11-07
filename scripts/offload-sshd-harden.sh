@@ -61,8 +61,6 @@ from="$(sed -n 's/^from="\([0-9.]*\)",restrict,pty ssh-ed25519 .*/\1/p' "$key")"
 [ -n "$from" ] || fail "$key holds no from-restricted ed25519 key"
 ssh-keygen -l -f "$key" >/dev/null 2>&1 || fail "ssh-keygen does not read $key"
 
-"$sshd" -t -f "$src" || fail "sshd rejects $src"
-
 if [ -f "$dest" ] && cmp -s "$src" "$dest"; then
   existed=true changed=false
 else
@@ -73,6 +71,8 @@ else
   if [ -z "$testing" ]; then
     chown root:wheel "$tmp" || { rm -f "$tmp"; fail "could not chown $tmp"; }
   fi
+  # The copy, not the source: it is the bytes sshd will read.
+  "$sshd" -t -f "$tmp" || { rm -f "$tmp"; fail "sshd rejects the drop-in"; }
   mv -f "$tmp" "$dest" || { rm -f "$tmp"; fail "could not install $dest"; }
 fi
 
@@ -81,7 +81,10 @@ undo() {
     rm -f "$dest"
     fail "$1; removed the drop-in this run installed"
   fi
-  fail "$1; the drop-in an earlier run installed was kept"
+  if [ "$changed" = true ]; then
+    fail "$1; the drop-in this run installed replaced a differing one and was kept"
+  fi
+  fail "$1; the drop-in already in place was kept"
 }
 
 effective="$("$sshd" -T -C "user=$user,host=$from,addr=$from" 2>&1)" \

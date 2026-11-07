@@ -3,6 +3,14 @@
 # The offload host's server side: render the key the dispatching host logs in
 # with, and check that an administrator has closed password login.
 
+# A fact rather than a default, so inventory cannot move it: the sshd drop-in in
+# files/sshd names this same path in AuthorizedKeysFile, and the two drifting
+# apart would leave the hardening on with the managed key unread.
+- name: Fix the offload authorized-keys path
+  ansible.builtin.set_fact:
+    osx_offload_authorized_keys: "{{ ansible_facts.env.HOME }}/.ssh/authorized_keys.offload"
+  tags: [osx, offload]
+
 # macOS starts sshd per connection through launchd only while Remote Login is
 # on, and turning it off from here would cut the session running this play.
 - name: Check that Remote Login is on
@@ -24,8 +32,8 @@
   tags: [osx, offload]
 
 # An absent `op` fails here rather than skipping: this host exists to be
-# reached by that key, and by this point either Homebrew has installed `op` or
-# the required-tools check in main.yml has found it on PATH.
+# reached by that key, and the required-tools check in main.yml has already
+# found `op` on PATH.
 - name: Render the offload authorized key from 1Password
   ansible.builtin.command:
     argv:

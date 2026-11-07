@@ -6,8 +6,8 @@
 #    tagged `always`: a tagged run must still meet the account check, and must
 #    find osx_brew_writable defined.
 # 2. Every Homebrew or App Store write in homebrew.yml and upgrade.yml carries
-#    osx_brew_writable, and nothing else does: the MCP sync and the planwright
-#    updates have to keep running when another account owns the prefix.
+#    osx_brew_writable, and nothing else does: the planwright updates have to
+#    keep running on the offload host, which never writes Homebrew.
 # 3. The includes themselves stay unguarded, for the same reason.
 
 set -eu
@@ -122,6 +122,15 @@ for t in main:
         ko(f"include {inc}: guarded as a whole") if any("osx_brew_writable" in w for w in whens(t)) else ok(f"include {inc}: unguarded")
 for inc in sorted({"homebrew.yml", "upgrade.yml"} - found):
     ko(f"include {inc}: not found as an include_tasks entry in main.yml")
+
+print("4. the GitHub MCP sync never runs on the offload host")
+for name in ("homebrew.yml", "upgrade.yml"):
+    syncs = [t for t in load(name) if "claude-mcp-sync-github.sh" in command_text(t)]
+    if not syncs:
+        ko(f"{name}: no GitHub MCP sync task found")
+    for t in syncs:
+        skips = any(w.strip() == "inventory_hostname not in osx_offload_hosts" for w in whens(t))
+        ok(f"{name}: {t['name']}: skipped there") if skips else ko(f"{name}: {t['name']}: runs on the offload host")
 
 print(f"\nosx-offload-guard: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

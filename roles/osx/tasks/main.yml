@@ -54,32 +54,11 @@
   when: inventory_hostname in osx_offload_hosts
   tags: [always]
 
-# The owner's Homebrew may already hold the prefix. The work account then uses
-# its tools read-only and installs nothing into it, since writing there would
-# change software in the owner's account.
-- name: Find the Homebrew prefix on the offload host
-  ansible.builtin.command: brew --prefix
-  register: osx_offload_brew_prefix
-  changed_when: false
-  failed_when: false
-  check_mode: false
-  when: inventory_hostname in osx_offload_hosts
-  tags: [always]
-
-- name: Check who owns the Homebrew prefix
-  ansible.builtin.stat:
-    path: "{{ osx_offload_brew_prefix.stdout | default('', true) | trim or '/opt/homebrew' }}"
-  register: osx_offload_brew_stat
-  check_mode: false
-  when: inventory_hostname in osx_offload_hosts
-  tags: [always]
-
+# Never on the offload host: its Homebrew is the owner's, used read-only, and
+# its standard work account could neither own nor install one of its own.
 - name: Decide whether this run may install with Homebrew
   ansible.builtin.set_fact:
-    osx_brew_writable: >-
-      {{ inventory_hostname not in osx_offload_hosts
-         or (osx_offload_brew_stat.stat.exists
-             and osx_offload_brew_stat.stat.pw_name == osx_offload_login.stdout) }}
+    osx_brew_writable: "{{ inventory_hostname not in osx_offload_hosts }}"
   tags: [always]
 
 - name: Check the tools the offload host needs without Homebrew installs
@@ -100,8 +79,8 @@
   ansible.builtin.assert:
     that: osx_offload_missing_tools.stdout == ''
     fail_msg: >-
-      Another account owns the Homebrew prefix, so this run installs nothing
-      with it, and these tools are not on PATH: {{ osx_offload_missing_tools.stdout }}.
+      This host installs nothing with Homebrew, and these tools are not on
+      PATH: {{ osx_offload_missing_tools.stdout }}.
       Install brew, fish and op from the owner's account (the fish role runs
       fish from the Homebrew prefix) and the rest with mise in this account,
       then re-run (docs/offload-host.md).

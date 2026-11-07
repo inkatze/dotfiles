@@ -69,7 +69,8 @@ mode="$(stat -c '%a' "$dest" 2>/dev/null || stat -f '%Lp' "$dest")"
 [ "$mode" = 644 ] && ok "installed at mode 0644" || ko "installed at mode $mode, not 0644"
 grep -qxF -- "-T -C user=fleet,host=192.0.2.10,addr=192.0.2.10" "$sandbox/argv" \
   && ok "the effective config is read for the account from the from= address" || ko "sshd -T arguments ($(cat "$sandbox/argv"))"
-grep -qxF -- "-t -f $dropin" "$sandbox/argv" && ok "the drop-in is validated alone first" || ko "sshd -t arguments"
+grep -qE -- "^-t -f $sandbox/conf\.d/\.050-dotfiles-hardening\.conf\.[A-Za-z0-9]+$" "$sandbox/argv" \
+  && ok "the copy being installed is validated, not the source" || ko "sshd -t arguments ($(cat "$sandbox/argv"))"
 
 echo "2. a re-run with nothing to change prints OK"
 run fleet
@@ -105,6 +106,8 @@ echo 255 >"$sandbox/t-rc"
 run fleet
 expect_failed "sshd -t failure" "sshd rejects"
 [ -e "$dest" ] && ko "the rejected drop-in was installed" || ok "the rejected drop-in was not installed"
+leftover="$(find "$sandbox/conf.d" -name '.050-*')"
+[ -z "$leftover" ] && ok "no temp copy is left behind" || ko "temp copy left behind: $leftover"
 
 echo "5. an unhardened effective config undoes only this run"
 new_sandbox
@@ -117,7 +120,14 @@ printf 'PasswordAuthentication no\n' >"$dest"
 sed -i.bak '/^authorizedkeysfile /d' "$sandbox/effective"
 run fleet
 expect_failed "the offload key file not read" "lacks 'authorizedkeysfile"
-[ -e "$dest" ] && ok "an earlier run's drop-in is kept" || ko "an earlier run's drop-in was removed"
+expect_failed "a replaced drop-in is reported as replaced" "replaced a differing one and was kept"
+cmp -s "$dropin" "$dest" && ok "the replacing drop-in stays, as reported" || ko "the drop-in in place is not the replacing one"
+new_sandbox
+cp "$dropin" "$dest"
+sed -i.bak '/^authorizedkeysfile /d' "$sandbox/effective"
+run fleet
+expect_failed "an unchanged drop-in that fails" "the drop-in already in place was kept"
+[ -e "$dest" ] && ok "an unchanged drop-in is kept" || ko "an unchanged drop-in was removed"
 
 echo "6. preconditions"
 new_sandbox

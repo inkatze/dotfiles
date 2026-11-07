@@ -1,8 +1,7 @@
 ---
 
-# Homebrew writes carry osx_brew_writable (roles/osx/tasks/main.yml): false on
-# the offload host when another account owns the prefix. Tasks that only call
-# scripts or Claude Code stay unguarded.
+# Homebrew writes carry osx_brew_writable (roles/osx/tasks/main.yml), false on
+# the offload host. Tasks that only call scripts or Claude Code stay unguarded.
 
 - name: Update homebrew
   community.general.homebrew:
@@ -88,7 +87,19 @@
     cmd: "{{ ansible_facts.env.PWD }}/scripts/claude-mcp-sync-github.sh"
   register: osx_claude_mcp_github_upgrade
   changed_when: "'CHANGED' in osx_claude_mcp_github_upgrade.stdout"
-  when: lookup('ansible.builtin.env', 'CI', default='') == ''
+  # Skipped on the offload host for the reason homebrew.yml gives.
+  when:
+    - inventory_hostname not in osx_offload_hosts
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
+  tags: [upgrade]
+
+# The osx role runs before the claude role installs Claude Code, so on a host's
+# first run there is nothing to update yet.
+- name: Check for Claude Code
+  ansible.builtin.stat:
+    path: "{{ ansible_facts.env.HOME }}/.local/bin/claude"
+  register: osx_claude_bin
+  check_mode: false
   tags: [upgrade]
 
 # planwright ships as a Claude Code plugin (installed in osx.yml). Updating is
@@ -102,7 +113,9 @@
   ansible.builtin.command:
     cmd: "{{ ansible_facts.env.HOME }}/.local/bin/claude plugin marketplace update planwright"
   changed_when: false
-  when: lookup('ansible.builtin.env', 'CI', default='') == ''
+  when:
+    - osx_claude_bin.stat.exists
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [upgrade]
 
 - name: Update planwright plugin
@@ -110,5 +123,7 @@
     cmd: "{{ ansible_facts.env.HOME }}/.local/bin/claude plugin update planwright@planwright"
   register: osx_planwright_update
   changed_when: "'already at the latest' not in osx_planwright_update.stdout"
-  when: lookup('ansible.builtin.env', 'CI', default='') == ''
+  when:
+    - osx_claude_bin.stat.exists
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [upgrade]

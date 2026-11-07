@@ -278,8 +278,8 @@ osx_offload_hosts:
 # 1Password LAN item, which the dispatching host logs in as.
 osx_offload_user: fleet
 
-# What the rest of the playbook calls, checked when another account owns the
-# Homebrew prefix and so nothing can be installed with it.
+# What the rest of the playbook calls, checked on the offload host, where
+# nothing is installed with Homebrew.
 osx_offload_required_tools: [brew, op, jq, mise, fish, tmux, gh, git]
 
 # Installed by mise from roles/osx/files/mise-offload/offload.toml, in this
