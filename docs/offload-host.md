@@ -102,9 +102,17 @@ In order; each step needs a person, except the playbook run on `server`.
    ```
 
    The run installs the key and then closes password login, so the next
-   `ssh <alias>` uses the key. If `/opt/homebrew` already exists and belongs
-   to the owner's account, stop: one Homebrew prefix cannot serve two
-   accounts without one of them sharing write access to it.
+   `ssh <alias>` uses the key.
+
+   If the owner's account already owns the Homebrew prefix, skip the
+   Homebrew install and `brew install` line: the play then uses her Homebrew
+   read-only, runs no `brew bundle` or upgrade, and refuses to go on while any
+   of `osx_offload_required_tools` is missing from PATH, naming them. Check
+   first with:
+
+   ```fish
+   for t in op jq mise fish tmux gh git ansible-playbook; command -q $t; or echo missing: $t; end
+   ```
 
 6. **Sign the work account in**, over `ssh <alias>`, all to the operator's
    second Claude account and its GitHub identity; nothing here stores these
