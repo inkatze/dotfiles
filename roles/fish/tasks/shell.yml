@@ -2,10 +2,10 @@
 
 # /etc/shells is world-readable, so the check costs no privilege while the write
 # does. Splitting them means a host where fish is already registered needs no
-# sudo for this file at all, so a run with no become password does not die
-# here with "sudo: interactive authentication is required" when there is
-# nothing to write. On Ubuntu
-# the apt fish package registers /usr/bin/fish itself, so that is the normal case.
+# sudo for the /etc/shells step, so a run with no become password does not
+# die here with "sudo: interactive authentication is required" when there is
+# nothing to write. On Ubuntu the apt fish package registers /usr/bin/fish
+# itself, so that is the normal case.
 - name: Check whether fish is already a registered login shell
   ansible.builtin.command:
     cmd: grep -qxF {{ (fish_prefix + '/bin/fish') | quote }} /etc/shells

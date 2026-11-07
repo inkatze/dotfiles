@@ -33,7 +33,7 @@ On either platform, later config-only changes can be applied without a sudo
 password, as an unattended session does: `./scripts/playbook.sh --user-config`
 runs every config role and skips the platform baseline, the other privileged
 tasks, the login shell and upgrades; it refuses to run while any `ANSIBLE_*`
-variable is set (see `docs/ansible-roles.md`).
+or `_ANSIBLE_*` variable is set (see `docs/ansible-roles.md`).
 
 Driving the first run's failures to zero (apt-lock contention,
 cross-platform config roles) is the `specs/linux-migration` Task 7

@@ -52,7 +52,7 @@ if [[ "${1:-}" == --user-config ]]; then
     # the connection under the refusal. Name expansion rather than compgen,
     # which a bash built without readline lacks, silently emptying the loop.
     for v in "${!ANSIBLE_@}" "${!_ANSIBLE_@}"; do
-        user_config_refuse "runs only with no ANSIBLE_* variable set (found $v)"
+        user_config_refuse "runs only with no ANSIBLE_* or _ANSIBLE_* variable set (found $v)"
     done
     skip_value=""
     for arg in "$@"; do

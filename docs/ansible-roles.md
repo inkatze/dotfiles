@@ -44,8 +44,8 @@ It must be the first argument, and only options that narrow or preview the
 run may follow (the allow-list is in `scripts/playbook.sh`): anything that
 could widen the selection, retarget the run or supply a sudo password is
 refused, as is a `--skip-tags` naming `always`, `all` or `tagged`, or holding
-anything but plain tag names. It also refuses while any `ANSIBLE_*` variable
-is set (they can add tags, wait on a prompt, or swap the config, inventory or
+anything but plain tag names. It also refuses while any `ANSIBLE_*` or
+`_ANSIBLE_*` variable is set (they can add tags, wait on a prompt, or swap the config, inventory or
 plugins), and when the host alias would
 fall back to `work` (the full run's fallback warns, which nobody unattended
 would read; `alt`, resolved by hostname, still runs). It runs from the
