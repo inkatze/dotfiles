@@ -36,31 +36,30 @@ platform, runs only what needs no escalation:
   login-shell tasks, which `mise run install` skips too, so a drifted login
   shell cannot block every unattended run);
 - with Ansible's become method set to `become_plugins/refuse_privilege.py`, so
-  any task in the selection that would still escalate fails with a message
-  naming the full run, rather than prompting. A task whose `when:` is false
-  never escalates, so a role that escalates only to repair drift passes on a
-  converged host.
+  a task in the selection that would still escalate fails with a message
+  naming the full run, rather than prompting. No selected task escalates
+  today; the plugin is the backstop for one that would.
 
 It must be the first argument, and only options that narrow or preview the
 run may follow (the allow-list is in `scripts/playbook.sh`): anything that
 could widen the selection, retarget the run or supply a sudo password is
-refused, as is a `--skip-tags` naming `always`, `all` or `tagged`. It also
-refuses while an `ANSIBLE_*` variable that adds tags or swaps the config,
-inventory or plugin path is set, and when no host alias is configured (the
-full run's `work` fallback warns, which nobody unattended would read). It runs
-from the script's own checkout, wherever it was started.
+refused, as is a `--skip-tags` naming `always`, `all` or `tagged`, or holding
+anything but plain tag names. It also refuses while any `ANSIBLE_*` variable
+is set (they can add tags, wait on a prompt, or swap the config, inventory or
+plugins), and when the host alias would
+fall back to `work` (the full run's fallback warns, which nobody unattended
+would read; `alt`, resolved by hostname, still runs). It runs from the
+script's own checkout, wherever it was started.
 
 A refusal ends the run at that task: the tasks before it stay applied (all
 unprivileged and idempotent), and every later task and role is left unapplied
-until the full run repairs the drift. A `--check` preview can miss a refusal
-the real run would hit, since check mode skips the unprivileged drift probes
-the escalating tasks are gated on. Escalation is not the only thing an
+until the full run applies them. Escalation is not the only thing an
 unattended run cannot answer: the 1Password reads in the `ssh`, `git` and
 `claude` roles need a service-account token or an unlocked desktop app.
 
 When adding a role, tag it `user-config` in `main.yml` unless it escalates by
 design. A task that escalates inside one either runs only when there is drift
-to repair (check unprivileged first, as `roles/fish/tasks/shell.yml` does) or
+to repair (check unprivileged first, then escalate behind a `when:`) or
 carries the `privileged` tag. `scripts/user-config-selection-test.sh` pins the
 selection and the refusal; `scripts/playbook-alias-test.sh` pins the argument
 handling.

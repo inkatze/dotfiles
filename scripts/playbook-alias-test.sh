@@ -536,8 +536,8 @@ for bad in " always" "tmux, all" "$(printf 'tagged\t')" "$(printf '\302\240alway
     fi
 done
 
-for v in ANSIBLE_RUN_TAGS ANSIBLE_SKIP_TAGS ANSIBLE_CONFIG ANSIBLE_INVENTORY ANSIBLE_BECOME_ASK_PASS \
-    ANSIBLE_BECOME_PLUGINS ANSIBLE_PLAYBOOK_DIR; do
+for v in ANSIBLE_RUN_TAGS ANSIBLE_CONFIG ANSIBLE_ASK_PASS ANSIBLE_BECOME_PASSWORD_FILE \
+    ANSIBLE_ENABLE_TASK_DEBUGGER ANSIBLE_CONNECTION_PLUGINS ANSIBLE_HOME ANSIBLE_NOCOLOR; do
     run_env="$v=x"
     run_args --user-config
     if refused_before_run "$v"; then

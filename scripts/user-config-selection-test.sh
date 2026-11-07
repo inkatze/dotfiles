@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Suite for `scripts/playbook.sh --user-config`, the selection an unattended
 # run applies: every cross-platform config role, no platform baseline, no
-# privileged or upgrade task, and a refusal (not a password prompt) at any
+# privileged, upgrade or shell task, and a refusal (not a password prompt) at any
 # task in it that would still escalate.
 #
 #   Selection -- read from `--list-tasks`, so it needs no host and changes
 #                nothing: both platform roles are out, every other role the
 #                full run lists is in through tasks of its own (not only
-#                `always` ones), and no selected task is `privileged` or
-#                `upgrade`.
+#                `always` ones), and no selected task is `privileged`,
+#                `upgrade` or `shell`.
 #   Probe     -- the claude role's 1Password probe is selected, ahead of them,
 #                whenever a task reading its result is, under the selections
 #                the mise tasks and docs use and the platform skips.

@@ -46,12 +46,13 @@ user_config_skip() {
 if [[ "${1:-}" == --user-config ]]; then
     shift
     user_config=1
-    # Ansible adds these to, or swaps out, what the arguments select: run tags
-    # join `--tags`, and a config, inventory or plugin path can retarget the
-    # run or replace the refusal.
-    for v in ANSIBLE_RUN_TAGS ANSIBLE_SKIP_TAGS ANSIBLE_CONFIG ANSIBLE_INVENTORY ANSIBLE_BECOME_ASK_PASS \
-        ANSIBLE_BECOME_PLUGINS ANSIBLE_PLAYBOOK_DIR; do
-        if printenv "$v" >/dev/null; then user_config_refuse "runs only with $v unset"; fi
+    # Every ANSIBLE_* setting, not a list: run tags join `--tags`, password
+    # and debugger settings wait on a prompt, and config, inventory and plugin
+    # paths can retarget the run or replace the connection under the refusal.
+    for v in $(compgen -e); do
+        case "$v" in
+            ANSIBLE_*) user_config_refuse "runs only with no ANSIBLE_* variable set (found $(escape "$v"))" ;;
+        esac
     done
     skip_value=""
     for arg in "$@"; do
