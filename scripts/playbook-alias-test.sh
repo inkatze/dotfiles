@@ -483,6 +483,15 @@ else
     fail user-config-narrowing "argv was '$(argv_line)'"
 fi
 
+for good in -C -D --verbose --list-tasks --list-tags --skip-tags=tmux; do
+    run_args --user-config "$good"
+    if [ "$(cat "$work/rc")" = 0 ] && [ "$(argv_line)" = "${uc_want}$good " ]; then
+        ok "user-config-accepts[$good]" "passed through after the selection"
+    else
+        fail "user-config-accepts[$good]" "rc $(cat "$work/rc"), argv '$(argv_line)'"
+    fi
+done
+
 for bad in -K --ask-become-pass -b --become --become-method=sudo --become-user=root \
     -t --tags=linux -e --extra-vars=x=1 -Kv -l --limit=all --skip-tags; do
     run_args --user-config "$bad"
