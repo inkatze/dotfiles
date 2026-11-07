@@ -67,6 +67,10 @@ jobs:
       - name: Run the osx offload-guard suite
         run: scripts/osx-offload-guard-test.sh
 
+      # BSD sed and mktemp are what this leg adds; the script runs on macOS.
+      - name: Run the offload sshd hardening suite
+        run: scripts/offload-sshd-harden-test.sh
+
       # Needs ansible-playbook, which this job installs.
       - name: Run the git unattended-auth suite
         run: scripts/git-unattended-auth-test.sh

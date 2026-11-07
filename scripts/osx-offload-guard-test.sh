@@ -69,7 +69,7 @@ def writes_homebrew(task):
 
 print("1. guard tasks ahead of the imports run under every tag")
 main = load("main.yml")
-first_import = next(i for i, t in enumerate(main) if "ansible.builtin.include_tasks" in t)
+first_import = next(i for i, t in enumerate(main) if t.get("ansible.builtin.include_tasks") == "osx.yml")
 head = main[:first_import]
 if not head:
     ko("no guard tasks found ahead of the imports")
@@ -84,6 +84,23 @@ if any("Refuse" in n and "account" in n for n in names):
     ok("the account check is among them")
 else:
     ko("the account check is not ahead of the imports")
+if any("administrator" in n for n in names):
+    ok("the not-an-administrator check is among them")
+else:
+    ko("the not-an-administrator check is not ahead of the imports")
+
+print("1b. the offload host's own tasks never ask for sudo")
+for fname in ("offload-host.yml", "offload-tools.yml"):
+    becomes = [
+        sub["name"]
+        for t in load(fname)
+        for sub in [t] + t.get("block", []) + t.get("rescue", [])
+        if sub.get("become")
+    ]
+    if becomes:
+        ko(f"{fname}: {', '.join(becomes)} use become, which the standard work account cannot")
+    else:
+        ok(f"{fname}: no task uses become")
 
 print("2. Homebrew writes, and only they, carry osx_brew_writable")
 for name in ("homebrew.yml", "upgrade.yml"):

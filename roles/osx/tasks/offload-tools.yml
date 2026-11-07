@@ -1,0 +1,74 @@
+---
+
+# The offload host's toolchain, user-level, since its standard work account
+# installs nothing with the owner's Homebrew. The same shape as
+# roles/linux/tasks/mise.yml.
+
+- name: Check for the offload host's mise
+  ansible.builtin.stat:
+    path: "{{ osx_offload_mise_bin }}"
+  register: osx_offload_mise_stat
+  check_mode: false
+  tags: [osx, offload]
+
+- name: Install mise for the work account
+  ansible.builtin.shell:
+    cmd: set -o pipefail && curl -fsSL https://mise.run | sh
+    executable: /bin/bash
+  when: not osx_offload_mise_stat.stat.exists
+  changed_when: true
+  tags: [osx, offload]
+
+- name: Ensure the mise conf.d directory exists
+  ansible.builtin.file:
+    path: "{{ osx_offload_mise_conf_d }}"
+    state: directory
+    mode: "0755"
+  tags: [osx, offload]
+
+- name: Symlink the offload host's mise tools
+  ansible.builtin.file:
+    src: "{{ role_path }}/files/mise-offload/offload.toml"
+    dest: "{{ osx_offload_mise_conf_d }}/offload.toml"
+    state: link
+  tags: [osx, offload]
+
+# In declared order: the pipx backend needs uv on PATH first. mise prints its
+# install line on stderr only for a fresh install.
+- name: Install the offload host's mise tools
+  ansible.builtin.command:
+    argv: ["{{ osx_offload_mise_bin }}", install, "{{ item }}"]
+  register: osx_offload_mise_install
+  changed_when: "'installed' in osx_offload_mise_install.stderr"
+  loop: "{{ osx_offload_mise_tools }}"
+  tags: [osx, offload]
+
+# The work account's login shell stays zsh (changing it needs sudo), and a
+# dispatched command runs in it non-interactively, which reads only ~/.zshenv.
+- name: Put the work account's tools on PATH for its SSH sessions
+  ansible.builtin.blockinfile:
+    path: "{{ ansible_facts.env.HOME }}/.zshenv"
+    create: true
+    mode: "0644"
+    marker: "# {mark} dotfiles offload PATH"
+    block: |
+      export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:{{ osx_offload_brew_bin }}:$PATH"
+  tags: [osx, offload]
+
+- name: Check for the community.general collection
+  ansible.builtin.command:
+    argv: [ansible-galaxy, collection, list, community.general]
+  register: osx_offload_collection
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  tags: [osx, offload]
+
+# The osx role's macOS defaults and Homebrew modules come from it, and the
+# ansible-core mise installs carries none.
+- name: Install the community.general collection
+  ansible.builtin.command:
+    argv: [ansible-galaxy, collection, install, community.general]
+  when: "'community.general' not in osx_offload_collection.stdout"
+  changed_when: true
+  tags: [osx, offload]
