@@ -26,27 +26,47 @@ plain_name() {
 # could widen the selection, retarget the run or bring a sudo password back
 # is refused rather than passed through; the become plugin it selects is what
 # refuses a task that would still escalate.
+user_config=""
 user_config_refuse() {
     printf 'playbook.sh: --user-config %s; refusing to run.\n' "$1" >&2
     exit 1
 }
+# Skipping `always` (or everything) drops the fact and probe tasks the
+# selected roles read, which turns the run into undefined-variable failures.
+user_config_skip() {
+    case ",$1," in
+        *,always,* | *,all,* | *,tagged,*) user_config_refuse "cannot skip always, all or tagged (got --skip-tags $(escape "$1"))" ;;
+    esac
+}
 if [[ "${1:-}" == --user-config ]]; then
     shift
+    user_config=1
+    # Ansible adds these to, or swaps out, what the arguments select: run tags
+    # join `--tags`, and a config, inventory or plugin path can retarget the
+    # run or replace the refusal.
+    for v in ANSIBLE_RUN_TAGS ANSIBLE_SKIP_TAGS ANSIBLE_CONFIG ANSIBLE_INVENTORY ANSIBLE_BECOME_ASK_PASS \
+        ANSIBLE_BECOME_PLUGINS ANSIBLE_PLAYBOOK_DIR; do
+        if printenv "$v" >/dev/null; then user_config_refuse "runs only with $v unset"; fi
+    done
     skip_value=""
     for arg in "$@"; do
         if [[ -n "$skip_value" ]]; then
             skip_value=""
+            user_config_skip "$arg"
             continue
         fi
         case "$arg" in
-            -v | -vv | -vvv | -vvvv | --verbose | -C | --check | -D | --diff | --list-tasks | --list-tags | --skip-tags=?*) ;;
+            -v | -vv | -vvv | -vvvv | --verbose | -C | --check | -D | --diff | --list-tasks | --list-tags) ;;
+            --skip-tags=?*) user_config_skip "${arg#--skip-tags=}" ;;
             --skip-tags) skip_value=1 ;;
             *) user_config_refuse "takes only --check, --diff, -v, --list-tasks, --list-tags and --skip-tags, not $(escape "$arg")" ;;
         esac
     done
     [[ -z "$skip_value" ]] || user_config_refuse "was given --skip-tags without a value"
-    set -- --tags user-config --skip-tags privileged,upgrade -e ansible_become_method=refuse_privilege "$@"
-    echo "playbook.sh: --user-config leaves out the platform roles, the privileged tasks and upgrades; the full run (./scripts/playbook.sh -K) applies those." >&2
+    # `shell` too, as `mise run install` skips it: a drifted login shell would
+    # otherwise refuse every unattended run at the fish role.
+    set -- --tags user-config --skip-tags privileged,upgrade,shell -e ansible_become_method=refuse_privilege "$@"
+    echo "playbook.sh: --user-config leaves out the platform roles, the privileged tasks, the login shell and upgrades; the full run (./scripts/playbook.sh -K) applies those." >&2
 else
     for arg in "$@"; do
         [[ "$arg" != --user-config ]] || user_config_refuse "must be the first argument"
@@ -84,6 +104,8 @@ elif [[ -n "$host_from_file" ]]; then
 elif [[ "$hostname" == *"$ALTHOST"* ]]; then
     current_host="alt"
 else
+    # An unattended run has nobody to read the warning below, so it refuses.
+    [[ -z "$user_config" ]] || user_config_refuse "needs a configured alias, not the work fallback: export DOTFILES_HOST or write ${HOST_OVERRIDE_FILE}"
     current_host="work"
     echo "playbook.sh: no machine-local alias configured, defaulting to '${current_host}'." >&2
     echo "playbook.sh: if this is not the work host, export DOTFILES_HOST or write the alias to ${HOST_OVERRIDE_FILE}." >&2
@@ -205,4 +227,7 @@ if [[ -z "$work_env" ]] && { [[ -e "$OP_WORK_ITEM_FILE" ]] || [[ -L "$OP_WORK_IT
 fi
 
 echo "Running on host: $current_host"
+# Its own checkout's main.yml, ansible.cfg and become plugin, wherever it was
+# started from; the roles read their symlink sources from PWD.
+if [[ -n "$user_config" ]]; then cd -- "$(dirname -- "$inventory")"; fi
 exec ansible-playbook -l "$current_host" main.yml "$@"

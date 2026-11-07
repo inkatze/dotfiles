@@ -53,7 +53,7 @@ done
 config_roles="$(printf '%s\n' "$roles" | grep -vxE 'osx|linux')"
 [ -n "$config_roles" ] || { echo "FAIL[harness]: the full run lists no config roles"; exit 1; }
 
-selection="--tags user-config --skip-tags privileged,upgrade"
+selection="--tags user-config --skip-tags privileged,upgrade,shell"
 # shellcheck disable=SC2086  # word-split on purpose: $selection is several arguments
 list $selection
 cp "$work/tasks" "$work/selection"
@@ -65,8 +65,8 @@ for r in $config_roles; do
     if has_own_task "$r"; then ok "selection-includes-$r" "$r is selected"
     else fail "selection-includes-$r" "$r is listed by the full run but not tagged user-config"; fi
 done
-leaked="$(grep -E '(\||, )(privileged|upgrade)(,|$)' "$work/tasks" | head -3 | tr '\n' ';')"
-if [ -z "$leaked" ]; then ok selection-skips-privileged "no privileged or upgrade task is selected"
+leaked="$(grep -E '(\||, )(privileged|upgrade|shell)(,|$)' "$work/tasks" | head -3 | tr '\n' ';')"
+if [ -z "$leaked" ]; then ok selection-skips-privileged "no privileged, upgrade or shell task is selected"
 else fail selection-skips-privileged "selected: $leaked"; fi
 if has_task "services : Apply the client defaults to my.cnf"; then
     ok selection-keeps-services-darwin "the unprivileged macOS services content stays in"

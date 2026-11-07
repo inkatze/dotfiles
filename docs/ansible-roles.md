@@ -32,17 +32,23 @@ platform, runs only what needs no escalation:
 - the roles `main.yml` tags `user-config` (every role except `osx` and
   `linux`, which keep their `os_family` guards and carry no such tag);
 - minus tasks tagged `privileged` (the services role's Debian lifecycle, which
-  escalates even on a converged host) and `upgrade`;
+  escalates even on a converged host), `upgrade`, and `shell` (fish's
+  login-shell tasks, which `mise run install` skips too, so a drifted login
+  shell cannot block every unattended run);
 - with Ansible's become method set to `become_plugins/refuse_privilege.py`, so
   any task in the selection that would still escalate fails with a message
   naming the full run, rather than prompting. A task whose `when:` is false
-  never escalates, so fish's login-shell tasks pass on a host already
-  converged.
+  never escalates, so a role that escalates only to repair drift passes on a
+  converged host.
 
 It must be the first argument, and only options that narrow or preview the
 run may follow (the allow-list is in `scripts/playbook.sh`): anything that
 could widen the selection, retarget the run or supply a sudo password is
-refused.
+refused, as is a `--skip-tags` naming `always`, `all` or `tagged`. It also
+refuses while an `ANSIBLE_*` variable that adds tags or swaps the config,
+inventory or plugin path is set, and when no host alias is configured (the
+full run's `work` fallback warns, which nobody unattended would read). It runs
+from the script's own checkout, wherever it was started.
 
 A refusal ends the run at that task: the tasks before it stay applied (all
 unprivileged and idempotent), and every later task and role is left unapplied
