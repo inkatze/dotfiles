@@ -312,7 +312,10 @@ case "$rule" in
     errors=""
     n=0
     keys=0
-    shape='^from="([0-9]{1,3}[.]){3}[0-9]{1,3}",restrict,pty ssh-ed25519 [A-Za-z0-9+/]+=*( [^[:cntrl:]]*)?$'
+    # An address sshd cannot match (an octet above 255) would pass the shape and
+    # then refuse every connection, after the hardening has closed passwords.
+    octet='(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])'
+    shape="^from=\"(${octet}[.]){3}${octet}\",restrict,pty ssh-ed25519 [A-Za-z0-9+/]+=*( [^[:cntrl:]]*)?$"
     while IFS= read -r line || [ -n "$line" ]; do
       n=$((n + 1))
       case "$line" in

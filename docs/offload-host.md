@@ -21,14 +21,21 @@ SSH, only when the operator says the Mac is free; deciding that automatically
   `~/.ssh/authorized_keys.offload`, rendered from 1Password by
   `scripts/op-render.sh`, which restricts it to `server`'s address (`from=`)
   and grants a login session with a terminal and no forwarding
-  (`restrict,pty`: no agent, X11 or port forwarding); any command still runs. The account's own `~/.ssh/authorized_keys` stays
-  unmanaged.
+  (`restrict,pty`: no agent, X11 or port forwarding); any command still runs.
+  The account's own `~/.ssh/authorized_keys` stays unmanaged, so a shell in
+  the account can add a key there with no address pin; managing that file
+  instead would risk locking the account out over a bad render.
 - **No password login.** `roles/osx/files/sshd/050-dotfiles-hardening.conf`
   turns off password and keyboard-interactive login and root login for every
   account on the Mac, the owner's included. The play installs it only once the
-  authorized key is in place, and then asserts the effective `sshd -T` values.
-  Remote Login must stay on; the play fails if it is off rather than touching
-  it.
+  authorized key is in place, then asserts the effective `sshd -T` values as a
+  connection from the `from=` address would get them, and removes a drop-in it
+  just installed if that check fails. Remote Login must stay on; the play fails
+  if it is off rather than touching it.
+- **What is not checked.** Nothing compares `from=` with the address the
+  connection really arrives from; a working key login from `server` is the
+  proof. The Homebrew ownership check reads the prefix's owner, so on an Intel
+  Mac, whose `/usr/local` belongs to root, it always takes the read-only path.
 
 ## The 1Password LAN item
 

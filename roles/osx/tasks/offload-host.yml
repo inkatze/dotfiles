@@ -47,47 +47,92 @@
   check_mode: false
   tags: [osx, offload]
 
-# No restart: launchd starts a fresh sshd for every connection, which reads the
-# config then. The validation runs the drop-in alone with the host's own keys,
-# so a typo is refused before it can break every new connection.
-- name: Deploy the sshd hardening drop-in
-  ansible.builtin.copy:
-    src: "sshd/{{ osx_offload_sshd_dropin }}"
-    dest: "/etc/ssh/sshd_config.d/{{ osx_offload_sshd_dropin }}"
-    owner: root
-    group: wheel
-    mode: "0644"
-    validate: /usr/sbin/sshd -t -f %s
-  become: true
+# The address the dispatching host connects from, so the effective config
+# below is evaluated as that connection would see it, Match blocks included.
+- name: Read the offload authorized key
+  ansible.builtin.slurp:
+    src: "{{ osx_offload_authorized_keys }}"
+  register: osx_offload_key_file
   when: osx_offload_key_stat.stat.exists and osx_offload_key_stat.stat.size > 0
   tags: [osx, offload]
 
-# Asserted against the effective config rather than the file: a macOS update
-# that reorders the includes, or a drop-in sorting earlier, would silently
-# re-open password login.
-- name: Read the effective sshd configuration
-  ansible.builtin.command: /usr/sbin/sshd -T
-  register: osx_offload_sshd_effective
-  changed_when: false
+- name: Check whether the hardening drop-in was already in place
+  ansible.builtin.stat:
+    path: "/etc/ssh/sshd_config.d/{{ osx_offload_sshd_dropin }}"
+  register: osx_offload_dropin_before
   check_mode: false
-  become: true
-  when: osx_offload_key_stat.stat.exists and osx_offload_key_stat.stat.size > 0
+  when: osx_offload_key_file.content is defined
   tags: [osx, offload]
 
-- name: Require the hardened sshd configuration
-  ansible.builtin.assert:
-    that:
-      - "'passwordauthentication no' in osx_offload_sshd_effective.stdout_lines"
-      - "'kbdinteractiveauthentication no' in osx_offload_sshd_effective.stdout_lines"
-      - "'pubkeyauthentication yes' in osx_offload_sshd_effective.stdout_lines"
-      - "'permitrootlogin no' in osx_offload_sshd_effective.stdout_lines"
-      - >-
-        'authorizedkeysfile .ssh/authorized_keys .ssh/authorized_keys.offload'
-        in osx_offload_sshd_effective.stdout_lines
-    fail_msg: >-
-      sshd's effective configuration is not the hardened one; another file in
-      /etc/ssh/sshd_config.d sets these keywords first. Compare `sudo sshd -T`
-      with roles/osx/files/sshd/{{ osx_offload_sshd_dropin }}.
-    quiet: true
-  when: osx_offload_sshd_effective.stdout_lines is defined
+- name: Harden sshd
+  when: osx_offload_key_file.content is defined
   tags: [osx, offload]
+  vars:
+    osx_offload_from: >-
+      {{ osx_offload_key_file.content | b64decode
+         | regex_search('from="([0-9.]+)"', '\1') | first }}
+  block:
+    # No restart: launchd starts a fresh sshd for every connection, which
+    # reads the config then. The validation runs the drop-in alone with the
+    # host's own keys, so a typo is refused before it can break every new
+    # connection.
+    - name: Deploy the sshd hardening drop-in
+      ansible.builtin.copy:
+        src: "sshd/{{ osx_offload_sshd_dropin }}"
+        dest: "/etc/ssh/sshd_config.d/{{ osx_offload_sshd_dropin }}"
+        owner: root
+        group: wheel
+        mode: "0644"
+        validate: /usr/sbin/sshd -t -f %s
+      become: true
+
+    # Asserted against the effective config rather than the file: a macOS
+    # update that reorders the includes, or a drop-in sorting earlier, would
+    # silently re-open password login. Skipped in check mode, where the
+    # drop-in above was never written.
+    - name: Read the effective sshd configuration
+      ansible.builtin.command:
+        argv:
+          - /usr/sbin/sshd
+          - -T
+          - -C
+          - "user={{ osx_offload_user }},host={{ osx_offload_from }},addr={{ osx_offload_from }}"
+      register: osx_offload_sshd_effective
+      changed_when: false
+      become: true
+      when: not ansible_check_mode
+
+    - name: Require the hardened sshd configuration
+      ansible.builtin.assert:
+        that:
+          - "'passwordauthentication no' in osx_offload_sshd_effective.stdout_lines"
+          - "'kbdinteractiveauthentication no' in osx_offload_sshd_effective.stdout_lines"
+          - "'pubkeyauthentication yes' in osx_offload_sshd_effective.stdout_lines"
+          - "'permitrootlogin no' in osx_offload_sshd_effective.stdout_lines"
+          - >-
+            'authorizedkeysfile .ssh/authorized_keys .ssh/authorized_keys.offload'
+            in osx_offload_sshd_effective.stdout_lines
+        fail_msg: >-
+          sshd's effective configuration is not the hardened one; another file
+          in /etc/ssh/sshd_config.d, or a Match block, sets these keywords
+          first. Compare `sudo sshd -T -C` for user {{ osx_offload_user }}
+          from {{ osx_offload_from }} with
+          roles/osx/files/sshd/{{ osx_offload_sshd_dropin }}.
+        quiet: true
+      when: not ansible_check_mode
+
+  # Undoes only this run: a drop-in an earlier run left in place stays, so a
+  # transient failure here never re-opens password login on a hardened host.
+  rescue:
+    - name: Remove the drop-in this run installed
+      ansible.builtin.file:
+        path: "/etc/ssh/sshd_config.d/{{ osx_offload_sshd_dropin }}"
+        state: absent
+      become: true
+      when: not osx_offload_dropin_before.stat.exists
+
+    - name: Stop after an unhardened sshd
+      ansible.builtin.fail:
+        msg: >-
+          Hardening sshd failed ({{ ansible_failed_result.msg | default('see the task above') }});
+          the drop-in this run installed was removed again.

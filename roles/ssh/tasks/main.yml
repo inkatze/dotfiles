@@ -77,7 +77,8 @@
     cmd: cat {{ (ssh_offload_key ~ '.pub') | quote }}
   register: ssh_offload_pubkey
   changed_when: false
-  failed_when: false
+  # Only a dry run may lack it, since the generate task above wrote nothing.
+  failed_when: ssh_offload_pubkey.rc != 0 and not ansible_check_mode
   check_mode: false
   when: inventory_hostname in ssh_offload_client_hosts
   tags: [ssh, offload]
