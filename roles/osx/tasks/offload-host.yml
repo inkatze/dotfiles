@@ -72,9 +72,11 @@
 
 # A drop-in that differs from the tracked one is stale after a repo change, or
 # was edited on the host; either way the administrator re-runs the script.
+# stat gives no checksum for a symlink or a file this account cannot read;
+# either fails here with this message, not an undefined-attribute error.
 - name: Require the tracked sshd hardening drop-in
   ansible.builtin.assert:
-    that: osx_offload_dropin.stat.checksum == osx_offload_dropin_tracked
+    that: osx_offload_dropin.stat.checksum | default('') == osx_offload_dropin_tracked
     fail_msg: >-
       /etc/ssh/sshd_config.d/{{ osx_offload_sshd_dropin }} differs from
       roles/osx/files/sshd/{{ osx_offload_sshd_dropin }}. An administrator
