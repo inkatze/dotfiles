@@ -23,13 +23,14 @@ entry rather than a task edit.
 
 ## Unattended runs: `playbook.sh --user-config`
 
-A run with nobody at the keyboard cannot answer a sudo prompt, and the
-platform baselines escalate on every run, so the full playbook cannot apply
-even a config-only change unattended. `./scripts/playbook.sh --user-config`
-runs only what needs no escalation:
+A run with nobody at the keyboard cannot answer a sudo prompt, and on Linux
+the `linux` baseline and the services lifecycle escalate on every run, so the
+full playbook (`./scripts/playbook.sh -K`) cannot apply even a config-only
+change unattended there. `./scripts/playbook.sh --user-config`, on either
+platform, runs only what needs no escalation:
 
 - the roles `main.yml` tags `user-config` (every role except `osx` and
-  `linux`, whose `os_family` guards are unchanged);
+  `linux`, which keep their `os_family` guards and carry no such tag);
 - minus tasks tagged `privileged` (the services role's Debian lifecycle, which
   escalates even on a converged host) and `upgrade`;
 - with Ansible's become method set to `become_plugins/refuse_privilege.py`, so
@@ -38,11 +39,18 @@ runs only what needs no escalation:
   never escalates, so fish's login-shell tasks pass on a host already
   converged.
 
-It must be the first argument, and only `--check`, `--diff`, `-v`,
-`--list-tasks`, `--list-tags` and further `--skip-tags` may follow: anything
-that could widen the selection, retarget the run or supply a sudo password is
-refused. A refusal mid-run leaves the earlier tasks applied; they are all
-unprivileged and idempotent.
+It must be the first argument, and only options that narrow or preview the
+run may follow (the allow-list is in `scripts/playbook.sh`): anything that
+could widen the selection, retarget the run or supply a sudo password is
+refused.
+
+A refusal ends the run at that task: the tasks before it stay applied (all
+unprivileged and idempotent), and every later task and role is left unapplied
+until the full run repairs the drift. A `--check` preview can miss a refusal
+the real run would hit, since check mode skips the unprivileged drift probes
+the escalating tasks are gated on. Escalation is not the only thing an
+unattended run cannot answer: the 1Password reads in the `ssh`, `git` and
+`claude` roles need a service-account token or an unlocked desktop app.
 
 When adding a role, tag it `user-config` in `main.yml` unless it escalates by
 design. A task that escalates inside one either runs only when there is drift

@@ -11,8 +11,9 @@
     # layer on Debian and the role's macOS-only content on Darwin.
     #
     # `user-config` marks the roles `scripts/playbook.sh --user-config` runs
-    # unattended, with no sudo password; a role added here that needs no
-    # escalation joins it (docs/ansible-roles.md).
+    # unattended, with no sudo password. A new role joins it unless it
+    # escalates by design; one that joins keeps each escalating task behind a
+    # drift check or the `privileged` tag (docs/ansible-roles.md).
     - role: osx
       when: ansible_facts.os_family == "Darwin"
     - role: linux

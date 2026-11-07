@@ -2,8 +2,8 @@
 
 # /etc/shells is world-readable, so the check costs no privilege while the write
 # does. Splitting them means a host where fish is already registered needs no
-# sudo for this role at all -- which is what lets the whole playbook run
-# unattended on a host without NOPASSWD. Previously this task always escalated,
+# sudo for this role at all -- which is what lets `playbook.sh --user-config`
+# pass this role unattended on a host without NOPASSWD. Previously this task always escalated,
 # so a run with no become password died here with "sudo: interactive
 # authentication is required" even when there was nothing to write. On Ubuntu
 # the apt fish package registers /usr/bin/fish itself, so that is the normal case.

@@ -11,7 +11,7 @@
 # guard by running it directly.
 #
 # `privileged`: the install, enable and setup steps escalate even on a
-# converged host (the PostgreSQL role checks run as root), so
+# converged host (the PostgreSQL database-role checks run as root), so
 # `playbook.sh --user-config` leaves the whole block to the full run.
 - name: Provision the declared dev services
   when: ansible_facts.os_family == "Debian"

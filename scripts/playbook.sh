@@ -46,7 +46,7 @@ if [[ "${1:-}" == --user-config ]]; then
     done
     [[ -z "$skip_value" ]] || user_config_refuse "was given --skip-tags without a value"
     set -- --tags user-config --skip-tags privileged,upgrade -e ansible_become_method=refuse_privilege "$@"
-    echo "playbook.sh: --user-config leaves out the platform roles, the privileged tasks and upgrades; the full run (-K) applies those." >&2
+    echo "playbook.sh: --user-config leaves out the platform roles, the privileged tasks and upgrades; the full run (./scripts/playbook.sh -K) applies those." >&2
 else
     for arg in "$@"; do
         [[ "$arg" != --user-config ]] || user_config_refuse "must be the first argument"

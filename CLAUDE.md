@@ -148,9 +148,9 @@ review; it never blocks a commit. See
 
 `main.yml` runs one platform baseline per host by `os_family` guard
 (`roles/osx/` on Darwin, `roles/linux/` on Debian); every other role runs
-everywhere, tagged `user-config` for the sudo-free unattended
-`playbook.sh --user-config`, so a task escalating in one runs only to repair
-drift or is tagged `privileged`. Claude config belongs only in `roles/claude/`.
+everywhere, tagged `user-config` for the sudo-free `playbook.sh --user-config`.
+A task escalating in one runs only to repair drift or is tagged `privileged`.
+Claude config belongs only in `roles/claude/`.
 
 `roles/services/` runs everywhere but guards itself: on Debian it provisions
 the services declared in `roles/services/defaults/main.yml`, on Darwin only
