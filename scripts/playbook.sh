@@ -21,6 +21,38 @@ plain_name() {
     esac
 }
 
+# --user-config, first or not at all: the unattended selection
+# (docs/ansible-roles.md). It may only narrow from there, so anything that
+# could widen the selection, retarget the run or bring a sudo password back
+# is refused rather than passed through; the become plugin it selects is what
+# refuses a task that would still escalate.
+user_config_refuse() {
+    printf 'playbook.sh: --user-config %s; refusing to run.\n' "$1" >&2
+    exit 1
+}
+if [[ "${1:-}" == --user-config ]]; then
+    shift
+    skip_value=""
+    for arg in "$@"; do
+        if [[ -n "$skip_value" ]]; then
+            skip_value=""
+            continue
+        fi
+        case "$arg" in
+            -v | -vv | -vvv | -vvvv | --verbose | -C | --check | -D | --diff | --list-tasks | --list-tags | --skip-tags=?*) ;;
+            --skip-tags) skip_value=1 ;;
+            *) user_config_refuse "takes only --check, --diff, -v, --list-tasks, --list-tags and --skip-tags, not $(escape "$arg")" ;;
+        esac
+    done
+    [[ -z "$skip_value" ]] || user_config_refuse "was given --skip-tags without a value"
+    set -- --tags user-config --skip-tags privileged,upgrade -e ansible_become_method=refuse_privilege "$@"
+    echo "playbook.sh: --user-config leaves out the platform roles, the privileged tasks and upgrades; the full run (./scripts/playbook.sh -K) applies those." >&2
+else
+    for arg in "$@"; do
+        [[ "$arg" != --user-config ]] || user_config_refuse "must be the first argument"
+    done
+fi
+
 # Machine-local host-alias override: the DOTFILES_HOST env var, or an
 # untracked file naming this machine's inventory alias. This keeps a host's
 # real hostname out of this public repo (REQ-F1.1). The `personal` alias used

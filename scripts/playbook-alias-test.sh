@@ -442,6 +442,73 @@ if [ "$(id -u)" -ne 0 ]; then
     chmod 600 "$work/op-work-item"
 fi
 
+# --user-config: the unattended selection. run_args <playbook args...> runs
+# against a resolving alias; the stub's argv is read from $work/argv afterwards.
+run_args() {
+    rm -f "$work/argv"
+    reset_files
+    env -i PATH="$work/bin:$PATH" HOME="$work/home" DOTFILES_HOST=server \
+        STUB_ARGV="$work/argv" STUB_OP_ACCOUNT="$work/op" STUB_OP_WORK="$work/op-work" \
+        DOTFILES_HOST_FILE="$work/host" DOTFILES_OP_ACCOUNT_FILE="$work/op-account" \
+        DOTFILES_OP_WORK_ITEM_FILE="$work/op-work-item" \
+        bash "$playbook" "$@" >/dev/null 2>"$work/stderr"
+    echo $? >"$work/rc"
+}
+argv_line() { [ -f "$work/argv" ] && tr '\n' ' ' <"$work/argv"; }
+
+run_args -v --check
+if [ "$(argv_line)" = "-l server main.yml -v --check " ]; then
+    ok full-run-unchanged "without --user-config the arguments pass through as before"
+else
+    fail full-run-unchanged "argv was '$(argv_line)'"
+fi
+
+uc_want="-l server main.yml --tags user-config --skip-tags privileged,upgrade -e ansible_become_method=refuse_privilege "
+run_args --user-config
+if [ "$(cat "$work/rc")" = 0 ] && [ "$(argv_line)" = "$uc_want" ]; then
+    ok user-config "selects user-config, skips privileged and upgrade, refuses become"
+else
+    fail user-config "rc $(cat "$work/rc"), argv '$(argv_line)'"
+fi
+if grep -q 'privileged' "$work/stderr"; then
+    ok user-config-says-skipped "stderr names what the selection leaves out"
+else
+    fail user-config-says-skipped "stderr does not mention the skipped privileged tasks"
+fi
+
+run_args --user-config --check --diff -vv --skip-tags tmux
+if [ "$(argv_line)" = "${uc_want}--check --diff -vv --skip-tags tmux " ]; then
+    ok user-config-narrowing "check, diff, verbosity and extra --skip-tags pass through"
+else
+    fail user-config-narrowing "argv was '$(argv_line)'"
+fi
+
+for good in -C -D --verbose --list-tasks --list-tags --skip-tags=tmux; do
+    run_args --user-config "$good"
+    if [ "$(cat "$work/rc")" = 0 ] && [ "$(argv_line)" = "${uc_want}$good " ]; then
+        ok "user-config-accepts[$good]" "passed through after the selection"
+    else
+        fail "user-config-accepts[$good]" "rc $(cat "$work/rc"), argv '$(argv_line)'"
+    fi
+done
+
+for bad in -K --ask-become-pass -b --become --become-method=sudo --become-user=root \
+    -t --tags=linux -e --extra-vars=x=1 -Kv -l --limit=all --skip-tags; do
+    run_args --user-config "$bad"
+    if [ "$(cat "$work/rc")" != 0 ] && [ ! -f "$work/argv" ] && grep -qF -- "--user-config" "$work/stderr"; then
+        ok "user-config-refuses[$bad]" "refused before ansible-playbook ran"
+    else
+        fail "user-config-refuses[$bad]" "rc $(cat "$work/rc"), argv '$(argv_line)'"
+    fi
+done
+
+run_args --check --user-config
+if [ "$(cat "$work/rc")" != 0 ] && [ ! -f "$work/argv" ]; then
+    ok user-config-first-only "--user-config after another argument is refused, not passed to ansible"
+else
+    fail user-config-first-only "rc $(cat "$work/rc"), argv '$(argv_line)'"
+fi
+
 if [ "$fails" -eq 0 ]; then
     echo "playbook-alias-test: all assertions hold"
 else

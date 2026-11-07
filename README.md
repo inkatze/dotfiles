@@ -29,6 +29,11 @@ CLI, `openssh-server`; mise; sshd hardening drop-in; Tailscale; the
 3. Run `./scripts/playbook.sh` (or `mise run install`). It reads the alias
    file and targets the `server` inventory host.
 
+On either platform, later config-only changes can be applied without a sudo
+password, as an unattended session does: `./scripts/playbook.sh --user-config`
+runs every config role and skips the platform baseline and other privileged
+tasks (see `docs/ansible-roles.md`).
+
 Driving the first run's failures to zero (apt-lock contention,
 cross-platform config roles) is the `specs/linux-migration` Task 7
 stabilization loop.
