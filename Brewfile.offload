@@ -1,0 +1,2 @@
+# Offload host: the shared Brewfile is the toolchain dispatched work needs.
+# Desktop apps stay out, since the owner's account already has hers.

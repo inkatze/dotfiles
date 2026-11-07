@@ -1,5 +1,17 @@
 ---
 
+# First, so a run from the owner's account stops before any role touches it.
+- name: Refuse to configure the offload host from another account
+  ansible.builtin.assert:
+    that: ansible_facts.env.USER == osx_offload_user
+    fail_msg: >-
+      The offload host is configured only from its work account
+      ({{ osx_offload_user }}), never from the owner's. Log in as that account,
+      or set osx_offload_user if the account has another name.
+    quiet: true
+  when: inventory_hostname in osx_offload_hosts
+  tags: [osx, offload]
+
 - name: Import macOS tasks
   ansible.builtin.include_tasks: osx.yml
   tags: [osx]
@@ -19,3 +31,8 @@
   ansible.builtin.include_tasks: health-signal.yml
   when: inventory_hostname in osx_health_signal_hosts
   tags: [osx, health]
+
+- name: Import offload-host tasks
+  ansible.builtin.include_tasks: offload-host.yml
+  when: inventory_hostname in osx_offload_hosts
+  tags: [osx, offload]
