@@ -63,6 +63,10 @@ jobs:
       - name: Run the credential-path guard suite
         run: scripts/credential-path-guard-test.sh
 
+      # PyYAML comes with the ansible install above.
+      - name: Run the osx offload-guard suite
+        run: scripts/osx-offload-guard-test.sh
+
       # Needs ansible-playbook, which this job installs.
       - name: Run the git unattended-auth suite
         run: scripts/git-unattended-auth-test.sh

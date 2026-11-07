@@ -106,7 +106,8 @@ In order; each step needs a person, except the playbook run on `server`.
 
    If the owner's account already owns the Homebrew prefix, skip the
    Homebrew install and `brew install` line: the play then uses her Homebrew
-   read-only, runs no `brew bundle` or upgrade, and refuses to go on while any
+   read-only, runs no Homebrew install, update or upgrade (the GitHub MCP
+   sync and planwright updates still run), and refuses to go on while any
    of `osx_offload_required_tools` is missing from PATH, naming them. Check
    first with:
 

@@ -1,8 +1,13 @@
 ---
 
+# Homebrew writes carry osx_brew_writable (roles/osx/tasks/main.yml): false on
+# the offload host when another account owns the prefix. Tasks that only call
+# scripts or Claude Code stay unguarded.
+
 - name: Update homebrew
   community.general.homebrew:
     update_homebrew: true
+  when: osx_brew_writable | bool
   tags: [upgrade]
 
 # Install-missing pass runs first without MAS_SKIP so newly-added mas entries
@@ -14,6 +19,7 @@
     cmd: brew bundle install --no-upgrade --file={{ ansible_facts.env.PWD }}/Brewfile
   register: osx_brew_bundle_common_install
   changed_when: "'Installing' in osx_brew_bundle_common_install.stdout"
+  when: osx_brew_writable | bool
   tags: [upgrade]
 
 - name: Install missing host-specific packages from Brewfile
@@ -21,6 +27,7 @@
     cmd: brew bundle install --no-upgrade --file={{ ansible_facts.env.PWD }}/Brewfile.{{ inventory_hostname }}
   register: osx_brew_bundle_host_install
   changed_when: "'Installing' in osx_brew_bundle_host_install.stdout"
+  when: osx_brew_writable | bool
   tags: [upgrade]
 
 # mas entries are skipped in the upgrade pass below (brew bundle shells out via
@@ -38,6 +45,7 @@
     executable: /bin/bash
   register: osx_brewfile_mas_ids
   changed_when: false
+  when: osx_brew_writable | bool
   tags: [upgrade]
 
 - name: Upgrade common packages from Brewfile
@@ -47,6 +55,7 @@
     HOMEBREW_BUNDLE_MAS_SKIP: "{{ osx_brewfile_mas_ids.stdout }}"
   register: osx_brew_bundle_common
   changed_when: "'Upgrading' in osx_brew_bundle_common.stdout"
+  when: osx_brew_writable | bool
   tags: [upgrade]
 
 - name: Upgrade host-specific packages from Brewfile
@@ -56,6 +65,7 @@
     HOMEBREW_BUNDLE_MAS_SKIP: "{{ osx_brewfile_mas_ids.stdout }}"
   register: osx_brew_bundle_host
   changed_when: "'Upgrading' in osx_brew_bundle_host.stdout"
+  when: osx_brew_writable | bool
   tags: [upgrade]
 
 - name: Upgrade MAS apps
@@ -68,7 +78,9 @@
     - osx_mas_upgrade_status.rc == 0
     - "'Nothing found to upgrade' not in osx_mas_upgrade_status.stdout"
   failed_when: false
-  when: lookup('ansible.builtin.env', 'CI', default='') == ''
+  when:
+    - osx_brew_writable | bool
+    - lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [upgrade]
 
 - name: Sync GitHub MCP server registration with Claude Code

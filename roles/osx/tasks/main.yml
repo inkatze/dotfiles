@@ -1,6 +1,8 @@
 ---
 
 # First, so a run from the owner's account stops before any role touches it.
+# Tagged `always` with the probes below: a run limited to one role's tag must
+# meet the same account check and see a defined osx_brew_writable.
 - name: Refuse to configure the offload host from another account
   ansible.builtin.assert:
     that: ansible_facts.env.USER == osx_offload_user
@@ -10,7 +12,7 @@
       or set osx_offload_user if the account has another name.
     quiet: true
   when: inventory_hostname in osx_offload_hosts
-  tags: [osx, offload]
+  tags: [always]
 
 # The owner's Homebrew may already hold the prefix. The work account then uses
 # its tools read-only and installs nothing into it, since writing there would
@@ -22,7 +24,7 @@
   failed_when: false
   check_mode: false
   when: inventory_hostname in osx_offload_hosts
-  tags: [osx, offload]
+  tags: [always]
 
 - name: Check who owns the Homebrew prefix
   ansible.builtin.stat:
@@ -30,7 +32,7 @@
   register: osx_offload_brew_stat
   check_mode: false
   when: inventory_hostname in osx_offload_hosts
-  tags: [osx, offload]
+  tags: [always]
 
 - name: Decide whether this run may install with Homebrew
   ansible.builtin.set_fact:
@@ -38,7 +40,7 @@
       {{ inventory_hostname not in osx_offload_hosts
          or (osx_offload_brew_stat.stat.exists
              and osx_offload_brew_stat.stat.pw_name == ansible_facts.env.USER) }}
-  tags: [osx, offload, upgrade]
+  tags: [always]
 
 - name: Check the tools the offload host needs without Homebrew installs
   ansible.builtin.shell:
@@ -52,7 +54,7 @@
   changed_when: false
   check_mode: false
   when: not (osx_brew_writable | bool)
-  tags: [osx, offload]
+  tags: [always]
 
 - name: Require those tools
   ansible.builtin.assert:
@@ -64,7 +66,7 @@
       then re-run (docs/offload-host.md).
     quiet: true
   when: not (osx_brew_writable | bool)
-  tags: [osx, offload]
+  tags: [always]
 
 - name: Import macOS tasks
   ansible.builtin.include_tasks: osx.yml
@@ -72,12 +74,10 @@
 
 - name: Import homebrew tasks
   ansible.builtin.include_tasks: homebrew.yml
-  when: osx_brew_writable | bool
   tags: [osx]
 
 - name: Import upgrade tasks
   ansible.builtin.include_tasks: upgrade.yml
-  when: osx_brew_writable | bool
   tags: [upgrade]
 
 # Only on the host that owns the job. Guarding the include rather than every

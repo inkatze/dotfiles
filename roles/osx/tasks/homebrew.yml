@@ -1,10 +1,15 @@
 ---
 
+# Homebrew writes carry osx_brew_writable (roles/osx/tasks/main.yml): false on
+# the offload host when another account owns the prefix. Tasks that only call
+# scripts or Claude Code stay unguarded.
+
 - name: Install common packages from Brewfile
   ansible.builtin.command:
     cmd: brew bundle install --no-upgrade --file={{ ansible_facts.env.PWD }}/Brewfile
   register: osx_brew_bundle_common
   changed_when: "'Installing' in osx_brew_bundle_common.stdout"
+  when: osx_brew_writable | bool
   tags: [osx]
 
 - name: Install host-specific packages from Brewfile
@@ -12,6 +17,7 @@
     cmd: brew bundle install --no-upgrade --file={{ ansible_facts.env.PWD }}/Brewfile.{{ inventory_hostname }}
   register: osx_brew_bundle_host
   changed_when: "'Installing' in osx_brew_bundle_host.stdout"
+  when: osx_brew_writable | bool
   tags: [osx]
 
 - name: Sync GitHub MCP server registration with Claude Code
