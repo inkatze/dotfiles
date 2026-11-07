@@ -34,10 +34,13 @@
   tags: [osx, offload]
 
 # In declared order: the pipx backend needs uv on PATH first. mise prints its
-# install line on stderr only for a fresh install.
+# install line on stderr only for a fresh install. From $HOME, since mise also
+# reads the config of the directory it runs in, and the play runs from the
+# checkout, whose own mise.toml pins some of the same tools.
 - name: Install the offload host's mise tools
   ansible.builtin.command:
     argv: ["{{ osx_offload_mise_bin }}", install, "{{ item }}"]
+    chdir: "{{ ansible_facts.env.HOME }}"
   register: osx_offload_mise_install
   changed_when: "'installed' in osx_offload_mise_install.stderr"
   loop: "{{ osx_offload_mise_tools }}"
