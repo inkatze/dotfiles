@@ -425,6 +425,13 @@ jq --arg two "$pub"$'\n'"$(cat "$sandbox/k2.pub")" '.fields[1].value = $two' "$O
 run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
 expect_failed "a second key pasted into the field" "offload_client_pubkey holds a line break"
 [ -e "$sandbox/ak" ] && ko "a refused key reached the output" || ok "a refused key never reaches the output"
+item_from 'server_ip=192.0.2.10' "offload_client_pubkey=$pub"
+{ cat "$offload_tpl"; grep -v '^#' "$offload_tpl"; } >"$sandbox/tpl/authorized_keys.offload.tpl"
+run "$sandbox/tpl/authorized_keys.offload.tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "a template carrying a second key line" "holds 2 keys; exactly one is expected"
+grep '^#' "$offload_tpl" >"$sandbox/tpl/authorized_keys.offload.tpl"
+run "$sandbox/tpl/authorized_keys.offload.tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "a template carrying no key line" "holds 0 keys; exactly one is expected"
 
 echo "15. preconditions"
 new_sandbox
