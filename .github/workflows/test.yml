@@ -302,6 +302,11 @@ jobs:
       - name: Run ${{ matrix.role }} tasks
         run: mise run ${{ matrix.role }}
 
+      # The leg that installs tmux; the suite needs nothing the role provides.
+      - name: Run the tpm guard suite
+        if: matrix.role == 'tmux'
+        run: scripts/tmux-tpm-guard-test.sh
+
       - name: Idempotency check
         run: |
           OUTPUT=$(mise run ${{ matrix.role }} 2>&1)
