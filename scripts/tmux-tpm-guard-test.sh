@@ -14,12 +14,15 @@
 # real default socket are ever addressed. The fake tpm reproduces the real
 # one's hazard: a background child that outlives the server and keeps calling
 # `tmux list-keys`, a command that starts a server. It stops spawning children
-# after a few runs, so an unguarded conf cannot loop forever.
+# after a few runs, so an unguarded conf cannot loop forever. The last case
+# runs the installed tpm instead, to show a plugin still loads through the
+# guard; it fails where the tmux role has not installed tpm.
 set -uo pipefail
 
 here="$(cd -- "$(dirname "$0")" && pwd -P)"
 repo="$(cd -- "$here/.." && pwd -P)"
 conf="${1:-$repo/roles/tmux/files/tmux.conf}"
+real_home="$HOME"
 fails=0
 
 if ! command -v tmux >/dev/null 2>&1; then
@@ -157,6 +160,32 @@ settle
 after="$(runs_for "$main")"
 if [ "$after" -eq "$before" ]; then pass 5 "tpm's children did not re-spawn the killed server"; else fail 5 "tpm ran $((after - before)) more time(s) after the server was killed"; fi
 expect_no_leftovers 5 "killed server"
+sweep
+
+# 6. The real tpm, run through the guard and its -N shim, still sources a
+# listed plugin, whose own tmux call reaches the live server.
+real_tpm="$real_home/.tmux/plugins/tpm"
+if [ ! -x "$real_tpm/tpm" ]; then
+    fail 6 "no tpm at $real_tpm (the tmux role installs it)"
+else
+    home="$scratch/home-real"
+    mkdir -p "$home/.tmux/plugins/tmux-sensible"
+    ln -s "$repo/roles/tmux/files/scripts" "$home/.tmux/scripts"
+    ln -s "$conf" "$home/.tmux.conf"
+    ln -s "$real_tpm" "$home/.tmux/plugins/tpm"
+    printf '#!/bin/sh\ntmux set -g @tpm_guard_test loaded\n' >"$home/.tmux/plugins/tmux-sensible/sensible.tmux"
+    chmod +x "$home/.tmux/plugins/tmux-sensible/sensible.tmux"
+    real="$scratch/sock/default"
+    tm -S "$real" -f "$conf" new-session -d -s real 'sleep 600'
+    got=""
+    for _ in $(seq 50); do
+        got="$(tm -N -S "$real" show -gqv @tpm_guard_test)"
+        [ "$got" = loaded ] && break
+        sleep 0.1
+    done
+    if [ "$got" = loaded ]; then pass 6 "the real tpm sourced a plugin through the guard"; else fail 6 "the real tpm did not source the plugin (got '${got}')"; fi
+    tm -N -S "$real" kill-server 2>/dev/null
+fi
 
 if [ "$fails" -gt 0 ]; then
     echo "tmux-tpm-guard-test: $fails failure(s)" >&2
