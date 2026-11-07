@@ -426,6 +426,11 @@ run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak-edge"
 item_from 'server_ip=192.0.2.10' 'offload_client_pubkey=ssh-ed25519 AAAAnotakey'
 run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
 expect_failed "a key ssh-keygen cannot read" "ssh-keygen does not read the key"
+# Readable by ssh-keygen, so only the shape's key type refuses it.
+ssh-keygen -q -t ecdsa -N '' -f "$sandbox/k3"
+item_from 'server_ip=192.0.2.10' "offload_client_pubkey=$(cat "$sandbox/k3.pub")"
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "a key of another type" "is not one from-restricted ed25519 key"
 item_from 'server_ip=192.0.2.10' "offload_client_pubkey=$pub"
 jq --arg two "$pub"$'\n'"$(cat "$sandbox/k2.pub")" '.fields[1].value = $two' "$OP_STUB_ITEM" >"$sandbox/i" && mv "$sandbox/i" "$OP_STUB_ITEM"
 run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
