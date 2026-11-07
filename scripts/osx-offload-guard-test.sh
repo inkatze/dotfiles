@@ -2,13 +2,16 @@
 # Static checks on the osx role's offload-host guards, read from the task files
 # with PyYAML (no play runs, so no Mac and no ansible worker is needed).
 #
-# 1. Every task ahead of the macOS imports in roles/osx/tasks/main.yml is
-#    tagged `always`: a tagged run must still meet the account check, and must
-#    find osx_brew_writable defined.
-# 2. Every Homebrew or App Store write in homebrew.yml and upgrade.yml carries
-#    osx_brew_writable, and nothing else does: the planwright updates have to
-#    keep running on the offload host, which never writes Homebrew.
-# 3. The includes themselves stay unguarded, for the same reason.
+# - The tasks ahead of the macOS imports in roles/osx/tasks/main.yml are tagged
+#   `always`, read the login and groups from the process, refuse another or an
+#   administrator account, and set osx_brew_writable false on the offload
+#   hosts: a tagged run must still meet the account checks and find it defined.
+# - The offload host's own task files never use become.
+# - Every Homebrew or App Store task in homebrew.yml and upgrade.yml carries
+#   osx_brew_writable, and nothing else does: the planwright updates have to
+#   keep running on the offload host, which never writes Homebrew. The includes
+#   themselves stay unguarded, for the same reason.
+# - The GitHub MCP sync is skipped on the offload host.
 
 set -eu
 
@@ -81,15 +84,31 @@ for t in head:
         ok(f"{t['name']}: tagged always")
     else:
         ko(f"{t['name']}: tagged {tags}, not always")
-names = [t["name"] for t in head]
-if any("Refuse" in n and "account" in n for n in names):
-    ok("the account check is among them")
+# By what each task does, not its name: the two account checks' names share
+# their words, so a name match let either stand in for the other.
+def probes(argv, register):
+    return any(
+        t.get("ansible.builtin.command", {}).get("argv") == argv and t.get("register") == register
+        for t in head
+    )
+
+
+def asserts(that):
+    return any(t.get("ansible.builtin.assert", {}).get("that") == that for t in head)
+
+
+for label, present in (
+    ("the login is read from the process", probes(["id", "-un"], "osx_offload_login")),
+    ("the groups are read from the process", probes(["id", "-Gn"], "osx_offload_groups")),
+    ("the account check is among them", asserts("osx_offload_login.stdout == osx_offload_user")),
+    ("the not-an-administrator check is among them", asserts("'admin' not in osx_offload_groups.stdout.split()")),
+):
+    ok(label) if present else ko(f"{label}: not found ahead of the imports")
+writable = [t["ansible.builtin.set_fact"]["osx_brew_writable"] for t in head if "osx_brew_writable" in t.get("ansible.builtin.set_fact", {})]
+if writable == ["{{ inventory_hostname not in osx_offload_hosts }}"]:
+    ok("osx_brew_writable is false exactly on the offload hosts")
 else:
-    ko("the account check is not ahead of the imports")
-if any("administrator" in n for n in names):
-    ok("the not-an-administrator check is among them")
-else:
-    ko("the not-an-administrator check is not ahead of the imports")
+    ko(f"osx_brew_writable is set ahead of the imports as {writable}")
 
 print("1b. the offload host's own tasks never ask for sudo")
 for fname in ("offload-host.yml", "offload-tools.yml"):
