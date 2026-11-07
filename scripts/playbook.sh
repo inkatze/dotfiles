@@ -33,7 +33,12 @@ user_config_refuse() {
 }
 # Skipping `always` (or everything) drops the fact and probe tasks the
 # selected roles read, which turns the run into undefined-variable failures.
+# Plain names only: Ansible strips whitespace (Unicode included) around each
+# tag, so ` always` would otherwise slip past the match below.
 user_config_skip() {
+    case "$1" in
+        '' | *[!${alnum}_.,-]*) user_config_refuse "takes plain tag names after --skip-tags, not $(escape "$1")" ;;
+    esac
     case ",$1," in
         *,always,* | *,all,* | *,tagged,*) user_config_refuse "cannot skip always, all or tagged (got --skip-tags $(escape "$1"))" ;;
     esac

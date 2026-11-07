@@ -517,10 +517,22 @@ fi
 for bad in "--skip-tags always" "--skip-tags all" "--skip-tags tagged" "--skip-tags=tmux,always" "--skip-tags=all"; do
     # shellcheck disable=SC2086  # word-split on purpose: $bad may be two arguments
     run_args --user-config $bad
-    if refused_before_run "--skip-tags"; then
+    if refused_before_run "cannot skip always, all or tagged"; then
         ok "user-config-refuses-skip[$bad]" "a skip that would drop the always tasks is refused"
     else
         fail "user-config-refuses-skip[$bad]" "rc $(cat "$work/rc"), argv '$(argv_line)'"
+    fi
+done
+# Ansible strips whitespace (NBSP too) around each tag, so a padded name is
+# the same skip; each is quoted as one argument.
+n=0
+for bad in " always" "tmux, all" "$(printf 'tagged\t')" "$(printf '\302\240always')"; do
+    n=$((n + 1))
+    run_args --user-config --skip-tags "$bad"
+    if refused_before_run "takes plain tag names"; then
+        ok "user-config-refuses-padded-skip[$n]" "a padded tag name is refused"
+    else
+        fail "user-config-refuses-padded-skip[$n]" "rc $(cat "$work/rc"), argv '$(argv_line)'"
     fi
 done
 
@@ -534,22 +546,23 @@ for v in ANSIBLE_RUN_TAGS ANSIBLE_SKIP_TAGS ANSIBLE_CONFIG ANSIBLE_INVENTORY ANS
         fail "user-config-refuses-env[$v]" "rc $(cat "$work/rc"), argv '$(argv_line)'"
     fi
     run_args -v
-    if [ "$(cat "$work/rc")" = 0 ] && [ -f "$work/argv" ]; then
-        ok "full-run-ignores-env[$v]" "the full run still runs with $v set"
+    if [ "$(cat "$work/rc")" = 0 ] && [ "$(argv_line)" = "-l server main.yml -v " ]; then
+        ok "full-run-ignores-env[$v]" "the full run is unchanged with $v set"
     else
-        fail "full-run-ignores-env[$v]" "rc $(cat "$work/rc")"
+        fail "full-run-ignores-env[$v]" "rc $(cat "$work/rc"), argv '$(argv_line)'"
     fi
+    run_env=""
 done
 
 run_env="DOTFILES_HOST="
 run_args --user-config
-if refused_before_run "work"; then
+if refused_before_run "not the work fallback"; then
     ok user-config-refuses-fallback "no configured alias refuses instead of defaulting to work"
 else
     fail user-config-refuses-fallback "rc $(cat "$work/rc"), argv '$(argv_line)'"
 fi
 run_args -v
-if [ "$(cat "$work/rc")" = 0 ] && grep -qx -- work "$work/argv"; then
+if [ "$(cat "$work/rc")" = 0 ] && [ "$(argv_line)" = "-l work main.yml -v " ]; then
     ok full-run-keeps-fallback "the full run still falls back to work"
 else
     fail full-run-keeps-fallback "rc $(cat "$work/rc"), argv '$(argv_line)'"
