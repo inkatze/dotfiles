@@ -1,15 +1,83 @@
 ---
 
+# First, so a run from the owner's account stops before any role touches it.
+- name: Refuse to configure the offload host from another account
+  ansible.builtin.assert:
+    that: ansible_facts.env.USER == osx_offload_user
+    fail_msg: >-
+      The offload host is configured only from its work account
+      ({{ osx_offload_user }}), never from the owner's. Log in as that account,
+      or set osx_offload_user if the account has another name.
+    quiet: true
+  when: inventory_hostname in osx_offload_hosts
+  tags: [osx, offload]
+
+# The owner's Homebrew may already hold the prefix. The work account then uses
+# its tools read-only and installs nothing into it, since writing there would
+# change software in the owner's account.
+- name: Find the Homebrew prefix on the offload host
+  ansible.builtin.command: brew --prefix
+  register: osx_offload_brew_prefix
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: inventory_hostname in osx_offload_hosts
+  tags: [osx, offload]
+
+- name: Check who owns the Homebrew prefix
+  ansible.builtin.stat:
+    path: "{{ osx_offload_brew_prefix.stdout | default('', true) | trim or '/opt/homebrew' }}"
+  register: osx_offload_brew_stat
+  check_mode: false
+  when: inventory_hostname in osx_offload_hosts
+  tags: [osx, offload]
+
+- name: Decide whether this run may install with Homebrew
+  ansible.builtin.set_fact:
+    osx_brew_writable: >-
+      {{ inventory_hostname not in osx_offload_hosts
+         or (osx_offload_brew_stat.stat.exists
+             and osx_offload_brew_stat.stat.pw_name == ansible_facts.env.USER) }}
+  tags: [osx, offload, upgrade]
+
+- name: Check the tools the offload host needs without Homebrew installs
+  ansible.builtin.shell:
+    cmd: |
+      missing=""
+      for t in {{ osx_offload_required_tools | map('quote') | join(' ') }}; do
+        command -v "$t" >/dev/null 2>&1 || missing="$missing $t"
+      done
+      printf '%s' "${missing# }"
+  register: osx_offload_missing_tools
+  changed_when: false
+  check_mode: false
+  when: not (osx_brew_writable | bool)
+  tags: [osx, offload]
+
+- name: Require those tools
+  ansible.builtin.assert:
+    that: osx_offload_missing_tools.stdout == ''
+    fail_msg: >-
+      Another account owns the Homebrew prefix, so this run installs nothing
+      with it, and these tools are not on PATH: {{ osx_offload_missing_tools.stdout }}.
+      Install them from the owner's account or into this account's ~/.local/bin,
+      then re-run (docs/offload-host.md).
+    quiet: true
+  when: not (osx_brew_writable | bool)
+  tags: [osx, offload]
+
 - name: Import macOS tasks
   ansible.builtin.include_tasks: osx.yml
   tags: [osx]
 
 - name: Import homebrew tasks
   ansible.builtin.include_tasks: homebrew.yml
+  when: osx_brew_writable | bool
   tags: [osx]
 
 - name: Import upgrade tasks
   ansible.builtin.include_tasks: upgrade.yml
+  when: osx_brew_writable | bool
   tags: [upgrade]
 
 # Only on the host that owns the job. Guarding the include rather than every
@@ -19,3 +87,8 @@
   ansible.builtin.include_tasks: health-signal.yml
   when: inventory_hostname in osx_health_signal_hosts
   tags: [osx, health]
+
+- name: Import offload-host tasks
+  ansible.builtin.include_tasks: offload-host.yml
+  when: inventory_hostname in osx_offload_hosts
+  tags: [osx, offload]

@@ -1,0 +1,93 @@
+---
+
+# The offload host's server side: trust the dispatching host's key, then close
+# password and keyboard-interactive login. Ordered so a run that cannot install
+# the key never reaches the hardening, which would otherwise end password login
+# with no key in its place.
+
+# macOS starts sshd per connection through launchd only while Remote Login is
+# on, and turning it off from here would cut the session running this play.
+- name: Check that Remote Login is on
+  ansible.builtin.command: launchctl print system/com.openssh.sshd
+  register: osx_offload_remote_login
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  tags: [osx, offload]
+
+- name: Require Remote Login
+  ansible.builtin.assert:
+    that: osx_offload_remote_login.rc == 0
+    fail_msg: >-
+      Remote Login is off, so nothing can reach this host over SSH. Turn it on
+      in System Settings, General, Sharing, Remote Login, allowing at least
+      {{ osx_offload_user }}, then re-run.
+    quiet: true
+  tags: [osx, offload]
+
+# An absent `op` fails here rather than skipping: this host exists to be
+# reached by that key, and by this point either Homebrew has installed `op` or
+# the required-tools check in main.yml has found it on PATH.
+- name: Render the offload authorized key from 1Password
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_facts.env.PWD }}/scripts/op-render.sh"
+      - "{{ role_path }}/files/offload/authorized_keys.offload.tpl"
+      - "{{ osx_offload_op_item }}"
+      - "{{ osx_offload_authorized_keys }}"
+  register: osx_offload_render
+  changed_when: "'CHANGED' in osx_offload_render.stdout"
+  tags: [osx, offload]
+
+# A dry run renders nothing, so the hardening below must not count on the file.
+- name: Check that the offload authorized key is in place
+  ansible.builtin.stat:
+    path: "{{ osx_offload_authorized_keys }}"
+  register: osx_offload_key_stat
+  check_mode: false
+  tags: [osx, offload]
+
+# No restart: launchd starts a fresh sshd for every connection, which reads the
+# config then. The validation runs the drop-in alone with the host's own keys,
+# so a typo is refused before it can break every new connection.
+- name: Deploy the sshd hardening drop-in
+  ansible.builtin.copy:
+    src: "sshd/{{ osx_offload_sshd_dropin }}"
+    dest: "/etc/ssh/sshd_config.d/{{ osx_offload_sshd_dropin }}"
+    owner: root
+    group: wheel
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  become: true
+  when: osx_offload_key_stat.stat.exists and osx_offload_key_stat.stat.size > 0
+  tags: [osx, offload]
+
+# Asserted against the effective config rather than the file: a macOS update
+# that reorders the includes, or a drop-in sorting earlier, would silently
+# re-open password login.
+- name: Read the effective sshd configuration
+  ansible.builtin.command: /usr/sbin/sshd -T
+  register: osx_offload_sshd_effective
+  changed_when: false
+  check_mode: false
+  become: true
+  when: osx_offload_key_stat.stat.exists and osx_offload_key_stat.stat.size > 0
+  tags: [osx, offload]
+
+- name: Require the hardened sshd configuration
+  ansible.builtin.assert:
+    that:
+      - "'passwordauthentication no' in osx_offload_sshd_effective.stdout_lines"
+      - "'kbdinteractiveauthentication no' in osx_offload_sshd_effective.stdout_lines"
+      - "'pubkeyauthentication yes' in osx_offload_sshd_effective.stdout_lines"
+      - "'permitrootlogin no' in osx_offload_sshd_effective.stdout_lines"
+      - >-
+        'authorizedkeysfile .ssh/authorized_keys .ssh/authorized_keys.offload'
+        in osx_offload_sshd_effective.stdout_lines
+    fail_msg: >-
+      sshd's effective configuration is not the hardened one; another file in
+      /etc/ssh/sshd_config.d sets these keywords first. Compare `sudo sshd -T`
+      with roles/osx/files/sshd/{{ osx_offload_sshd_dropin }}.
+    quiet: true
+  when: osx_offload_sshd_effective.stdout_lines is defined
+  tags: [osx, offload]
