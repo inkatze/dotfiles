@@ -47,10 +47,8 @@
 
 # Installing the hardening needs root, which the standard work account does not
 # have. An administrator runs scripts/offload-sshd-harden.sh from a checkout of
-# their own (docs/offload-host.md): it refuses unless the key below is in
-# place, validates and installs the drop-in, asserts the effective config as a
-# connection from the from= address gets it, and removes a drop-in it just
-# installed if that fails. This play only checks the result, which needs no
+# their own (docs/offload-host.md) once the key rendered above is in place; its
+# header says what it checks. This play only checks the result, which needs no
 # root since the drop-in is world-readable.
 - name: Check the installed sshd hardening drop-in
   ansible.builtin.stat:

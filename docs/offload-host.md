@@ -38,14 +38,20 @@ SSH, only when the operator says the Mac is free; deciding that automatically
   (root running the work account's clone would hand that account root). The
   script refuses unless the rendered authorized key is in place, asserts the
   effective `sshd -T` values as a connection from the `from=` address would
-  get them, and removes a drop-in it just installed if that check fails. The
-  play, which cannot read sshd's effective config without root, reports when
-  the drop-in is missing and fails when it differs from the tracked one.
+  get them, and removes the drop-in again if that check fails where none was
+  installed before; one that replaced an earlier drop-in is kept, and the
+  script says so. The play, which cannot read sshd's effective config
+  without root, reports when the drop-in is missing and fails when it
+  differs from the tracked one.
   Remote Login must stay on; the play fails if it is off rather than touching
   it.
 - **What is not checked.** Nothing compares `from=` with the address the
   connection really arrives from; a working key login from `server` is the
   proof.
+- **The owner's administrators are trusted.** The separation runs one way:
+  an administrator on the Mac can read everything the work account holds,
+  its service-account token, its signing and GitHub keys and its gh token
+  included.
 
 ## The 1Password LAN item
 
@@ -98,7 +104,9 @@ In order; each step needs a person, except the playbook run on `server`.
    id -Gn fleet | tr ' ' '\n' | grep -x admin
    ```
 
-   If Remote Login allows only listed users, add it too:
+   Steps 4, 5 and 7 reach the account over SSH, so Remote Login must be on
+   (System Settings, General, Sharing). If it allows only listed users, add
+   the account too:
    `sudo dseditgroup -o edit -a fleet -t user com.apple.access_ssh`.
 
 3. **Run the playbook on `server`**, which mints `~/.ssh/id_offload`, then
@@ -139,11 +147,12 @@ In order; each step needs a person, except the playbook run on `server`.
    cd ~/dev/dotfiles && ./scripts/playbook.sh
    ```
 
-   A `missing:` line names a tool to add before the run, which otherwise
-   refuses and names it too: `brew`, `fish` and `op` from the owner's
-   account, anything else with mise. The run renders the key the next step
-   needs and keeps the same `PATH` for later sessions in `~/.zshenv`;
-   password login stays on until step 6.
+   A `missing:` line names a tool to add before the run: `brew`, `fish` and
+   `op` from the owner's account, `git` from the Command Line Tools,
+   anything else with mise. The play also refuses, before its Homebrew and
+   macOS tasks, while one of `osx_offload_required_tools` is missing. The run
+   renders the key the next step needs and keeps the same `PATH` for later
+   sessions in `~/.zshenv`; password login stays on until step 6.
 
 6. **Close password login**, in an administrator's session on the Mac (zsh),
    once step 5's run has rendered the key. The clone is the administrator's
@@ -163,11 +172,13 @@ In order; each step needs a person, except the playbook run on `server`.
 
 7. **Sign the work account in**, over `ssh <alias>`, all to the operator's
    second Claude account and its GitHub identity; nothing here stores these
-   credentials:
+   credentials. The session is the account's zsh, where an interactive `#`
+   starts no comment, so `/login` with the second account is typed inside
+   `claude`:
 
-   ```fish
+   ```zsh
    security unlock-keychain ~/Library/Keychains/login.keychain-db
-   claude   # then /login with the second account
+   claude
    gh auth login --insecure-storage --scopes admin:public_key,admin:ssh_signing_key
    gh ssh-key add ~/.ssh/id_github_auth.pub --type authentication --title 'dotfiles offload auth'
    gh ssh-key add ~/.ssh/id_signing.pub --type signing --title 'dotfiles offload signing'

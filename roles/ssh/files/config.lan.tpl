@@ -31,7 +31,7 @@ Host {{ op://__OP_VAULT__/__OP_ITEM__/server_alias }}
     Hostname {{ op://__OP_VAULT__/__OP_ITEM__/server_host }}
 
 # The offload host (docs/offload-host.md). It trusts the offload key only from
-# this host's IPv4 address, so the connection must not go out over IPv6, which
+# server's IPv4 address (server_ip), so the connection must not go out over IPv6, which
 # an mDNS name often resolves to first. IdentityAgent none keeps a locked
 # 1Password agent out of an unattended connection.
 Host {{ op://__OP_VAULT__/__OP_ITEM__/offload_alias }}
