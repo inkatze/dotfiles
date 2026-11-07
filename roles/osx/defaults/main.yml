@@ -284,7 +284,7 @@ osx_offload_required_tools: [brew, op, jq, mise, fish, tmux, gh, git]
 
 # Installed by mise from roles/osx/files/mise-offload/offload.toml, in this
 # order (uv before the pipx: entry).
-osx_offload_mise_tools: [uv, "pipx:ansible-core", gh, jq, tmux, gitleaks]
+osx_offload_mise_tools: [uv, "pipx:ansible-core", gh, jq, tmux, gitleaks, gemini]
 osx_offload_mise_bin: "{{ ansible_facts.env.HOME }}/.local/bin/mise"
 osx_offload_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
 # The owner's Homebrew binaries, used read-only (Apple silicon's prefix).

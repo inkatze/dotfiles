@@ -24,3 +24,7 @@ gh = "2.96.0"
 jq = "1.8.2"
 tmux = "3.7c"
 gitleaks = "8.30.0"
+
+# The /panel-review and /code-review backend, which the owner's Homebrew need
+# not carry; mise bootstraps the node its npm backend runs on.
+gemini = "0.54.4"
