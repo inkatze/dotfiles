@@ -67,7 +67,8 @@ A recipient is never guessed.
 ## Confirm before sending
 
 Show the resolved recipient and the exact text, and wait for a yes, unless a
-go-ahead I gave for this run covers the message:
+go-ahead under one of the user-global outbound rule's exceptions covers the
+message:
 
 ```
 notify <name> (@<handle>)? [y/N]
