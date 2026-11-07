@@ -32,12 +32,18 @@ new_sandbox() {
     >"$sandbox/Users/fleet/.ssh/authorized_keys.offload"
   printf '%s\n' "$hardened" >"$sandbox/effective"
   : >"$sandbox/t-rc"
+  # Not T-rc: macOS's default filesystem would make it the same file as t-rc.
+  : >"$sandbox/dump-rc"
   cat >"$sandbox/sshd" <<'FAKE'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_DIR/argv"
 case "$1" in
   -t) [ -s "$STUB_DIR/t-rc" ] && exit "$(cat "$STUB_DIR/t-rc")"; exit 0 ;;
-  -T) cat "$STUB_DIR/effective" ;;
+  -T)
+    cat "$STUB_DIR/effective"
+    [ -s "$STUB_DIR/dump-rc" ] && exit "$(cat "$STUB_DIR/dump-rc")"
+    exit 0
+    ;;
 esac
 FAKE
   chmod +x "$sandbox/sshd"
@@ -58,6 +64,11 @@ expect_failed() { # expect_failed <label> <needle>
   elif ! grep -qF -- "$2" <<<"$log"; then ko "$1: expected \"$2\", got: $log"
   else ok "$1"; fi
 }
+
+echo "0. the tracked drop-in sets exactly what the effective-config check asserts"
+directives="$(awk '!/^[[:space:]]*(#|$)/ { $1 = tolower($1); print }' "$dropin")"
+[ "$directives" = "$hardened" ] && ok "drop-in and checked values agree" \
+  || ko "the drop-in sets: $(printf '%s' "$directives" | tr '\n' ';')"
 
 echo "1. installs the tracked drop-in and checks it as the dispatching host's connection"
 new_sandbox
@@ -115,6 +126,18 @@ sed -i.bak 's/^passwordauthentication no$/passwordauthentication yes/' "$sandbox
 run fleet
 expect_failed "password login still effective" "lacks 'passwordauthentication no'"
 [ -e "$dest" ] && ko "a fresh drop-in was left in place" || ok "a fresh drop-in is removed again"
+while IFS= read -r want; do
+  new_sandbox
+  grep -vxF -- "$want" "$sandbox/effective" >"$sandbox/effective.new" || true
+  mv "$sandbox/effective.new" "$sandbox/effective"
+  run fleet
+  expect_failed "effective config without '$want'" "lacks '$want'"
+done <<<"$hardened"
+new_sandbox
+echo 255 >"$sandbox/dump-rc"
+run fleet
+expect_failed "sshd -T failure" "sshd -T failed"
+[ -e "$dest" ] && ko "a fresh drop-in was left in place after sshd -T failed" || ok "a fresh drop-in is removed after sshd -T fails"
 new_sandbox
 printf 'PasswordAuthentication no\n' >"$dest"
 sed -i.bak '/^authorizedkeysfile /d' "$sandbox/effective"
