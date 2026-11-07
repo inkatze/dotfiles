@@ -52,12 +52,16 @@ def command_text(task):
     for key in ("ansible.builtin.command", "ansible.builtin.shell"):
         if key in task:
             v = task[key]
-            return v if isinstance(v, str) else v.get("cmd", "")
+            if isinstance(v, str):
+                return v
+            if "argv" in v:
+                return " ".join(str(a) for a in v["argv"])
+            return v.get("cmd", "")
     return ""
 
 
 def writes_homebrew(task):
-    if "community.general.homebrew" in task:
+    if any(k.startswith(("community.general.homebrew", "community.general.mas")) for k in task):
         return True
     cmd = command_text(task).replace("set -o pipefail;", "").strip()
     return cmd.startswith(("brew ", "mas ")) or "Brewfile" in cmd
