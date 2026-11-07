@@ -64,6 +64,9 @@ new_sandbox
 run fleet
 [ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$log" && ok "prints CHANGED" || ko "prints CHANGED ($log)"
 cmp -s "$dropin" "$dest" && ok "the tracked drop-in is installed" || ko "the tracked drop-in is installed"
+# World-readable, since the play's unprivileged checksum check reads it.
+mode="$(stat -c '%a' "$dest" 2>/dev/null || stat -f '%Lp' "$dest")"
+[ "$mode" = 644 ] && ok "installed at mode 0644" || ko "installed at mode $mode, not 0644"
 grep -qxF -- "-T -C user=fleet,host=192.0.2.10,addr=192.0.2.10" "$sandbox/argv" \
   && ok "the effective config is read for the account from the from= address" || ko "sshd -T arguments ($(cat "$sandbox/argv"))"
 grep -qxF -- "-t -f $dropin" "$sandbox/argv" && ok "the drop-in is validated alone first" || ko "sshd -t arguments"
@@ -90,6 +93,11 @@ printf 'from="192.0.2.10",restrict,pty ssh-ed25519 AAAAnotakey\n' >"$sandbox/Use
 run fleet
 expect_failed "a key ssh-keygen cannot read" "ssh-keygen does not read"
 [ -e "$dest" ] && ko "a refused run installed the drop-in" || ok "a refused run installs nothing"
+new_sandbox
+mv "$sandbox/Users/fleet/.ssh/authorized_keys.offload" "$sandbox/real-key"
+ln -s "$sandbox/real-key" "$sandbox/Users/fleet/.ssh/authorized_keys.offload"
+run fleet
+expect_failed "a symlinked key file" "is a symlink"
 
 echo "4. a drop-in sshd rejects is never installed"
 new_sandbox
