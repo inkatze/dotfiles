@@ -44,8 +44,10 @@ def whens(task):
     return [w] if isinstance(w, str) else list(w)
 
 
+# The exact condition, so a negated guard (`not (osx_brew_writable | bool)`)
+# does not pass for one.
 def guarded(task):
-    return any("osx_brew_writable" in w for w in whens(task))
+    return any(w.strip() == "osx_brew_writable | bool" for w in whens(task))
 
 
 def command_text(task):
@@ -112,10 +114,14 @@ for name in ("homebrew.yml", "upgrade.yml"):
             ko(f"{label}: guarded, but writes nothing to Homebrew") if guarded(t) else ok(f"{label}: unguarded")
 
 print("3. the includes stay unguarded")
+found = set()
 for t in main:
     inc = t.get("ansible.builtin.include_tasks")
     if inc in ("homebrew.yml", "upgrade.yml"):
-        ko(f"include {inc}: guarded as a whole") if guarded(t) else ok(f"include {inc}: unguarded")
+        found.add(inc)
+        ko(f"include {inc}: guarded as a whole") if any("osx_brew_writable" in w for w in whens(t)) else ok(f"include {inc}: unguarded")
+for inc in sorted({"homebrew.yml", "upgrade.yml"} - found):
+    ko(f"include {inc}: not found as an include_tasks entry in main.yml")
 
 print(f"\nosx-offload-guard: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
