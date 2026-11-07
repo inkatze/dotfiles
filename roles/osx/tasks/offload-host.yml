@@ -26,7 +26,8 @@
   tags: [osx, offload]
 
 # An absent `op` fails here rather than skipping: this host exists to be
-# reached by that key, and Homebrew has installed `op` by this point.
+# reached by that key, and by this point either Homebrew has installed `op` or
+# the required-tools check in main.yml has found it on PATH.
 - name: Render the offload authorized key from 1Password
   ansible.builtin.command:
     argv:
