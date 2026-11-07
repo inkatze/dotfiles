@@ -9,9 +9,13 @@
 # travels with the file it guards -- importing this file on its own is still
 # safe, which is what lets scripts/services-declaration-test.sh assert the
 # guard by running it directly.
+#
+# `privileged`: the install, enable and setup steps escalate even on a
+# converged host (the PostgreSQL role checks run as root), so
+# `playbook.sh --user-config` leaves the whole block to the full run.
 - name: Provision the declared dev services
   when: ansible_facts.os_family == "Debian"
-  tags: [services]
+  tags: [services, privileged]
   block:
     - name: Install the declared dev-service packages
       ansible.builtin.apt:

@@ -21,6 +21,36 @@ host) and none of the declared services. Install, enable, start and verify
 are driven from the declaration and name no service, so a new service is an
 entry rather than a task edit.
 
+## Unattended runs: `playbook.sh --user-config`
+
+A run with nobody at the keyboard cannot answer a sudo prompt, and the
+platform baselines escalate on every run, so the full playbook cannot apply
+even a config-only change unattended. `./scripts/playbook.sh --user-config`
+runs only what needs no escalation:
+
+- the roles `main.yml` tags `user-config` (every role except `osx` and
+  `linux`, whose `os_family` guards are unchanged);
+- minus tasks tagged `privileged` (the services role's Debian lifecycle, which
+  escalates even on a converged host) and `upgrade`;
+- with Ansible's become method set to `become_plugins/refuse_privilege.py`, so
+  any task in the selection that would still escalate fails with a message
+  naming the full run, rather than prompting. A task whose `when:` is false
+  never escalates, so fish's login-shell tasks pass on a host already
+  converged.
+
+It must be the first argument, and only `--check`, `--diff`, `-v`,
+`--list-tasks`, `--list-tags` and further `--skip-tags` may follow: anything
+that could widen the selection, retarget the run or supply a sudo password is
+refused. A refusal mid-run leaves the earlier tasks applied; they are all
+unprivileged and idempotent.
+
+When adding a role, tag it `user-config` in `main.yml` unless it escalates by
+design. A task that escalates inside one either runs only when there is drift
+to repair (check unprivileged first, as `roles/fish/tasks/shell.yml` does) or
+carries the `privileged` tag. `scripts/user-config-selection-test.sh` pins the
+selection and the refusal; `scripts/playbook-alias-test.sh` pins the argument
+handling.
+
 ## `~/.my.cnf` and `~/.npmrc` are applied to, not owned
 
 Their canonical content is credentials (a client password; registry

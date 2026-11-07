@@ -126,7 +126,9 @@
   changed_when: false
   failed_when: false
   check_mode: false
-  tags: [claude, osx, linux]
+  # `always`, not the gemini tasks' platform tags: op-render.yml reads this
+  # result under plain `claude`, so `--skip-tags linux` left it undefined.
+  tags: [always]
 
 # The script strict-fails rather than skipping quietly when it cannot read the
 # item: a silent skip would leave a stale key in place unnoticed. On a Mac that

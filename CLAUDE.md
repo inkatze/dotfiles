@@ -147,15 +147,15 @@ review; it never blocks a commit. See
 ## Ansible role layout
 
 `main.yml` runs one platform baseline per host by `os_family` guard
-(`roles/osx/` on Darwin, `roles/linux/` on Debian); the cross-platform config
-roles (`kitty`, `fish`, `environments`, `tmux`, `ssh`, `git`, `claude`) run
-everywhere, and Claude config belongs only in `roles/claude/`.
+(`roles/osx/` on Darwin, `roles/linux/` on Debian); every other role runs
+everywhere, tagged `user-config` for the sudo-free unattended
+`playbook.sh --user-config`, so a task escalating in one runs only to repair
+drift or is tagged `privileged`. Claude config belongs only in `roles/claude/`.
 
-`roles/services/` runs everywhere but guards itself: on Debian (Linux) it
-provisions the services declared in `roles/services/defaults/main.yml`, on
-Darwin (macOS) only the older `~/.my.cnf` and colima content. Add a dev
-service as an entry there, not a task edit; one needing more names its own
-file in a `setup:` field.
+`roles/services/` runs everywhere but guards itself: on Debian it provisions
+the services declared in `roles/services/defaults/main.yml`, on Darwin only
+the older `~/.my.cnf` and colima content. Add a dev service as an entry there,
+not a task edit; one needing more names its own file in a `setup:` field.
 
 - Never make `~/.my.cnf` or `~/.npmrc` a symlink into this repo: their
   content is credentials, so the roles insert a marked `blockinfile` block.
