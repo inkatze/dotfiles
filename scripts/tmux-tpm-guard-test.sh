@@ -33,7 +33,12 @@ fi
 conf="$(cd -- "$(dirname "$conf")" && pwd -P)/$(basename "$conf")"
 
 # /tmp, not $TMPDIR: macOS caps a unix socket path near 104 bytes.
-scratch="$(mktemp -d /tmp/tpmguard.XXXXXX)"
+# Must not be empty: the sweep's `pkill -f` pattern is this path, and an empty
+# pattern matches every process.
+scratch="$(mktemp -d /tmp/tpmguard.XXXXXX)" && [ -n "$scratch" ] || {
+    echo "tmux-tpm-guard-test: cannot create a scratch directory" >&2
+    exit 2
+}
 home="$scratch/home"
 runs="$scratch/runs"
 mkdir -p "$home/.tmux/plugins/tpm" "$scratch/sock" "$scratch/empty"
