@@ -112,7 +112,7 @@ In order; each step needs a person, except the playbook run on `server`.
    first with:
 
    ```fish
-   for t in op jq mise fish tmux gh git ansible-playbook; command -q $t; or echo missing: $t; end
+   for t in brew op jq mise fish tmux gh git ansible-playbook; command -q $t; or echo missing: $t; end
    ```
 
 6. **Sign the work account in**, over `ssh <alias>`, all to the operator's

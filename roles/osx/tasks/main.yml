@@ -62,8 +62,9 @@
     fail_msg: >-
       Another account owns the Homebrew prefix, so this run installs nothing
       with it, and these tools are not on PATH: {{ osx_offload_missing_tools.stdout }}.
-      Install them from the owner's account or into this account's ~/.local/bin,
-      then re-run (docs/offload-host.md).
+      Install them from the owner's account or into this account's ~/.local/bin
+      (brew and fish only from hers, since the fish role runs fish from the
+      Homebrew prefix), then re-run (docs/offload-host.md).
     quiet: true
   when: not (osx_brew_writable | bool)
   tags: [always]
