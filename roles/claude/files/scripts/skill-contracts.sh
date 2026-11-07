@@ -636,6 +636,11 @@ if [ -n "$global_ok" ]; then
     fi
   done
   forbid_normalized "$GLOBAL_MD" "copied lens list" "Correctness, logic, edge cases"
+  # The walk choice is the attended operator's; an unattended review applies
+  # instead of waiting on a choice nobody is there to make.
+  require_normalized "$GLOBAL_MD" "walk rule" \
+    "then let me choose how to walk it rather than assuming all at once." \
+    "A review of my branch that runs unattended or that my hub dispatched applies the fixes its doctrine allows without waiting for a walk choice, and hands off the rest as that list."
 
   # The workflow sections are one-line pointers.
   # Ends at the next heading of its own level or above; a deeper one stays in.

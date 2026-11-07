@@ -998,6 +998,12 @@ done
 # --- The user-global file ---
 
 # Ready flips (REQ-A1.1, REQ-A1.2, REQ-A1.5, REQ-A1.6)
+PIN=" or that my hub dispatched" \
+  expect_fail walk-hub-dispatch-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
+PIN=" of my branch that runs unattended" \
+  expect_fail walk-branch-scope-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
+PIN="then let me choose how to walk it" \
+  expect_fail walk-choice-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
 expect_fail ready-flip-base-current \
   "perl -0pi -e 's/CI is green and\\s+the review/the branch current with its base, CI is green and the review/' $GLOBAL_MD" "forbidden currency condition"
 expect_fail ready-flip-sync-ritual \

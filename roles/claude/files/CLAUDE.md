@@ -149,7 +149,9 @@ When reviewing code or addressing review feedback:
 - Present the complete list first, as a numbered summary, then let me choose
   how to walk it rather than assuming all at once. The walk modes, option sets,
   progress tracker and the post-loop handoff that picks the mode itself are in
-  `~/.claude/skills/review-shared/workflow.md`.
+  `~/.claude/skills/review-shared/workflow.md`. A review of my branch that runs
+  unattended or that my hub dispatched applies the fixes its doctrine allows
+  without waiting for a walk choice, and hands off the rest as that list.
 - **Review doctrine is planwright's.** Issue and solution validation,
   discovery (its lens list included), refactor flags and, for reviews that
   apply findings to my own branch, finding categorization follow planwright's
