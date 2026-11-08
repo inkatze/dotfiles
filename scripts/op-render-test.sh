@@ -911,6 +911,16 @@ echo 'mission_control_guidance: expert' >>"$ov"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 [ "$rc" -eq 0 ] && ! grep -q '^mission_control_guidance:' "$ov" && [ ! -e "$sup" ] && [ -f "$snap" ] \
   && ok "no snapshot: nothing harvested, the snapshot written" || ko "no snapshot: nothing harvested ($log)"
+# A write landing between the harvest and the rename must not be overwritten.
+# The shim makes every cksum call differ, as a write in between would.
+printf '#!/bin/sh\necho "$$"\n' >"$sandbox/bin/cksum" && chmod +x "$sandbox/bin/cksum"
+# A hand edit to another key makes the render replace the output.
+sed -i.bak 's/^ready_guard_behind_base: .*/ready_guard_behind_base: never/' "$ov" && rm -f "$ov.bak"
+cp "$ov" "$sandbox/before"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "the overlay changing during the render" "changed while it was rendered"
+cmp -s "$ov" "$sandbox/before" && ok "a concurrent write is left in place" || ko "a concurrent write is left in place"
+rm -f "$sandbox/bin/cksum"
 # A text template other than the overlay never touches either file.
 item_from 'orgs=AcmeCo'
 run "$orgs_tpl" dotfiles-git-work-orgs "$sandbox/orgs"

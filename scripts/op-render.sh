@@ -32,8 +32,9 @@
 # The template's basename picks the validation rule; a template with none is
 # refused rather than rendered unchecked.
 #
-# Prints OK when the output already matches, CHANGED when it is (re)written or
-# its mode tightened, and exits non-zero with a FAILED: line otherwise; Ansible
+# Prints OK when the output already matches, CHANGED when it (or, for the
+# overlay, the supplement or snapshot below) is (re)written, removed or its
+# mode tightened, and exits non-zero with a FAILED: line otherwise; Ansible
 # gates changed_when on CHANGED. A plain regular file at the output is
 # overwritten; a symlink or any other kind of path is refused. The planwright
 # overlay alone also keeps mission control's own keys across renders, in two
