@@ -57,6 +57,9 @@ sed -E \
   -e 's|\{\{ op://[^/]+/[^/]+/server_host \}\}|testbox.local|g' \
   -e 's|\{\{ op://[^/]+/[^/]+/server_ip \}\}|10.9.9.9|g' \
   -e 's|\{\{ op://[^/]+/[^/]+/server_user \}\}|tester|g' \
+  -e 's|\{\{ op://[^/]+/[^/]+/offload_alias \}\}|offbox|g' \
+  -e 's|\{\{ op://[^/]+/[^/]+/offload_host \}\}|offbox.example|g' \
+  -e 's|\{\{ op://[^/]+/[^/]+/offload_user \}\}|fleet|g' \
   "$in_file" >"$out_file"
 chmod 600 "$out_file"
 FAKE
@@ -102,6 +105,18 @@ has_line "$target" '^    Hostname testbox\.local$' "hostname rendered"
 has_line "$target" '^Host planwright-relay$' "relay alias rendered"
 has_line "$target" '^    ForwardAgent no$' "relay alias forwards no agent"
 lacks_line "$target" '\{\{' "no unsubstituted expressions"
+# The offload host trusts its key from an IPv4 address only, and an unattended
+# session must neither reach a locked agent nor forward one.
+offload_block() { awk '/^Host offbox$/ { on = 1; print; next } /^Host / { on = 0 } on' "$target"; }
+offload_cfg="$sandbox/offload.cfg"
+offload_block >"$offload_cfg"
+has_line "$offload_cfg" '^    Hostname offbox\.example$' "offload hostname rendered"
+has_line "$offload_cfg" '^    User fleet$' "offload user rendered"
+has_line "$offload_cfg" '^    AddressFamily inet$' "offload connection stays on IPv4"
+has_line "$offload_cfg" '^    IdentityFile ~/\.ssh/id_offload$' "offload key named"
+has_line "$offload_cfg" '^    IdentitiesOnly yes$' "offload offers only its key"
+has_line "$offload_cfg" '^    IdentityAgent none$' "offload skips the agent"
+has_line "$offload_cfg" '^    ForwardAgent no$' "offload forwards no agent"
 # GNU stat first: its -f is --file-system, so it "succeeds" on a format string
 # and never falls through to BSD's -f. BSD has no -c, so it errors and does.
 file_stat() { fmt_gnu="$1"; fmt_bsd="$2"; shift 2; stat -c "$fmt_gnu" "$@" 2>/dev/null || stat -f "$fmt_bsd" "$@"; }

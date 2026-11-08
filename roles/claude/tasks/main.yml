@@ -81,8 +81,8 @@
 # the Darwin guard on that role is what left this host with fish
 # conf.d/gemini.fish exporting GEMINI_API_KEY from a file no task ever wrote.
 #
-# The tasks below keep the `osx` tag so `mise run osx` still syncs the key on
-# a Mac, and gain `linux` so
+# The tasks below, all but the 1Password probe, keep the `osx` tag so
+# `mise run osx` still syncs the key on a Mac, and gain `linux` so
 # `mise run linux` does the same here.
 #
 # Still gated on non-work: the work host reviews through codex, so it has no
@@ -126,7 +126,10 @@
   changed_when: false
   failed_when: false
   check_mode: false
-  tags: [claude, osx, linux]
+  # `always`, not the gemini tasks' platform tags: op-render.yml reads this
+  # result under plain `claude`, so a platform tag would leave it undefined
+  # under `--skip-tags linux`.
+  tags: [always]
 
 # The script strict-fails rather than skipping quietly when it cannot read the
 # item: a silent skip would leave a stale key in place unnoticed. On a Mac that

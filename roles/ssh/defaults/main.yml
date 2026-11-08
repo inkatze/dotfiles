@@ -1,0 +1,11 @@
+---
+
+# Hosts that dispatch work to the offload host (the `offload` inventory alias)
+# and so hold the key it trusts. The Mac's side is roles/osx/tasks/offload-host.yml.
+ssh_offload_client_hosts:
+  - server
+
+# On disk rather than in the 1Password agent: an unattended session has nobody
+# to approve an agent prompt. No hostname in the filename, so nothing here names
+# a LAN machine.
+ssh_offload_key: "{{ ansible_facts.env.HOME }}/.ssh/id_offload"

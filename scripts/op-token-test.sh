@@ -50,6 +50,9 @@ case "${1:-}" in
       -e 's|\{\{ op://[^/]+/[^/]+/server_host \}\}|testbox.example|g' \
       -e 's|\{\{ op://[^/]+/[^/]+/server_ip \}\}|192.0.2.9|g' \
       -e 's|\{\{ op://[^/]+/[^/]+/server_user \}\}|tester|g' \
+      -e 's|\{\{ op://[^/]+/[^/]+/offload_alias \}\}|offbox|g' \
+      -e 's|\{\{ op://[^/]+/[^/]+/offload_host \}\}|offbox.example|g' \
+      -e 's|\{\{ op://[^/]+/[^/]+/offload_user \}\}|fleet|g' \
       "$in_file" >"$out_file"
     ;;
 esac
