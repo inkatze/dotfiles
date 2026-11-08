@@ -140,6 +140,10 @@
   changed_when: false
   tags: [upgrade]
 
+# Its write tasks need sudo, which a standard account such as the offload
+# host's work account does not have; its sessions run over SSH and need no
+# fish login shell.
 - name: Import tasks to add fish to shells
   ansible.builtin.include_tasks: shell.yml
+  when: fish_manage_login_shell | bool
   tags: [shell]

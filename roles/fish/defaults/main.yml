@@ -6,3 +6,7 @@ fish_plugins:
   - catppuccin/fish
   # Needed by work-init.fish for a non-fish (bash/zsh) pointer target.
   - edc/bass
+
+# Off on the offload host, whose work account is a standard account; see the
+# include in tasks/main.yml.
+fish_manage_login_shell: "{{ inventory_hostname != 'offload' }}"

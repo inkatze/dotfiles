@@ -23,6 +23,9 @@
 #   server_host   the resolvable hostname, e.g. <alias>.local
 #   server_ip     the LAN address
 #   server_user   the login user
+#   offload_alias the offload host's short ssh alias
+#   offload_host  its resolvable hostname
+#   offload_user  the offload host's work account
 
 set -eu
 

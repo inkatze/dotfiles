@@ -14,6 +14,7 @@ review_tpl="$repo/roles/claude/files/skills/bot-review/bot-review.json.tpl"
 sibling_tpl="$repo/roles/claude/files/skills/review-shared/sibling-repos.json.tpl"
 overlay_tpl="$repo/roles/claude/files/planwright/planwright.yml.tpl"
 orgs_tpl="$repo/roles/git/files/git-work-orgs.tpl"
+offload_tpl="$repo/roles/osx/files/offload/authorized_keys.offload.tpl"
 
 pass=0
 fail=0
@@ -396,6 +397,52 @@ run "$orgs_tpl" dotfiles-git-work-orgs "$HOME/.config/dotfiles/git-work-orgs"
 item_from 'orgs=AcmeCo bad"name'
 run "$orgs_tpl" dotfiles-git-work-orgs "$sandbox/orgs"
 expect_failed "a non-owner name" "is not a GitHub owner name"
+
+echo "14c. offload authorized key: one from-restricted ed25519 key, nothing else"
+new_sandbox
+ssh-keygen -q -t ed25519 -N '' -C 'dotfiles offload client' -f "$sandbox/k"
+ssh-keygen -q -t ed25519 -N '' -f "$sandbox/k2"
+pub="$(cat "$sandbox/k.pub")"
+ak="$HOME/.ssh/authorized_keys.offload"
+item_from 'server_ip=192.0.2.10' "offload_client_pubkey=$pub"
+run "$offload_tpl" dotfiles-lan-ssh "$ak"
+[ "$rc" -eq 0 ] && grep -qxF "from=\"192.0.2.10\",restrict,pty $pub" "$ak" \
+  && ok "the key renders restricted to the address" || ko "the key renders restricted to the address ($log)"
+item_from 'server_ip=192.0.2.10' 'offload_client_pubkey='
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "an empty key field" "is not one from-restricted ed25519 key"
+item_from 'server_ip=' "offload_client_pubkey=$pub"
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "an empty address field" "is not one from-restricted ed25519 key"
+item_from 'server_ip=192.0.2.10",command="sh' "offload_client_pubkey=$pub"
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "options smuggled in through the address field" "is not one from-restricted ed25519 key"
+item_from 'server_ip=192.0.2.256' "offload_client_pubkey=$pub"
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "an address octet above 255" "is not one from-restricted ed25519 key"
+item_from 'server_ip=203.0.113.255' "offload_client_pubkey=$pub"
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak-edge"
+[ "$rc" -eq 0 ] && ok "an octet of 255 is accepted" || ko "an octet of 255 is accepted ($log)"
+item_from 'server_ip=192.0.2.10' 'offload_client_pubkey=ssh-ed25519 AAAAnotakey'
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "a key ssh-keygen cannot read" "ssh-keygen does not read the key"
+# Readable by ssh-keygen, so only the shape's key type refuses it.
+ssh-keygen -q -t ecdsa -N '' -f "$sandbox/k3"
+item_from 'server_ip=192.0.2.10' "offload_client_pubkey=$(cat "$sandbox/k3.pub")"
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "a key of another type" "is not one from-restricted ed25519 key"
+item_from 'server_ip=192.0.2.10' "offload_client_pubkey=$pub"
+jq --arg two "$pub"$'\n'"$(cat "$sandbox/k2.pub")" '.fields[1].value = $two' "$OP_STUB_ITEM" >"$sandbox/i" && mv "$sandbox/i" "$OP_STUB_ITEM"
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "a second key pasted into the field" "offload_client_pubkey holds a line break"
+[ -e "$sandbox/ak" ] && ko "a refused key reached the output" || ok "a refused key never reaches the output"
+item_from 'server_ip=192.0.2.10' "offload_client_pubkey=$pub"
+{ cat "$offload_tpl"; grep -v '^#' "$offload_tpl"; } >"$sandbox/tpl/authorized_keys.offload.tpl"
+run "$sandbox/tpl/authorized_keys.offload.tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "a template carrying a second key line" "holds 2 keys; exactly one is expected"
+grep '^#' "$offload_tpl" >"$sandbox/tpl/authorized_keys.offload.tpl"
+run "$sandbox/tpl/authorized_keys.offload.tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "a template carrying no key line" "holds 0 keys; exactly one is expected"
 
 echo "15. preconditions"
 new_sandbox

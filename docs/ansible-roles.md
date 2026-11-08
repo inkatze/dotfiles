@@ -38,8 +38,8 @@ idempotent again after that. `mode: "0600"` is asserted unconditionally.
 
 ## Inventory aliases
 
-`hosts` lists `work`, `personal`, `alt` (macOS) and `server` (Linux), all run
-locally, so no LAN IP or real hostname is committed. `scripts/playbook.sh`
+`hosts` lists `work`, `personal`, `alt`, `offload` (macOS,
+[offload-host.md](offload-host.md)) and `server` (Linux), all run locally, so no LAN IP or real hostname is committed. `scripts/playbook.sh`
 maps the running machine to an alias through `DOTFILES_HOST` or the
 machine-local `host` file; `work` is the fallback (CI depends on it) and warns
 on stderr. One residual hostname pattern remains for `alt`.
