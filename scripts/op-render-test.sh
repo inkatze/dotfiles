@@ -926,10 +926,12 @@ run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 printf '#!/bin/sh\necho "$$"\n' >"$sandbox/bin/cksum" && chmod +x "$sandbox/bin/cksum"
 # A hand edit to another key makes the render replace the output.
 sed -i.bak 's/^ready_guard_behind_base: .*/ready_guard_behind_base: never/' "$ov" && rm -f "$ov.bak"
+echo 'mission_control_guidance: guided' >>"$ov"
 cp "$ov" "$sandbox/before"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 expect_failed "the overlay changing during the render" "changed while it was rendered"
 cmp -s "$ov" "$sandbox/before" && ok "a concurrent write is left in place" || ko "a concurrent write is left in place"
+[ -e "$sup" ] && ko "a refused render still wrote the supplement" || ok "a refused render writes no supplement"
 rm -f "$sandbox/bin/cksum"
 # A text template other than the overlay never touches either file.
 item_from 'orgs=AcmeCo'

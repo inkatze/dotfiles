@@ -450,7 +450,14 @@ place() {
   tmp_out=""
 }
 
+# The output goes first: its concurrent-write check must pass before the
+# supplement records anything this run derived from it.
 changed=""
+if ! matches "$work/rendered" "$output"; then
+  place "$work/rendered" "$output"
+  changed="${changed}rendered $output from 1Password (item '$item'); "
+fi
+
 if [ -n "$supplement" ]; then
   if [ -s "$work/supplement" ]; then
     {
@@ -467,11 +474,6 @@ if [ -n "$supplement" ]; then
     rm -f -- "$supplement" || fail "could not remove $supplement"
     changed="${changed}removed $supplement, which the item now matches; "
   fi
-fi
-
-if ! matches "$work/rendered" "$output"; then
-  place "$work/rendered" "$output"
-  changed="${changed}rendered $output from 1Password (item '$item'); "
 fi
 
 if [ -n "$snapshot" ] && ! matches "$work/rendered" "$snapshot"; then
