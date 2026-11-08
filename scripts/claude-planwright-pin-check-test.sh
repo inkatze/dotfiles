@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fixture suite for claude-planwright-pin-check.sh: a stale pin must fail
+# Fixture suite for claude-planwright-pin-check.sh: a concrete pin must fail
 # loudly, since a silent pass is exactly the failure the check exists for.
 set -uo pipefail
 
@@ -12,60 +12,60 @@ fails=0
 ok()   { printf 'ok[%s]: %s\n' "$1" "$2"; }
 fail() { printf 'FAIL[%s]: %s\n' "$1" "$2"; fails=$((fails + 1)); }
 
-pinned() { # pinned <version> -> tracked settings naming that version
-    printf '{"permissions":{"allow":["Bash($HOME/.claude/plugins/cache/planwright/planwright/%s/scripts/x.sh run:*)"]}}\n' "$1"
+pinned() { # pinned <version>... -> tracked settings naming each version
+    local rules="" v
+    for v in "$@"; do
+        rules+="${rules:+,}\"Bash(\$HOME/.claude/plugins/cache/planwright/planwright/$v/scripts/x.sh run *)\""
+    done
+    printf '{"permissions":{"allow":[%s]}}\n' "$rules"
 }
-installed() { # installed <version> -> plugin record holding that version
-    printf '{"plugins":{"planwright@planwright":[{"scope":"user","version":"%s"}]}}\n' "$1"
-}
 
-# 1. pin matches the install
-pinned 1.2.0 >"$work/s.json"; installed 1.2.0 >"$work/i.json"
-if [ "$("$check" "$work/s.json" "$work/i.json")" = OK ]; then
-    ok matching "pinned version installed"
+# 1. a concrete pin fails, naming the version
+pinned 1.2.0 >"$work/s.json"
+if out=$("$check" "$work/s.json" 2>&1); then
+    fail pin "exited 0 on a concrete pin"
 else
-    fail matching "expected OK"
+    case "$out" in *"pin planwright 1.2.0;"*) ok pin "refused, naming the version" ;;
+                   *) fail pin "wrong message: $out" ;; esac
 fi
 
-# 2. a planwright update leaves the pin stale
-installed 1.3.0 >"$work/i.json"
-if out=$("$check" "$work/s.json" "$work/i.json" 2>&1); then
-    fail stale "exited 0 on a stale pin"
+# 2. a concrete pin beside a glob still fails
+pinned '*' 1.3.0 >"$work/s.json"
+if "$check" "$work/s.json" >/dev/null 2>&1; then
+    fail mixed "exited 0 with a pin beside a glob"
 else
-    case "$out" in *"pin planwright 1.2.0, installed is 1.3.0"*) ok stale "refused, naming both versions" ;;
-                   *) fail stale "wrong message: $out" ;; esac
+    ok mixed "a glob does not hide a pin"
 fi
 
-# 3. no pin at all needs no plugin record
-printf '{"permissions":{"allow":["Bash(ls:*)"]}}\n' >"$work/s.json"
-if [ "$("$check" "$work/s.json" "$work/absent.json")" = OK ]; then
-    ok no-pin "nothing pinned, nothing checked"
-else
-    fail no-pin "expected OK"
-fi
-
-# 3b. a version glob is not a pin, whatever is installed
-pinned '*' >"$work/s.json"
-if [ "$("$check" "$work/s.json" "$work/absent.json")" = OK ]; then
-    ok glob "version glob never stale"
+# 3. a version glob passes
+pinned '*' '*' >"$work/s.json"
+if [ "$("$check" "$work/s.json")" = OK ]; then
+    ok glob "version glob accepted"
 else
     fail glob "expected OK for a version glob"
 fi
 
-# 4. a pin with no plugin record fails rather than passing
-pinned 1.2.0 >"$work/s.json"
-if "$check" "$work/s.json" "$work/absent.json" >/dev/null 2>&1; then
-    fail no-record "exited 0 without a plugin record"
+# 4. no planwright rule at all passes
+printf '{"permissions":{"allow":["Bash(ls:*)"]}}\n' >"$work/s.json"
+if [ "$("$check" "$work/s.json")" = OK ]; then
+    ok no-rule "nothing pinned"
 else
-    ok no-record "refused without a plugin record"
+    fail no-rule "expected OK"
 fi
 
-# 5. the tracked settings this repo ships parse and yield a pin or none
-if "$check" "$here/../roles/claude/files/settings.json" "$work/i.json" >/dev/null 2>&1 \
-    || [ $? -eq 1 ]; then
-    ok tracked-parses "tracked settings.json is readable by the check"
+# 5. unreadable settings fail rather than passing
+printf 'not json\n' >"$work/s.json"
+if "$check" "$work/s.json" >/dev/null 2>&1; then
+    fail invalid "exited 0 on invalid JSON"
 else
-    fail tracked-parses "check could not read the tracked settings"
+    ok invalid "refused invalid JSON"
+fi
+
+# 6. the tracked settings this repo ships pin nothing
+if out=$("$check" "$here/../roles/claude/files/settings.json" 2>&1); then
+    ok tracked "tracked settings.json pins no planwright version"
+else
+    fail tracked "$out"
 fi
 
 if [ "$fails" -ne 0 ]; then

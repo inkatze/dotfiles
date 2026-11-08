@@ -61,13 +61,12 @@
     "defaultMode": "auto",
     "allow": [
       "Bash($HOME/.claude/plugins/cache/planwright/planwright/*/scripts/fleet-streamjson.sh answer *)",
-      "Bash($HOME/.claude/plugins/cache/planwright/planwright/0.67.0/scripts/fleet-streamjson.sh pending *)",
-      "Bash($HOME/.claude/plugins/cache/planwright/planwright/0.67.0/scripts/mc-reclaim.sh reclaim *)",
+      "Bash($HOME/.claude/plugins/cache/planwright/planwright/*/scripts/fleet-streamjson.sh pending *)",
+      "Bash($HOME/.claude/plugins/cache/planwright/planwright/*/scripts/mc-reclaim.sh reclaim *)",
       "Bash(cat:*)",
       "Bash(cd:*)",
       "Bash(cut:*)",
       "Bash(diff:*)",
-      "Bash(gh pr review:*)",
       "Bash(git ls-files:*)",
       "Bash(git merge-base:*)",
       "Bash(git rev-parse:*)",
@@ -80,8 +79,6 @@
       "Bash(stat:*)",
       "Bash(tail:*)",
       "Bash(tmux kill-pane -t %*)",
-      "Bash(tmux kill-window:*)",
-      "Bash(tmux send-keys:*)",
       "Bash(wc:*)"
     ],
     "ask": [

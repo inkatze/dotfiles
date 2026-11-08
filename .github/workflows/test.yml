@@ -158,6 +158,10 @@ jobs:
       - name: Run the settings-merge fixture suite
         run: scripts/claude-settings-merge-test.sh
 
+      # Its last case runs the check against the tracked settings.json.
+      - name: Run the planwright pin-check suite
+        run: scripts/claude-planwright-pin-check-test.sh
+
       # It stubs ansible-playbook, so bash, coreutils, grep and awk are all it
       # needs; lint runs it on macOS as well.
       - name: Run the playbook alias suite
