@@ -796,6 +796,42 @@ grep -qx 'p.reviewed_head_check: not a string' <<<"$got" && ok "a non-string che
 got="$(jq -r -L "$schema_dir" 'include "config-schema"; .reviewers["work-review"].cli = {binary: "{{ op://__OP_VAULT__/__OP_ITEM__/x }}"} | review_template_errors' "$review_tpl")"
 [ -z "$got" ] && ok "a cli block is outside the one-item rule" || ko "a cli block is outside the one-item rule ($got)"
 
+echo "28. --work-account: the main item from the work account, never a personal fallback"
+new_sandbox
+ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
+item_from 'flight_pr_hosts=[personal]' 'mission_control=mission_control_programs: [personal-only]'
+export OP_STUB_WORK_ITEM="$sandbox/work-item.json"
+printf '%s\n' 'flight_pr_hosts=[work]' 'mission_control=mission_control_programs: [work-only]' | to_item "$OP_STUB_WORK_ITEM"
+export DOTFILES_OP_WORK_ACCOUNT=work.example.com DOTFILES_OP_WORK_VAULT="Work Vault" DOTFILES_OP_WORK_ITEM=work-item
+export OP_SERVICE_ACCOUNT_TOKEN="ops_teststubtoken123"
+run --work-account "$overlay_tpl" dotfiles-planwright-overlay-work "$ov"
+unset OP_SERVICE_ACCOUNT_TOKEN
+[ "$rc" -eq 0 ] && ok "renders from the work item" || ko "renders from the work item ($log)"
+grep -qx 'mission_control_programs: \[work-only\]' "$ov" 2>/dev/null && grep -qx 'flight_pr_hosts: \[work\]' "$ov" \
+  && ok "the work item's values land" || ko "the work item's values land ($(cat "$ov" 2>/dev/null))"
+grep -q 'personal' "$ov" 2>/dev/null && ko "a personal value reached the work render" || ok "no personal value in the work render"
+[ "$(cat "$OP_STUB_ARGV")" = 'item get dotfiles-planwright-overlay-work --vault Work Vault --account work.example.com --format json --reveal' ] \
+  && ok "one read, of the named item, in the work account and vault" || ko "the reads ($(cat "$OP_STUB_ARGV"))"
+awk -F '\t' '$1 != "" { bad = 1 } END { exit bad }' "$OP_STUB_ARGV.calls" \
+  && ok "no token on the work read" || ko "the token reached the work read"
+unset DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM
+rm -f "$ov"
+: >"$OP_STUB_ARGV"
+run --work-account "$overlay_tpl" dotfiles-planwright-overlay-work "$ov"
+expect_failed "--work-account with no work source" "--work-account needs DOTFILES_OP_WORK_ACCOUNT"
+[ -s "$OP_STUB_ARGV" ] && ko "no work source: op was still called" || ok "no work source: refused before any op call"
+[ -e "$ov" ] && ko "no work source: a file was written" || ok "no work source: nothing written"
+export DOTFILES_OP_WORK_ACCOUNT=work.example.com DOTFILES_OP_WORK_VAULT="Work Vault"
+run --work-account "$overlay_tpl" dotfiles-planwright-overlay-work "$ov"
+expect_failed "--work-account with a partial work source" "must be set together or not at all"
+export DOTFILES_OP_WORK_ITEM=work-item OP_STUB_FAIL_WORK=1
+run --work-account "$overlay_tpl" dotfiles-planwright-overlay-work "$ov"
+unset OP_STUB_FAIL_WORK
+expect_failed "a failing work read" "reading the item argument from the work account"
+grep -c -- '--account' "$OP_STUB_ARGV" | grep -qx 1 && ! grep -qv -- '--account' "$OP_STUB_ARGV" \
+  && ok "a failing work read never falls back to the personal vault" || ko "a failing work read fell back ($(cat "$OP_STUB_ARGV"))"
+unset DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM
+
 echo
 echo "op-render: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

@@ -81,6 +81,16 @@ app rather than the service-account token, which cannot reach another
 account; with neither the file nor the three variables exported, every such
 reference resolves empty and the entry drops out. The file names an employer's account, so it stays untracked.
 
+A host listed in `claude_planwright_overlay_work_hosts`
+(`roles/claude/defaults/main.yml`) renders the overlay from its own item,
+`dotfiles-planwright-overlay-<alias>`, which `op-render.sh --work-account`
+reads from the account and vault `op-work-item` names (the item it names is
+for the review template and plays no part here). Its program settings
+therefore never sit in the shared item the other hosts render, and a listed
+host with no `op-work-item` fails the play rather than render the shared
+item's programs. Create that item, with the same `flight_pr_hosts` and
+`mission_control` fields, before the host's first run after joining the list.
+
 `cubic-api-key` is synced by `scripts/op-key-sync.sh` from the `credential`
 field of the `dotfiles-cubic-api-key` item (category API Credential), through a
 task in the same file and behind the same guards. It is a raw key, not a
