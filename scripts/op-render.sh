@@ -58,6 +58,7 @@ case "${template##*/}" in
   sibling-repos.json.tpl) rule=sibling-map format=json ;;
   planwright.yml.tpl) rule=planwright-overlay format=text ;;
   git-work-orgs.tpl) rule=work-orgs format=text ;;
+  authorized_keys.offload.tpl) rule=offload-key format=text ;;
   *) fail "no validation rule for ${template##*/}; refusing to render it unchecked" ;;
 esac
 
@@ -303,6 +304,30 @@ case "$rule" in
         [[ "$org" =~ ^[A-Za-z0-9-]+$ ]] || errors="${errors}line $n: '$org' is not a GitHub owner name"$'\n'
       done
     done <"$work/rendered"
+    ;;
+  offload-key)
+    # sshd reads this file as a login credential, so it must hold exactly the
+    # one restricted key the template shapes: an empty field or a pasted second
+    # key would otherwise reach it as an unrestricted or unparseable line.
+    errors=""
+    n=0
+    keys=0
+    # An address sshd cannot match (an octet above 255) would pass the shape and
+    # then refuse every connection, after the hardening has closed passwords.
+    octet='(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])'
+    shape="^from=\"(${octet}[.]){3}${octet}\",restrict,pty ssh-ed25519 [A-Za-z0-9+/]+=*( [^[:cntrl:]]*)?$"
+    while IFS= read -r line || [ -n "$line" ]; do
+      n=$((n + 1))
+      case "$line" in
+        '' | '#'*) continue ;;
+      esac
+      keys=$((keys + 1))
+      [[ "$line" =~ $shape ]] || errors="${errors}line $n is not one from-restricted ed25519 key"$'\n'
+    done <"$work/rendered"
+    [ "$keys" -eq 1 ] || errors="${errors}holds $keys keys; exactly one is expected"$'\n'
+    if [ -z "$errors" ] && ! ssh-keygen -l -f "$work/rendered" >/dev/null 2>&1; then
+      errors="ssh-keygen does not read the key"$'\n'
+    fi
     ;;
 esac
 if [ -n "$errors" ]; then

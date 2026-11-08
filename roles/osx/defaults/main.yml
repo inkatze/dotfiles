@@ -266,3 +266,29 @@ osx_health_interval_seconds: 900
 # 914 GB disk (roughly 137 GB free at the trigger) while still firing long
 # before anything breaks.
 osx_health_disk_threshold: 85
+
+# Offload host: a Mac another person owns and uses, which runs dispatched work
+# in a dedicated account while she is away (docs/offload-host.md).
+osx_offload_hosts:
+  - offload
+
+# The macOS account the work runs in. The playbook refuses to configure the
+# offload host from any other account, so the owner's account never receives
+# the toolchain or its credentials. Must match the offload_user field of the
+# 1Password LAN item, which the dispatching host logs in as.
+osx_offload_user: fleet
+
+# What the rest of the playbook calls, checked on the offload host, where
+# nothing is installed with Homebrew.
+osx_offload_required_tools: [brew, op, jq, mise, fish, tmux, gh, git]
+
+# Installed by mise from roles/osx/files/mise-offload/offload.toml, in this
+# order (uv before the pipx: entry).
+osx_offload_mise_tools: [uv, "pipx:ansible-core", gh, jq, tmux, gitleaks, gemini]
+osx_offload_mise_bin: "{{ ansible_facts.env.HOME }}/.local/bin/mise"
+osx_offload_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
+# The owner's Homebrew binaries, used read-only (Apple silicon's prefix).
+osx_offload_brew_bin: /opt/homebrew/bin
+
+osx_offload_op_item: dotfiles-lan-ssh
+osx_offload_sshd_dropin: 050-dotfiles-hardening.conf

@@ -26,6 +26,7 @@ mkdir -p "$work/bin"
 cat >"$work/bin/ansible-playbook" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$@" >"$STUB_ARGV"
+pwd -P >"${STUB_PWD:-/dev/null}"
 printf '%s' "${OP_ACCOUNT-<unset>}" >"$STUB_OP_ACCOUNT"
 printf '%s|%s|%s' "${DOTFILES_OP_WORK_ACCOUNT-<unset>}" "${DOTFILES_OP_WORK_VAULT-<unset>}" \
     "${DOTFILES_OP_WORK_ITEM-<unset>}" >"$STUB_OP_WORK"
@@ -440,6 +441,166 @@ if [ "$(id -u)" -ne 0 ]; then
     chmod 000 "$work/op-work-item"
     expect_work_refused work-mode-000 "must be 600 or 400"
     chmod 600 "$work/op-work-item"
+fi
+
+# --user-config: the unattended selection. run_args <playbook args...> runs
+# from $work against a resolving alias, adding the NAME=value words in
+# $run_env; the stub's argv lands in $work/argv and its directory in $work/pwd.
+run_env=""
+run_args() {
+    rm -f "$work/argv" "$work/pwd"
+    reset_files
+    # shellcheck disable=SC2086  # $run_env is several NAME=value words
+    (cd "$work" && env -i PATH="$work/bin:$PATH" HOME="$work/home" DOTFILES_HOST=server \
+        STUB_ARGV="$work/argv" STUB_PWD="$work/pwd" STUB_OP_ACCOUNT="$work/op" STUB_OP_WORK="$work/op-work" \
+        DOTFILES_HOST_FILE="$work/host" DOTFILES_OP_ACCOUNT_FILE="$work/op-account" \
+        DOTFILES_OP_WORK_ITEM_FILE="$work/op-work-item" $run_env \
+        bash "$playbook" "$@" >/dev/null 2>"$work/stderr")
+    echo $? >"$work/rc"
+}
+refused_before_run() { [ "$(cat "$work/rc")" != 0 ] && [ ! -f "$work/argv" ] && grep -qF -- "$1" "$work/stderr"; }
+argv_line() { [ -f "$work/argv" ] && tr '\n' ' ' <"$work/argv"; }
+
+run_args -v --check
+if [ "$(argv_line)" = "-l server main.yml -v --check " ]; then
+    ok full-run-unchanged "without --user-config the arguments pass through as before"
+else
+    fail full-run-unchanged "argv was '$(argv_line)'"
+fi
+
+uc_want="-l server main.yml --tags user-config --skip-tags privileged,upgrade,shell -e ansible_become_method=refuse_privilege "
+run_args --user-config
+if [ "$(cat "$work/rc")" = 0 ] && [ "$(argv_line)" = "$uc_want" ]; then
+    ok user-config "selects user-config, skips privileged, upgrade and shell, refuses become"
+else
+    fail user-config "rc $(cat "$work/rc"), argv '$(argv_line)'"
+fi
+if grep -q 'privileged' "$work/stderr"; then
+    ok user-config-says-skipped "stderr names what the selection leaves out"
+else
+    fail user-config-says-skipped "stderr does not mention the skipped privileged tasks"
+fi
+
+run_args --user-config --check --diff -vv --skip-tags tmux
+if [ "$(argv_line)" = "${uc_want}--check --diff -vv --skip-tags tmux " ]; then
+    ok user-config-narrowing "check, diff, verbosity and extra --skip-tags pass through"
+else
+    fail user-config-narrowing "argv was '$(argv_line)'"
+fi
+
+for good in -C -D --verbose --list-tasks --list-tags --skip-tags=tmux; do
+    run_args --user-config "$good"
+    if [ "$(cat "$work/rc")" = 0 ] && [ "$(argv_line)" = "${uc_want}$good " ]; then
+        ok "user-config-accepts[$good]" "passed through after the selection"
+    else
+        fail "user-config-accepts[$good]" "rc $(cat "$work/rc"), argv '$(argv_line)'"
+    fi
+done
+
+for bad in -K --ask-become-pass -b --become --become-method=sudo --become-user=root \
+    -t --tags=linux -e --extra-vars=x=1 -Kv -l --limit=all --skip-tags; do
+    run_args --user-config "$bad"
+    if [ "$(cat "$work/rc")" != 0 ] && [ ! -f "$work/argv" ] && grep -qF -- "--user-config" "$work/stderr"; then
+        ok "user-config-refuses[$bad]" "refused before ansible-playbook ran"
+    else
+        fail "user-config-refuses[$bad]" "rc $(cat "$work/rc"), argv '$(argv_line)'"
+    fi
+done
+
+run_args --check --user-config
+if [ "$(cat "$work/rc")" != 0 ] && [ ! -f "$work/argv" ]; then
+    ok user-config-first-only "--user-config after another argument is refused, not passed to ansible"
+else
+    fail user-config-first-only "rc $(cat "$work/rc"), argv '$(argv_line)'"
+fi
+
+for bad in "--skip-tags always" "--skip-tags all" "--skip-tags tagged" "--skip-tags=tmux,always" "--skip-tags=all"; do
+    # shellcheck disable=SC2086  # word-split on purpose: $bad may be two arguments
+    run_args --user-config $bad
+    if refused_before_run "cannot skip always, all or tagged"; then
+        ok "user-config-refuses-skip[$bad]" "a skip that would drop the always tasks is refused"
+    else
+        fail "user-config-refuses-skip[$bad]" "rc $(cat "$work/rc"), argv '$(argv_line)'"
+    fi
+done
+# Ansible strips whitespace (NBSP too) around each tag, so a padded name is
+# the same skip; each is quoted as one argument.
+n=0
+for bad in " always" "tmux, all" "$(printf 'tagged\t')" "$(printf '\302\240always')"; do
+    n=$((n + 1))
+    run_args --user-config --skip-tags "$bad"
+    if refused_before_run "takes plain tag names"; then
+        ok "user-config-refuses-padded-skip[$n]" "a padded tag name is refused"
+    else
+        fail "user-config-refuses-padded-skip[$n]" "rc $(cat "$work/rc"), argv '$(argv_line)'"
+    fi
+done
+
+for near in ANSIBLEX XANSIBLE_A; do
+    run_env="$near=1"
+    run_args --user-config
+    if [ "$(cat "$work/rc")" = 0 ] && [ "$(argv_line)" = "$uc_want" ]; then
+        ok "user-config-allows-env[$near]" "a name that is not an Ansible setting still runs"
+    else
+        fail "user-config-allows-env[$near]" "rc $(cat "$work/rc"), argv '$(argv_line)'"
+    fi
+    run_env=""
+done
+run_env="ANSIBLE_X="
+run_args --user-config
+if refused_before_run "ANSIBLE_X"; then ok user-config-refuses-empty-env "an empty ANSIBLE_* variable is still refused"
+else fail user-config-refuses-empty-env "rc $(cat "$work/rc"), argv '$(argv_line)'"; fi
+run_env=""
+run_args --user-config --skip-tags ""
+if refused_before_run "takes plain tag names"; then ok user-config-refuses-empty-skip "an empty --skip-tags value is refused"
+else fail user-config-refuses-empty-skip "rc $(cat "$work/rc"), argv '$(argv_line)'"; fi
+
+for v in ANSIBLE_RUN_TAGS ANSIBLE_CONFIG ANSIBLE_ASK_PASS ANSIBLE_BECOME_PASSWORD_FILE \
+    ANSIBLE_ENABLE_TASK_DEBUGGER ANSIBLE_CONNECTION_PLUGINS ANSIBLE_HOME ANSIBLE_NOCOLOR \
+    _ANSIBLE_CONNECTION_PATH; do
+    run_env="$v=x"
+    run_args --user-config
+    if refused_before_run "$v"; then
+        ok "user-config-refuses-env[$v]" "refused while $v is set"
+    else
+        fail "user-config-refuses-env[$v]" "rc $(cat "$work/rc"), argv '$(argv_line)'"
+    fi
+    run_args -v
+    if [ "$(cat "$work/rc")" = 0 ] && [ "$(argv_line)" = "-l server main.yml -v " ]; then
+        ok "full-run-ignores-env[$v]" "the full run is unchanged with $v set"
+    else
+        fail "full-run-ignores-env[$v]" "rc $(cat "$work/rc"), argv '$(argv_line)'"
+    fi
+    run_env=""
+done
+
+run_env="DOTFILES_HOST="
+run_args --user-config
+if refused_before_run "not the work fallback"; then
+    ok user-config-refuses-fallback "no configured alias refuses instead of defaulting to work"
+else
+    fail user-config-refuses-fallback "rc $(cat "$work/rc"), argv '$(argv_line)'"
+fi
+run_args -v
+if [ "$(cat "$work/rc")" = 0 ] && [ "$(argv_line)" = "-l work main.yml -v " ]; then
+    ok full-run-keeps-fallback "the full run still falls back to work"
+else
+    fail full-run-keeps-fallback "rc $(cat "$work/rc"), argv '$(argv_line)'"
+fi
+run_env=""
+
+repo_root="$(cd -- "$here/.." && pwd -P)"
+run_args --user-config
+if [ "$(cat "$work/pwd" 2>/dev/null)" = "$repo_root" ]; then
+    ok user-config-runs-from-repo "ansible-playbook starts in the script's own checkout"
+else
+    fail user-config-runs-from-repo "started in '$(cat "$work/pwd" 2>/dev/null)', not $repo_root"
+fi
+run_args -v
+if [ "$(cat "$work/pwd" 2>/dev/null)" = "$(cd "$work" && pwd -P)" ]; then
+    ok full-run-keeps-cwd "the full run still starts where it was invoked"
+else
+    fail full-run-keeps-cwd "started in '$(cat "$work/pwd" 2>/dev/null)'"
 fi
 
 if [ "$fails" -eq 0 ]; then
