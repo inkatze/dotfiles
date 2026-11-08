@@ -9,19 +9,32 @@
     # `services` is the exception: it carries no `when:` here because its two
     # task files guard themselves, provisioning the declared dev-services
     # layer on Debian and the role's macOS-only content on Darwin.
+    #
+    # `user-config` marks the roles `scripts/playbook.sh --user-config` runs
+    # unattended, with no sudo password. A new role joins it unless it
+    # escalates by design; one that joins keeps each escalating task behind a
+    # drift check or the `privileged` tag (docs/ansible-roles.md).
     - role: osx
       when: ansible_facts.os_family == "Darwin"
     - role: linux
       when: ansible_facts.os_family == "Debian"
-    - kitty
-    - fish
-    - services
-    - environments
-    - tmux
-    - ssh
-    - git
+    - role: kitty
+      tags: [user-config]
+    - role: fish
+      tags: [user-config]
+    - role: services
+      tags: [user-config]
+    - role: environments
+      tags: [user-config]
+    - role: tmux
+      tags: [user-config]
+    - role: ssh
+      tags: [user-config]
+    - role: git
+      tags: [user-config]
     # Cross-platform, and deliberately NOT inside `osx`. Claude Code runs on
     # both platforms, but this config lived in the Darwin-guarded role, so the
     # Linux host had no ~/.claude/CLAUDE.md, no managed settings.json, and no
     # commands/ or scripts/ at all.
-    - claude
+    - role: claude
+      tags: [user-config]
