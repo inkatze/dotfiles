@@ -900,6 +900,16 @@ cp "$ov" "$sandbox/before"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 expect_failed "a supplement setting another key" "is not a \`key: value\` or \`remove <key>\` line"
 cmp -s "$ov" "$sandbox/before" && ok "a refused supplement writes nothing" || ko "a refused supplement writes nothing"
+# An unreadable supplement must not read as an empty one.
+printf 'mission_control_guidance: expert\n' >"$sup"
+chmod 000 "$sup"
+if [ -r "$sup" ]; then
+  ok "an unreadable supplement (skipped: running as a user who reads mode 000)"
+else
+  run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+  expect_failed "an unreadable supplement" "could not read $sup"
+fi
+chmod 600 "$sup"
 rm -f "$sup"
 ln -s "$sandbox/before" "$sup"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"

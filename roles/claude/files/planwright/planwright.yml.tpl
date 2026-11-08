@@ -2,8 +2,9 @@
 # lost on the next Ansible run: change the item or the template instead. Mission
 # control's own keys (mission_control_*, program_*) are the exception: what it
 # writes here is kept in ~/.config/dotfiles/planwright-overlay.supplement.yml and
-# carried over the item. This header must not say another tool renders the
-# file, or mission control refuses to write it at all.
+# carried over the item. Keep this header free of the phrases planwright's
+# docs/overlays.md lists as "managed elsewhere", or mission control refuses to
+# write the file at all.
 flight_pr_hosts: {{ op://__OP_VAULT__/__OP_ITEM__/flight_pr_hosts }}
 ready_guard_behind_base: conflict-only
 

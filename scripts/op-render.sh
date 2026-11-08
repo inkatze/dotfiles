@@ -278,7 +278,14 @@ if [ "$rule" = planwright-overlay ]; then
     function key_of(l) { return match(l, /^[a-z][a-z0-9_]*:/) ? substr(l, 1, RLENGTH - 1) : "" }
     function mc_key(k) { return k ~ /^mission_control_[a-z0-9_]+$/ || k ~ /^program_[a-z0-9_]+$/ }
     function set(k, l) { if (!(k in s)) order[++n] = k; s[k] = l }
+    # getline reads an unreadable file as an empty one, which would drop kept
+    # writes or harvest every key.
+    function readable(f) {
+      if ((getline l < f) < 0) { printf "could not read %s\n", f > "/dev/stderr"; exit 1 }
+      close(f)
+    }
     BEGIN {
+      readable(last); readable(live); readable(sup); readable(base)
       while ((getline l < last) > 0) {
         k = key_of(l)
         if (mc_key(k)) { if (!(k in p)) porder[++pn] = k; p[k] = l }

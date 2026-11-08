@@ -47,8 +47,9 @@ into the item before the first run.
 
 The overlay is the one exception, for mission control's own keys
 (`mission_control_*` and `program_*`, every key planwright's
-`mc-config.sh` writes). Its header deliberately does not say another tool
-renders it, since mission control refuses every write to a file that does.
+`mc-config.sh` writes). Its header deliberately avoids the phrases
+planwright's `docs/overlays.md` lists as marking a file managed elsewhere,
+since mission control refuses every write to a file whose header has one.
 Each render compares the live file with `planwright-overlay.rendered`, its
 snapshot of what the last render wrote, keeps each of those keys mission
 control changed, added or removed since in `planwright-overlay.supplement.yml`
