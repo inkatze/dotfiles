@@ -60,7 +60,10 @@ the file goes once it is empty, so copying a change into the item's
 instead. Any other key in the supplement fails the render, and with no
 snapshot (a first run) nothing is kept. Both files are 0600 and must be
 regular files; deleting the snapshot loses mission control's writes since
-the last render.
+the last render. A render and a mission-control write are not fully
+serialized: the render refuses to replace an overlay that changed since it
+read it, but a write landing in the instant between that check and the
+rename is lost.
 
 `git-work-orgs` is rendered the same way from the item
 `dotfiles-git-work-orgs` (field `orgs`, owner names separated by whitespace),

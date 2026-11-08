@@ -904,7 +904,7 @@ cmp -s "$ov" "$sandbox/before" && ok "a refused supplement writes nothing" || ko
 printf 'mission_control_guidance: expert\n' >"$sup"
 chmod 000 "$sup"
 if [ -r "$sup" ]; then
-  ok "an unreadable supplement (skipped: running as a user who reads mode 000)"
+  echo "  skip: an unreadable supplement (this user reads mode 000)"
 else
   run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
   expect_failed "an unreadable supplement" "could not read $sup"
@@ -938,7 +938,8 @@ item_from 'orgs=AcmeCo'
 run "$orgs_tpl" dotfiles-git-work-orgs "$sandbox/orgs"
 rm -f "$snap"
 run "$orgs_tpl" dotfiles-git-work-orgs "$sandbox/orgs2"
-[ ! -e "$snap" ] && ok "another template writes no snapshot" || ko "another template writes no snapshot"
+[ "$rc" -eq 0 ] && [ -f "$sandbox/orgs2" ] && [ ! -e "$snap" ] && [ ! -e "$sup" ] \
+  && ok "another template writes neither file" || ko "another template writes neither file ($log)"
 
 echo
 echo "op-render: $pass passed, $fail failed"
