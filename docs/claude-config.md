@@ -97,9 +97,9 @@ naming a script inside the planwright plugin cache writes its version
 directory as `*`, since a concrete version matches nothing after the next
 planwright update; `scripts/claude-planwright-pin-check.sh
 roles/claude/files/settings.json` fails on any concrete version. CI runs its
-suite; lefthook does not, deliberately. Because `*` also spans spaces and `/..` segments, each
-such rule pre-approves any command that merely contains its script path and
-verb (`<cache>/<v>/../../../../../../bin/rm ... /scripts/fleet-streamjson.sh
+suite; lefthook does not, deliberately. Because `*` also spans spaces and
+`/..` segments, each such rule pre-approves any command that merely contains
+its script path and verb (`<cache>/<v>/../../../../../../bin/rm ... /scripts/fleet-streamjson.sh
 answer x` included), an exposure accepted for these rules. Add a new
 plugin-cache rule only with that exposure in mind.
 
@@ -117,10 +117,12 @@ drop the rule and run the role.
 The hub also drives every tmux pane and posts PR reviews. A global allow
 reaches every session, dispatched workers included, so the broad
 `tmux send-keys`, `tmux kill-window` and `gh pr review` rules are not global.
-Where the hub needs them durably, their layer is the tracked per-repo
-`.claude/settings.json` of this repo, never an untracked local file. The global `tmux kill-pane -t %<id>` allow is held to one
-pane by its `ask` twins: a flag after the pane id (`-a` kills every other
-pane) or a `;` (tmux's own command separator) prompts instead.
+Where the hub needs them durably, their layer is this repo's per-repo
+`.claude/settings.json`, tracked once it is un-ignored beside
+`.claude/planwright.yml` (below), never an untracked local file. The global
+`tmux kill-pane -t %<id>` allow is held to one pane by its `ask` twins: a
+flag after the pane id (`-a` kills every other pane) or a `;` (tmux's own
+command separator) prompts instead.
 
 The hub relays planwright reports to a session on another host with one exact
 `ssh ... planwright-relay '<tmux paste>'` rule, no wildcard, since any extra

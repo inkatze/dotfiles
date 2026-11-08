@@ -30,8 +30,8 @@ Host {{ op://__OP_VAULT__/__OP_ITEM__/server_alias }}
     Hostname {{ op://__OP_VAULT__/__OP_ITEM__/server_host }}
 
 # A fixed name, since the global Claude allow rule for mission control's relay
-# names it literally. No agent or environment forwarding: that rule runs
-# without a prompt.
+# names it literally. No agent forwarding and no extra SendEnv, since that rule
+# runs without a prompt; the system-wide `Host *` locale SendEnv still applies.
 Host planwright-relay
     Hostname {{ op://__OP_VAULT__/__OP_ITEM__/server_host }}
     User {{ op://__OP_VAULT__/__OP_ITEM__/server_user }}
