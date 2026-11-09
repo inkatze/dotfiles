@@ -843,6 +843,104 @@ grep -qx 'p.reviewed_head_check: not a string' <<<"$got" && ok "a non-string che
 got="$(jq -r -L "$schema_dir" 'include "config-schema"; .reviewers["work-review"].cli = {binary: "{{ op://__OP_VAULT__/__OP_ITEM__/x }}"} | review_template_errors' "$review_tpl")"
 [ -z "$got" ] && ok "a cli block is outside the one-item rule" || ko "a cli block is outside the one-item rule ($got)"
 
+echo "28. overlay: mission control's own writes survive the render, nothing else does"
+new_sandbox
+ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
+sup="$HOME/.config/dotfiles/planwright-overlay.supplement.yml"
+snap="$HOME/.config/dotfiles/planwright-overlay.rendered"
+block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a]\nprogram_alpha_home: /h'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && cmp -s "$ov" "$snap" && ok "the first render records its snapshot" || ko "the first render records its snapshot ($log)"
+[ "$(mode_of "$snap")" = 600 ] && ok "snapshot at 0600" || ko "snapshot at 0600"
+[ -e "$sup" ] && ko "a supplement appeared with nothing to keep" || ok "no supplement while nothing differs"
+# The header test planwright's mc-config.sh applies: its leading comment block
+# must not say another tool renders the file, or every write is refused.
+header="$(awk '/^[[:space:]]*$/ { next } !/^[[:space:]]*#/ { exit } { sub(/^[[:space:]]*#+[[:space:]]*/, ""); s = s " " $0 } END { print s }' "$ov")"
+if grep -Eiq 'do not edit|generated (by|from)|rendered (by|from)|managed by|ansible managed|overwritten' <<<"$header"; then
+  ko "the overlay header reads as managed elsewhere to mission control ($header)"
+else
+  ok "the overlay header lets mission control write"
+fi
+# What mc-config.sh does: rewrite a key in place, add a knob, drop a key.
+sed -i.bak -e 's/^program_alpha_duties: .*/program_alpha_duties: [a, b]/' -e '/^program_alpha_home:/d' \
+  -e 's/^ready_guard_behind_base: .*/ready_guard_behind_base: never/' "$ov" && rm -f "$ov.bak"
+echo 'mission_control_tick_cadence: 5m' >>"$ov"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && grep -qF "kept mission control's writes in $sup" <<<"$log" && ok "reports the kept writes" || ko "reports the kept writes ($log)"
+grep -qx 'program_alpha_duties: \[a, b\]' "$ov" && ok "a rewritten program key survives" || ko "a rewritten program key survives"
+grep -qx 'mission_control_tick_cadence: 5m' "$ov" && ok "an added knob survives" || ko "an added knob survives"
+grep -q '^program_alpha_home:' "$ov" && ko "a removed key came back" || ok "a removed key stays removed"
+grep -qx 'ready_guard_behind_base: conflict-only' "$ov" && ok "any other hand edit is replaced from the item" || ko "any other hand edit is replaced"
+if [ "$(grep -v '^#' "$sup")" = $'program_alpha_duties: [a, b]\nmission_control_tick_cadence: 5m\nremove program_alpha_home' ]; then
+  ok "the supplement holds exactly mission control's changes, in order"
+else
+  ko "the supplement holds mission control's changes ($(cat "$sup"))"
+fi
+[ "$(mode_of "$sup")" = 600 ] && ok "supplement at 0600" || ko "supplement at 0600"
+grep -q 'ready_guard' "$sup" && ko "a non-mission-control key was harvested" || ok "no other key is harvested"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+grep -q '^OK:' <<<"$log" && ok "a settled render prints OK" || ko "a settled render prints OK ($log)"
+# The item gains a program key mission control never saw: not a removal.
+block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a]\nprogram_alpha_home: /h\nprogram_alpha_spec_root: /s'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+grep -qx 'program_alpha_spec_root: /s' "$ov" && ok "a key new in the item lands" || ko "a key new in the item lands ($log)"
+grep -qx 'program_alpha_duties: \[a, b\]' "$ov" && ok "the kept write still wins over the item" || ko "the kept write still wins over the item"
+# The operator copies the changes into the item: each entry drops, then the file.
+block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a, b]\nprogram_alpha_home: /h\nprogram_alpha_spec_root: /s'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+grep -qx 'program_alpha_duties: \[a, b\]' "$sup" && ko "an entry the item matches stayed" || ok "an entry the item matches drops out"
+grep -qx 'remove program_alpha_home' "$sup" && ok "a removal the item still contradicts stays" || ko "a removal the item still contradicts stays ($(cat "$sup"))"
+block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a, b]\nprogram_alpha_spec_root: /s\nmission_control_tick_cadence: 5m'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && [ ! -e "$sup" ] && grep -qF "removed $sup" <<<"$log" && ok "a supplement the item fully matches is removed" || ko "a fully matched supplement is removed ($log)"
+cmp -s "$ov" "$snap" && ok "the snapshot follows the output" || ko "the snapshot follows the output"
+# A supplement line for any other key would let a local file override the item.
+printf 'ready_guard_behind_base: never\n' >"$sup"
+cp "$ov" "$sandbox/before"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "a supplement setting another key" "is not a \`key: value\` or \`remove <key>\` line"
+cmp -s "$ov" "$sandbox/before" && ok "a refused supplement writes nothing" || ko "a refused supplement writes nothing"
+# An unreadable supplement must not read as an empty one.
+printf 'mission_control_guidance: expert\n' >"$sup"
+chmod 000 "$sup"
+if [ -r "$sup" ]; then
+  echo "  skip: an unreadable supplement (this user reads mode 000)"
+else
+  run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+  expect_failed "an unreadable supplement" "could not read $sup"
+fi
+chmod 600 "$sup"
+rm -f "$sup"
+ln -s "$sandbox/before" "$sup"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "a symlinked supplement" "it is a symlink"
+rm -f "$sup"
+# Without a snapshot nothing tells a write from an old value, so none is kept.
+rm -f "$snap"
+echo 'mission_control_guidance: expert' >>"$ov"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && ! grep -q '^mission_control_guidance:' "$ov" && [ ! -e "$sup" ] && [ -f "$snap" ] \
+  && ok "no snapshot: nothing harvested, the snapshot written" || ko "no snapshot: nothing harvested ($log)"
+# A write landing between the harvest and the rename must not be overwritten.
+# The shim makes every cksum call differ, as a write in between would.
+printf '#!/bin/sh\necho "$$"\n' >"$sandbox/bin/cksum" && chmod +x "$sandbox/bin/cksum"
+# A hand edit to another key makes the render replace the output.
+sed -i.bak 's/^ready_guard_behind_base: .*/ready_guard_behind_base: never/' "$ov" && rm -f "$ov.bak"
+echo 'mission_control_guidance: guided' >>"$ov"
+cp "$ov" "$sandbox/before"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "the overlay changing during the render" "changed while it was rendered"
+cmp -s "$ov" "$sandbox/before" && ok "a concurrent write is left in place" || ko "a concurrent write is left in place"
+[ -e "$sup" ] && ko "a refused render still wrote the supplement" || ok "a refused render writes no supplement"
+rm -f "$sandbox/bin/cksum"
+# A text template other than the overlay never touches either file.
+item_from 'orgs=AcmeCo'
+run "$orgs_tpl" dotfiles-git-work-orgs "$sandbox/orgs"
+rm -f "$snap"
+run "$orgs_tpl" dotfiles-git-work-orgs "$sandbox/orgs2"
+[ "$rc" -eq 0 ] && [ -f "$sandbox/orgs2" ] && [ ! -e "$snap" ] && [ ! -e "$sup" ] \
+  && ok "another template writes neither file" || ko "another template writes neither file ($log)"
+
 echo
 echo "op-render: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
