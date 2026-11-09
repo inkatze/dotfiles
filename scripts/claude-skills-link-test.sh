@@ -26,6 +26,9 @@ cat >"$play" <<'YAML' || { echo "FAIL[harness]: cannot write the play"; exit 1; 
   hosts: localhost
   connection: local
   gather_facts: true
+  # Only the fact subsets these tasks read: the default set and `min` each cost
+  # about 72s a play on GitHub's macOS runners, most of the lint job's time.
+  gather_subset: ['!all', '!min', 'env']
   tasks:
     - name: Run only the skill link tasks
       ansible.builtin.include_role:
@@ -45,7 +48,7 @@ fresh_home() {
 
 # run_role <home>: 0 when the play completed, 1 when a task failed.
 run_role() {
-    (cd "$work" && HOME="$1" ansible-playbook "$play" >"$work/out" 2>&1)
+    (cd "$work" && HOME="$1" ANSIBLE_PIPELINING=true ansible-playbook "$play" >"$work/out" 2>&1)
     grep -q 'PLAY RECAP' "$work/out" || { printf 'FAIL[harness]: no recap\n'; sed 's/^/    /' "$work/out" | tail -20; exit 1; }
     grep -qE 'failed=0 ' "$work/out"
 }

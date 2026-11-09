@@ -30,6 +30,9 @@ cat >"$play" <<'YAML'
   hosts: localhost
   connection: local
   gather_facts: true
+  # Only the fact subsets these tasks read: the default set and `min` each cost
+  # about 72s a play on GitHub's macOS runners, most of the lint job's time.
+  gather_subset: ['!all', '!min', 'env']
   tasks:
     - name: Run only the tasks that own the mise config paths
       ansible.builtin.include_role:
@@ -39,7 +42,7 @@ YAML
 
 run_role() {
     h_="$1"; shift
-    HOME="$h_" ansible-playbook "$play" "$@" >"$work/out" 2>&1
+    HOME="$h_" ANSIBLE_PIPELINING=true ansible-playbook "$play" "$@" >"$work/out" 2>&1
     if ! grep -q 'PLAY RECAP' "$work/out" || grep -qE '^fatal' "$work/out"; then
         printf 'FAIL[harness]: the playbook did not complete\n'
         sed 's/^/    /' "$work/out" | tail -12

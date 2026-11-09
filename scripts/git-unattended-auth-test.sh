@@ -33,6 +33,9 @@ cat >"$play" <<'YAML'
   hosts: all
   connection: local
   gather_facts: true
+  # Only the fact subsets these tasks read: the default set and `min` each cost
+  # about 72s a play on GitHub's macOS runners, most of the lint job's time.
+  gather_subset: ['!all', '!min', 'env', 'distribution']
   tasks:
     - name: Run the git role
       ansible.builtin.include_role:
@@ -64,7 +67,7 @@ fresh_home() {
 # role builds a symlink source from the working directory.
 run_role() {
     # CI keeps the 1Password render off, so the fixture files are what is read.
-    (cd "$work" && CI=1 HOME="$1" ansible-playbook -i "$inv" -l "$2" "$play") >"$work/out" 2>&1
+    (cd "$work" && CI=1 HOME="$1" ANSIBLE_PIPELINING=true ansible-playbook -i "$inv" -l "$2" "$play") >"$work/out" 2>&1
     if ! grep -q 'PLAY RECAP' "$work/out"; then
         printf 'FAIL[harness]: the playbook did not run; no PLAY RECAP\n'
         sed 's/^/    /' "$work/out" | head -12
