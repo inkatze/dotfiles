@@ -90,6 +90,7 @@ jobs:
 
       # Needs ansible-playbook, which this job installs, and jq; stubs op.
       - name: Run the planwright overlay render suite
+        timeout-minutes: 10
         run: scripts/claude-overlay-render-test.sh
 
       # macOS ships no timeout; without gtimeout the suite skips its FIFO case,

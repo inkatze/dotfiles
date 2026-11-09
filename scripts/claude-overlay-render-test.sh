@@ -80,7 +80,9 @@ cat >"$play" <<'YAML' || { echo "FAIL[harness]: cannot write the play"; exit 1; 
   hosts: all
   connection: local
   gather_facts: true
-  gather_subset: [min]
+  # Only the env subset op-render reads: the default set and `min` each cost
+  # about 72s a play on GitHub's macOS runners.
+  gather_subset: ['!all', '!min', 'env']
   tasks:
     - name: Run only the 1Password render tasks
       ansible.builtin.include_role:
@@ -101,7 +103,8 @@ run_as() {
   : >"$work/render-argv"
   # CI unset, since the tasks skip under it; become off, so sudo cannot reset
   # HOME and aim the role at a real home; fact injection off, as the repo's
-  # ansible.cfg (unread from $work) has it.
+  # ansible.cfg (unread from $work) has it. No ANSIBLE_PIPELINING, unlike the
+  # other ansible suites: with it the first play here never finishes.
   (cd "$work" && env -u CI -u ANSIBLE_CONFIG "$@" HOME="$h" PATH="$work/bin:$PATH" \
     OP_ARGV="$work/op-argv" OP_ITEMS="$work/items" RENDER_ARGV="$work/render-argv" \
     ANSIBLE_BECOME=false ANSIBLE_INJECT_FACT_VARS=false \
