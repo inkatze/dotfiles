@@ -79,10 +79,11 @@ for r in osx linux; do
     else fail "selection-excludes-$r" "$extra"; fi
 done
 missing="$(grep -vxF -f "$work/tasks" "$work/guards" | head -3 | tr '\n' ';')"
-if [ -z "$missing" ]; then ok selection-keeps-offload-guards "the offload host's account checks still run"
+if [ -z "$missing" ]; then ok selection-keeps-offload-guards "the offload-host guards still run"
 else fail selection-keeps-offload-guards "not selected: $missing"; fi
-# An `apply:` on the include would hand its tags to every included task.
-if grep -qE '^ *tags:.*(^|[^a-z-])(always|user-config)([^a-z-]|$)' "$repo/roles/osx/tasks/offload-tools.yml" \
+# Any mention of either tag, so a block-style tag list counts too. An `apply:`
+# on the include would hand its tags to every included task.
+if grep -qE '(^|[^a-z-])(always|user-config)([^a-z-]|$)' "$repo/roles/osx/tasks/offload-tools.yml" \
     || grep -qE '^ *apply:' "$repo/roles/osx/tasks/main.yml"; then
     fail selection-drops-offload-tools "a task in offload-tools.yml would run under the selection"
 else
