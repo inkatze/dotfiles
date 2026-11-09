@@ -94,7 +94,7 @@ while IFS='|' read -r role _ _ triggers; do
             sed 's#.*}}/##' | sort -u)
         for s in $scripts; do
             # shellcheck disable=SC2016 # a literal $script_dir in the source
-            sourced=$(sed -n 's#^\. "\$script_dir/\([^"]*\)".*#scripts/\1#p' "$repo_root/$s")
+            sourced=$(sed -nE 's#^[[:space:]]*(\.|source)[[:space:]]+"?\$\{?script_dir\}?/([^" ]+)"?.*#scripts/\2#p' "$repo_root/$s")
             for need in $s $sourced; do
                 printf '%s\n' "$need" >"$work/changed"
                 if "$matrix" --changed "$work/changed" | grep -q "\"role\":\"$role\""; then
