@@ -134,7 +134,7 @@ for alias in personal alt server; do
     extra=()
     [ "$exported" = no ] || extra=("${work_source[@]}")
     label="$alias-unchanged$([ "$exported" = no ] || echo -with-work-source)"
-    if ! run_as "$alias" "${extra[@]}"; then
+    if ! run_as "$alias" ${extra[@]+"${extra[@]}"}; then
       fail "$label" "the play failed"; show; continue
     fi
     if [ "$(overlay_argv)" = "$work/roles/claude/files/planwright/planwright.yml.tpl dotfiles-planwright-overlay $ov" ] &&
