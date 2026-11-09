@@ -110,6 +110,14 @@ tagged_files() {
         grep '/tasks/' |
         sed "s#^$repo_root/##" | grep -v '^roles/linux/'
 }
+# The checks below read inline lists only, so any other spelling fails here
+# rather than passing unread.
+other_forms=$(grep -rnE '^[[:space:]]*tags:' "$repo_root/roles" --include='*.yml' |
+    grep '/tasks/' | grep -vE ':[[:space:]]*tags:[[:space:]]*\[[^]]*\]' | sed "s#^$repo_root/##")
+if [[ -n "$other_forms" ]]; then
+    fail tag-form "write task tags as an inline list (tags: [a, b]) so this suite can read them:
+$other_forms"
+fi
 for f in $(tagged_files always); do
     for role in $all_roles; do
         selects "$f" "$role" || fail "always:$f" "runs in every job but does not start $role"
