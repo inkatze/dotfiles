@@ -30,7 +30,9 @@ change unattended there. `./scripts/playbook.sh --user-config`, on either
 platform, runs only what needs no escalation:
 
 - the roles `main.yml` tags `user-config` (every role except `osx` and
-  `linux`, which keep their `os_family` guards and carry no such tag);
+  `linux`, which keep their `os_family` guards and carry no such tag), plus
+  the `osx` role's `always`-tagged offload-host account checks, which hold
+  under every selection;
 - minus tasks tagged `privileged` (the services role's Debian lifecycle, which
   escalates even on a converged host), `upgrade`, and `shell` (fish's
   login-shell tasks, which `mise run install` skips too, so a drifted login
