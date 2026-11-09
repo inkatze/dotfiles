@@ -103,6 +103,12 @@ pre-commit:
       glob: "{roles/claude/tasks/planwright.yml,roles/claude/defaults/main.yml,\
         scripts/planwright-marketplace-test.sh}"
       run: scripts/planwright-marketplace-test.sh
+    osx-offload-guard:
+      # The suite is what notices a guard task losing `always` or a Homebrew
+      # write losing its guard; the role alone still converges on a Mac whose
+      # account owns the prefix.
+      glob: "{roles/osx/tasks/*.yml,scripts/osx-offload-guard-test.sh}"
+      run: scripts/osx-offload-guard-test.sh
     playbook-alias:
       # The suite is what notices the empty-alias guard being dropped; the
       # script alone still runs, just against every inventory host.

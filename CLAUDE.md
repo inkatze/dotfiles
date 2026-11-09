@@ -7,8 +7,7 @@ the rules below lives in [docs/](docs/); planned work in `specs/README.md`.
 
 ## How Claude config is materialized
 
-The tracked Claude sources live under `roles/claude/files/`, not where they
-appear at runtime:
+Tracked Claude sources live under `roles/claude/files/`, not at runtime paths:
 
 | Runtime path | Tracked source | Mechanism |
 |---|---|---|
@@ -101,11 +100,11 @@ server the review skills DM through; register it by hand where wanted. See
 
 The resolver and every prompt-driven backend invocation are stated once, in
 `roles/claude/files/skills/review-shared/backends.md`; change them there. An
-unresolved host alias must fall back to `work`, matching `scripts/playbook.sh`.
-The Gemini key sync addresses its 1Password item with an explicit `--vault`,
-and the item id in that script is the id in that vault. Ollama is retired
-([docs/ollama.md](docs/ollama.md)), as is the Copilot CLI backend, so revoke
-its GitHub OAuth apps ([docs/review-backends.md](docs/review-backends.md)).
+unresolved host alias must fall back to `work`, matching `scripts/playbook.sh`
+(whose `--user-config` refuses instead). The Gemini key sync gives its item's
+1Password vault as an explicit `--vault`; the script's item id is that vault's.
+Ollama is retired ([docs/ollama.md](docs/ollama.md)), as is the Copilot CLI
+backend, so revoke its GitHub OAuth apps ([docs/review-backends.md](docs/review-backends.md)).
 
 ## Machine-local files under `~/.config/dotfiles/`
 
@@ -120,6 +119,7 @@ row names a writer. Keep machine-specific values here, never in tracked files.
 | `op-account`, `op-work-item` | `scripts/playbook.sh` | The 1Password account a playbook run's `op` calls use, exported as `OP_ACCOUNT` (set that yourself for a direct script run), where more than one is signed in; `op-work-item` names the account, vault and item of the second item a work-only reviewer renders from, and the account and vault a work host's own overlay item is read from (0600) |
 | `op-service-account-token` | `scripts/op-token.sh`, for the 1Password syncs | Service-account token, a bearer credential (0600) |
 | `git-work-email`, `git-work-orgs` | `roles/git/defaults/main.yml` | The work identity written to `~/.gitconfig.work`; `git-work-orgs` names the GitHub owners whose repositories also take it, rendered by `scripts/op-render.sh` from `roles/git/files/git-work-orgs.tpl` |
+| `planwright-overlay.supplement.yml`, `planwright-overlay.rendered` | `scripts/op-render.sh` | Mission control's own writes to the planwright adopter overlay, carried over the 1Password item, and the snapshot of the last render that tells them apart (0600), both written by the renderer |
 | `pushover-credentials` | `roles/osx/files/health/health-check.sh` | Health-check notification credentials (0600), written by `roles/osx/tasks/health-signal.yml` |
 | `health-target` | `roles/osx/files/health/health-check.sh` | The host the health check polls; absent means nothing is polled |
 | `work-shell-init` | `roles/fish/files/work-init.fish` | Path of a second config manager's shell init to source |
@@ -147,15 +147,15 @@ review; it never blocks a commit. See
 ## Ansible role layout
 
 `main.yml` runs one platform baseline per host by `os_family` guard
-(`roles/osx/` on Darwin, `roles/linux/` on Debian); the cross-platform config
-roles (`kitty`, `fish`, `environments`, `tmux`, `ssh`, `git`, `claude`) run
-everywhere, and Claude config belongs only in `roles/claude/`.
+(`roles/osx/` on Darwin, `roles/linux/` on Debian); every other role runs
+everywhere, tagged `user-config` for the sudo-free `playbook.sh --user-config`.
+A task escalating in one runs only to repair drift or is tagged `privileged`.
+Claude config belongs only in `roles/claude/`.
 
-`roles/services/` runs everywhere but guards itself: on Debian (Linux) it
-provisions the services declared in `roles/services/defaults/main.yml`, on
-Darwin (macOS) only the older `~/.my.cnf` and colima content. Add a dev
-service as an entry there, not a task edit; one needing more names its own
-file in a `setup:` field.
+`roles/services/` runs everywhere but guards itself: on Debian it provisions
+the services declared in `roles/services/defaults/main.yml`, on Darwin only
+the older `~/.my.cnf` and colima content. Add a dev service as an entry there,
+not a task edit; one needing more names its own file in a `setup:` field.
 
 - Never make `~/.my.cnf` or `~/.npmrc` a symlink into this repo: their
   content is credentials, so the roles insert a marked `blockinfile` block.

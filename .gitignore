@@ -20,3 +20,4 @@ mise.local.toml
 # Runtime, never tracked: every /orchestrate run would otherwise leave the
 # working tree dirty.
 specs/*/.orchestrate/
+__pycache__/

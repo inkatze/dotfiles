@@ -1,0 +1,1 @@
+- 2026-11-07 [dotfiles] roles/linux/tasks/mise.yml installs each linux_mise_tools entry with no chdir, so mise also reads the config of the directory the play runs from (the checkout, whose mise.toml pins gitleaks too); roles/environments/tasks/main.yml already runs its mise installs from $HOME for this reason, and the offload tools task now does.

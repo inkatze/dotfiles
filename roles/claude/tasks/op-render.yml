@@ -10,7 +10,8 @@
 # No host guard: every host, work included, runs the review skills.
 #
 # A hand-written file at an output path is overwritten. Before the first run on
-# a host, carry anything worth keeping from it into the item.
+# a host, carry anything worth keeping from it into the item. The planwright
+# overlay keeps mission control's own writes (docs/machine-local-files.md).
 
 - name: Render the review config from 1Password
   ansible.builtin.command:

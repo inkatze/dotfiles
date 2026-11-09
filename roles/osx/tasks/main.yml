@@ -1,5 +1,93 @@
 ---
 
+# First, so a run from the owner's account stops before any role touches it.
+# Tagged `always` with the probes below: a run limited to one role's tag must
+# meet the same account checks and see a defined osx_brew_writable.
+#
+# The login and groups come from the process, not from USER, which the caller
+# sets.
+- name: Read the account running this play on the offload host
+  ansible.builtin.command:
+    argv: [id, -un]
+  register: osx_offload_login
+  changed_when: false
+  check_mode: false
+  when: inventory_hostname in osx_offload_hosts
+  tags: [always]
+
+- name: Read that account's groups
+  ansible.builtin.command:
+    argv: [id, -Gn]
+  register: osx_offload_groups
+  changed_when: false
+  check_mode: false
+  when: inventory_hostname in osx_offload_hosts
+  tags: [always]
+
+- name: Refuse to configure the offload host from another account
+  ansible.builtin.assert:
+    that: osx_offload_login.stdout == osx_offload_user
+    fail_msg: >-
+      The offload host is configured only from its work account
+      ({{ osx_offload_user }}), never from the owner's. Log in as that account,
+      or set osx_offload_user if the account has another name.
+    quiet: true
+  when: inventory_hostname in osx_offload_hosts
+  tags: [always]
+
+# An administrator can write the admin-group Homebrew prefix and /Applications
+# without sudo, so whoever holds the dispatching host's key could replace
+# programs the owner runs. A standard account cannot.
+- name: Refuse an administrator work account
+  ansible.builtin.assert:
+    that: "'admin' not in osx_offload_groups.stdout.split()"
+    fail_msg: >-
+      {{ osx_offload_user }} is an administrator. Make it a standard account
+      first, from an administrator account on the Mac
+      (docs/offload-host.md), then re-run.
+    quiet: true
+  when: inventory_hostname in osx_offload_hosts
+  tags: [always]
+
+- name: Import the offload host's toolchain tasks
+  ansible.builtin.include_tasks: offload-tools.yml
+  when: inventory_hostname in osx_offload_hosts
+  tags: [always]
+
+# Never on the offload host: its Homebrew is the owner's, used read-only, and
+# its standard work account could neither own nor install one of its own.
+- name: Decide whether this run may install with Homebrew
+  ansible.builtin.set_fact:
+    osx_brew_writable: "{{ inventory_hostname not in osx_offload_hosts }}"
+  tags: [always]
+
+- name: Check the tools the offload host needs without Homebrew installs
+  ansible.builtin.shell:
+    cmd: |
+      missing=""
+      for t in {{ osx_offload_required_tools | map('quote') | join(' ') }}; do
+        command -v "$t" >/dev/null 2>&1 || missing="$missing $t"
+      done
+      printf '%s' "${missing# }"
+  register: osx_offload_missing_tools
+  changed_when: false
+  check_mode: false
+  when: not (osx_brew_writable | bool)
+  tags: [always]
+
+- name: Require those tools
+  ansible.builtin.assert:
+    that: osx_offload_missing_tools.stdout == ''
+    fail_msg: >-
+      This host installs nothing with Homebrew, and these tools are not on
+      PATH: {{ osx_offload_missing_tools.stdout }}.
+      Install brew, fish and op from the owner's account (the fish role runs
+      fish from the Homebrew prefix) and the rest with mise in this account,
+      then re-run (docs/offload-host.md).
+    quiet: true
+  when: not (osx_brew_writable | bool)
+  tags: [always]
+
 - name: Import macOS tasks
   ansible.builtin.include_tasks: osx.yml
   tags: [osx]
@@ -19,3 +107,8 @@
   ansible.builtin.include_tasks: health-signal.yml
   when: inventory_hostname in osx_health_signal_hosts
   tags: [osx, health]
+
+- name: Import offload-host tasks
+  ansible.builtin.include_tasks: offload-host.yml
+  when: inventory_hostname in osx_offload_hosts
+  tags: [osx, offload]

@@ -21,6 +21,51 @@ host) and none of the declared services. Install, enable, start and verify
 are driven from the declaration and name no service, so a new service is an
 entry rather than a task edit.
 
+## Unattended runs: `playbook.sh --user-config`
+
+A run with nobody at the keyboard cannot answer a sudo prompt, and on Linux
+the `linux` baseline and the services lifecycle escalate on every run, so the
+full playbook (`./scripts/playbook.sh -K`) cannot apply even a config-only
+change unattended there. `./scripts/playbook.sh --user-config`, on either
+platform, runs only what needs no escalation:
+
+- the roles `main.yml` tags `user-config` (every role except `osx` and
+  `linux`, which keep their `os_family` guards and carry no such tag), plus
+  the `osx` role's `always`-tagged offload-host guards (account and tool
+  checks, which change nothing), held under every selection;
+- minus tasks tagged `privileged` (the services role's Debian lifecycle, which
+  escalates even on a converged host), `upgrade`, and `shell` (fish's
+  login-shell tasks, which `mise run install` skips too, so a drifted login
+  shell cannot block every unattended run);
+- with Ansible's become method set to `become_plugins/refuse_privilege.py`, so
+  a task in the selection that would still escalate fails with a message
+  naming the full run, rather than prompting. No selected task escalates
+  today; the plugin is the backstop for one that would.
+
+It must be the first argument, and only options that narrow or preview the
+run may follow (the allow-list is in `scripts/playbook.sh`): anything that
+could widen the selection, retarget the run or supply a sudo password is
+refused, as is a `--skip-tags` naming `always`, `all` or `tagged`, or holding
+anything but plain tag names. It also refuses while any `ANSIBLE_*` or
+`_ANSIBLE_*` variable is set (they can add tags, wait on a prompt, or swap the config, inventory or
+plugins), and when the host alias would
+fall back to `work` (the full run's fallback warns, which nobody unattended
+would read; `alt`, resolved by hostname, still runs). It runs from the
+script's own checkout, wherever it was started.
+
+A refusal ends the run at that task: the tasks before it stay applied (all
+unprivileged and idempotent), and every later task and role is left unapplied
+until the full run applies them. Escalation is not the only thing an
+unattended run cannot answer: the 1Password reads in the `ssh`, `git` and
+`claude` roles need a service-account token or an unlocked desktop app.
+
+When adding a role, tag it `user-config` in `main.yml` unless it escalates by
+design. A task that escalates inside one either runs only when there is drift
+to repair (check unprivileged first, then escalate behind a `when:`) or
+carries the `privileged` tag. `scripts/user-config-selection-test.sh` pins the
+selection and the refusal; `scripts/playbook-alias-test.sh` pins the argument
+handling.
+
 ## `~/.my.cnf` and `~/.npmrc` are applied to, not owned
 
 Their canonical content is credentials (a client password; registry
@@ -38,8 +83,8 @@ idempotent again after that. `mode: "0600"` is asserted unconditionally.
 
 ## Inventory aliases
 
-`hosts` lists `work`, `personal`, `alt` (macOS) and `server` (Linux), all run
-locally, so no LAN IP or real hostname is committed. `scripts/playbook.sh`
+`hosts` lists `work`, `personal`, `alt`, `offload` (macOS,
+[offload-host.md](offload-host.md)) and `server` (Linux), all run locally, so no LAN IP or real hostname is committed. `scripts/playbook.sh`
 maps the running machine to an alias through `DOTFILES_HOST` or the
 machine-local `host` file; `work` is the fallback (CI depends on it) and warns
 on stderr. One residual hostname pattern remains for `alt`.

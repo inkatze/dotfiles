@@ -1,0 +1,89 @@
+---
+
+# The offload host's server side: render the key the dispatching host logs in
+# with, and check that an administrator has closed password login.
+
+# A fact rather than a default, so inventory cannot move it: the sshd drop-in in
+# files/sshd names this same path in AuthorizedKeysFile, and the two drifting
+# apart would leave the hardening on with the managed key unread.
+- name: Fix the offload authorized-keys path
+  ansible.builtin.set_fact:
+    osx_offload_authorized_keys: "{{ ansible_facts.env.HOME }}/.ssh/authorized_keys.offload"
+  tags: [osx, offload]
+
+# macOS starts sshd per connection through launchd only while Remote Login is
+# on, and turning it off from here would cut the session running this play.
+- name: Check that Remote Login is on
+  ansible.builtin.command: launchctl print system/com.openssh.sshd
+  register: osx_offload_remote_login
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  tags: [osx, offload]
+
+- name: Require Remote Login
+  ansible.builtin.assert:
+    that: osx_offload_remote_login.rc == 0
+    fail_msg: >-
+      Remote Login is off, so nothing can reach this host over SSH. Turn it on
+      in System Settings, General, Sharing, Remote Login, allowing at least
+      {{ osx_offload_user }}, then re-run.
+    quiet: true
+  tags: [osx, offload]
+
+# An absent `op` fails here rather than skipping: this host exists to be
+# reached by that key, and the required-tools check in main.yml has already
+# found `op` on PATH.
+- name: Render the offload authorized key from 1Password
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_facts.env.PWD }}/scripts/op-render.sh"
+      - "{{ role_path }}/files/offload/authorized_keys.offload.tpl"
+      - "{{ osx_offload_op_item }}"
+      - "{{ osx_offload_authorized_keys }}"
+  register: osx_offload_render
+  changed_when: "'CHANGED' in osx_offload_render.stdout"
+  tags: [osx, offload]
+
+# Installing the hardening needs root, which the standard work account does not
+# have. An administrator runs scripts/offload-sshd-harden.sh from a checkout of
+# their own (docs/offload-host.md) once the key rendered above is in place; its
+# header says what it checks. This play only checks the result, which needs no
+# root since the drop-in is world-readable.
+- name: Check the installed sshd hardening drop-in
+  ansible.builtin.stat:
+    path: "/etc/ssh/sshd_config.d/{{ osx_offload_sshd_dropin }}"
+    checksum_algorithm: sha256
+  register: osx_offload_dropin
+  check_mode: false
+  tags: [osx, offload]
+
+- name: Report sshd hardening still to install
+  ansible.builtin.debug:
+    msg: >-
+      Password SSH login is still on: the sshd hardening drop-in is not
+      installed. An administrator on the Mac runs
+      scripts/offload-sshd-harden.sh {{ osx_offload_user }} from their own
+      checkout, as docs/offload-host.md shows.
+  when: not osx_offload_dropin.stat.exists
+  tags: [osx, offload]
+
+# A drop-in that differs from the tracked one is stale after a repo change, or
+# was edited on the host; either way the administrator re-runs the script.
+# stat gives no checksum for a symlink or a file this account cannot read;
+# either fails here with this message, not an undefined-attribute error.
+- name: Require the tracked sshd hardening drop-in
+  ansible.builtin.assert:
+    that: osx_offload_dropin.stat.checksum | default('') == osx_offload_dropin_tracked
+    fail_msg: >-
+      /etc/ssh/sshd_config.d/{{ osx_offload_sshd_dropin }} differs from
+      roles/osx/files/sshd/{{ osx_offload_sshd_dropin }}. An administrator
+      re-runs scripts/offload-sshd-harden.sh {{ osx_offload_user }}
+      (docs/offload-host.md).
+    quiet: true
+  vars:
+    osx_offload_dropin_tracked: >-
+      {{ lookup('ansible.builtin.file', role_path ~ '/files/sshd/' ~ osx_offload_sshd_dropin, rstrip=false)
+         | hash('sha256') }}
+  when: osx_offload_dropin.stat.exists
+  tags: [osx, offload]
