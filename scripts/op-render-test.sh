@@ -919,7 +919,7 @@ rm -f "$sup"
 rm -f "$snap"
 echo 'mission_control_guidance: expert' >>"$ov"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
-[ "$rc" -eq 0 ] && ! grep -q '^mission_control_guidance:' "$ov" && [ ! -e "$sup" ] && [ -f "$snap" ] \
+[ "$rc" -eq 0 ] && ! grep -qx 'mission_control_guidance: expert' "$ov" && [ ! -e "$sup" ] && [ -f "$snap" ] \
   && ok "no snapshot: nothing harvested, the snapshot written" || ko "no snapshot: nothing harvested ($log)"
 # A write landing between the harvest and the rename must not be overwritten.
 # The shim makes every cksum call differ, as a write in between would.

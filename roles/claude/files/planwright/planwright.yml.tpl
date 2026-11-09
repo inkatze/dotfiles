@@ -8,6 +8,13 @@
 flight_pr_hosts: {{ op://__OP_VAULT__/__OP_ITEM__/flight_pr_hosts }}
 ready_guard_behind_base: conflict-only
 
+allocation_model_offload: sonnet
+allocation_effort_offload: medium
+
+# The fleet default; a `mc-config.sh knob` write overrides it on one machine,
+# kept as the header describes.
+mission_control_guidance: standard
+
 # Mission control's program settings, kept whole in one item field because
 # their keys name private repositories. A change mission control makes to them
 # is kept locally until it is copied into the field.
