@@ -25,6 +25,9 @@ cat >"$play" <<'YAML'
   hosts: localhost
   connection: local
   gather_facts: true
+  # Only the fact subsets these tasks read: the default set and `min` each cost
+  # about 72s a play on GitHub's macOS runners, most of the lint job's time.
+  gather_subset: ['!all', '!min', 'env']
   tasks:
     - name: Run only the planwright tasks
       ansible.builtin.include_role:
@@ -58,7 +61,7 @@ seed() {
 # CI is unset for the run: the tasks are CI-guarded, and a runner exports it,
 # which would skip every task and pass each "no removal" case vacuously.
 run_role() {
-    HOME="$1" env -u CI ansible-playbook "$play" >"$work/out" 2>&1
+    HOME="$1" ANSIBLE_PIPELINING=true env -u CI ansible-playbook "$play" >"$work/out" 2>&1
     if ! grep -q 'PLAY RECAP' "$work/out" || grep -qE '^fatal' "$work/out"; then
         printf 'FAIL[harness]: the playbook did not complete\n'
         grep -A4 -E '^fatal|ERROR' "$work/out" | head -12 | sed 's/^/    /'
