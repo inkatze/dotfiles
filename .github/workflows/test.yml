@@ -24,6 +24,9 @@ env:
 jobs:
   lint:
     runs-on: macos-latest
+    # Each suite step carries a timeout-minutes a few times its normal
+    # runtime, so a hung suite fails fast and names itself instead of
+    # holding the job until GitHub's six-hour limit.
     steps:
       - uses: actions/checkout@v4
 
@@ -55,28 +58,34 @@ jobs:
       # from setup-python, and PyYAML transitively from the ansible install
       # above.
       - name: Check for stale service declarations
+        timeout-minutes: 5
         run: scripts/stale-declarations-test.sh
 
       # Belongs in this job rather than skill-contracts: it drives
       # ansible-playbook, and that job is deliberately a bare ubuntu runner
       # with nothing but bash, grep, perl and jq.
       - name: Run the credential-path guard suite
+        timeout-minutes: 10
         run: scripts/credential-path-guard-test.sh
 
       # PyYAML comes with the ansible install above.
       - name: Run the osx offload-guard suite
+        timeout-minutes: 5
         run: scripts/osx-offload-guard-test.sh
 
       # BSD sed and mktemp are what this leg adds; the script runs on macOS.
       - name: Run the offload sshd hardening suite
+        timeout-minutes: 5
         run: scripts/offload-sshd-harden-test.sh
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the git unattended-auth suite
+        timeout-minutes: 10
         run: scripts/git-unattended-auth-test.sh
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the mise global config suite
+        timeout-minutes: 10
         run: scripts/mise-global-config-test.sh
 
       # macOS ships no timeout; without gtimeout the suite skips its FIFO case,
@@ -86,31 +95,38 @@ jobs:
 
       # Needs ansible-playbook, which this job installs, jq, and gtimeout.
       - name: Run the cubic instruction-file suite
+        timeout-minutes: 10
         run: scripts/cubic-instructions-test.sh
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the planwright marketplace suite
+        timeout-minutes: 10
         run: scripts/planwright-marketplace-test.sh
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the Copilot retirement suite
+        timeout-minutes: 5
         run: scripts/copilot-retirement-test.sh
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the Claude skills link suite
+        timeout-minutes: 10
         run: scripts/claude-skills-link-test.sh
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the planwright steps catalog suite
+        timeout-minutes: 10
         run: scripts/claude-steps-catalog-test.sh
 
       # Was asserted by nothing until now, so its Ubuntu-job assertion had gone
       # stale unnoticed once a second job started running there.
       - name: Run the services declaration suite
+        timeout-minutes: 5
         run: scripts/services-declaration-test.sh
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the unattended user-config selection suite
+        timeout-minutes: 5
         run: scripts/user-config-selection-test.sh
 
       # The matrix only ever reads Brewfile and Brewfile.work, so nothing in CI
@@ -125,30 +141,36 @@ jobs:
       # Also runs on Ubuntu below; macOS's BSD tr, libc locales and bash 3.2
       # behave differently, and an NBSP case once passed there and failed here.
       - name: Run the playbook alias suite (macOS)
+        timeout-minutes: 5
         run: scripts/playbook-alias-test.sh
 
       # Also runs on Ubuntu below, for the same reason: BSD stat, chmod -h on a
       # symlink and bash 3.2 are what this leg adds.
       - name: Run the service-account token suite (macOS)
+        timeout-minutes: 5
         run: scripts/op-token-test.sh
 
       # Also runs on Ubuntu below: BSD stat, mktemp and paste are what this leg
       # adds.
       - name: Run the 1Password renderer suite (macOS)
+        timeout-minutes: 5
         run: scripts/op-render-test.sh
 
       # Also runs on Ubuntu below: BSD stat and mktemp are what this leg adds.
       - name: Run the API key sync suite (macOS)
+        timeout-minutes: 5
         run: scripts/op-key-sync-test.sh
 
       # Also runs on Ubuntu below: the word count must match under BSD tr/grep.
       - name: Run the instruction word-budget fixture suite (macOS)
+        timeout-minutes: 5
         run: roles/claude/files/scripts/instruction-budget-test.sh
 
       # Also runs on Ubuntu below: the ledger lock's re-entry check once
       # passed there and deadlocked on macOS, whose /dev/fd/N reports another
       # device than the file.
       - name: Run the review-state helper suite (macOS)
+        timeout-minutes: 5
         run: roles/claude/files/scripts/review-state-test.sh
 
   # The review-command contract checker's fixture suite. lefthook runs both

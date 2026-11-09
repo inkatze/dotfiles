@@ -44,6 +44,9 @@ cat >"$play" <<'YAML'
   hosts: localhost
   connection: local
   gather_facts: true
+  # Only the fact subsets these tasks read: the default set and `min` each cost
+  # about 72s a play on GitHub's macOS runners, most of the lint job's time.
+  gather_subset: ['!all', '!min', 'env']
   tasks:
     - name: Run only the nodejs tasks, which own ~/.npmrc
       ansible.builtin.include_role:
@@ -59,7 +62,7 @@ run_role() {
     home="$1"
     # No -t filter: the include_role wrapper carries no tag of its own, so a tag
     # filter excludes it and the play runs nothing but Gathering Facts.
-    HOME="$home" ansible-playbook "$play" >"$work/out" 2>&1
+    HOME="$home" ANSIBLE_PIPELINING=true ansible-playbook "$play" >"$work/out" 2>&1
     if ! grep -q 'PLAY RECAP' "$work/out"; then
         printf 'FAIL[harness]: the playbook did not run; no PLAY RECAP\n'
         sed 's/^/    /' "$work/out" | head -12

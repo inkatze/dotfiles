@@ -78,6 +78,8 @@ cat >"$play" <<'YAML' || { echo "FAIL[harness]: cannot write the play"; exit 1; 
   hosts: localhost
   connection: local
   gather_facts: true
+  # Only the fact subsets these tasks read: the default set and `min` each cost
+  # about 72s a play on GitHub's macOS runners, most of the lint job's time.
   gather_subset: ['!all', '!min', 'env']
   tasks:
     - name: Run only the credential removal tasks
@@ -105,7 +107,7 @@ run_role() {
     # Become off, whatever the caller's environment says: sudo would reset HOME
     # and aim the removal at a real home. Fact injection off, as the repo's
     # ansible.cfg (unread from $work) has it, so a bare ansible_env fails here too.
-    (cd "$work" && env -u ANSIBLE_CONFIG HOME="$1" ANSIBLE_BECOME=false ANSIBLE_INJECT_FACT_VARS=false \
+    (cd "$work" && env -u ANSIBLE_CONFIG HOME="$1" ANSIBLE_BECOME=false ANSIBLE_INJECT_FACT_VARS=false ANSIBLE_PIPELINING=true \
         ansible-playbook "$play" >"$work/out" 2>&1)
     grep -q 'PLAY RECAP' "$work/out" || { printf 'FAIL[harness]: no recap\n'; sed 's/^/    /' "$work/out" | tail -20; exit 1; }
     grep -qE 'failed=0 ' "$work/out"
