@@ -5,7 +5,8 @@
 # task in it that would still escalate.
 #
 #   Selection -- read from `--list-tasks`, so it needs no host and changes
-#                nothing: both platform roles are out, every other role the
+#                nothing: both platform roles are out but for their `always`
+#                guards, which stay in, and every other role the
 #                full run lists is in through tasks of its own (not only
 #                `always` ones), and no selected task is `privileged`,
 #                `upgrade` or `shell`.
@@ -57,10 +58,38 @@ selection="--tags user-config --skip-tags privileged,upgrade,shell"
 # shellcheck disable=SC2086  # word-split on purpose: $selection is several arguments
 list $selection
 cp "$work/tasks" "$work/selection"
+# The osx role's offload-host guards are tagged `always` so every selection
+# meets them. Each is a read-only probe, an assert, a set_fact or the include
+# of offload-tools.yml, whose own tasks carry neither `always` nor
+# `user-config` and so are dropped by the selection. Widening this list means
+# checking a new entry is the same: no become, no change to the host.
+cat >"$work/guards" <<'EOF'
+osx : Read the account running this play on the offload host|always
+osx : Read that account's groups|always
+osx : Refuse to configure the offload host from another account|always
+osx : Refuse an administrator work account|always
+osx : Import the offload host's toolchain tasks|always
+osx : Decide whether this run may install with Homebrew|always
+osx : Check the tools the offload host needs without Homebrew installs|always
+osx : Require those tools|always
+EOF
 for r in osx linux; do
-    if has_role "$r"; then fail "selection-excludes-$r" "$(grep "^$r : " "$work/tasks" | head -3 | tr '\n' ';')"
-    else ok "selection-excludes-$r" "no $r task is selected"; fi
+    extra="$(grep "^$r : " "$work/tasks" | grep -vxF -f "$work/guards" | head -3 | tr '\n' ';')"
+    if [ -z "$extra" ]; then ok "selection-excludes-$r" "no $r task is selected outside the allow-listed guards"
+    else fail "selection-excludes-$r" "$extra"; fi
 done
+missing="$(grep -vxF -f "$work/tasks" "$work/guards" | head -3 | tr '\n' ';')"
+if [ -z "$missing" ]; then ok selection-keeps-offload-guards "the offload-host guards still run"
+else fail selection-keeps-offload-guards "not selected: $missing"; fi
+# Any mention of either tag, so a block-style tag list counts too. An `apply:`
+# on any include in the role's main.yml would hand its tags to that file's
+# tasks, which --list-tasks never shows.
+if grep -qE '(^|[^a-z-])(always|user-config)([^a-z-]|$)' "$repo/roles/osx/tasks/offload-tools.yml" \
+    || grep -qE '^ *apply:' "$repo/roles/osx/tasks/main.yml"; then
+    fail selection-drops-offload-tools "an included osx task file would join the selection (a tag in offload-tools.yml, or an apply: in main.yml)"
+else
+    ok selection-drops-offload-tools "the guards' include brings in none of its tasks"
+fi
 for r in $config_roles; do
     if has_own_task "$r"; then ok "selection-includes-$r" "$r is selected"
     else fail "selection-includes-$r" "$r is listed by the full run but not tagged user-config"; fi
@@ -73,8 +102,8 @@ if has_task "services : Apply the client defaults to my.cnf"; then
 else
     fail selection-keeps-services-darwin "the macOS services content is not selected"
 fi
-untagged="$(grep -v 'user-config' "$work/tasks" | head -3 | tr '\n' ';')"
-if [ -z "$untagged" ]; then ok selection-tagged "every selected task carries user-config"
+untagged="$(grep -v 'user-config' "$work/tasks" | grep -vxF -f "$work/guards" | head -3 | tr '\n' ';')"
+if [ -z "$untagged" ]; then ok selection-tagged "every selected task but the offload-host guards carries user-config"
 else fail selection-tagged "selected without the tag: $untagged"; fi
 
 # Readers of the probe's result, by task name, straight from the role's files.
