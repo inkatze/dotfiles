@@ -24,7 +24,7 @@ env:
 jobs:
   lint:
     runs-on: macos-latest
-    # Each suite step carries a timeout-minutes of about 1.5x its normal
+    # Each suite step carries a timeout-minutes a few times its normal
     # runtime, so a hung suite fails fast and names itself instead of
     # holding the job until GitHub's six-hour limit.
     steps:
@@ -65,7 +65,7 @@ jobs:
       # ansible-playbook, and that job is deliberately a bare ubuntu runner
       # with nothing but bash, grep, perl and jq.
       - name: Run the credential-path guard suite
-        timeout-minutes: 8
+        timeout-minutes: 10
         run: scripts/credential-path-guard-test.sh
 
       # PyYAML comes with the ansible install above.
@@ -80,12 +80,12 @@ jobs:
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the git unattended-auth suite
-        timeout-minutes: 20
+        timeout-minutes: 10
         run: scripts/git-unattended-auth-test.sh
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the mise global config suite
-        timeout-minutes: 25
+        timeout-minutes: 10
         run: scripts/mise-global-config-test.sh
 
       # macOS ships no timeout; without gtimeout the suite skips its FIFO case,
@@ -95,12 +95,12 @@ jobs:
 
       # Needs ansible-playbook, which this job installs, jq, and gtimeout.
       - name: Run the cubic instruction-file suite
-        timeout-minutes: 25
+        timeout-minutes: 10
         run: scripts/cubic-instructions-test.sh
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the planwright marketplace suite
-        timeout-minutes: 15
+        timeout-minutes: 10
         run: scripts/planwright-marketplace-test.sh
 
       # Needs ansible-playbook, which this job installs.
@@ -110,12 +110,12 @@ jobs:
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the Claude skills link suite
-        timeout-minutes: 25
+        timeout-minutes: 10
         run: scripts/claude-skills-link-test.sh
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the planwright steps catalog suite
-        timeout-minutes: 40
+        timeout-minutes: 10
         run: scripts/claude-steps-catalog-test.sh
 
       # Was asserted by nothing until now, so its Ubuntu-job assertion had gone
