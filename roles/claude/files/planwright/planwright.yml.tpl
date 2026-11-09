@@ -18,7 +18,8 @@ fleet_max_parallel_units: 10
 allocation_model_offload: sonnet
 allocation_effort_offload: medium
 
-# Written here, not by `mc-config.sh knob`, since this file is rendered over.
+# The fleet default; a `mc-config.sh knob` write overrides it on one machine,
+# kept as the header describes.
 mission_control_guidance: standard
 
 # Mission control's program settings, kept whole in one item field because
