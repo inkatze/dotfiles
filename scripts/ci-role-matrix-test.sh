@@ -48,6 +48,18 @@ else
     fail services-strict "the services entry lost strict idempotency"
 fi
 
+# A usage error must exit non-zero, so the workflow's selection step fails
+# visibly rather than handing the test job an empty matrix.
+for args in "" "--bogus" "--changed" "--changed $work/absent"; do
+    label=${args//$work/<tmp>}
+    # shellcheck disable=SC2086 # split into argv on purpose
+    if "$matrix" $args >/dev/null 2>&1; then
+        fail "usage:${label:-none}" "exited 0"
+    else
+        pass "usage:${label:-none}" "refused"
+    fi
+done
+
 expect specs-only "" specs/README.md specs/dev-services/tasks.md docs/editor.md
 expect claude-only "" roles/claude/files/skills/polish/SKILL.md roles/claude/tasks/skills.yml
 expect git-only "git" roles/git/files/gitconfig roles/git/tasks/main.yml
