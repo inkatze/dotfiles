@@ -102,7 +102,13 @@ target="$HOME/.ssh/config.local"
 has_line "$target" '^Host testbox 10\.9\.9\.9$' "alias+ip line rendered"
 has_line "$target" '^    User tester$' "user rendered"
 has_line "$target" '^    Hostname testbox\.local$' "hostname rendered"
+has_line "$target" '^Host planwright-relay$' "relay alias rendered"
 lacks_line "$target" '\{\{' "no unsubstituted expressions"
+relay_cfg="$sandbox/relay.cfg"
+awk '/^Host planwright-relay$/ { on = 1; print; next } /^Host / { on = 0 } on' "$target" >"$relay_cfg"
+has_line "$relay_cfg" '^    ForwardAgent no$' "relay alias forwards no agent"
+has_line "$relay_cfg" '^    BatchMode yes$' "relay alias never prompts"
+lacks_line "$relay_cfg" '^    SendEnv' "relay alias sends no extra environment"
 # The offload host trusts its key from an IPv4 address only, and an unattended
 # session must neither reach a locked agent nor forward one.
 offload_block() { awk '/^Host offbox$/ { on = 1; print; next } /^Host / { on = 0 } on' "$target"; }
