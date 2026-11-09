@@ -68,6 +68,7 @@ expect role-handlers ALL roles/linux/handlers/main.yml
 expect nested-defaults-name "" roles/claude/files/skills/defaults/x.md
 expect unrelated-script "" scripts/stale-declarations-test.sh
 expect empty ""
+expect quoted-path ALL '"roles/fish/files/\303\261.fish"'
 
 # Every script a role's tasks run, and every script that one sources, must
 # start that role's job; otherwise an edit to it reaches the role untested.

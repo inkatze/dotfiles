@@ -113,7 +113,10 @@ case "$1" in
         all=0
         while IFS= read -r path || [[ -n "$path" ]]; do
             [[ -n "$path" ]] || continue
-            if matches_any "$path" "${shared[@]}" || is_play_scoped "$path"; then
+            # git quotes a path holding a non-ASCII or special byte, which
+            # then matches no trigger; it selects every job instead.
+            if [[ "$path" == '"'* ]] || matches_any "$path" "${shared[@]}" ||
+                is_play_scoped "$path"; then
                 all=1
                 break
             fi
