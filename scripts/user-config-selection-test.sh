@@ -59,10 +59,10 @@ selection="--tags user-config --skip-tags privileged,upgrade,shell"
 list $selection
 cp "$work/tasks" "$work/selection"
 # The osx role's offload-host guards are tagged `always` so every selection
-# meets them. Each is a read-only probe, an assert or a set_fact, and the
-# include's own tasks carry neither `always` nor `user-config`, so the
-# selection drops them. Widening this list means checking a new entry is the
-# same: no become, no change to the host.
+# meets them. Each is a read-only probe, an assert, a set_fact or the include
+# of offload-tools.yml, whose own tasks carry neither `always` nor
+# `user-config` and so are dropped by the selection. Widening this list means
+# checking a new entry is the same: no become, no change to the host.
 cat >"$work/guards" <<'EOF'
 osx : Read the account running this play on the offload host|always
 osx : Read that account's groups|always
@@ -81,7 +81,9 @@ done
 missing="$(grep -vxF -f "$work/tasks" "$work/guards" | head -3 | tr '\n' ';')"
 if [ -z "$missing" ]; then ok selection-keeps-offload-guards "the offload host's account checks still run"
 else fail selection-keeps-offload-guards "not selected: $missing"; fi
-if grep -qE '^ *tags:.*\b(always|user-config)\b' "$repo/roles/osx/tasks/offload-tools.yml"; then
+# An `apply:` on the include would hand its tags to every included task.
+if grep -qE '^ *tags:.*(^|[^a-z-])(always|user-config)([^a-z-]|$)' "$repo/roles/osx/tasks/offload-tools.yml" \
+    || grep -qE '^ *apply:' "$repo/roles/osx/tasks/main.yml"; then
     fail selection-drops-offload-tools "a task in offload-tools.yml would run under the selection"
 else
     ok selection-drops-offload-tools "the guards' include brings in none of its tasks"
