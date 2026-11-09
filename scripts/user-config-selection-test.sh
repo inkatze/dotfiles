@@ -75,17 +75,18 @@ osx : Require those tools|always
 EOF
 for r in osx linux; do
     extra="$(grep "^$r : " "$work/tasks" | grep -vxF -f "$work/guards" | head -3 | tr '\n' ';')"
-    if [ -z "$extra" ]; then ok "selection-excludes-$r" "no $r task is selected but the offload-host guards"
+    if [ -z "$extra" ]; then ok "selection-excludes-$r" "no $r task is selected outside the allow-listed guards"
     else fail "selection-excludes-$r" "$extra"; fi
 done
 missing="$(grep -vxF -f "$work/tasks" "$work/guards" | head -3 | tr '\n' ';')"
 if [ -z "$missing" ]; then ok selection-keeps-offload-guards "the offload-host guards still run"
 else fail selection-keeps-offload-guards "not selected: $missing"; fi
 # Any mention of either tag, so a block-style tag list counts too. An `apply:`
-# on the include would hand its tags to every included task.
+# on any include in the role's main.yml would hand its tags to that file's
+# tasks, which --list-tasks never shows.
 if grep -qE '(^|[^a-z-])(always|user-config)([^a-z-]|$)' "$repo/roles/osx/tasks/offload-tools.yml" \
     || grep -qE '^ *apply:' "$repo/roles/osx/tasks/main.yml"; then
-    fail selection-drops-offload-tools "a task in offload-tools.yml would run under the selection"
+    fail selection-drops-offload-tools "an included osx task file would join the selection (a tag in offload-tools.yml, or an apply: in main.yml)"
 else
     ok selection-drops-offload-tools "the guards' include brings in none of its tasks"
 fi
