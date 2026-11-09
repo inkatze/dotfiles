@@ -98,6 +98,33 @@ while IFS='|' read -r role _ _ triggers; do
     fi
 done <<<"$table"
 
+# A task file carrying a job's tag runs in that job, and one carrying
+# `always` runs in every job, so editing it must start them. roles/linux is
+# exempt: main.yml runs it on Debian only, never on the macOS runners.
+selects() {
+    printf '%s\n' "$1" >"$work/changed"
+    "$matrix" --changed "$work/changed" | grep -q "\"role\":\"$2\""
+}
+tagged_files() {
+    grep -rlE "^[[:space:]]*tags:[[:space:]]*\[([^]]*[ ,])?$1([ ,][^]]*)?\]" "$repo_root/roles" --include='*.yml' |
+        grep '/tasks/' |
+        sed "s#^$repo_root/##" | grep -v '^roles/linux/'
+}
+for f in $(tagged_files always); do
+    for role in $all_roles; do
+        selects "$f" "$role" || fail "always:$f" "runs in every job but does not start $role"
+    done
+done
+for role in $all_roles; do
+    for f in $(tagged_files "$role"); do
+        if selects "$f" "$role"; then
+            pass "tag:$role:$f" "starts $role"
+        else
+            fail "tag:$role:$f" "carries the $role tag but does not start $role"
+        fi
+    done
+done
+
 if [[ $fails -ne 0 ]]; then
     echo "ci-role-matrix-test: $fails assertion(s) failed" >&2
     exit 1
