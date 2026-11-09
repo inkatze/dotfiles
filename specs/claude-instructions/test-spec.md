@@ -1,7 +1,7 @@
 # Claude Instructions Audit — Test Spec
 
 **Status:** Ready
-**Last reviewed:** 2026-10-05
+**Last reviewed:** 2026-11-09
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -80,6 +80,50 @@ the review cadence has run, CI is green and the head is mergeable, citing
 the Pull Request Lifecycle section of the user-global file and not a memory
 entry; the same question in a repository whose `git log` shows a second
 human author answers the operator.
+**Superseded-by: REQ-A1.7** (2026-11-09); the kickoff exception, the
+operator-confirmed clause and the nested-loop gate are pinned under
+REQ-A1.7's entry.
+
+### REQ-A1.7 — Ready flip by ownership and authorship [test + manual]
+
+The contract checker pins, in the user-global file: the three repository
+kinds with their unknown-owner and unknown-collaborator defaults and the
+own-agents carve-out; the clause that a repository's own `CLAUDE.md` does
+not move the flip; the cadence-flip sentence, counted exactly once, with its
+re-check of the conditions and the repository's kind and its stated
+handoff and the pull request's coverage, and the cadence named as the
+operator's instructions and the repository's own `CLAUDE.md`; the clause
+that it covers every pull request in a solo repository;
+the clause that in a work or collaborative repository it covers a pull
+request the operator authored once asked for or opened by a hub-dispatched
+session (a chain of dispatches included), and never another person's; the clause that any other flip there,
+another person's pull request included, is the operator's to request; the
+optional `ready_flip_policy: human` offer, a planwright worker's cadence
+flip included; planwright's configured flips following the same scope, the
+kickoff exception, the operator-confirmed clause, the no that holds, and
+the nested loop's confirmation gate. It forbids the phrase "solo flip" and
+the sentence "another person's PR is never yours to flip". Fixtures, each
+expecting a failure: `ready-flip-unknown-owner-dropped`,
+`ready-flip-other-owner-dropped`, `ready-flip-unknown-collaborator-dropped`,
+`ready-flip-own-agents-dropped`, `ready-flip-override-dropped`,
+`ready-flip-everywhere`, `ready-flip-unasked-work-repo`,
+`ready-flip-other-persons-pr`, `ready-flip-collaborative-dropped`,
+`ready-flip-teammate-request-dropped`, `ready-flip-never-teammate-restored`,
+`ready-flip-solo-name-restored`, `ready-flip-recheck-dropped`,
+`ready-flip-kind-recheck-dropped`, `ready-flip-coverage-recheck-dropped`,
+`ready-flip-cadence-source-dropped`, `ready-flip-dispatch-chain-dropped`,
+`ready-flip-human-policy-dropped`,
+`ready-flip-worker-human-dropped`, `ready-flip-scope-duplicated`,
+`ready-flip-planwright-scope-dropped`, `kickoff-exception-dropped`,
+`operator-confirmed-clause-dropped`, `ready-flip-decline-dropped` and
+`nested-flip-gate-dropped`. Manually, after merge with the work host's main
+checkout fast-forwarded and Ansible run there, result recorded on the
+merged pull request: a fresh session in a work repository, asked who marks
+the operator's own hub-carried pull request ready, answers the agent once
+the review cadence has run, CI is green and the head is mergeable, citing
+the Pull Request Lifecycle section of the user-global file and not a memory
+entry; asked about a teammate's pull request there, it answers on the
+operator's request.
 
 ## REQ-B — One source of review doctrine
 
@@ -128,6 +172,20 @@ file outside the shared directory names the plugin cache path; the fixture
 plants a cache-path lookup in a SKILL.md. Manually, after merge: the shared
 resolution step, invoked with a document name that does not exist, stops
 and names it.
+
+### REQ-B1.7 — The walk choice is the attended operator's [test]
+
+The checker pins, in the user-global file, the sentence keeping the walk
+choice for an attended review that stops for findings and the sentence
+letting an unattended or hub-dispatched review of the operator's branch
+apply without one (a chain of hub dispatches included), the sentence that
+any other unattended review hands off without applying, and in the shared
+reference directory the handoff
+sentence covering a review that waits for no walk choice. Fixtures, each
+expecting a failure: `walk-choice-dropped`, `walk-loop-scope-dropped`,
+`walk-branch-scope-dropped`, `walk-hub-dispatch-dropped`,
+`walk-other-review-applies` and
+`workflow-unwalked-handoff-dropped`.
 
 ## REQ-C — Review commands as skills with shared mechanics
 
@@ -235,7 +293,10 @@ refused by Claude Code; a prose request to invoke a nested-mode review skill
 with `--nested` through the Skill tool returns the skill body; a session
 asked only to "review this branch" starts no review skill; and
 `/panel-review` in a repository with no recorded consent asks before its
-first upload.
+first upload. The 2026-11-09 annotation (a hub-typed command counts as
+typed by the operator) moves no pin: the description sentence and its
+fixtures stand as written, and a hub-dispatched review is exercised by
+REQ-B1.7's entry.
 
 ## REQ-D — Outbound messages to people
 
@@ -251,6 +312,29 @@ and its recipient and waits for a yes.
 Checker pins both exception clauses, including the named-scope limit of a
 run-level go-ahead, and asserts no third exception under the rule; fixture
 plants a third and an unscoped run-level go-ahead.
+**Superseded-by: REQ-D1.6** (2026-11-09); its clauses are pinned under
+REQ-D1.6's entry.
+
+### REQ-D1.6 — Exactly three exceptions [test + manual]
+
+The checker pins the three exception clauses, the named-scope limit of a
+run-level go-ahead, the exact-message limit of a relayed hub go-ahead, the
+standing go-ahead's program-rule record naming each recipient and kind, its
+withdrawal, the live read before each send, the unreadable or withdrawn
+rule covering nothing, the rule named on the send, and the "exactly three
+exceptions" list anchor; and, in the shared reference directory, the Slack
+confirm step honouring every exception. Fixtures, each expecting a failure:
+`first-exception-dropped`, `second-exception-dropped`,
+`unscoped-go-ahead`, `hub-exception-dropped`, `unscoped-hub-go-ahead`,
+`standing-go-ahead-unrecorded`, `standing-go-ahead-unbounded`,
+`standing-go-ahead-reread-dropped`, `standing-go-ahead-unreadable-dropped`,
+`standing-go-ahead-unnamed-send`, `prose-fourth-exception`,
+`exceptions-anchor-missing` and `slack-confirm-exceptions-dropped`.
+Manually, after merge with the main checkout fast-forwarded and Ansible
+run, result recorded on the merged pull request: a hub-launched session
+under a recorded standing go-ahead reads the live rule before a send, names
+its rule id on the send, and drafts into its handoff a message of a kind
+the rule does not name.
 
 ### REQ-D1.3 — Rule always-loaded, mechanics in the shared directory [test]
 

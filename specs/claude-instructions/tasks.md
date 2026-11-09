@@ -1,11 +1,11 @@
 # Claude Instructions Audit — Tasks
 
 **Status:** Ready
-**Last reviewed:** 2026-10-05
+**Last reviewed:** 2026-11-09
 **Format-version:** 2
 **Execution:** derived — see the status render
 
-Tasks 1 to 4, 8 and 9 land in this repository. Tasks 5, 6 and 7 land
+Tasks 1 to 4 and 8 to 10 land in this repository. Tasks 5, 6 and 7 land
 elsewhere (the project repo, the planwright repository, the work host) and are
 parked under Deferred with a free-text gate so the orchestrator never
 dispatches them from this checkout; the operator runs them by hand where they
@@ -230,16 +230,18 @@ swept by the drain pass's manual inventory.
   machine-locally) run over each work repo's instruction files; cluster
   verdicts taken with the operator; each verdict proposed in its repository
   through that repository's own review flow, since shared instruction files
-  follow their owners' review; and each work repo's planwright config sets
-  `ready_flip_policy: human`, proposed through the same flow (REQ-A1.6).
-- **Done when:** the work host's inventory directory holds an index naming
-  the work repos audited, with one dated table per repo; every verdict has
-  either a pull request link in its repository or a "declined" entry in its
-  table; the identifier check over this repository, with the work-repo names
-  in the identifier file, reports zero hits.
+  follow their owners' review.
+- **Done when:** On the work host: its inventory directory holds an index
+  naming the work repos audited, with one dated table per repo; every
+  verdict has either a pull request link in its repository or a "declined"
+  entry in its table; the identifier check over this repository, with the
+  work-repo names in the identifier file, reports zero hits.
 - **Dependencies:** 2, 3
-- **Citations:** D-8, D-10, D-17 · REQ-A1.6, REQ-J1.1, REQ-J1.2
+- **Citations:** D-8, D-10 · REQ-J1.1, REQ-J1.2
 - **Estimated effort:** 1 day
+
+*(Amended at delta re-walkthrough 2026-11-09: the `ready_flip_policy:
+human` deliverable dropped, since REQ-A1.7 makes that setting optional.)*
 
 ### Task 8 — Scope model invocation by caller
 
@@ -332,6 +334,41 @@ swept by the drain pass's manual inventory.
   REQ-A1.6's test-spec entry names.
 - **Dependencies:** 3, 8
 - **Citations:** D-3, D-12, D-17 · REQ-A1.1, REQ-A1.5, REQ-A1.6, REQ-G1.4
+- **Estimated effort:** 0.5 day
+
+### Task 10 — Loosen the user-global file to guard only irreversible harm and careless errors
+
+- **Deliverables:**
+  - The user-global `CLAUDE.md` rewritten per REQ-A1.7, REQ-D1.6 and
+    REQ-B1.7, starting from the loosening pull request (Sources): the
+    cadence flip under that one name, every "solo flip" renamed; the
+    sentence "another person's PR is never yours to flip" replaced by
+    REQ-A1.7's reading (the cadence flip never covers it, the operator may
+    request it); the sentence "A ready PR can go back to draft, so this
+    needs no request from me" dropped; the hub exception per REQ-D1.6; the
+    review-walk sentences per REQ-B1.7.
+  - The contract checker's pins retargeted to the new sentences, with the
+    forbidden phrasings REQ-A1.7's test-spec entry names, and every fixture
+    the REQ-A1.7, REQ-D1.6 and REQ-B1.7 test-spec entries name, in the same
+    commit as the wording each covers; the fixture section labels name
+    REQ-A1.7, REQ-B1.7 and REQ-D1.6.
+  - `review-shared/slack.md`'s confirm step honouring every exception in the
+    outbound rule, and `review-shared/workflow.md`'s handoff covering a
+    review that waits for no walk choice, each sentence pinned with the
+    fixture its test-spec entry names.
+  - Every surface the branch changes has its budget row re-derived per
+    REQ-G1.3.
+- **Done when:** On the branch: every fixture id the REQ-A1.7, REQ-D1.6 and
+  REQ-B1.7 test-spec entries name appears as an `expect_fail` line in
+  `skill-contracts-test.sh`, and the `skill-contracts` job of the CI test
+  workflow is green on the pull request's current head; for every file in
+  `git diff --name-only origin/main...HEAD` that `instruction-budget.sh`
+  covers, its declared count equals `instruction-budget.sh --count <path>`
+  and the guard exits 0. After merge: the fresh-session answers the
+  REQ-A1.7 and REQ-D1.6 test-spec entries name.
+- **Dependencies:** 9
+- **Citations:** D-18, D-19, D-20 · REQ-A1.7, REQ-B1.7, REQ-D1.6,
+  REQ-G1.4, the loosening pull request (Sources)
 - **Estimated effort:** 0.5 day
 
 ## Awaiting input
