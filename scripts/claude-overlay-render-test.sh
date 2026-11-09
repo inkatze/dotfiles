@@ -103,13 +103,14 @@ run_as() {
   : >"$work/render-argv"
   # CI unset, since the tasks skip under it; become off, so sudo cannot reset
   # HOME and aim the role at a real home; fact injection off, as the repo's
-  # ansible.cfg (unread from $work) has it. No ANSIBLE_PIPELINING, unlike the
-  # other ansible suites: with it the first play here never finishes.
+  # ansible.cfg (unread from $work) has it.
+  # stdin is /dev/null because an open stdin pipe (a backgrounded shell's) hangs
+  # the play.
   (cd "$work" && env -u CI -u ANSIBLE_CONFIG "$@" HOME="$h" PATH="$work/bin:$PATH" \
     OP_ARGV="$work/op-argv" OP_ITEMS="$work/items" RENDER_ARGV="$work/render-argv" \
-    ANSIBLE_BECOME=false ANSIBLE_INJECT_FACT_VARS=false \
+    ANSIBLE_BECOME=false ANSIBLE_INJECT_FACT_VARS=false ANSIBLE_PIPELINING=true \
     ANSIBLE_STDOUT_CALLBACK=ansible.builtin.default ANSIBLE_CALLBACK_RESULT_FORMAT=json \
-    ansible-playbook -i "$alias," "$play" -e '{"claude_op_probe": {"rc": 0}}' >"$work/out" 2>&1)
+    ansible-playbook -i "$alias," "$play" -e '{"claude_op_probe": {"rc": 0}}' </dev/null >"$work/out" 2>&1)
   grep -q 'PLAY RECAP' "$work/out" || { echo "FAIL[harness]: no recap"; sed 's/^/    /' "$work/out" | tail -20; exit 1; }
   grep -q 'Render the planwright adopter overlay config' "$work/out" \
     || { echo "FAIL[harness]: the overlay render never ran"; sed 's/^/    /' "$work/out" | tail -20; exit 1; }
