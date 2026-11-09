@@ -35,7 +35,9 @@ cat >"$play" <<'YAML' || { echo "FAIL[harness]: cannot write the play"; exit 1; 
   hosts: localhost
   connection: local
   gather_facts: true
-  gather_subset: [min]
+  # Only the fact subsets these tasks read: the default set and `min` each cost
+  # about 72s a play on GitHub's macOS runners, most of the lint job's time.
+  gather_subset: ['!all', '!min', 'env']
   tasks:
     - name: Run only the steps catalog tasks
       ansible.builtin.include_role:
@@ -52,7 +54,7 @@ run_role() {
   # and aim the role at a real home. Fact injection off, as the repo's
   # ansible.cfg (unread from $work) has it, so a bare ansible_env fails here too.
   # The output format pinned, since the cases match one-line refusal messages.
-  (cd "$work" && env -u ANSIBLE_CONFIG HOME="$home" ANSIBLE_BECOME=false ANSIBLE_INJECT_FACT_VARS=false \
+  (cd "$work" && env -u ANSIBLE_CONFIG HOME="$home" ANSIBLE_BECOME=false ANSIBLE_INJECT_FACT_VARS=false ANSIBLE_PIPELINING=true \
     ANSIBLE_STDOUT_CALLBACK=ansible.builtin.default ANSIBLE_CALLBACK_RESULT_FORMAT=json \
     ansible-playbook "$play" "$@" >"$work/out" 2>&1)
   grep -q 'PLAY RECAP' "$work/out" || { echo "FAIL[harness]: no recap"; sed 's/^/    /' "$work/out" | tail -20; exit 1; }
