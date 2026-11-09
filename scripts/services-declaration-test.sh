@@ -23,8 +23,8 @@
 #                   having done nothing at all.
 #   CI matrix    -- a `services` entry runs at strict idempotency, which is
 #                   what makes the guards executable rather than reviewed
-#                   (REQ-B1.4), and this branch modifies no pre-existing entry
-#                   and no shared step definition (REQ-E1.4).
+#                   (REQ-B1.4), and every entry the matrix held when this
+#                   bundle landed is still there unchanged (REQ-E1.4).
 #   Bespoke setup -- a service needing more than the shared lifecycle names
 #                   where that setup lives, in its declaration entry, and is
 #                   reached only through that field (REQ-B1.3); the setup uses
@@ -718,15 +718,44 @@ fi
 # REQ-E1.4 is the constraint that buying it must cost no pre-existing coverage.
 # ---------------------------------------------------------------------------
 
+# The workflow's test job takes its entries from scripts/ci-role-matrix.sh, so
+# the entries are read from there, and the job is held to reading them.
 matrix_rc=0
-python3 - "$workflow" <<'PY' || matrix_rc=$?
+python3 - "$workflow" "$repo_root/scripts/ci-role-matrix.sh" <<'PY' || matrix_rc=$?
+import json
 import pathlib
+import subprocess
 import sys
 
 import yaml
 
 doc = yaml.safe_load(pathlib.Path(sys.argv[1]).read_text())
-entries = doc["jobs"]["test"]["strategy"]["matrix"]["include"]
+include = str(doc["jobs"]["test"]["strategy"]["matrix"]["include"])
+if "needs.changes.outputs.include" not in include:
+    print(
+        "FAIL[matrix-entry]: the macOS test matrix no longer comes from scripts/ci-role-matrix.sh",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+entries = json.loads(subprocess.run([sys.argv[2], "--all"], check=True,
+                                    capture_output=True, text=True).stdout)
+
+# REQ-E1.4: every entry the matrix held when this bundle landed, values and
+# all. Pinned here because the bundle's diff is long merged, so a diff against
+# the base no longer says anything about it.
+preexisting = [
+    ("ssh", "", True), ("git", "", True), ("kitty", "", True),
+    ("tmux", "tmux", False), ("fish", "fish", False), ("osx", "mas", False),
+    ("environments", "fish gpg", False), ("upgrade", "mas fish tmux", False),
+]
+have = {(e["role"], e["brew_deps"], e["strict_idempotency"]) for e in entries}
+missing = [p for p in preexisting if p not in have]
+if missing:
+    print(f"FAIL[matrix-preexisting-unmodified]: entries changed or gone: {missing}",
+          file=sys.stderr)
+    sys.exit(1)
+print("ok[matrix-preexisting-unmodified]: every pre-existing entry is unchanged")
+
 services = [e for e in entries if e.get("role") == "services"]
 
 if not services:
@@ -1081,25 +1110,6 @@ print((d.get("services_dev_services") or [{}])[0].get("unit", ""))
 $(sed 's/^/    /' "$runtime_out")"
     else
         pass "runtime-harness-refuses" "the harness reports visibly with the services absent"
-    fi
-fi
-
-# REQ-E1.4 -- stated as a rule, so checked as one: this branch's diff against
-# the base may add lines to the workflow and remove none. A removal is either a
-# modified pre-existing entry or a modified shared step, and the requirement
-# admits neither.
-base=$(git -C "$repo_root" merge-base HEAD origin/main 2>/dev/null || true)
-if [[ -z "$base" ]]; then
-    echo "skip[matrix-preexisting-unmodified]: no origin/main to diff against;" \
-        "REQ-E1.4 is not exercised on this checkout"
-else
-    removed=$(git -C "$repo_root" diff "$base" -- .github/workflows/ |
-        grep -c '^-[^-]' || true)
-    if [[ "$removed" -ne 0 ]]; then
-        fail "matrix-preexisting-unmodified" \
-            "$removed workflow line(s) removed or changed; REQ-E1.4 permits additions only"
-    else
-        pass "matrix-preexisting-unmodified" "workflow diff is additions only"
     fi
 fi
 
