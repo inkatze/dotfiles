@@ -18,7 +18,8 @@ set -euo pipefail
 # role|brew_deps|strict_idempotency|trigger patterns, space-separated. A `*`
 # matches across `/`. Scripts are the ones the role's tasks run through
 # `{{ ansible_facts.env.PWD }}/scripts/`, plus what those source;
-# scripts/ci-role-matrix-test.sh fails when a task references one missing here.
+# scripts/ci-role-matrix-test.sh fails when a task references one missing
+# here, or when a task file carrying a job's tag would not start that job.
 #
 # `services` proves the negative: a macOS host provisions none of the declared
 # Linux services, so a missing or wrong os_family guard surfaces as an attempt
@@ -26,8 +27,7 @@ set -euo pipefail
 # the role is held to the same convergence bar as everything else (REQ-C1.1).
 #
 # `osx` also runs the claude role's osx-tagged Gemini tasks, hence their sync
-# script. `upgrade` runs every role's upgrade-tagged tasks: osx, environments,
-# fish and tmux.
+# script. `upgrade` runs every role's upgrade-tagged tasks.
 matrix_table='
 ssh||true|roles/ssh/* scripts/ssh-lan-config-sync.sh scripts/op-token.sh
 git||true|roles/git/* scripts/op-render.sh scripts/op-token.sh
@@ -41,8 +41,8 @@ upgrade|mas fish tmux|false|roles/osx/* roles/environments/* roles/fish/* roles/
 '
 
 # Read by every role job: the workflow and this selector, the playbook's
-# entry points, and the four task files holding `tags: [always]` tasks, which
-# run under any tag.
+# entry points, and the task files holding `tags: [always]` tasks, which run
+# under any tag.
 shared_patterns='
 .github/workflows/test.yml
 scripts/ci-role-matrix.sh
