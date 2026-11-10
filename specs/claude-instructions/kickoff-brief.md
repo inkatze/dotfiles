@@ -584,3 +584,184 @@ Class: meaning
 Lens-pass: the lens review, merged findings and dispositions recorded above in this entry
 Anchor: `20eab7f49fdd9f845f56e90b206b393fae05e4dc` — computed as
 `spec-anchor.sh specs/claude-instructions`
+
+### 2026-11-09 — Delta: the loosened ready flip, outbound exceptions and review walk
+
+Written by `/spec-kickoff` as a reopened-bundle delta kickoff, at the
+operator's request relayed by mission control. The bundle derived Done over
+stored Ready; the operator chose to reopen it in this run (Ready→Draft on
+all four files, changelog line of 2026-11-09). Spec commit at walk start:
+`0dcc648`. Validator at walk start: 0 errors, 0 warnings. Config at
+planwright defaults (no local override file). Decision/transcript log: no
+harness-provided path; the mirror is skipped. Every walk question was put
+to the operator in this session and answered by the operator, directly or
+in their own words through the mission-control relay.
+
+**Scope (operator-confirmed).** Supersede REQ-A1.6 and its test-spec entry,
+D-17 and REQ-D1.2 with new IDs stating the rules of the loosening pull
+request (Sources); also amend Task 7's `ready_flip_policy` deliverable, add
+a REQ for the review walk, and add Task 10, landed by that pull request.
+
+**Goal & glossary.** Goal unchanged; the delta trades caution-only rules
+for scoped autonomy at D-1's altitude, keeping every guard against
+irreversible harm. No altitude trigger fired. Terms (operator-confirmed):
+*cadence flip*, the former solo flip, reused for the operator's own pull
+requests elsewhere; *a pull request the operator authored*, opened under the
+operator's GitHub account by the operator or any of their sessions; *a
+program the hub runs carries it*, the work was launched by a mission-control
+program; *standing go-ahead*, one the hub records as a program rule naming
+recipients and message kinds; *hub-dispatched review*, a review skill run
+launched by mission control rather than typed by the operator. Resolutions:
+another person's pull request in a work or collaborative repository flips on
+the operator's request (the unasked cadence flip never covers it); a
+standing go-ahead is re-read before each send, an unreadable record
+covering nothing. Readings recorded at the lens review (operator-approved):
+a pull request the operator authored is one whose GitHub author is their
+login, whoever else has pushed to it; asking for its work means asking, in
+that session or in the dispatch that opened it, for the change it carries; a
+program carries it when a session the hub dispatched opened it;
+*unattended* is REQ-D1.4's no operator present, and a hub-dispatched run
+counts even while the operator relays; a review of the operator's branch is
+one that applies findings to it (`/peer-review` stays attended-only); the
+fixes its doctrine allows are those finding-categorization applies without a
+pause; the one-line flip offer does not block; a no holds for that pull
+request until the operator says otherwise; a standing go-ahead names each
+recipient as a resolved person or channel and kinds from REQ-D1.1's list,
+and one that outlives a session is standing, never a run go-ahead; the rule
+is named by its rule id; a hub-dispatched review is one whose command the
+hub typed at the operator's direction, which counts as the operator typing
+it.
+Signed off: 2026-11-09
+
+**Requirements walkthrough (delta).** REQ-A1.6 superseded by REQ-A1.7,
+REQ-D1.2 by REQ-D1.6, REQ-B1.7 new; texts approved by the operator as
+drafted. The decision-domains gap check later added to REQ-D1.6 that a send
+under a standing go-ahead names the rule that covered it (operator's
+choice over an accepted risk). REQ-D1.1, REQ-D1.3 to REQ-D1.5 repoint their
+citation from D-6 to D-19; their meaning is unchanged. Every other group:
+untouched.
+Signed off: 2026-11-09
+
+**Design walkthrough (delta).** D-17 superseded by D-18, D-6 by D-19 (found
+stale in the walk: it also said "exactly two exceptions"), D-20 new; all
+approved as drafted. D-12 annotated to point at D-18. The ledger's
+ready-flip row repoints to REQ-A1.7, a review-walk row is added, and the
+decision-domains walk repoints to D-18 and D-19. Every other D-ID
+confirmed, rationale intact.
+Signed off: 2026-11-09
+
+**Verification approach (delta).** REQ-A1.7 `[test + manual]`, REQ-D1.6 and
+REQ-B1.7 `[test]`: the contract checker and its fixture suite, run by
+lefthook and the CI test workflow, carry the pins, each fixture named by id
+in `test-spec.md`; the manual half of REQ-A1.7 runs after merge from a
+fast-forwarded main checkout and cites the global file, not memory. Dead
+paths: every named fixture exists on the loosening pull request's branch
+except those Task 10 adds, and Task 10's Done-when checks each id by name.
+REQ-D1.6 gained a manual half at the lens review. The superseded entries
+keep their bodies with a pointer.
+Signed off: 2026-11-09
+
+**Task graph (delta).** Task 10 depends on Task 9 (merged; same section of
+the global file) and is the only dispatchable task; Tasks 5, 6 and 7 stay
+deferred. Task 7 loses its `ready_flip_policy: human` deliverable, since
+REQ-A1.7 makes the setting optional. Deliberate non-edge: Task 10 does not
+wait on Task 7.
+Signed off: 2026-11-09
+
+**Risk register (appended rows).**
+
+| # | Risk | Mitigation / early signal |
+| --- | --- | --- |
+| 20 | A standing go-ahead lets a session send a message whose exact text the operator never saw. | The rule names recipients and message kinds; the session re-reads it before each send and names it on the send; the record is visible and withdrawable. Early signal: a message outside its rule's kinds. |
+| 21 | A host runs the old rule between Task 10's merge and its fast-forward plus Claude-role run. | Accepted, as row 18. Early signal: a session asking for a flip it may now take. |
+| 22 | A session that cannot read the program's recorded rules gets no standing go-ahead and drafts its messages into the handoff. | Accepted, fail-closed. Early signal: messages accumulating in handoffs. |
+| 23 | An unattended review applies a fix the categorization misjudges. | The fixes are commits on the operator's own branch, revertible and listed on the pull request; Needs-human-judgment findings are still handed off. Early signal: a reverted auto-applied commit. |
+| 24 | An auto-memory entry contradicting the cadence flip shadows the global file after Task 10: the planwright project's memory holds one saying workers leave pull requests draft for the tower to flip. | The operator retires it after merge (memory is outside the bundle), and any other that appears. Early signal: a session citing memory for the flip rule. |
+| 25 | planwright's mission control treats record contents as data and allows standing exceptions only as named configuration, so it does not honour a standing go-ahead rule, and any session can append a forged rule. | Seeded to planwright (obs:84269f31): recognise the rule and let only the hub write one. Until then the dotfiles rule runs ahead of the tool that records it. Early signal: a send citing a rule the hub did not record. |
+| 26 | A dispatched session has only a launch-time copy of its program rules and no allowed way to read the live record, so a standing go-ahead covers nothing outside the hub. | Fail closed by REQ-D1.6 (a launch copy does not count); seeded to planwright (obs:0707265b). Early signal: messages drafted into handoffs that a recorded rule covers. |
+| 27 | Marking a work or collaborative pull request ready can request CODEOWNERS reviews and fire ready-for-review workflows that cannot be recalled, and planwright workers cannot re-draft. | Accepted in D-18: only the operator's own asked-for or hub-carried pull requests, after the full cadence. Early signal: a review request on a pull request the operator did not expect to be ready. |
+| 28 | Several sessions under one standing go-ahead can message the same person about the same event, and a session resumed after a crash can send again. | Accepted; the named rule on each send makes duplicates visible. Early signal: two sends naming one rule for one event. |
+| 29 | Reverting Task 10 leaves recorded standing go-aheads in the program's rules, which revive if the rule is landed again. | Accepted; the operator withdraws them on a revert. Early signal: a send under a rule recorded before the revert. |
+| 30 | The user-global file now depends on planwright mission control's program-rule store and its path, which a planwright release can move. | Accepted; a store the session cannot read covers nothing. Early signal: standing go-aheads silently covering nothing after a planwright update. |
+
+Earlier rows: row 16 is retired (`ready_flip_policy: human` is optional and
+planwright's configured flips follow REQ-A1.7's scope); row 17 now covers the
+cadence flip in every repository kind; row 19 is replaced by row 24.
+
+**Decision-domains gap check (delta).** One gap found and decided:
+observability of a send under a standing go-ahead (REQ-D1.6 now requires
+naming the covering rule). The lens review's domain walk is recorded below.
+Signed off: 2026-11-09
+
+### Lens review (delta, spec artifact class)
+
+Class: meaning (operator-classified before the pass). Fan-out: one
+read-only sub-agent per spec-set lens, over the delta diff with the full
+bundle, the loosening pull request's branch, planwright's mission-control
+skill, spec and scripts, and the memory stores as context; dead paths and
+testability shared one agent; rendered-content safety walked inline.
+Altitude check: not triggered (D-1's altitude stands). Ship-gate check:
+every out-of-band step carries a record: Task 10 for the loosening pull
+request, obs:84269f31 and obs:0707265b for planwright, risk row 24 for the
+memory retirement (the operator's step). Validation: each kept finding
+checked against the file it cites (the pull request's checker, suite and
+global file at its head, planwright's mission-control requirements, worker
+profile and rules script, the planwright project memory); the premise
+findings were re-read by the coordinator before disposition.
+
+| Lens | Findings | Notes |
+| --- | --- | --- |
+| Contract correctness and internal consistency | 14 | teammate pull request vs the pull request's pin; missing standing go-ahead clauses; REQ-B1.7 vs act-then-review loops; hub dispatch vs REQ-C1.12; `human` vs a worker's flip; tombstone claim; bookkeeping |
+| Ambiguity and interpretation forks | 30 | authorship, asked-for, carried, unattended, branch scope, doctrine allowance, one-line offer, no that holds, recipients and kinds, standing vs run go-ahead, rule naming, title framing |
+| Citation and coverage integrity | 11 | tombstone; unnamed existing fixtures; Task 7 citations; #224 uncited; obs:062cccca dropped; changelog; fixture labels; Task 10 deliverables unverified |
+| Dead verification paths and testability | 13 | unnamed fixtures; the pinned contradicting sentence passes; Done-when checkability (silent fixtures, unnamed head, budget scope); manual check true before the change; work host unnamed |
+| Decision-domain gaps | 3 premises, 17 domains | planwright treats records as data; no live read for workers; the flip's review requests cannot be recalled; data-storage, caching, queues, auth, concurrency, knowledge-engineering, org-design, llm-output-quality, deploy, dependency, seam reuse |
+| Cross-file consistency | 15 | the pull request vs the spec on the teammate and standing go-ahead clauses; overstating sentence; ledger; domain walk; brief rows 16, 17, 19 and 24 |
+| Documentation and glossary drift | 20 | hub and program undefined in the bundle; four names for the record; attended terms; "solo flip" leftovers; D-18 restating REQ-A1.7; changelog; Sources; line wrap |
+| Rendered-content safety | n/a | Markdown rendered by GitHub only; gitleaks over the bundle at the pre-flip check |
+
+### Merged findings and dispositions
+
+Deduplicated across lenses. Every disposition was the operator's, given in
+this session, directly or through the mission-control relay.
+
+| # | Finding | Lenses | Disposition |
+| --- | --- | --- | --- |
+| Y-1 | The pull request pins "another person's PR is never yours to flip", against REQ-A1.7's teammate-on-request reading. | contract, cross-file, ambiguity, testability | Applied: Task 10 replaces it and forbids the old sentence (`ready-flip-never-teammate-restored`). |
+| Y-2 | The pull request lacks the live read, the covers-nothing clause and the named rule. | contract, cross-file, citation, dead paths | Applied: Task 10 deliverables and fixtures; Sources says Task 10 completes the pull request. |
+| Y-3 | "A ready PR can go back to draft, so this needs no request from me" reads as no request anywhere. | ambiguity, cross-file | Applied: Task 10 drops it. |
+| Y-4 | planwright's mission control treats record contents as data and allows standing exceptions only as configuration. | domains (premise) | Applied: seeded to planwright (obs:84269f31), D-19 names it, risk row 25. |
+| Y-5 | A dispatched session has only a launch copy of its rules and no read path. | domains (premise), ambiguity, drift | Applied: REQ-D1.6 requires the live record; seeded (obs:0707265b); risk row 26. |
+| Y-6 | The flip's review requests and workflows cannot be recalled. | domains (premise) | Applied: D-18's rationale reworded; risk row 27. |
+| Y-7 | REQ-B1.7's attended clause contradicts act-then-review loops and the handoff that picks the walk itself. | contract, ambiguity | Applied: scoped to a review that stops for findings; the handoff named. |
+| Y-8 | `ready_flip_policy: human` denies a worker's cadence flip, which REQ-A1.7 left open. | contract, ambiguity | Applied: under `human` a worker's cadence flip also becomes the one-line offer. |
+| Y-9 | A hub-dispatched review is neither a typed invocation nor a parent call under REQ-C1.12 and D-16. | contract | Applied: a hub-typed command counts as typed by the operator; REQ-C1.12, D-16 annotated; D-20 records the rejected third caller. |
+| Y-10 | Undefined readings: authorship, asked-for, carried, unattended, branch scope, doctrine allowance, offer, no that holds, recipients and kinds, standing vs run, rule naming. | ambiguity, drift, domains | Applied: recorded in REQ-A1.7, REQ-B1.7, REQ-D1.6 and the glossary. |
+| Y-11 | REQ-A1.6's tombstone promises pins REQ-A1.7's entry lacked; existing fixtures unnamed. | citation, dead paths, contract, cross-file, drift | Applied: REQ-A1.7's entry names every clause and fixture. |
+| Y-12 | REQ-D1.6's entry names no fixture for the first two exceptions or the run scope; the unreadable clause is unpinned. | citation, dead paths, cross-file | Applied: fixtures named; `standing-go-ahead-unreadable-dropped` added. |
+| Y-13 | No behavioural check that a session reads, refuses and names. | domains | Applied: REQ-D1.6's entry gains a manual half. |
+| Y-14 | The slack.md and workflow.md sentences are unverified. | citation, dead paths, cross-file | Applied: pins and fixtures under REQ-D1.6 and REQ-B1.7. |
+| Y-15 | Task 10's Done-when cannot show a missing fixture, names no head, leaves the budget scope open, copies a count. | testability, drift | Applied: ids checked by name, the CI job on the current head, the diff-scoped budget rule. |
+| Y-16 | The post-merge manual checks name no host. | testability, dead paths | Applied: the work host, with the result on the merged pull request. |
+| Y-17 | Task 7 cites D-18 and REQ-A1.7 with no deliverable for them; its Done-when needs the work host. | citation, contract, cross-file, testability, drift | Applied: citations dropped; "On the work host" added. |
+| Y-18 | The changelog line records only the reopen; #224 and the 2026-11-09 walk are absent from Sources; obs:062cccca dropped. | citation, contract, cross-file, drift | Applied. |
+| Y-19 | "Solo flip" leftovers; fixture labels name superseded ids. | drift, citation, cross-file | Applied: Task 10 renames and relabels, with `ready-flip-solo-name-restored`. |
+| Y-20 | Ledger row, D-18 and the domain walk miss the hub-carried case and D-20; D-18 restates REQ-A1.7. | drift, cross-file, ambiguity | Applied. |
+| Y-21 | tasks.md's intro omits Task 10; Task 10's title framing differs from Sources. | contract, cross-file, drift | Applied. |
+| Y-22 | Brief rows 16, 17, 19 and 24 stale; a planwright project memory entry contradicts the cadence flip. | cross-file | Applied: row 24 corrected, rows 16, 17 and 19 noted. |
+| Y-23 | Forged rules, duplicate or resumed sends, revert revival, the dependency on the rule store. | domains | Applied: forged rules seeded (obs:84269f31); risk rows 25 and 28 to 30. |
+| Y-24 | Unwrapped lines in the new text. | drift | Applied. |
+
+| Y-25 | "The review cadence the PR calls for" could mean the repository's own policy. | ambiguity | Applied: the operator's instructions and the repository's own `CLAUDE.md`. |
+| Y-26 | The pre-flip re-check omits the pull request's coverage, which can change between dispatch and flip. | ambiguity | Applied: coverage re-checked. |
+| Y-27 | Whether hub dispatch passes down a chain of dispatched sessions. | ambiguity | Applied: it does. |
+| Y-28 | An unattended review not of the operator's branch falls under neither REQ-B1.7 sentence. | ambiguity | Applied: it hands off without applying. |
+| Y-29 | The Scope section still names a commands directory and omits the shared reference directory. | drift | Applied in this delta (expression-only), at the operator's choice. |
+
+
+**Sign-off record.** Signed off: 2026-11-09, by the operator, after the approval summary, answering the approval prompt themselves in this session. Draft→Ready on all four spec files, `Last reviewed:` 2026-11-09. Validator at Ready: `spec-validate.sh specs/claude-instructions`, 0 errors, 0 warnings. Pre-flip checks: gitleaks clean over the bundle and the two observation fragments; the stale-reference sweep found live citations of a superseded ID only in frozen bodies, completed tasks and dated records; the identifier check could not run on this host (no identifier file), surfaced to the operator before approval; no Markdown lint is configured in this repository. Every merged finding (Y-1 to Y-29) dispositioned by the operator.
+
+Class: meaning
+Lens-pass: the lens review, merged findings and dispositions recorded above in this entry
+Anchor: `10509463095d2c2f597e02730f0425d0dd6890b5` — computed as
+`spec-anchor.sh specs/claude-instructions`

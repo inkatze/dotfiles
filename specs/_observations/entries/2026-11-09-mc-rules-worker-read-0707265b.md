@@ -1,0 +1,1 @@
+- 2026-11-09 [planwright] a dispatched session has only the launch-time snapshot of its program rules and no allowed verb to re-read the live rules.yaml (mc-rules.sh active/list/render are in the mission-control profile only; offload-host sessions cannot see the hub home), so a rule that must be re-read before an act cannot be honoured outside the hub
