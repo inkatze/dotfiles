@@ -121,8 +121,8 @@ Findings that fail any of these three should be dropped, not softened.
   inconsistencies without checking `mise.toml`.
 - **`lefthook` pre-commit hooks** exist (`lefthook.yml`). Bypassing them
   (`--no-verify`) is never acceptable; do not suggest it as a workaround.
-- **Idempotency expectations** vary by role. The CI matrix in
-  `.github/workflows/test.yml` declares `strict_idempotency: true|false` per
+- **Idempotency expectations** vary by role. The CI matrix table in
+  `scripts/ci-role-matrix.sh` declares `strict_idempotency: true|false` per
   role; respect that signal before flagging a non-idempotent task.
 
 ## Writing style

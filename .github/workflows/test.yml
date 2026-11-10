@@ -259,46 +259,51 @@ jobs:
       - name: Run the instruction word-budget fixture suite
         run: roles/claude/files/scripts/instruction-budget-test.sh
 
+  # Picks the macOS role jobs below: on a pull request, those whose role or
+  # shared files it changes (scripts/ci-role-matrix.sh holds the table); on a
+  # push to main, all of them. On Ubuntu and without `needs:`, so it costs no
+  # macOS runner and finishes while lint still runs.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.select.outputs.include }}
+    steps:
+      # Depth 2 reaches both parents of the pull request's merge commit, whose
+      # diff is exactly what merging would change on main.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Run the role matrix fixture suite
+        run: scripts/ci-role-matrix-test.sh
+
+      # Anything short of a clean two-parent diff selects every job, so a
+      # selection failure costs runners rather than coverage.
+      - name: Select the role jobs
+        id: select
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = pull_request ] && git rev-parse -q --verify HEAD^2 >/dev/null &&
+            git diff --no-renames --name-only HEAD^1 HEAD >changed.txt; then
+            echo "changed paths:"
+            cat changed.txt
+            include=$(scripts/ci-role-matrix.sh --changed changed.txt)
+          else
+            include=$(scripts/ci-role-matrix.sh --all)
+          fi
+          echo "include=$include" | tee -a "$GITHUB_OUTPUT"
+
+  # A pull request that selects no role skips this job, which GitHub reports
+  # as a skipped check, not a pending one, so it never blocks a merge.
   test:
-    needs: lint
+    needs: [lint, changes]
+    if: needs.changes.outputs.include != '[]'
     runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - role: ssh
-            brew_deps: ""
-            strict_idempotency: true
-          - role: git
-            brew_deps: ""
-            strict_idempotency: true
-          - role: kitty
-            brew_deps: ""
-            strict_idempotency: true
-          - role: tmux
-            brew_deps: tmux
-            strict_idempotency: false
-          - role: fish
-            brew_deps: fish
-            strict_idempotency: false
-          - role: osx
-            brew_deps: mas
-            strict_idempotency: false
-          - role: environments
-            brew_deps: "fish gpg"
-            strict_idempotency: false
-          # The `services` role's first CI coverage on either platform. It runs
-          # here to prove the negative: a macOS host provisions none of the
-          # declared Linux services, so a missing or wrong os_family guard
-          # surfaces as an attempt to install apt packages on a Mac
-          # (specs/dev-services REQ-B1.4). Strict, so the role is held to the
-          # same convergence bar as everything else (REQ-C1.1).
-          - role: services
-            brew_deps: ""
-            strict_idempotency: true
-          - role: upgrade
-            brew_deps: "mas fish tmux"
-            strict_idempotency: false
+        include: ${{ fromJSON(needs.changes.outputs.include) }}
     name: test (${{ matrix.role }})
     timeout-minutes: 45
     steps:
