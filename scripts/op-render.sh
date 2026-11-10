@@ -3,7 +3,7 @@
 # item (for a JSON template, optionally a second), then validate it before it
 # lands.
 #
-# Usage: op-render.sh <template> <item> <output>
+# Usage: op-render.sh [--work-account] <template> <item> <output>
 #
 # A template reference is `{{ op://__OP_VAULT__/__OP_ITEM__/<field> }}`, the
 # shape scripts/ssh-lan-config-sync.sh uses, resolved against <item> in the
@@ -29,6 +29,11 @@
 # service-account token, which cannot reach another account; with the three
 # unset, every such reference resolves empty.
 #
+# --work-account reads <item> itself from that account and the vault
+# DOTFILES_OP_WORK_VAULT names, in the same way, and refuses to run with the
+# three unset rather than fall back to the service-account vault: it is how a
+# host keeps a file whose values must never sit in a personal item.
+#
 # The template's basename picks the validation rule; a template with none is
 # refused rather than rendered unchecked.
 #
@@ -50,7 +55,12 @@ fail() {
   exit 1
 }
 
-[ "$#" -eq 3 ] || fail "usage: op-render.sh <template> <item> <output>"
+from_work=false
+if [ "${1:-}" = --work-account ]; then
+  from_work=true
+  shift
+fi
+[ "$#" -eq 3 ] || fail "usage: op-render.sh [--work-account] <template> <item> <output>"
 template="$1"
 item="$2"
 output="$3"
@@ -80,8 +90,12 @@ check_name() { # check_name <what> <value> <allowed after the first character, `
 check_name "the item name" "$item" '._ -'
 
 # The work item is checked before any op call, so a bad setting costs no read.
-work_on=false
+work_refs=false
 if [ "$format" = json ] && grep -qF '__OP_WORK_VAULT__' "$template"; then
+  work_refs=true
+fi
+work_set=false
+if [ "$work_refs" = true ] || [ "$from_work" = true ]; then
   w_account="${DOTFILES_OP_WORK_ACCOUNT:-}"
   w_vault="${DOTFILES_OP_WORK_VAULT:-}"
   w_item="${DOTFILES_OP_WORK_ITEM:-}"
@@ -91,9 +105,13 @@ if [ "$format" = json ] && grep -qF '__OP_WORK_VAULT__' "$template"; then
     check_name DOTFILES_OP_WORK_ACCOUNT "$w_account" '._@-'
     check_name DOTFILES_OP_WORK_VAULT "$w_vault" '._ -'
     check_name DOTFILES_OP_WORK_ITEM "$w_item" '._ -'
-    work_on=true
+    work_set=true
+  elif [ "$from_work" = true ]; then
+    fail "--work-account needs DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM, which scripts/playbook.sh exports from ~/.config/dotfiles/op-work-item; none is set"
   fi
 fi
+work_on=false
+[ "$work_refs" = false ] || [ "$work_set" = false ] || work_on=true
 
 check_output() { # check_output [<path>], the output by default
   local path="${1:-$output}"
@@ -148,7 +166,11 @@ jq_or_fail() {
   fi
 }
 
-if ! op_run item get "$item" --vault "$VAULT" --format json --reveal >"$work/item.json"; then
+if [ "$from_work" = true ]; then
+  if ! op item get "$item" --vault "$w_vault" --account "$w_account" --format json --reveal >"$work/item.json"; then
+    fail "op item get failed reading the item argument from the work account and vault DOTFILES_OP_WORK_ACCOUNT and DOTFILES_OP_WORK_VAULT name; see the op error above (locked session? missing item?)"
+  fi
+elif ! op_run item get "$item" --vault "$VAULT" --format json --reveal >"$work/item.json"; then
   fail "op item get failed reading the item argument from the vault DOTFILES_OP_VAULT names (Dotfiles Service Account when unset); see the op error above (locked session? missing item?)"
 fi
 

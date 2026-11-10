@@ -1,8 +1,9 @@
 ---
 
 # Machine-local files rendered from 1Password items in the service-account
-# vault (and, where op-work-item exists, one item read with `op --account`
-# outside it) by scripts/op-render.sh, which validates each before it lands, and
+# vault (and, where op-work-item exists, items read with `op --account`
+# outside it: its named item, and a work host's own overlay item) by
+# scripts/op-render.sh, which validates each before it lands, and
 # API keys synced by scripts/op-key-sync.sh. Behind
 # the same `op` probe split as the Gemini key sync in main.yml: a host without
 # op is skipped with a notice, a host with op that still fails is an error.
@@ -44,11 +45,12 @@
 
 - name: Render the planwright adopter overlay config from 1Password
   ansible.builtin.command:
-    argv:
-      - "{{ ansible_facts.env.PWD }}/scripts/op-render.sh"
-      - "{{ ansible_facts.env.PWD }}/roles/claude/files/planwright/planwright.yml.tpl"
-      - dotfiles-planwright-overlay
-      - "{{ claude_planwright_overlay }}/planwright.yml"
+    argv: >-
+      {{ [ansible_facts.env.PWD ~ '/scripts/op-render.sh']
+         + (['--work-account'] if claude_planwright_overlay_from_work | bool else [])
+         + [ansible_facts.env.PWD ~ '/roles/claude/files/planwright/planwright.yml.tpl',
+            claude_planwright_overlay_item,
+            claude_planwright_overlay ~ '/planwright.yml'] }}
   register: claude_render_overlay_config
   changed_when: "'CHANGED' in claude_render_overlay_config.stdout"
   failed_when: false

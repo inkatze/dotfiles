@@ -6,6 +6,18 @@ claude_planwright_repo: inkatze/planwright
 # planwright's adopter overlay root, the same path conf.d/planwright.fish
 # exports as PLANWRIGHT_ADOPTER_OVERLAY.
 claude_planwright_overlay: "{{ ansible_facts.env.HOME }}/.claude/plugins/data/planwright-planwright/overlay"
+# Listed hosts render the overlay from their own item,
+# dotfiles-planwright-overlay-<alias>, read from the work account with
+# op-render.sh --work-account, so their program settings stay out of the
+# personal item and a host without that account refuses rather than rendering
+# the personal item's programs. Every other host shares
+# dotfiles-planwright-overlay.
+claude_planwright_overlay_work_hosts:
+  - work
+claude_planwright_overlay_from_work: "{{ inventory_hostname in claude_planwright_overlay_work_hosts }}"
+claude_planwright_overlay_item: >-
+  {{ 'dotfiles-planwright-overlay-' ~ inventory_hostname
+     if claude_planwright_overlay_from_work else 'dotfiles-planwright-overlay' }}
 claude_steps_catalog_src: "{{ ansible_facts.env.PWD }}/roles/claude/files/planwright/steps.yaml"
 # The first line of the tracked catalog, and what makes a file at the overlay's
 # catalogs/steps.yaml this role's to replace or remove.
