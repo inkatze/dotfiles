@@ -12,6 +12,10 @@ ready_guard_behind_base: conflict-only
 # prompt, beyond the scratch-only default.
 worker_self_approval: scratch own-branch
 
+# Slow or ansible-driven hooks CI runs anyway, skipped on a worker's plain
+# `git commit`. Never list a security hook.
+worker_hook_exclude: skill-contracts-suite claude-skills-link copilot-retirement claude-steps-catalog syntax-check git-unattended-auth cubic-instructions credential-path-guard planwright-marketplace
+
 # Gate test and lint runs go to the Mac; planwright falls back to this host
 # when it is busy, in use or unreachable.
 fleet_compute_host: mac
