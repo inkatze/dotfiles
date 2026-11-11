@@ -25,19 +25,26 @@ jobs:
       issues: write
       pull-requests: write
     env:
-      # OPENAI_KEY is the repository secret holding the model credential.
-      HAS_MODEL_KEY: ${{ secrets.OPENAI_KEY != '' }}
+      # OPENROUTER_API_KEY is the repository secret holding the model credential.
+      HAS_MODEL_KEY: ${{ secrets.OPENROUTER_API_KEY != '' }}
     steps:
       - name: Skip while the model secret is absent
         if: env.HAS_MODEL_KEY != 'true'
-        run: echo "::notice title=PR-Agent skipped::Repository secret OPENAI_KEY is not set; no review was run."
+        run: echo "::notice title=PR-Agent skipped::Repository secret OPENROUTER_API_KEY is not set; no review was run."
 
       - name: PR-Agent review
         if: env.HAS_MODEL_KEY == 'true'
         # v0.50.0
         uses: the-pr-agent/pr-agent@e673a02076ce09a4726c3d0c3cc85780e59ca52b
         env:
-          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+          OPENROUTER.KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          # Override the model through repository variables; litellm does not
+          # know every OpenRouter model, so the window size is set explicitly.
+          CONFIG.MODEL: ${{ vars.PR_AGENT_MODEL || 'openrouter/moonshotai/kimi-k2.7-code' }}
+          CONFIG.FALLBACK_MODELS: >-
+            ${{ vars.PR_AGENT_FALLBACK_MODELS
+            || '["openrouter/deepseek/deepseek-v4-pro-0813", "openrouter/google/gemini-3.8-flash"]' }}
+          CONFIG.CUSTOM_MODEL_MAX_TOKENS: "262144"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "false"
