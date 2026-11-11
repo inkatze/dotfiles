@@ -42,10 +42,34 @@ else
     fail all "--all lists '$all_roles'"
 fi
 
-if "$matrix" --all | grep -q '{"role":"services","brew_deps":"","strict_idempotency":true}'; then
+if "$matrix" --all | grep -q '{"role":"services","runner":"macos-latest","brew_deps":"","strict_idempotency":true}'; then
     pass services-strict "services runs at strict idempotency"
 else
     fail services-strict "the services entry lost strict idempotency"
+fi
+
+# Homebrew and macOS-only roles must not drift onto an Ubuntu runner: a role
+# installing brew dependencies, and the roles whose tasks branch on macOS,
+# stay on macos-latest.
+runner_of() { "$matrix" --all | grep -oE "\"role\":\"$1\",\"runner\":\"[^\"]*\"" | sed 's/.*"runner":"//; s/"$//'; }
+for role in ssh tmux fish osx environments services upgrade; do
+    if [[ "$(runner_of "$role")" == macos-latest ]]; then
+        pass "runner:$role" "stays on macos-latest"
+    else
+        fail "runner:$role" "left macos-latest"
+    fi
+done
+for role in git kitty; do
+    if [[ "$(runner_of "$role")" == ubuntu-latest ]]; then
+        pass "runner:$role" "runs on ubuntu-latest"
+    else
+        fail "runner:$role" "is not on ubuntu-latest"
+    fi
+done
+if "$matrix" --all | grep -E '"runner":"ubuntu-latest","brew_deps":"[^"]+"' >/dev/null; then
+    fail ubuntu-brew "a role that installs brew dependencies is on Ubuntu"
+else
+    pass ubuntu-brew "no Ubuntu role installs brew dependencies"
 fi
 
 # A usage error must exit non-zero, so the workflow's selection step fails
@@ -86,7 +110,7 @@ expect quoted-path ALL '"roles/fish/files/\303\261.fish"'
 # start that role's job; otherwise an edit to it reaches the role untested.
 set -f
 table=$(sed -n "/^matrix_table='/,/^'/p" "$matrix" | sed '1d;$d')
-while IFS='|' read -r role _ _ triggers; do
+while IFS='|' read -r role _ _ _ triggers; do
     [[ -n "$role" ]] || continue
     # shellcheck disable=SC2086 # split into patterns, globbing off above
     for dir in $(printf '%s\n' $triggers | sed -n 's#^roles/\([^/*]*\)/\*$#\1#p'); do

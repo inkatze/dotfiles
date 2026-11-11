@@ -306,10 +306,15 @@ jobs:
 
   # A pull request that selects no role skips this job, which GitHub reports
   # as a skipped check, not a pending one, so it never blocks a merge.
+  #
+  # Each entry names its runner (scripts/ci-role-matrix.sh says why): macOS
+  # for what touches Homebrew or macOS behaviour, Ubuntu for roles that are
+  # plain files and commands. The Homebrew steps below run on macOS entries
+  # only.
   test:
     needs: [lint, changes]
     if: needs.changes.outputs.include != '[]'
-    runs-on: macos-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
@@ -337,6 +342,7 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Cache Homebrew downloads
+        if: runner.os == 'macOS'
         uses: actions/cache@v4
         with:
           path: ~/Library/Caches/Homebrew
@@ -345,7 +351,7 @@ jobs:
             ${{ runner.os }}-brew-
 
       - name: Install brew dependencies
-        if: matrix.brew_deps != ''
+        if: runner.os == 'macOS' && matrix.brew_deps != ''
         timeout-minutes: 15
         run: brew install ${{ matrix.brew_deps }}
 

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# The macOS role matrix .github/workflows/test.yml runs, and which of its
-# entries a set of changed paths selects.
+# The role matrix .github/workflows/test.yml runs, and which of its entries a
+# set of changed paths selects.
 #
 #   ci-role-matrix.sh --all              every entry
 #   ci-role-matrix.sh --changed <file>   entries whose triggers match a path
 #                                        listed in <file>, one per line
 #
-# Prints a JSON array of {role, brew_deps, strict_idempotency} for the test
-# job's `matrix.include`. Plain bash (3.2 included) and printf, so it runs on
+# Prints a JSON array of {role, runner, brew_deps, strict_idempotency} for the
+# test job's `matrix.include`. Plain bash (3.2 included) and printf, so it runs on
 # the Ubuntu runner and in lint's macOS suites alike.
 #
 # A job selects on its own role's paths plus the shared paths below, which
@@ -15,7 +15,7 @@
 # task file failing to load) is lint's syntax check, which gates the matrix.
 set -euo pipefail
 
-# role|brew_deps|strict_idempotency|trigger patterns, space-separated. A `*`
+# role|runner|brew_deps|strict_idempotency|trigger patterns, space-separated. A `*`
 # matches across `/`. Scripts are the ones the role's tasks run through
 # `{{ ansible_facts.env.PWD }}/scripts/`, plus what those source;
 # scripts/ci-role-matrix-test.sh fails when a task references one missing
@@ -26,18 +26,25 @@ set -euo pipefail
 # to install apt packages on a Mac (specs/dev-services REQ-B1.4). Strict, so
 # the role is held to the same convergence bar as everything else (REQ-C1.1).
 #
+# `git` and `kitty` run on Ubuntu, the plentiful tier: their tasks are
+# symlinks, blockinfile, ssh-keygen and git config, nothing macOS-only, and
+# a Debian run adds only tasks their tags never select. `ssh` stays on macOS
+# because on Debian its tag also selects the linux role's sshd tasks, which
+# need sudo and rewrite the runner's sshd. `tmux` and `fish` stay for the
+# macOS terminfo install and Homebrew prefix their tasks branch on.
+#
 # `osx` also runs the claude role's osx-tagged Gemini tasks, hence their sync
 # script. `upgrade` runs every role's upgrade-tagged tasks.
 matrix_table='
-ssh||true|roles/ssh/* scripts/ssh-lan-config-sync.sh scripts/op-token.sh
-git||true|roles/git/* scripts/op-render.sh scripts/op-token.sh
-kitty||true|roles/kitty/*
-tmux|tmux|false|roles/tmux/*
-fish|fish|false|roles/fish/*
-osx|mas|false|roles/osx/* Brewfile Brewfile.* scripts/claude-mcp-sync-github.sh scripts/op-render.sh scripts/op-token.sh scripts/claude-gemini-auth-sync.sh
-environments|fish gpg|false|roles/environments/*
-services||true|roles/services/*
-upgrade|mas fish tmux|false|roles/osx/* roles/environments/* roles/fish/* roles/tmux/* Brewfile Brewfile.* scripts/claude-mcp-sync-github.sh scripts/op-render.sh scripts/op-token.sh
+ssh|macos-latest||true|roles/ssh/* scripts/ssh-lan-config-sync.sh scripts/op-token.sh
+git|ubuntu-latest||true|roles/git/* scripts/op-render.sh scripts/op-token.sh
+kitty|ubuntu-latest||true|roles/kitty/*
+tmux|macos-latest|tmux|false|roles/tmux/*
+fish|macos-latest|fish|false|roles/fish/*
+osx|macos-latest|mas|false|roles/osx/* Brewfile Brewfile.* scripts/claude-mcp-sync-github.sh scripts/op-render.sh scripts/op-token.sh scripts/claude-gemini-auth-sync.sh
+environments|macos-latest|fish gpg|false|roles/environments/*
+services|macos-latest||true|roles/services/*
+upgrade|macos-latest|mas fish tmux|false|roles/osx/* roles/environments/* roles/fish/* roles/tmux/* Brewfile Brewfile.* scripts/claude-mcp-sync-github.sh scripts/op-render.sh scripts/op-token.sh
 '
 
 # Read by every role job: the workflow and this selector, the playbook's
@@ -81,13 +88,13 @@ matches_any() {
 }
 
 emit() {
-    local first=1 role deps strict
+    local first=1 role runner deps strict
     printf '['
-    while IFS='|' read -r role deps strict _; do
+    while IFS='|' read -r role runner deps strict _; do
         [[ -n "$role" ]] || continue
         [[ $first -eq 1 ]] || printf ','
         first=0
-        printf '{"role":"%s","brew_deps":"%s","strict_idempotency":%s}' "$role" "$deps" "$strict"
+        printf '{"role":"%s","runner":"%s","brew_deps":"%s","strict_idempotency":%s}' "$role" "$runner" "$deps" "$strict"
     done
     printf ']\n'
 }
@@ -126,14 +133,14 @@ case "$1" in
             exit 0
         fi
         selected=''
-        while IFS='|' read -r role deps strict triggers; do
+        while IFS='|' read -r role runner deps strict triggers; do
             [[ -n "$role" ]] || continue
             # shellcheck disable=SC2086
             set -- $triggers
             while IFS= read -r path || [[ -n "$path" ]]; do
                 [[ -n "$path" ]] || continue
                 if matches_any "$path" "$@"; then
-                    selected+="$role|$deps|$strict"$'\n'
+                    selected+="$role|$runner|$deps|$strict"$'\n'
                     break
                 fi
             done <"$changed_file"
