@@ -8,6 +8,9 @@
 flight_pr_hosts: {{ op://__OP_VAULT__/__OP_ITEM__/flight_pr_hosts }}
 ready_guard_behind_base: conflict-only
 
+# Host-wide, so it lives in this user-level layer.
+fleet_host_max_live_workers: 8
+
 allocation_model_offload: sonnet
 allocation_effort_offload: medium
 
