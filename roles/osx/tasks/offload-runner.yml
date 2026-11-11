@@ -17,7 +17,7 @@
   ansible.builtin.set_fact:
     osx_runner_all_repos: >-
       {{ (osx_runner_repos + (osx_runner_repos_extra.content | default('') | b64decode
-         | regex_findall('(?m)^\s*([^#\s][^#\s]*)\s*(?:#.*)?$'))) | unique }}
+         | regex_findall('(?m)^[ \t]*([^#\s]+)[ \t]*(?:#.*)?$'))) | unique }}
   tags: [osx, offload, runner]
 
 - name: Refuse a malformed runner repository name

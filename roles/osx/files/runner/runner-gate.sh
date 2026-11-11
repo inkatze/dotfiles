@@ -41,6 +41,9 @@ job_running() { pgrep -f "$dir/bin/Runner.Worker" >/dev/null 2>&1; }
 listener=""
 stop_listener() {
     if [ -n "$listener" ]; then
+        # run.sh hands off to a helper and the listener below it, so signalling
+        # run.sh alone would leave the listener taking jobs.
+        pkill -TERM -f "$dir/bin/Runner.Listener" 2>/dev/null
         kill "$listener" 2>/dev/null
         wait "$listener" 2>/dev/null
         listener=""
