@@ -8,6 +8,17 @@
 flight_pr_hosts: {{ op://__OP_VAULT__/__OP_ITEM__/flight_pr_hosts }}
 ready_guard_behind_base: conflict-only
 
+# Workers may also write inside their own unit branch and worktree without a
+# prompt, beyond the scratch-only default.
+worker_self_approval: scratch own-branch
+
+# Gate test and lint runs go to the Mac; planwright falls back to this host
+# when it is busy, in use or unreachable.
+fleet_compute_host: mac
+
+# Host-wide, so it lives in this user-level layer.
+fleet_host_max_live_workers: 8
+
 allocation_model_offload: sonnet
 allocation_effort_offload: medium
 

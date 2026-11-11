@@ -34,10 +34,10 @@ jobs:
       ${{ github.repository == 'inkatze/dotfiles'
       && github.event_name == 'push'
       && fromJSON('["self-hosted","macOS","mac-fleet"]') || 'macos-latest' }}
-    timeout-minutes: 30
-    # Each suite step carries a timeout-minutes a few times its normal
-    # runtime, so a hung suite fails fast and names itself instead of
-    # holding the job until GitHub's six-hour limit.
+    # Each step carries a timeout-minutes a few times its normal runtime, so a
+    # hung suite fails fast and names itself instead of holding the job until GitHub's six-hour limit.
+    # The job's own limit backstops a step added without one.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -47,15 +47,19 @@ jobs:
           python-version: "3.11"
 
       - name: Install linting tools
+        timeout-minutes: 10
         run: pip3 install ansible ansible-lint yamllint
 
       - name: Run yamllint
+        timeout-minutes: 5
         run: yamllint .
 
       - name: Run ansible-lint
+        timeout-minutes: 10
         run: ansible-lint
 
       - name: Run syntax check
+        timeout-minutes: 5
         run: ansible-playbook main.yml --syntax-check
 
       # specs/dev-services REQ-B1.5 is pinned `[test]` in test-spec.md, which
@@ -111,6 +115,7 @@ jobs:
       # Homebrew, so there the suite takes its documented skip.
       - name: Install GNU coreutils for gtimeout
         if: runner.environment == 'github-hosted'
+        timeout-minutes: 10
         run: brew install coreutils
 
       # Needs ansible-playbook, which this job installs, jq, and gtimeout.
@@ -153,6 +158,7 @@ jobs:
       # parses the other per-host files or the App Store entries they hold.
       # `list` reads the file without installing from it.
       - name: Parse the per-host Brewfiles
+        timeout-minutes: 10
         run: |
           brew bundle list --all --file=Brewfile.personal
           brew bundle list --all --file=Brewfile.alt
@@ -204,6 +210,7 @@ jobs:
   # nothing.
   skill-contracts:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -274,12 +281,13 @@ jobs:
       - name: Run the instruction word-budget fixture suite
         run: roles/claude/files/scripts/instruction-budget-test.sh
 
-  # Picks the macOS role jobs below: on a pull request, those whose role or
+  # Picks the role jobs below: on a pull request, those whose role or
   # shared files it changes (scripts/ci-role-matrix.sh holds the table); on a
   # push to main, all of them. On Ubuntu and without `needs:`, so it costs no
   # macOS runner and finishes while lint still runs.
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       include: ${{ steps.select.outputs.include }}
     steps:
@@ -311,18 +319,25 @@ jobs:
 
   # A pull request that selects no role skips this job, which GitHub reports
   # as a skipped check, not a pending one, so it never blocks a merge.
+  #
+  # Each entry names its runner (scripts/ci-role-matrix.sh says why): macOS
+  # for what touches Homebrew or macOS behaviour, Ubuntu for roles that are
+  # plain files and commands. The Homebrew steps below run on macOS entries
+  # only.
   test:
     needs: [lint, changes]
     if: needs.changes.outputs.include != '[]'
-    # Hosted only, deliberately: this job runs the roles for real against
-    # $HOME (symlinks, defaults, Homebrew, sudo), which the offload account
-    # must never take.
-    runs-on: macos-latest
+    # Hosted runners only, deliberately: this job runs the roles for real
+    # against $HOME (symlinks, defaults, Homebrew, sudo), which the offload
+    # account must never take. Every matrix runner is a GitHub-hosted label.
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.changes.outputs.include) }}
     name: test (${{ matrix.role }})
+    # Roles run one to thirteen minutes; each step's own limit names a hang,
+    # and this one only backstops the sum of them.
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -333,14 +348,17 @@ jobs:
           python-version: "3.11"
 
       - name: Install Ansible
+        timeout-minutes: 10
         run: pip3 install ansible
 
       - name: Install mise
+        timeout-minutes: 5
         run: |
           curl https://mise.run | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Cache Homebrew downloads
+        if: runner.os == 'macOS'
         uses: actions/cache@v4
         with:
           path: ~/Library/Caches/Homebrew
@@ -349,7 +367,8 @@ jobs:
             ${{ runner.os }}-brew-
 
       - name: Install brew dependencies
-        if: matrix.brew_deps != ''
+        if: runner.os == 'macOS' && matrix.brew_deps != ''
+        timeout-minutes: 15
         run: brew install ${{ matrix.brew_deps }}
 
       - name: Ensure /usr/local/bin exists
@@ -367,9 +386,11 @@ jobs:
           echo "HOMEBREW_BUNDLE_MAS_SKIP=$ids" >> "$GITHUB_ENV"
 
       - name: Run ${{ matrix.role }} tasks
+        timeout-minutes: 20
         run: mise run ${{ matrix.role }}
 
       - name: Idempotency check
+        timeout-minutes: 20
         run: |
           OUTPUT=$(mise run ${{ matrix.role }} 2>&1)
           echo "$OUTPUT"
