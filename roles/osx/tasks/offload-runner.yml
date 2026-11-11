@@ -105,7 +105,7 @@
       gh login of {{ osx_offload_user }} needs admin on it
       (gh auth status, then re-run).
     quiet: true
-  loop: "{{ osx_runner_tokens.results | rejectattr('skipped', 'defined') | list }}"
+  loop: "{{ osx_runner_tokens.results | selectattr('rc', 'defined') | list }}"
   loop_control:
     label: "{{ item.item.item }}"
   tags: [osx, offload, runner]
@@ -127,7 +127,7 @@
   environment:
     ACTIONS_RUNNER_INPUT_TOKEN: "{{ item.stdout }}"
   no_log: true
-  loop: "{{ osx_runner_tokens.results | rejectattr('skipped', 'defined') | list }}"
+  loop: "{{ osx_runner_tokens.results | selectattr('rc', 'defined') | list }}"
   loop_control:
     label: "{{ item.item.item }}"
   tags: [osx, offload, runner]

@@ -25,12 +25,14 @@ jobs:
   lint:
     # The offload Mac only for trusted events: a push, or a pull request from
     # this repository. A fork's pull request runs on a hosted runner, so
-    # untrusted code never reaches the Mac. Nothing here triggers on
+    # untrusted code never reaches the Mac, and neither does a fork's own
+    # push (which would otherwise queue for a runner it does not have). Nothing here triggers on
     # pull_request_target or workflow_run, and neither may ever select this
     # label. A queued job waits for the Mac while it yields to its owner;
     # timeout-minutes bounds only the run, not that wait.
     runs-on: >-
-      ${{ (github.event_name == 'push'
+      ${{ github.repository == 'inkatze/dotfiles'
+      && (github.event_name == 'push'
       || github.event.pull_request.head.repo.full_name == github.repository)
       && fromJSON('["self-hosted","macOS","mac-fleet"]') || 'macos-latest' }}
     timeout-minutes: 30
