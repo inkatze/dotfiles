@@ -23,7 +23,17 @@ env:
 
 jobs:
   lint:
-    runs-on: macos-latest
+    # The offload Mac only for trusted events: a push, or a pull request from
+    # this repository. A fork's pull request runs on a hosted runner, so
+    # untrusted code never reaches the Mac. Nothing here triggers on
+    # pull_request_target or workflow_run, and neither may ever select this
+    # label. A queued job waits for the Mac while it yields to its owner;
+    # timeout-minutes bounds only the run, not that wait.
+    runs-on: >-
+      ${{ (github.event_name == 'push'
+      || github.event.pull_request.head.repo.full_name == github.repository)
+      && fromJSON('["self-hosted","macOS","mac-fleet"]') || 'macos-latest' }}
+    timeout-minutes: 30
     # Each suite step carries a timeout-minutes a few times its normal
     # runtime, so a hung suite fails fast and names itself instead of
     # holding the job until GitHub's six-hour limit.
@@ -95,7 +105,11 @@ jobs:
 
       # macOS ships no timeout; without gtimeout the suite skips its FIFO case,
       # which bounds a play that would hang on a FIFO.
+      #
+      # Hosted runners only: the offload account installs nothing with
+      # Homebrew, so there the suite takes its documented skip.
       - name: Install GNU coreutils for gtimeout
+        if: runner.environment == 'github-hosted'
         run: brew install coreutils
 
       # Needs ansible-playbook, which this job installs, jq, and gtimeout.
@@ -299,6 +313,9 @@ jobs:
   test:
     needs: [lint, changes]
     if: needs.changes.outputs.include != '[]'
+    # Hosted only, deliberately: this job runs the roles for real against
+    # $HOME (symlinks, defaults, Homebrew, sudo), which the offload account
+    # must never take.
     runs-on: macos-latest
     strategy:
       fail-fast: false
