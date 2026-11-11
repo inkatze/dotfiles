@@ -5,9 +5,8 @@
 # The runner takes work only while the Mac is free: the keyboard and mouse have
 # been still for RUNNER_IDLE_SECONDS and the one-minute load average is under
 # RUNNER_LOAD_MAX. Whoever owns the console does not matter: a Mac left logged
-# in and untouched serves jobs. The listener runs
-# with --once, so it accepts at most one job and exits; this loop starts the
-# next only after re-checking.
+# in and untouched serves jobs. The listener runs with --once, so it accepts at
+# most one job and exits; this loop starts the next only after re-checking.
 # While the Mac is in use and no job has started, the listener is stopped and
 # the runner shows offline. A job already running is never interrupted: it
 # finishes niced (the agent's priority is inherited), and nothing new starts.
