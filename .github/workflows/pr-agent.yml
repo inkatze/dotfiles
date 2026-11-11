@@ -22,6 +22,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      issues: write
       pull-requests: write
     env:
       # OPENAI_KEY is the repository secret holding the model credential.
@@ -34,7 +35,7 @@ jobs:
       - name: PR-Agent review
         if: env.HAS_MODEL_KEY == 'true'
         # v0.50.0
-        uses: qodo-ai/pr-agent@e673a02076ce09a4726c3d0c3cc85780e59ca52b
+        uses: the-pr-agent/pr-agent@e673a02076ce09a4726c3d0c3cc85780e59ca52b
         env:
           OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
