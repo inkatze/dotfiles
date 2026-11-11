@@ -16,6 +16,9 @@ worker_self_approval: scratch own-branch
 # when it is busy, in use or unreachable.
 fleet_compute_host: mac
 
+# Host-wide, so it lives in this user-level layer.
+fleet_host_max_live_workers: 8
+
 allocation_model_offload: sonnet
 allocation_effort_offload: medium
 
