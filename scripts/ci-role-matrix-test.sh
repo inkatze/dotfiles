@@ -52,7 +52,8 @@ fi
 # installing brew dependencies, and the roles whose tasks branch on macOS,
 # stay on macos-latest.
 runner_of() { "$matrix" --all | grep -oE "\"role\":\"$1\",\"runner\":\"[^\"]*\"" | sed 's/.*"runner":"//; s/"$//'; }
-for role in ssh tmux fish osx environments services upgrade; do
+for role in $all_roles; do
+    case "$role" in git | kitty) continue ;; esac
     if [[ "$(runner_of "$role")" == macos-latest ]]; then
         pass "runner:$role" "stays on macos-latest"
     else

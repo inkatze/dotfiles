@@ -24,9 +24,8 @@ env:
 jobs:
   lint:
     runs-on: macos-latest
-    # Each step carries a timeout-minutes a few times its normal runtime
-    # (jobs finish in one to thirteen minutes), so a hung suite fails fast and
-    # names itself instead of holding the job until GitHub's six-hour limit.
+    # Each step carries a timeout-minutes a few times its normal runtime, so a
+    # hung suite fails fast and names itself instead of holding the job until GitHub's six-hour limit.
     # The job's own limit backstops a step added without one.
     timeout-minutes: 40
     steps:
@@ -320,9 +319,9 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.changes.outputs.include) }}
     name: test (${{ matrix.role }})
-    # Roles run one to thirteen minutes; a hung step names itself well before
-    # this backstop.
-    timeout-minutes: 30
+    # Roles run one to thirteen minutes; each step's own limit names a hang,
+    # and this one only backstops the sum of them.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
