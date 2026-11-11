@@ -205,8 +205,10 @@ sudo or Homebrew. The release is pinned with its published sha256 in the role
 defaults; bump both together.
 
 - **Yielding.** `runner-gate.sh` starts the runner in `--once` mode, only while
-  the console is owned by this account, the login window or nobody, and the
-  keyboard and mouse have been still for `osx_runner_idle_seconds`. When the
+  the keyboard and mouse have been still for `osx_runner_idle_seconds` and the
+  one-minute load average is under `osx_runner_load_max` (default 6). Whichever
+  account owns the console does not matter: a Mac left untouched and lightly
+  loaded serves jobs, one in use or busy does not. When the
   Mac is in use and no job has started it stops the listener (the runner shows
   offline). A job already running is never interrupted: it finishes niced and
   nothing new starts. A job assigned in the instant the owner returns can be

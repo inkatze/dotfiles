@@ -318,6 +318,8 @@ osx_runner_repos:
   - inkatze/dotfiles
 osx_runner_repos_file: "{{ ansible_facts.env.HOME }}/.config/dotfiles/runner-repos"
 
-# No new job starts while another account owns the console or the keyboard and
-# mouse have been idle for less than this.
+# No new job starts until the keyboard and mouse have been idle this long,
+# whoever owns the console, nor while the one-minute load average is at or above
+# the cap.
 osx_runner_idle_seconds: 300
+osx_runner_load_max: 6
