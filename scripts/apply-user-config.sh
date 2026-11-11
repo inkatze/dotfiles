@@ -41,7 +41,11 @@ main() {
 
     # Never wait on a credential prompt.
     export GIT_TERMINAL_PROMPT=0
-    export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o BatchMode=yes"
+    # Only when nothing else picks the ssh command: GIT_SSH_COMMAND would
+    # override a configured core.sshCommand.
+    if [[ -z "${GIT_SSH_COMMAND:-}" && -z "$(git -C "$repo" config --get core.sshCommand || true)" ]]; then
+        export GIT_SSH_COMMAND="ssh -o BatchMode=yes"
+    fi
     git_() { git -C "$repo" "$@"; }
 
     if ! mkdir -- "$lock" 2>/dev/null; then
@@ -62,7 +66,10 @@ main() {
     [[ -z "$(git_ status --porcelain --untracked-files=all)" ]] \
         || die "the checkout has uncommitted or untracked changes"
 
-    git_ fetch --quiet origin main || die "could not fetch origin main"
+    # A hung fetch would hold the lock for good, so bound it where timeout exists.
+    fetch=(git_ fetch --quiet origin main)
+    if command -v timeout >/dev/null 2>&1; then fetch=(timeout 120 git -C "$repo" fetch --quiet origin main); fi
+    "${fetch[@]}" || die "could not fetch origin main"
     git_ merge --ff-only --quiet origin/main || die "local main does not fast-forward to origin/main"
     [[ "$(git_ rev-parse HEAD)" == "$(git_ rev-parse origin/main)" ]] \
         || die "main is not level with origin/main after the fast-forward"
