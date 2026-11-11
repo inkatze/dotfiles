@@ -113,7 +113,7 @@ else:
     ko(f"osx_brew_writable is set ahead of the imports as {writable}")
 
 print("1b. the offload host's own tasks never ask for sudo")
-for fname in ("offload-host.yml", "offload-tools.yml"):
+for fname in ("offload-host.yml", "offload-tools.yml", "offload-runner.yml"):
     becomes = [
         sub["name"]
         for t in load(fname)

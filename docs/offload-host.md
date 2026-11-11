@@ -192,3 +192,30 @@ In order; each step needs a person, except the playbook run on `server`.
    `security unlock-keychain` line again before dispatching. Add
    `~/.ssh/id_signing.pub` to `roles/ssh/files/allowed_signers` in a
    follow-up commit so local signature checks pass.
+
+## GitHub Actions runners
+
+The play (`roles/osx/tasks/offload-runner.yml`) turns the work account into a
+self-hosted runner for the repositories in `osx_runner_repos`, plus any
+`owner/repo` lines in `~/.config/dotfiles/runner-repos` (private names stay
+out of the repo). One runner per repository, each in
+`~/actions-runners/<owner>-<repo>`, labelled `self-hosted`, `macOS`,
+`mac-fleet`, run by its own per-user launchd agent at `nice 10`. Nothing uses
+sudo or Homebrew. The release is pinned with its published sha256 in the role
+defaults; bump both together.
+
+- **Yielding.** `runner-gate.sh` starts the runner in `--once` mode, only while
+  the console is owned by this account, the login window or nobody, and the
+  keyboard and mouse have been still for `osx_runner_idle_seconds`. When the
+  Mac is in use and no job has started it stops the listener (the runner shows
+  offline). A job already running is never interrupted: it finishes niced and
+  nothing new starts. A job assigned in the instant the owner returns can be
+  dropped by GitHub as a lost runner; re-run it.
+- **Registration.** The play fetches a registration token with the work
+  account's `gh` login (`POST /repos/<owner>/<repo>/actions/runners/registration-token`),
+  keeps it in a `no_log` task's memory and the registering command's
+  environment only, and leaves a directory that already has a `.runner` file
+  alone. The login needs admin on each repository and the `repo` scope:
+  `gh auth refresh --scopes repo` once over `ssh <alias>`, then drop it again
+  if you want the narrower token back after the first run.
+- **Logs:** `~/.cache/dotfiles-runner-<owner>-<repo>.{out,err}`.

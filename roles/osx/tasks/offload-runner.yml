@@ -1,0 +1,176 @@
+---
+
+# The offload host as a self-hosted GitHub Actions runner, one runner per
+# repository, all in the work account's home and launchd domain: no sudo, no
+# Homebrew, nothing of the owner's. runner-gate.sh holds the yield-to-the-owner
+# rule (docs/offload-host.md).
+
+- name: Read the machine-local runner repository list
+  ansible.builtin.slurp:
+    src: "{{ osx_runner_repos_file }}"
+  register: osx_runner_repos_extra
+  failed_when: false
+  check_mode: false
+  tags: [osx, offload, runner]
+
+- name: Fix the runner repository list
+  ansible.builtin.set_fact:
+    osx_runner_all_repos: >-
+      {{ (osx_runner_repos + (osx_runner_repos_extra.content | default('') | b64decode
+         | regex_findall('(?m)^\s*([^#\s][^#\s]*)\s*(?:#.*)?$'))) | unique }}
+  tags: [osx, offload, runner]
+
+- name: Refuse a malformed runner repository name
+  ansible.builtin.assert:
+    that: item is match('^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')
+    fail_msg: "{{ osx_runner_repos_file }} must list owner/repo names, one per line."
+    quiet: true
+  loop: "{{ osx_runner_all_repos }}"
+  tags: [osx, offload, runner]
+
+- name: Create the runner directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ osx_runner_root }}"
+    - "{{ osx_runner_root }}/_download"
+  tags: [osx, offload, runner]
+
+# get_url verifies the pinned sha256 and re-downloads only when it differs.
+- name: Download the runner release
+  ansible.builtin.get_url:
+    url: "{{ osx_runner_url }}"
+    dest: "{{ osx_runner_root }}/_download/runner-{{ osx_runner_version }}.tar.gz"
+    checksum: "sha256:{{ osx_runner_sha256 }}"
+    mode: "0644"
+  tags: [osx, offload, runner]
+
+- name: Install the runner gate script
+  ansible.builtin.copy:
+    src: runner/runner-gate.sh
+    dest: "{{ ansible_facts.env.HOME }}/.local/bin/runner-gate.sh"
+    mode: "0755"
+  tags: [osx, offload, runner]
+
+- name: Create a runner directory per repository
+  ansible.builtin.file:
+    path: "{{ osx_runner_root }}/{{ item | replace('/', '-') }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ osx_runner_all_repos }}"
+  tags: [osx, offload, runner]
+
+# An unpacked directory is left alone, so a version bump reaches only a runner
+# deleted and registered afresh; GitHub's own runner updates itself in place.
+- name: Unpack the runner into each directory
+  ansible.builtin.unarchive:
+    src: "{{ osx_runner_root }}/_download/runner-{{ osx_runner_version }}.tar.gz"
+    dest: "{{ osx_runner_root }}/{{ item | replace('/', '-') }}"
+    remote_src: true
+    creates: "{{ osx_runner_root }}/{{ item | replace('/', '-') }}/config.sh"
+  loop: "{{ osx_runner_all_repos }}"
+  tags: [osx, offload, runner]
+
+- name: Check which runners are already registered
+  ansible.builtin.stat:
+    path: "{{ osx_runner_root }}/{{ item | replace('/', '-') }}/.runner"
+  register: osx_runner_registered
+  loop: "{{ osx_runner_all_repos }}"
+  tags: [osx, offload, runner]
+
+# The token comes from the gh login of the account running the play, lives
+# only in this task's memory and the next one's environment, and is neither
+# logged nor written. A failure here names the repository, not the output,
+# which could echo a token.
+- name: Fetch a registration token for each unregistered repository
+  ansible.builtin.command:
+    argv: [gh, api, --method, POST, "repos/{{ item.item }}/actions/runners/registration-token", --jq, .token]
+  register: osx_runner_tokens
+  changed_when: false
+  failed_when: false
+  no_log: true
+  loop: "{{ osx_runner_registered.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: not item.stat.exists
+  tags: [osx, offload, runner]
+
+- name: Require every registration token
+  ansible.builtin.assert:
+    that: item.rc == 0 and item.stdout | length > 0
+    fail_msg: >-
+      Could not get a runner registration token for {{ item.item.item }}; the
+      gh login of {{ osx_offload_user }} needs admin on it
+      (gh auth status, then re-run).
+    quiet: true
+  loop: "{{ osx_runner_tokens.results | rejectattr('skipped', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.item.item }}"
+  tags: [osx, offload, runner]
+
+- name: Register each unregistered runner
+  ansible.builtin.command:
+    argv:
+      - ./config.sh
+      - --unattended
+      - --url
+      - "https://github.com/{{ item.item.item }}"
+      - --name
+      - "mac-fleet-{{ item.item.item | replace('/', '-') }}"
+      - --labels
+      - "{{ osx_runner_labels }}"
+      - --replace
+    chdir: "{{ osx_runner_root }}/{{ item.item.item | replace('/', '-') }}"
+    creates: "{{ osx_runner_root }}/{{ item.item.item | replace('/', '-') }}/.runner"
+  environment:
+    ACTIONS_RUNNER_INPUT_TOKEN: "{{ item.stdout }}"
+  no_log: true
+  loop: "{{ osx_runner_tokens.results | rejectattr('skipped', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.item.item }}"
+  tags: [osx, offload, runner]
+
+- name: Deploy a LaunchAgent per runner
+  ansible.builtin.template:
+    src: runner.plist.j2
+    dest: "{{ ansible_facts.env.HOME }}/Library/LaunchAgents/{{ osx_runner_launch_prefix }}.{{ slug }}.plist"
+    mode: "0644"
+  vars:
+    slug: "{{ item | replace('/', '-') }}"
+  loop: "{{ osx_runner_all_repos }}"
+  register: osx_runner_plists
+  tags: [osx, offload, runner]
+
+- name: Check which runner agents are loaded
+  ansible.builtin.command:
+    argv:
+      - launchctl
+      - print
+      - "gui/{{ ansible_facts.user_uid }}/{{ osx_runner_launch_prefix }}.{{ item | replace('/', '-') }}"
+  register: osx_runner_loaded
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  loop: "{{ osx_runner_all_repos }}"
+  tags: [osx, offload, runner]
+
+# bootout then bootstrap, so a changed plist is re-read; an unchanged, loaded
+# agent is left running (and its job undisturbed).
+- name: Load each runner agent that is new or changed
+  ansible.builtin.shell:
+    cmd: |
+      launchctl bootout {{ dom }}/{{ lbl }} 2>/dev/null || true
+      launchctl bootstrap {{ dom }} {{ plist }}
+  vars:
+    dom: "gui/{{ ansible_facts.user_uid }}"
+    lbl: "{{ osx_runner_launch_prefix }}.{{ item.item | replace('/', '-') }}"
+    plist: "{{ ansible_facts.env.HOME }}/Library/LaunchAgents/{{ lbl }}.plist"
+  loop: "{{ osx_runner_plists.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+    extended: true
+  when: item.changed or osx_runner_loaded.results[ansible_loop.index0].rc != 0
+  changed_when: true
+  tags: [osx, offload, runner]

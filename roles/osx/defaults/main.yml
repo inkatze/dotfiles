@@ -292,3 +292,30 @@ osx_offload_brew_bin: /opt/homebrew/bin
 
 osx_offload_op_item: dotfiles-lan-ssh
 osx_offload_sshd_dropin: 050-dotfiles-hardening.conf
+
+# The Mac as a self-hosted GitHub Actions runner, in the offload account only:
+# one runner per repository, each its own directory and launchd agent.
+# Version and checksum move together; the checksum is the one in that release's
+# notes (https://github.com/actions/runner/releases).
+osx_runner_version: 2.338.2
+osx_runner_arch: arm64
+osx_runner_sha256: 25a065af409ffa317ab4d5a3b614dd15fc9c40f2172bc1b35a1b1258e919a388
+osx_runner_asset: "actions-runner-osx-{{ osx_runner_arch }}-{{ osx_runner_version }}.tar.gz"
+osx_runner_url: "https://github.com/actions/runner/releases/download/v{{ osx_runner_version }}/{{ osx_runner_asset }}"
+osx_runner_root: "{{ ansible_facts.env.HOME }}/actions-runners"
+osx_runner_labels: mac-fleet
+osx_runner_launch_prefix: com.inkatze.dotfiles.runner
+osx_runner_nice: 10
+osx_runner_path: "{{ osx_offload_mise_bin | dirname }}:{{ osx_runner_shims }}:{{ osx_offload_brew_bin }}:/usr/bin:/bin"
+osx_runner_shims: "{{ ansible_facts.env.HOME }}/.local/share/mise/shims"
+
+# Repositories whose names this repo already carries. Private ones come from
+# the machine-local file below, one owner/repo per line (# comments allowed).
+osx_runner_repos:
+  - inkatze/planwright
+  - inkatze/dotfiles
+osx_runner_repos_file: "{{ ansible_facts.env.HOME }}/.config/dotfiles/runner-repos"
+
+# No new job starts while another account owns the console or the keyboard and
+# mouse have been idle for less than this.
+osx_runner_idle_seconds: 300
