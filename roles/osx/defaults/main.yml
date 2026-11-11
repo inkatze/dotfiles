@@ -306,7 +306,9 @@ osx_runner_root: "{{ ansible_facts.env.HOME }}/actions-runners"
 osx_runner_labels: mac-fleet
 osx_runner_launch_prefix: com.inkatze.dotfiles.runner
 osx_runner_nice: 10
-osx_runner_path: "{{ osx_offload_mise_bin | dirname }}:{{ osx_runner_shims }}:{{ osx_offload_brew_bin }}:/usr/bin:/bin"
+osx_runner_system_path: /usr/bin:/bin:/usr/sbin:/sbin
+osx_runner_path: >-
+  {{ osx_offload_mise_bin | dirname }}:{{ osx_runner_shims }}:{{ osx_offload_brew_bin }}:{{ osx_runner_system_path }}
 osx_runner_shims: "{{ ansible_facts.env.HOME }}/.local/share/mise/shims"
 
 # Repositories whose names this repo already carries. Private ones come from
