@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fixture suite for scripts/ci-role-matrix.sh: which macOS role jobs a pull
+# Fixture suite for scripts/ci-role-matrix.sh: which role jobs a pull
 # request's changed paths start, and that the trigger table still names every
 # script a role's tasks run. Needs bash, grep and sed.
 set -uo pipefail
@@ -136,7 +136,7 @@ done <<<"$table"
 
 # A task file carrying a job's tag runs in that job, and one carrying
 # `always` runs in every job, so editing it must start them. roles/linux is
-# exempt: main.yml runs it on Debian only, never on the macOS runners.
+# exempt: main.yml runs it on Debian only, never on a macOS runner, and no Ubuntu job selects a tag it carries.
 selects() {
     printf '%s\n' "$1" >"$work/changed"
     "$matrix" --changed "$work/changed" | grep -q "\"role\":\"$2\""

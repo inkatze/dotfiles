@@ -268,7 +268,7 @@ jobs:
       - name: Run the instruction word-budget fixture suite
         run: roles/claude/files/scripts/instruction-budget-test.sh
 
-  # Picks the macOS role jobs below: on a pull request, those whose role or
+  # Picks the role jobs below: on a pull request, those whose role or
   # shared files it changes (scripts/ci-role-matrix.sh holds the table); on a
   # push to main, all of them. On Ubuntu and without `needs:`, so it costs no
   # macOS runner and finishes while lint still runs.
