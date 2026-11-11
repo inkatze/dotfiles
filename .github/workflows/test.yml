@@ -24,9 +24,11 @@ env:
 jobs:
   lint:
     runs-on: macos-latest
-    # Each suite step carries a timeout-minutes a few times its normal
-    # runtime, so a hung suite fails fast and names itself instead of
-    # holding the job until GitHub's six-hour limit.
+    # Each step carries a timeout-minutes a few times its normal runtime
+    # (jobs finish in one to thirteen minutes), so a hung suite fails fast and
+    # names itself instead of holding the job until GitHub's six-hour limit.
+    # The job's own limit backstops a step added without one.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -36,15 +38,19 @@ jobs:
           python-version: "3.11"
 
       - name: Install linting tools
+        timeout-minutes: 10
         run: pip3 install ansible ansible-lint yamllint
 
       - name: Run yamllint
+        timeout-minutes: 5
         run: yamllint .
 
       - name: Run ansible-lint
+        timeout-minutes: 10
         run: ansible-lint
 
       - name: Run syntax check
+        timeout-minutes: 5
         run: ansible-playbook main.yml --syntax-check
 
       # specs/dev-services REQ-B1.5 is pinned `[test]` in test-spec.md, which
@@ -96,6 +102,7 @@ jobs:
       # macOS ships no timeout; without gtimeout the suite skips its FIFO case,
       # which bounds a play that would hang on a FIFO.
       - name: Install GNU coreutils for gtimeout
+        timeout-minutes: 10
         run: brew install coreutils
 
       # Needs ansible-playbook, which this job installs, jq, and gtimeout.
@@ -138,6 +145,7 @@ jobs:
       # parses the other per-host files or the App Store entries they hold.
       # `list` reads the file without installing from it.
       - name: Parse the per-host Brewfiles
+        timeout-minutes: 10
         run: |
           brew bundle list --all --file=Brewfile.personal
           brew bundle list --all --file=Brewfile.alt
@@ -189,6 +197,7 @@ jobs:
   # nothing.
   skill-contracts:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -265,6 +274,7 @@ jobs:
   # macOS runner and finishes while lint still runs.
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       include: ${{ steps.select.outputs.include }}
     steps:
@@ -305,7 +315,9 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.changes.outputs.include) }}
     name: test (${{ matrix.role }})
-    timeout-minutes: 45
+    # Roles run one to thirteen minutes; a hung step names itself well before
+    # this backstop.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -315,9 +327,11 @@ jobs:
           python-version: "3.11"
 
       - name: Install Ansible
+        timeout-minutes: 10
         run: pip3 install ansible
 
       - name: Install mise
+        timeout-minutes: 5
         run: |
           curl https://mise.run | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -332,6 +346,7 @@ jobs:
 
       - name: Install brew dependencies
         if: matrix.brew_deps != ''
+        timeout-minutes: 15
         run: brew install ${{ matrix.brew_deps }}
 
       - name: Ensure /usr/local/bin exists
@@ -349,9 +364,11 @@ jobs:
           echo "HOMEBREW_BUNDLE_MAS_SKIP=$ids" >> "$GITHUB_ENV"
 
       - name: Run ${{ matrix.role }} tasks
+        timeout-minutes: 20
         run: mise run ${{ matrix.role }}
 
       - name: Idempotency check
+        timeout-minutes: 20
         run: |
           OUTPUT=$(mise run ${{ matrix.role }} 2>&1)
           echo "$OUTPUT"
