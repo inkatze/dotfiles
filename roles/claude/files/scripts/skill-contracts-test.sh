@@ -468,9 +468,11 @@ expect_pass overlay-template-document-marker \
   "perl -0pi -e 's/^/---\\n/' roles/claude/files/planwright/planwright.yml.tpl"
 expect_fail overlay-template-literal \
   "echo 'flight_pr_hosts: [github.com/someone]' >> roles/claude/files/planwright/planwright.yml.tpl" \
-  "is not a key: <op:// reference>, key: <bare word> or key: <whole number> line"
+  "is not a key: <op:// reference>, key: <bare words> or key: <whole number> line"
 expect_pass overlay-template-literal-word \
   "echo 'some_knob: some-value' >> roles/claude/files/planwright/planwright.yml.tpl"
+expect_pass overlay-template-literal-words \
+  "echo 'some_knob: some-value other-value' >> roles/claude/files/planwright/planwright.yml.tpl"
 expect_pass overlay-template-literal-number \
   "echo 'some_knob: 10' >> roles/claude/files/planwright/planwright.yml.tpl"
 expect_pass overlay-template-block-line \
