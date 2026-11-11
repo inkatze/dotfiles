@@ -1,0 +1,43 @@
+name: pr-agent
+
+# Same-repo PRs only, and never `pull_request_target`: a fork PR must not
+# reach the model secret. Fork PRs are filtered by the job `if:`.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # The job name is the check name `/bot-review` gates on; keep it `PR-Agent`.
+  pr-agent:
+    name: PR-Agent
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      # OPENAI_KEY is the repository secret holding the model credential.
+      HAS_MODEL_KEY: ${{ secrets.OPENAI_KEY != '' }}
+    steps:
+      - name: Skip while the model secret is absent
+        if: env.HAS_MODEL_KEY != 'true'
+        run: echo "::notice title=PR-Agent skipped::Repository secret OPENAI_KEY is not set; no review was run."
+
+      - name: PR-Agent review
+        if: env.HAS_MODEL_KEY == 'true'
+        # v0.50.0
+        uses: qodo-ai/pr-agent@e673a02076ce09a4726c3d0c3cc85780e59ca52b
+        env:
+          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          github_action_config.auto_review: "true"
+          github_action_config.auto_describe: "false"
+          github_action_config.auto_improve: "false"
