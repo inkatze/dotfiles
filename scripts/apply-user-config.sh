@@ -53,11 +53,17 @@ main() {
         if [[ -n "$holder" ]] && kill -0 "$holder" 2>/dev/null; then
             die "another run holds the lock (pid $holder)"
         fi
+        # No pid yet means the holder is between mkdir and its pid write: only
+        # a lock older than that window is stale.
+        if [[ -z "$holder" && -n "$(find "$lock" -maxdepth 0 -mmin -1 2>/dev/null)" ]]; then
+            die "another run is taking the lock"
+        fi
         rm -rf -- "$lock"
         mkdir -- "$lock" 2>/dev/null || die "could not take the lock at $lock"
     fi
-    echo "$$" >"$lock/pid"
     trap 'rm -rf -- "$lock"' EXIT
+    trap 'exit 130' INT TERM HUP
+    echo "$$" >"$lock/pid"
 
     [[ "$(git_ rev-parse --git-dir)" == "$(git_ rev-parse --git-common-dir)" ]] \
         || die "$repo is a linked worktree; run it from the main checkout"

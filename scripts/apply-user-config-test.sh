@@ -65,7 +65,7 @@ refused() { # name dir expected-text
 
 d="$(fixture dirty)"; echo y >"$d/checkout/scratch"
 refused dirty-untracked "$d" 'uncommitted or untracked'
-echo z >>"$d/checkout/scripts/playbook.sh"
+rm -f "$d/checkout/scratch"; echo z >>"$d/checkout/scripts/playbook.sh"
 refused dirty-tracked "$d" 'uncommitted or untracked'
 
 d="$(fixture branch)"; git -C "$d/checkout" checkout -q -b feature
@@ -77,6 +77,13 @@ d="$(fixture diverged)"
 (cd "$d" && git clone -q origin.git other 2>/dev/null && cd other && git checkout -q main && echo x >f && git add f && git commit -q -m up && git push -q origin main)
 (cd "$d/checkout" && echo l >g && git add g && git commit -q -m local)
 refused diverged "$d" 'does not fast-forward'
+
+d="$(fixture ahead)"; (cd "$d/checkout" && echo l >g && git add g && git commit -q -m local)
+refused ahead "$d" 'not level with origin/main'
+
+d="$(fixture fresh-lock)"; mkdir -p "$XDG_STATE_HOME/dotfiles/apply-user-config.lock"
+refused lock-being-taken "$d" 'taking the lock'
+rm -rf "$XDG_STATE_HOME/dotfiles/apply-user-config.lock"
 
 d="$(fixture worktree)"; git -C "$d/checkout" worktree add -q -b wt "$d/wt" 2>/dev/null
 out="$(cd "$d/wt" && scripts/apply-user-config.sh 2>&1)"; rc=$?
@@ -97,7 +104,7 @@ out="$(run "$d")"; rc=$?
 if [ $rc -eq 0 ] && [ -e "$d/ran" ] && [ ! -e "$XDG_STATE_HOME/dotfiles/apply-user-config.lock" ]; then ok stale-lock "dead holder's lock is taken over and released"
 else fail stale-lock "rc=$rc out=$out"; fi
 
-d="$(fixture failing)"
+d="$(fixture failing)"; rm -f "$log"
 out="$(run "$d" STUB_EXIT=3)"; rc=$?
 if [ $rc -ne 0 ] && grep -q 'FAILED' <<<"$out" && grep -q 'FAILED' "$log"; then ok playbook-failure "non-zero exit, FAILED on terminal and in log"
 else fail playbook-failure "rc=$rc out=$out"; fi

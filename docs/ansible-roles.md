@@ -70,7 +70,7 @@ handling.
 
 The narrow, non-interactive way to apply a merge, for a host-chore session that
 may not run the playbook with its open argument surface. It takes no arguments
-and does this, refusing with a reason (non-zero exit, `FAILED:` on the terminal
+and does this, refusing with a reason (non-zero exit; past the argument check a `FAILED:` line on the terminal
 and in the log) at the first step that does not hold:
 
 1. root is refused; it never needs sudo and never prompts (git and ssh are
@@ -79,7 +79,7 @@ and in the log) at the first step that does not hold:
    over);
 3. it must be the main checkout, not a linked worktree, on `main`, with no
    tracked or untracked changes, so nothing off `main` is ever applied;
-4. `origin/main` is fetched and `main` fast-forwarded to it (a diverged `main`
+4. `origin/main` is fetched and `main` fast-forwarded to it (a `main` that is diverged or ahead
    is refused);
 5. `./scripts/playbook.sh --user-config`, through fish when `ansible-playbook`
    is not on `PATH` (mise activation), with every guard of that mode intact.
