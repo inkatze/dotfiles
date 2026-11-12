@@ -38,7 +38,9 @@ check() { # check <label> <command...>
         failed=$((failed + 1)); echo "  FAIL: $label"
     fi
 }
-starts() { wc -l <"$scratch/starts" 2>/dev/null | tr -d ' ' || echo 0; }
+starts() {
+    if [ -f "$scratch/starts" ]; then wc -l <"$scratch/starts" | tr -d ' '; else echo 0; fi
+}
 starts_is() { [ "$(starts)" = "$1" ]; }
 # settle <n>: wait up to five seconds for the nth start to be logged.
 settle() { local i=0; while [ "$(starts)" -lt "$1" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done; }
