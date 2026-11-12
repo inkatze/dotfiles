@@ -34,7 +34,7 @@ cat >"$stubs/redis-cli" <<'STUB'
 echo "cli $* AUTH=${REDISCLI_AUTH-}" >>"$STUB_LOG"
 case " $* " in
     *" ping "*) [ -f "$STUB_STATE" ] && echo PONG ;;
-    *" shutdown nosave "*) rm -f "$STUB_STATE" ;;
+    *" shutdown nosave "*) [ -f "$STUB_IGNORE" ] || rm -f "$STUB_STATE" ;;
 esac
 exit 0
 STUB
@@ -48,7 +48,7 @@ echo "{ 40.00 40.00 40.00 }"
 STUB
 chmod +x "$stubs"/*
 
-export STUB_LOG="$scratch/log" STUB_STATE="$scratch/up" STUB_IDLE_FILE="$scratch/idle"
+export STUB_IGNORE="$scratch/ignore" STUB_LOG="$scratch/log" STUB_STATE="$scratch/up" STUB_IDLE_FILE="$scratch/idle"
 export RUNNER_GATE_LIB="$repo/roles/osx/files/runner/runner-gate.sh"
 export PATH="$stubs:$PATH" RUNNER_IDLE_SECONDS=300 RUNNER_POLL_SECONDS=0.2
 : >"$STUB_LOG"
@@ -93,6 +93,14 @@ check "it is not started again meanwhile" count_is "^start" 1
 echo 1000 >"$STUB_IDLE_FILE"
 check "idle again: it starts again" until_true is_up
 check "it is the second start" count_is "^start" 2
+
+# A server that ignores the command is stopped by signal, after a bounded wait.
+touch "$STUB_IGNORE"
+echo 5 >"$STUB_IDLE_FILE"
+check "a server ignoring shutdown is still stopped" until_true is_down
+rm -f "$STUB_IGNORE"
+echo 1000 >"$STUB_IDLE_FILE"
+check "and starts again when idle" until_true is_up
 
 kill -TERM "$gate_pid"
 wait "$gate_pid" 2>/dev/null || true

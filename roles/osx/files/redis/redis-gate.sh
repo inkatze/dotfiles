@@ -32,13 +32,18 @@ server_up() { [ "$(cli ping 2>/dev/null)" = PONG ]; }
 
 server=""
 stop_server() {
+    local asked=""
     if server_up; then
         cli shutdown nosave >/dev/null 2>&1
+        asked=1
     fi
     if [ -n "$server" ]; then
-        # A server that ignored the command is told to stop; with no save
-        # points, SIGTERM writes nothing either.
-        kill -0 "$server" 2>/dev/null && ! wait_gone "$server" && kill "$server" 2>/dev/null
+        # A server that ignored the command, or was still starting and could
+        # not be asked, is told to stop; with no save points, SIGTERM writes
+        # nothing either.
+        if kill -0 "$server" 2>/dev/null; then
+            [ -n "$asked" ] && wait_gone "$server" || kill "$server" 2>/dev/null
+        fi
         wait "$server" 2>/dev/null
         server=""
     fi
