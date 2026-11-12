@@ -66,9 +66,10 @@ A recipient is never guessed.
 
 ## Confirm before sending
 
-Show the resolved recipient and the exact text, and wait for a yes, unless a
-go-ahead under one of the user-global outbound rule's exceptions covers the
-message:
+Show the resolved recipient and the exact text, and wait for a yes, unless one
+of the user-global outbound rule's exceptions covers the message (a go-ahead for
+that message or its run, a reply to an automated reviewer, or a hub go-ahead,
+relayed for that message or standing under a live program rule that names it):
 
 ```
 notify <name> (@<handle>)? [y/N]

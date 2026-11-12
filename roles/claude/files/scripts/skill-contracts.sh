@@ -611,6 +611,8 @@ for i in ${tree_files[@]+"${!tree_files[@]}"}; do
 done
 [ ! -f CLAUDE.md ] || forbid_normalized CLAUDE.md "copy of a global rule or the Slack mechanics" \
   "$OUTBOUND_ANCHOR" "$RESOLUTION_ANCHOR" "$FIXED_TEMPLATE"
+require_normalized "$SHARED/slack.md" "confirm-step exceptions" \
+  "unless one of the user-global outbound rule's exceptions covers the message (a go-ahead for that message or its run, a reply to an automated reviewer, or a hub go-ahead, relayed for that message or standing under a live program rule that names it):"
 require_normalized "$SHARED/slack.md" "unattended handoff step" \
   "With no operator present, draft a message no go-ahead covers, and its recipient, into the handoff instead of sending it."
 
@@ -640,7 +642,11 @@ if [ -n "$global_ok" ]; then
   # instead of waiting on a choice nobody is there to make.
   require_normalized "$GLOBAL_MD" "walk rule" \
     "then let me choose how to walk it rather than assuming all at once." \
-    "A review of my branch that runs unattended or that my hub dispatched applies the fixes its doctrine allows without waiting for a walk choice, and hands off the rest as that list."
+    "I keep that choice for a review I run attended that stops for findings." \
+    "A review that applies findings to my own branch and runs unattended, or that my hub dispatched (a chain of hub dispatches included), applies what its doctrine allows without waiting for a walk choice and hands off the rest as that list." \
+    "Any other review that runs unattended or hub-dispatched hands off its findings and applies none."
+  require_normalized "$SHARED/workflow.md" "unwalked handoff" \
+    "A nested loop hands off a small residue, and so does a review the user-global review rule exempts from the walk choice, so skip"
 
   # The workflow sections are one-line pointers.
   # Ends at the next heading of its own level or above; a deeper one stays in.
@@ -681,7 +687,7 @@ if [ -n "$global_ok" ]; then
   # Who flips follows ownership: the agent on every PR in a solo repo and on
   # the operator's own PRs elsewhere, never on another person's. The cadence
   # flip is stated once, so a second copy cannot drift from the first.
-  CADENCE_FLIP="The cadence flip: the session that completes the last step of the review cadence the PR calls for marks it ready itself once every step of that cadence has run to completion, CI is green on the current head and the PR is mergeable, re-checking each condition and the repo's kind immediately before the flip, and states the flip and the conditions it checked in its reply or handoff."
+  CADENCE_FLIP="The cadence flip: the session that completes the last step of the review cadence the PR calls for (the cadence my instructions and the repo's own \`CLAUDE.md\` call for) marks it ready itself once every step of that cadence has run to completion, CI is green on the current head and the PR is mergeable, re-checking each condition, the repo's kind and the PR's coverage immediately before the flip, and states the flip and the conditions it checked in its reply or handoff."
   require_normalized "$GLOBAL_MD" "ready-flip scope" \
     "a repo's own \`CLAUDE.md\` moving the rewrite scope or naming its kind does not move the flip." \
     "A **solo repo** is one I own (not an employer or another organization) where no other person works; my own sessions, worktrees, dispatched agents and automated accounts are not another person." \
@@ -689,15 +695,16 @@ if [ -n "$global_ok" ]; then
     "A **collaborative repo** is one I own where another person works; one where you cannot tell whether another person works counts as one." \
     "$CADENCE_FLIP" \
     "In a solo repo the cadence flip covers every PR." \
-    "In a work or collaborative repo it covers a PR I authored (a session opening it under my account counts) once I have asked for its work or a program my hub runs carries it; another person's PR is never yours to flip." \
-    "Any other flip there is mine to request and yours to perform; once I have asked, do not hand it back to me as a manual step." \
-    "A planwright config there may set \`ready_flip_policy: human\`, which reserves its configured flips: offer the flip to me in one line, my yes being the request."
+    "In a work or collaborative repo it covers a PR I authored (its GitHub author is my login, whoever else has pushed to it) once I have asked, in that session or in the dispatch that opened it, for the change it carries, or that a session my hub (my program's mission-control session) dispatched, directly or through a session it dispatched, opened; it never covers another person's PR." \
+    "Any other flip there, another person's PR included, is mine to request and yours to perform; once I have asked, do not hand it back to me as a manual step." \
+    "A planwright config there may set \`ready_flip_policy: human\`, which reserves its configured flips and a cadence flip a planwright worker would take: offer the flip to me in one line of your reply or handoff without waiting, my yes being the request."
   occurrences "$global_norm" "the session that completes the last step of the review cadence" n
   [ "$n" -le 1 ] || err "$GLOBAL_MD states the cadence flip $n times; state it once: \"$CADENCE_FLIP\""
   forbid_normalized "$GLOBAL_MD" "never-flip rule" "Never flip a PR ready on your own initiative"
+  forbid_normalized "$GLOBAL_MD" "retired flip wording" "solo flip" "is never yours to flip"
   require_normalized "$GLOBAL_MD" "kickoff and confirmed flips" \
     "planwright's configured flips count as you flipping and follow the same scope, except one kept in every repository: the spec PR after a signed-off kickoff, which planwright marks ready by configuration." \
-    "A flip I confirm when a run asks me is one I requested, and a no I give when asked holds: do not then flip that PR as the cadence flip." \
+    "A flip I confirm when a run asks me is one I requested, and a no I give when asked holds for that PR until I say otherwise: do not then flip it as the cadence flip." \
     "A nested review loop's own convergence flip stays confirmation-gated in every repository, never counts as the cadence flip, and evaluates these same conditions first."
   require_normalized "$GLOBAL_MD" "hook-denial sentence" \
     "If planwright's ready-guard hook denies a flip on a branch that meets these conditions, report the denial to me and never work around it: no sync to satisfy it, no bypass."
@@ -706,7 +713,7 @@ if [ -n "$global_ok" ]; then
   # Slack mechanics live in the shared directory.
   EXC1="An explicit go-ahead I give for a specific message, or for a run, which covers only the recipients and message kinds I named when giving it."
   EXC2="Replies to automated reviewers, which are addressed to a bot even when a human may read them."
-  EXC3="A go-ahead I give in my hub session (my program's mission-control session; formerly central-command) for an exact message, relayed by the hub (typed into the receiving session or sent with SendMessage), counts as given in the receiving session. It covers only that exact text and recipient. A standing go-ahead I give there, which the hub records as a program rule naming its recipients and message kinds, covers those messages in every session of the program until I withdraw it."
+  EXC3="A go-ahead I give in my hub session (my program's mission-control session; formerly central-command), either for an exact message, relayed by the hub (typed into the receiving session or sent with SendMessage), which counts as given in the receiving session and covers only that exact text and recipient, or a standing go-ahead, which covers its messages in every session the hub launched only once the hub records it as a program rule naming each recipient (a resolved person or channel) and its message kinds (from the list above), until I withdraw it. A go-ahead that outlives one session is a standing go-ahead, never a run go-ahead. Before each send under a standing go-ahead, read the live rule from the program's record, a launch-time copy not counting; a withdrawn rule, or a record you cannot read, covers nothing. A send under a standing go-ahead names the rule that covered it, by its rule id, in your reply or handoff."
   require_normalized "$GLOBAL_MD" "outbound-message rule" \
     "No message addressed to another person (a chat message, an email, a pull-request review, comment or reply, an issue comment) is sent unless I have seen its exact text and recipient $OUTBOUND_ANCHOR." \
     "A recipient that cannot be resolved is never guessed." \

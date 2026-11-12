@@ -999,7 +999,7 @@ done
 
 # --- The user-global file ---
 
-# Ready flips (REQ-A1.1, REQ-A1.2, REQ-A1.5, REQ-A1.6)
+# Ready flips (REQ-A1.1, REQ-A1.2, REQ-A1.5, REQ-A1.7)
 expect_fail ready-flip-base-current \
   "perl -0pi -e 's/CI is green and\\s+the review/the branch current with its base, CI is green and the review/' $GLOBAL_MD" "forbidden currency condition"
 expect_fail ready-flip-sync-ritual \
@@ -1010,15 +1010,25 @@ expect_fail ready-flip-unknown-dropped \
   "perl -0pi -e 's/, including a mergeability GitHub still\\s+reports as \`UNKNOWN\` after one re-query a few seconds later//' $GLOBAL_MD" "ready-flip sentence"
 expect_pass ready-flip-reflow \
   "perl -0pi -e 's/only once it is/only\\nonce it is/' $GLOBAL_MD"
-PIN="Any other flip there is mine to request and yours to perform" \
+PIN="Any other flip there, another person's PR included, is mine to request and yours to perform" \
   expect_fail ready-flip-collaborative-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
-PIN="; another person's PR is never yours to flip" \
+PIN=", another person's PR included" \
+  expect_fail ready-flip-teammate-request-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN="; it never covers another person's PR" \
   expect_fail ready-flip-other-persons-pr 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
-PIN=" once I have asked for its work or a program my hub runs carries it" \
+expect_fail ready-flip-never-teammate-restored \
+  "printf '\\nAnother person\\x27s PR is never yours to flip.\\n' >> $GLOBAL_MD" "forbidden retired flip wording"
+expect_fail ready-flip-solo-name-restored \
+  "perl -0pi -e 's/The cadence flip:/The solo flip:/' $GLOBAL_MD" "forbidden retired flip wording"
+PIN=" once I have asked, in that session or in the dispatch that opened it, for the change it carries" \
   expect_fail ready-flip-unasked-work-repo 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN=", directly or through a session it dispatched," \
+  expect_fail ready-flip-dispatch-chain-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN=" (the cadence my instructions and the repo's own \`CLAUDE.md\` call for)" \
+  expect_fail ready-flip-cadence-source-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN="In a solo repo the cadence flip covers every PR." \
   expect_fail ready-flip-everywhere 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
-PIN=", re-checking each condition and the repo's kind immediately before the flip" \
+PIN=", re-checking each condition, the repo's kind and the PR's coverage immediately before the flip" \
   expect_fail ready-flip-recheck-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN="a repository whose owner you cannot tell counts as one" \
   expect_fail ready-flip-unknown-owner-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
@@ -1030,12 +1040,16 @@ PIN="automated accounts are not another person" \
   expect_fail ready-flip-own-agents-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN="moving the rewrite scope or naming its kind does not move the flip" \
   expect_fail ready-flip-override-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
-PIN=", which reserves its configured flips: offer the flip to me in one line" \
+PIN=", which reserves its configured flips and a cadence flip a planwright worker would take: offer the flip to me in one line" \
   expect_fail ready-flip-human-policy-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
-PIN=" and the repo's kind" \
+PIN=" and a cadence flip a planwright worker would take" \
+  expect_fail ready-flip-worker-human-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN=", the repo's kind" \
   expect_fail ready-flip-kind-recheck-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN=" and the PR's coverage" \
+  expect_fail ready-flip-coverage-recheck-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 expect_fail ready-flip-scope-duplicated \
-  "perl -0ne 'print \"\\n\$1\\n\" if /(The cadence flip: the session.*?in its reply or\\s+handoff\\.)/s' $GLOBAL_MD > solo.tmp && cat solo.tmp >> $GLOBAL_MD && rm solo.tmp" "states the cadence flip 2 times"
+  "perl -0ne 'print \"\\n\$1\\n\" if /(The cadence flip: the session.*?in its reply\\s+or\\s+handoff\\.)/s' $GLOBAL_MD > solo.tmp && cat solo.tmp >> $GLOBAL_MD && rm solo.tmp" "states the cadence flip 2 times"
 expect_fail ready-flip-never-rule-restored \
   "printf '\\nNever flip a PR ready on your own initiative.\\n' >> $GLOBAL_MD" "forbidden never-flip rule"
 PIN="the spec PR after a signed-off kickoff, which planwright marks ready by configuration" \
@@ -1044,7 +1058,7 @@ PIN="count as you flipping and follow the same scope" \
   expect_fail ready-flip-planwright-scope-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "kickoff and confirmed flips"
 PIN="A flip I confirm when a run asks me is one I requested" \
   expect_fail operator-confirmed-clause-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "kickoff and confirmed flips"
-PIN="and a no I give when asked holds: do not then flip that PR as the cadence flip" \
+PIN="and a no I give when asked holds for that PR until I say otherwise: do not then flip it as the cadence flip" \
   expect_fail ready-flip-decline-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "kickoff and confirmed flips"
 PIN="stays confirmation-gated in every repository, never counts as the cadence flip" \
   expect_fail nested-flip-gate-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "kickoff and confirmed flips"
@@ -1060,10 +1074,17 @@ expect_fail global-doctrine-pointer-missing \
   "perl -0pi -e 's{\\\`~/\\.claude/skills/review-shared/doctrine\\.md\\\`}{the shared notes}g' $GLOBAL_MD" "outside a pointer bullet naming review-shared/doctrine.md"
 expect_fail global-lens-list \
   "printf '\\n1. Correctness, logic, edge cases (null, empty)\\n' >> $GLOBAL_MD" "copied lens list"
-PIN=" or that my hub dispatched" \
+# The walk choice (REQ-B1.7)
+PIN=" or that my hub dispatched (a chain of hub dispatches included)" \
   expect_fail walk-hub-dispatch-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
-PIN=" of my branch that runs unattended" \
+PIN=" to my own branch and runs unattended" \
   expect_fail walk-branch-scope-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
+PIN=" that stops for findings" \
+  expect_fail walk-loop-scope-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
+expect_fail walk-other-review-applies \
+  "perl -0pi -e 's/hands off its findings and\\s+applies none\\./applies its findings./' $GLOBAL_MD" "walk rule"
+PIN="and so does a review the user-global review rule exempts from the walk choice" \
+  expect_fail workflow-unwalked-handoff-dropped 'drop_pin "$PIN" "$SHARED/workflow.md"' "unwalked handoff"
 PIN="then let me choose how to walk it" \
   expect_fail walk-choice-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
 expect_fail workflow-description \
@@ -1075,7 +1096,7 @@ expect_fail hard-invariants-dropped \
 expect_fail review-sequence-claim-global \
   "printf '\\n\`/panel-review --nested\` fits planwright.s review_sequence.\\n' >> $GLOBAL_MD" "forbidden retired review_sequence knob"
 
-# Messages to people (REQ-D1.1 to REQ-D1.5)
+# Messages to people (REQ-D1.1 to REQ-D1.6)
 expect_fail outbound-rule-dropped \
   "perl -0pi -e 's/and said yes in this session/and it seems fine/' $GLOBAL_MD" "outbound-message rule"
 expect_fail never-guess-dropped \
@@ -1193,13 +1214,21 @@ expect_fail second-exception-dropped \
 expect_fail prose-fourth-exception \
   "perl -0pi -e 's/(human may read them\\.\\n)/\$1\\nA fourth: messages to my team.\\n/' $GLOBAL_MD" "besides its three exceptions"
 expect_fail hub-exception-dropped \
-  "perl -0pi -e 's/- A go-ahead I give in my hub session.*?until I withdraw it\\.\\n//s' $GLOBAL_MD" "outbound-message rule"
-expect_fail unscoped-hub-go-ahead \
-  "perl -0pi -e 's/\\s+It covers only that exact text and recipient\\.//' $GLOBAL_MD" "outbound-message rule"
-expect_fail standing-go-ahead-unrecorded \
-  "perl -0pi -e 's/, which the hub records as a program rule\\s+naming its\\s+recipients and message kinds,//' $GLOBAL_MD" "outbound-message rule"
-expect_fail standing-go-ahead-unbounded \
-  "perl -0pi -e 's/\\s+until I withdraw it\\.//' $GLOBAL_MD" "outbound-message rule"
+  "perl -0pi -e 's/- A go-ahead I give in my hub session.*?in your reply or handoff\\.\\n//s' $GLOBAL_MD" "outbound-message rule"
+PIN=" and covers only that exact text and recipient" \
+  expect_fail unscoped-hub-go-ahead 'drop_pin "$PIN" "$GLOBAL_MD"' "outbound-message rule"
+PIN=" only once the hub records it as a program rule naming each recipient (a resolved person or channel) and its message kinds (from the list above)" \
+  expect_fail standing-go-ahead-unrecorded 'drop_pin "$PIN" "$GLOBAL_MD"' "outbound-message rule"
+PIN=", until I withdraw it" \
+  expect_fail standing-go-ahead-unbounded 'drop_pin "$PIN" "$GLOBAL_MD"' "outbound-message rule"
+PIN="Before each send under a standing go-ahead, read the live rule from the program's record, a launch-time copy not counting;" \
+  expect_fail standing-go-ahead-reread-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "outbound-message rule"
+PIN=" a withdrawn rule, or a record you cannot read, covers nothing." \
+  expect_fail standing-go-ahead-unreadable-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "outbound-message rule"
+PIN=" A send under a standing go-ahead names the rule that covered it, by its rule id, in your reply or handoff." \
+  expect_fail standing-go-ahead-unnamed-send 'drop_pin "$PIN" "$GLOBAL_MD"' "outbound-message rule"
+PIN="unless one of the user-global outbound rule's exceptions covers the message (a go-ahead for that message or its run, a reply to an automated reviewer, or a hub go-ahead, relayed for that message or standing under a live program rule that names it)" \
+  expect_fail slack-confirm-exceptions-dropped 'drop_pin "$PIN" "$SHARED/slack.md"' "confirm-step exceptions"
 expect_fail exceptions-anchor-missing \
   "perl -0pi -e 's/The rule has exactly three exceptions:/The exceptions:/' $GLOBAL_MD" "no \"exactly three exceptions:\" list"
 expect_pass exceptions-reflowed \
