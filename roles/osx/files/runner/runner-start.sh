@@ -27,7 +27,10 @@ running() {
     ps -p "$pid" -o command= 2>/dev/null | grep -qF -- "$gate $dir"
 }
 
-# mkdir is atomic: the boot and periodic jobs can fire in the same second.
+# mkdir is atomic: the boot and periodic jobs can fire in the same second. A
+# starter killed mid-run leaves its lock behind, so one older than a few
+# minutes is stale.
+find "$lock" -maxdepth 0 -mmin +3 -exec rmdir {} + 2>/dev/null
 mkdir "$lock" 2>/dev/null || exit 0
 trap 'rmdir "$lock" 2>/dev/null' EXIT
 
