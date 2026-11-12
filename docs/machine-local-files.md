@@ -64,8 +64,8 @@ file since the last render is ambiguous: mission control may have removed
 it, or an older backup of the overlay may have been restored. The render
 refuses, writes nothing and names the keys; copy the snapshot over the
 live overlay to undo a restore, or run again with
-`OP_RENDER_ACCEPT_REMOVALS=1` to record the removal. Deleting the snapshot loses mission control's writes since
-the last render. A render and a mission-control write are not fully
+`OP_RENDER_ACCEPT_REMOVALS=1` to record the removal. Deleting the
+snapshot loses mission control's writes since the last render. A render and a mission-control write are not fully
 serialized: the render refuses to replace an overlay that changed since it
 read it, but a write landing in the instant between that check and the
 rename is lost.

@@ -340,7 +340,7 @@ if [ "$rule" = planwright-overlay ]; then
           if (k in v) continue
           # A key the supplement still carries, gone from the live file: either
           # mission control removed it or an older copy of the file was put back.
-          if (!accept && (k in s) && s[k] !~ /^remove /) lost = lost " " k
+          if (accept != "1" && (k in s) && s[k] !~ /^remove /) lost = lost " " k
           set(k, "remove " k)
         }
         if (lost != "") {

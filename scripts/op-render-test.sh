@@ -922,6 +922,11 @@ cp "$snap" "$ov"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 [ "$rc" -eq 0 ] && grep -qx 'mission_control_tick_cadence: 5m' "$ov" && grep -qx 'program_alpha_duties: \[a, b\]' "$ov" \
   && ok "putting the snapshot back recovers every kept write" || ko "recovery from the snapshot ($log)"
+# Only the value 1 accepts removals.
+cp "$ov" "$sandbox/ov.before"
+sed -i.bak '/^mission_control_tick_cadence:/d' "$ov" && rm -f "$ov.bak"
+OP_RENDER_ACCEPT_REMOVALS=false run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -ne 0 ] && ok "a value other than 1 does not accept removals" || ko "a value other than 1 does not accept removals ($log)"
 # A removal the operator really made after a clean render is still honoured.
 sed -i.bak '/^mission_control_tick_cadence:/d' "$ov" && rm -f "$ov.bak"
 OP_RENDER_ACCEPT_REMOVALS=1 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
