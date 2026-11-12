@@ -120,7 +120,7 @@ item's programs. Create that item, with the same `flight_pr_hosts` and
 (read-only work MCP tools, say), which must not reach the tracked
 `settings.json`. `op-render.sh --work-account` renders it from the
 `claude_permissions_allow` field (a JSON list of rules) of the item
-`op-work-item` names, so a host without that file skips the render; left
+`op-work-item` names, so a host with no `op-work-item` file skips the render; left
 empty, the field renders an empty fragment. `scripts/claude-settings-merge.sh`
 unions its `permissions.allow` and `permissions.deny` into the live settings
 and refuses a fragment carrying any other key. A rule added by hand on a work
