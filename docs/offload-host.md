@@ -261,8 +261,10 @@ owner's account or settings.
   `~/.pgpass` (mode 0600), a random password, only while no such line exists,
   and never prints it (`no_log`). The gate sets it on the role with `ALTER ROLE`
   over a peer connection on each start, from the file, feeding the statement
-  on stdin so no process list shows it. Nothing writes it anywhere shared or
-  tracked.
+  on stdin so no process list shows it, and retries until that succeeds. Nothing
+  writes it anywhere shared or tracked. The play fails when the stored password
+  is shorter than the 32 characters it generates (a hand edit, say): remove the
+  line and re-run.
 - **Connecting.** Port 5432 (`osx_postgres_port`). The local mode needs no
   password: a suite that takes `POSTGRES_SOCKET_DIR` connects over the socket
   with peer auth, `POSTGRES_SOCKET_DIR=$HOME/postgresql-16-run`. Over TCP,
