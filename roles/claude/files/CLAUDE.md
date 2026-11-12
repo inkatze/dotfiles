@@ -90,16 +90,16 @@ The cadence flip: the session that completes the last step of the review
 cadence the PR calls for (the cadence my instructions and the repo's own
 `CLAUDE.md` call for) marks it ready itself once every step of that cadence has
 run to completion, CI is green on the current head and the PR is mergeable,
-re-checking each condition, the repo's kind and the PR's coverage immediately
-before the flip, and states the flip and the conditions it checked in its reply
+re-checking each condition, the repo's kind and the PR's coverage below
+immediately before the flip, and states the flip and the conditions it checked in its reply
 or handoff.
 
 In a solo repo the cadence flip covers every PR. In a work or collaborative
 repo it covers a PR I authored (its GitHub author is my login, whoever else has
 pushed to it) once I have asked, in that session or in the dispatch that opened
-it, for the change it carries, or that a session my hub (my program's
+it, for the change it carries, or once a session my hub (my program's
 mission-control session) dispatched, directly or through a session it
-dispatched, opened; it never covers another person's PR. Any other flip there,
+dispatched, opened it; it never covers another person's PR. Any other flip there,
 another person's PR included, is mine to request and yours to perform; once I
 have asked, do not hand it back to me as a manual step. A planwright config
 there may set `ready_flip_policy: human`, which reserves its configured flips
@@ -110,8 +110,8 @@ planwright's configured flips count as you flipping and follow the same scope,
 except one kept in every repository: the spec PR after a signed-off kickoff,
 which planwright marks ready by configuration. A flip I confirm when a run asks
 me is one I requested, and a no I give when asked holds for that PR until I say
-otherwise: do not then flip it as the cadence flip. A nested review loop's own convergence flip stays
-confirmation-gated in every repository, never counts as the cadence flip, and
+otherwise: do not then flip it as the cadence flip. A nested review loop's own
+convergence flip stays confirmation-gated in every repository, never counts as the cadence flip, and
 evaluates these same conditions first.
 
 If planwright's ready-guard hook denies a flip on a branch that meets these
@@ -155,9 +155,9 @@ When reviewing code or addressing review feedback:
   progress tracker and the post-loop handoff that picks the mode itself are in
   `~/.claude/skills/review-shared/workflow.md`. I keep that choice for a review
   I run attended that stops for findings. A review that applies findings to my
-  own branch and runs unattended, or that my hub dispatched (a chain of hub
-  dispatches included), applies what its doctrine allows without waiting for a
-  walk choice and hands off the rest as that list. Any other review that runs
+  own branch and either runs unattended (no operator present) or was dispatched
+  by my hub (a chain of hub dispatches included) applies what its doctrine
+  allows without waiting for a walk choice and hands off the rest as that list. Any other review that runs
   unattended or hub-dispatched hands off its findings and applies none.
 - **Review doctrine is planwright's.** Issue and solution validation,
   discovery (its lens list included), refactor flags and, for reviews that

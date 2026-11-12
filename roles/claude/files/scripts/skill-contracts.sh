@@ -612,7 +612,9 @@ done
 [ ! -f CLAUDE.md ] || forbid_normalized CLAUDE.md "copy of a global rule or the Slack mechanics" \
   "$OUTBOUND_ANCHOR" "$RESOLUTION_ANCHOR" "$FIXED_TEMPLATE"
 require_normalized "$SHARED/slack.md" "confirm-step exceptions" \
-  "unless one of the user-global outbound rule's exceptions covers the message (a go-ahead for that message or its run, a reply to an automated reviewer, or a hub go-ahead, relayed for that message or standing under a live program rule that names it):"
+  "unless one of the user-global outbound rule's exceptions covers the message (a go-ahead for that message or its run, covering only the recipients and message kinds named; a reply to an automated reviewer; or a hub go-ahead, relayed for that message or standing under a live program rule that names it, the send naming the rule's id):"
+require_normalized "$SHARED/workflow.md" "unwalked handoff" \
+  "A nested loop hands off a small residue, and so does a review the user-global review rule exempts from the walk choice, so skip"
 require_normalized "$SHARED/slack.md" "unattended handoff step" \
   "With no operator present, draft a message no go-ahead covers, and its recipient, into the handoff instead of sending it."
 
@@ -643,10 +645,8 @@ if [ -n "$global_ok" ]; then
   require_normalized "$GLOBAL_MD" "walk rule" \
     "then let me choose how to walk it rather than assuming all at once." \
     "I keep that choice for a review I run attended that stops for findings." \
-    "A review that applies findings to my own branch and runs unattended, or that my hub dispatched (a chain of hub dispatches included), applies what its doctrine allows without waiting for a walk choice and hands off the rest as that list." \
+    "A review that applies findings to my own branch and either runs unattended (no operator present) or was dispatched by my hub (a chain of hub dispatches included) applies what its doctrine allows without waiting for a walk choice and hands off the rest as that list." \
     "Any other review that runs unattended or hub-dispatched hands off its findings and applies none."
-  require_normalized "$SHARED/workflow.md" "unwalked handoff" \
-    "A nested loop hands off a small residue, and so does a review the user-global review rule exempts from the walk choice, so skip"
 
   # The workflow sections are one-line pointers.
   # Ends at the next heading of its own level or above; a deeper one stays in.
@@ -687,7 +687,7 @@ if [ -n "$global_ok" ]; then
   # Who flips follows ownership: the agent on every PR in a solo repo and on
   # the operator's own PRs elsewhere, never on another person's. The cadence
   # flip is stated once, so a second copy cannot drift from the first.
-  CADENCE_FLIP="The cadence flip: the session that completes the last step of the review cadence the PR calls for (the cadence my instructions and the repo's own \`CLAUDE.md\` call for) marks it ready itself once every step of that cadence has run to completion, CI is green on the current head and the PR is mergeable, re-checking each condition, the repo's kind and the PR's coverage immediately before the flip, and states the flip and the conditions it checked in its reply or handoff."
+  CADENCE_FLIP="The cadence flip: the session that completes the last step of the review cadence the PR calls for (the cadence my instructions and the repo's own \`CLAUDE.md\` call for) marks it ready itself once every step of that cadence has run to completion, CI is green on the current head and the PR is mergeable, re-checking each condition, the repo's kind and the PR's coverage below immediately before the flip, and states the flip and the conditions it checked in its reply or handoff."
   require_normalized "$GLOBAL_MD" "ready-flip scope" \
     "a repo's own \`CLAUDE.md\` moving the rewrite scope or naming its kind does not move the flip." \
     "A **solo repo** is one I own (not an employer or another organization) where no other person works; my own sessions, worktrees, dispatched agents and automated accounts are not another person." \
@@ -695,7 +695,7 @@ if [ -n "$global_ok" ]; then
     "A **collaborative repo** is one I own where another person works; one where you cannot tell whether another person works counts as one." \
     "$CADENCE_FLIP" \
     "In a solo repo the cadence flip covers every PR." \
-    "In a work or collaborative repo it covers a PR I authored (its GitHub author is my login, whoever else has pushed to it) once I have asked, in that session or in the dispatch that opened it, for the change it carries, or that a session my hub (my program's mission-control session) dispatched, directly or through a session it dispatched, opened; it never covers another person's PR." \
+    "In a work or collaborative repo it covers a PR I authored (its GitHub author is my login, whoever else has pushed to it) once I have asked, in that session or in the dispatch that opened it, for the change it carries, or once a session my hub (my program's mission-control session) dispatched, directly or through a session it dispatched, opened it; it never covers another person's PR." \
     "Any other flip there, another person's PR included, is mine to request and yours to perform; once I have asked, do not hand it back to me as a manual step." \
     "A planwright config there may set \`ready_flip_policy: human\`, which reserves its configured flips and a cadence flip a planwright worker would take: offer the flip to me in one line of your reply or handoff without waiting, my yes being the request."
   occurrences "$global_norm" "the session that completes the last step of the review cadence" n

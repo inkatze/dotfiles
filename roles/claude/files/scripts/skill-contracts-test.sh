@@ -1010,7 +1010,7 @@ expect_fail ready-flip-unknown-dropped \
   "perl -0pi -e 's/, including a mergeability GitHub still\\s+reports as \`UNKNOWN\` after one re-query a few seconds later//' $GLOBAL_MD" "ready-flip sentence"
 expect_pass ready-flip-reflow \
   "perl -0pi -e 's/only once it is/only\\nonce it is/' $GLOBAL_MD"
-PIN="Any other flip there, another person's PR included, is mine to request and yours to perform" \
+PIN=" or collaborative repo it covers a PR I authored" \
   expect_fail ready-flip-collaborative-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN=", another person's PR included" \
   expect_fail ready-flip-teammate-request-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
@@ -1028,7 +1028,7 @@ PIN=" (the cadence my instructions and the repo's own \`CLAUDE.md\` call for)" \
   expect_fail ready-flip-cadence-source-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN="In a solo repo the cadence flip covers every PR." \
   expect_fail ready-flip-everywhere 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
-PIN=", re-checking each condition, the repo's kind and the PR's coverage immediately before the flip" \
+PIN=", re-checking each condition, the repo's kind and the PR's coverage below immediately before the flip" \
   expect_fail ready-flip-recheck-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN="a repository whose owner you cannot tell counts as one" \
   expect_fail ready-flip-unknown-owner-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
@@ -1046,10 +1046,10 @@ PIN=" and a cadence flip a planwright worker would take" \
   expect_fail ready-flip-worker-human-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN=", the repo's kind" \
   expect_fail ready-flip-kind-recheck-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
-PIN=" and the PR's coverage" \
+PIN=" and the PR's coverage below" \
   expect_fail ready-flip-coverage-recheck-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 expect_fail ready-flip-scope-duplicated \
-  "perl -0ne 'print \"\\n\$1\\n\" if /(The cadence flip: the session.*?in its reply\\s+or\\s+handoff\\.)/s' $GLOBAL_MD > solo.tmp && cat solo.tmp >> $GLOBAL_MD && rm solo.tmp" "states the cadence flip 2 times"
+  "perl -0ne 'print \"\\n\$1\\n\" if /(The cadence flip: the session.*?in its reply\\s+or\\s+handoff\\.)/s' $GLOBAL_MD > cadence.tmp && cat cadence.tmp >> $GLOBAL_MD && rm cadence.tmp" "states the cadence flip 2 times"
 expect_fail ready-flip-never-rule-restored \
   "printf '\\nNever flip a PR ready on your own initiative.\\n' >> $GLOBAL_MD" "forbidden never-flip rule"
 PIN="the spec PR after a signed-off kickoff, which planwright marks ready by configuration" \
@@ -1075,9 +1075,9 @@ expect_fail global-doctrine-pointer-missing \
 expect_fail global-lens-list \
   "printf '\\n1. Correctness, logic, edge cases (null, empty)\\n' >> $GLOBAL_MD" "copied lens list"
 # The walk choice (REQ-B1.7)
-PIN=" or that my hub dispatched (a chain of hub dispatches included)" \
+PIN=" or was dispatched by my hub (a chain of hub dispatches included)" \
   expect_fail walk-hub-dispatch-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
-PIN=" to my own branch and runs unattended" \
+PIN=" to my own branch and either runs unattended" \
   expect_fail walk-branch-scope-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
 PIN=" that stops for findings" \
   expect_fail walk-loop-scope-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
@@ -1227,7 +1227,7 @@ PIN=" a withdrawn rule, or a record you cannot read, covers nothing." \
   expect_fail standing-go-ahead-unreadable-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "outbound-message rule"
 PIN=" A send under a standing go-ahead names the rule that covered it, by its rule id, in your reply or handoff." \
   expect_fail standing-go-ahead-unnamed-send 'drop_pin "$PIN" "$GLOBAL_MD"' "outbound-message rule"
-PIN="unless one of the user-global outbound rule's exceptions covers the message (a go-ahead for that message or its run, a reply to an automated reviewer, or a hub go-ahead, relayed for that message or standing under a live program rule that names it)" \
+PIN="unless one of the user-global outbound rule's exceptions covers the message (a go-ahead for that message or its run, covering only the recipients and message kinds named; a reply to an automated reviewer; or a hub go-ahead, relayed for that message or standing under a live program rule that names it, the send naming the rule's id)" \
   expect_fail slack-confirm-exceptions-dropped 'drop_pin "$PIN" "$SHARED/slack.md"' "confirm-step exceptions"
 expect_fail exceptions-anchor-missing \
   "perl -0pi -e 's/The rule has exactly three exceptions:/The exceptions:/' $GLOBAL_MD" "no \"exactly three exceptions:\" list"
