@@ -112,3 +112,8 @@
   ansible.builtin.include_tasks: offload-host.yml
   when: inventory_hostname in osx_offload_hosts
   tags: [osx, offload]
+
+- name: Import offload-host runner tasks
+  ansible.builtin.include_tasks: offload-runner.yml
+  when: inventory_hostname in osx_offload_hosts
+  tags: [osx, offload, runner]

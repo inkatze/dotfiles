@@ -23,7 +23,17 @@ env:
 
 jobs:
   lint:
-    runs-on: macos-latest
+    # The offload Mac only for pushes to main of this repository. Pull
+    # requests, forks' included, stay on a hosted runner: a queued job cannot
+    # fall back when the Mac is yielding to its owner or offline, and a pull
+    # request must never wait on that. Nothing here triggers on
+    # pull_request_target or workflow_run, and neither may ever select this
+    # label. A main push that queues waits for the Mac, which gates no merge;
+    # timeout-minutes bounds only the run, not that wait.
+    runs-on: >-
+      ${{ github.repository == 'inkatze/dotfiles'
+      && github.event_name == 'push'
+      && fromJSON('["self-hosted","macOS","mac-fleet"]') || 'macos-latest' }}
     # Each step carries a timeout-minutes a few times its normal runtime, so a
     # hung suite fails fast and names itself instead of holding the job until GitHub's six-hour limit.
     # The job's own limit backstops a step added without one.
@@ -78,6 +88,14 @@ jobs:
         timeout-minutes: 5
         run: scripts/osx-offload-guard-test.sh
 
+      - name: Run the runner gate suite
+        timeout-minutes: 5
+        run: scripts/runner-gate-test.sh
+
+      - name: Run the runner start suite
+        timeout-minutes: 5
+        run: scripts/runner-start-test.sh
+
       # BSD sed and mktemp are what this leg adds; the script runs on macOS.
       - name: Run the offload sshd hardening suite
         timeout-minutes: 5
@@ -100,7 +118,11 @@ jobs:
 
       # macOS ships no timeout; without gtimeout the suite skips its FIFO case,
       # which bounds a play that would hang on a FIFO.
+      #
+      # Hosted runners only: the offload account installs nothing with
+      # Homebrew, so there the suite takes its documented skip.
       - name: Install GNU coreutils for gtimeout
+        if: runner.environment == 'github-hosted'
         timeout-minutes: 10
         run: brew install coreutils
 
@@ -318,6 +340,9 @@ jobs:
   test:
     needs: [lint, changes]
     if: needs.changes.outputs.include != '[]'
+    # Hosted runners only, deliberately: this job runs the roles for real
+    # against $HOME (symlinks, defaults, Homebrew, sudo), which the offload
+    # account must never take. Every matrix runner is a GitHub-hosted label.
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
