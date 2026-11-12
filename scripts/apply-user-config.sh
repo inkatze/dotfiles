@@ -40,7 +40,7 @@ main() {
     [[ "$(id -u)" != 0 ]] || die "refusing to run as root"
 
     # Never wait on a credential prompt.
-    export GIT_TERMINAL_PROMPT=0
+    export GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=true
     # Only when nothing else picks the ssh command: GIT_SSH_COMMAND would
     # override a configured core.sshCommand.
     if [[ -z "${GIT_SSH_COMMAND:-}" && -z "$(git -C "$repo" config --get core.sshCommand || true)" ]]; then
@@ -84,9 +84,11 @@ main() {
     if command -v timeout >/dev/null 2>&1; then fetch=(timeout 120 git -C "$repo" fetch --quiet origin main); fi
     "${fetch[@]}" || die "could not fetch origin main"
     git_ merge --ff-only --quiet origin/main || die "local main does not fast-forward to origin/main"
-    [[ "$(git_ rev-parse HEAD)" == "$(git_ rev-parse origin/main)" ]] \
+    head_sha="$(git_ rev-parse HEAD)" || die "git cannot read HEAD"
+    origin_sha="$(git_ rev-parse origin/main)" || die "git cannot read origin/main"
+    [[ "$head_sha" == "$origin_sha" ]] \
         || die "main is not level with origin/main after the fast-forward"
-    say "applying $(git_ rev-parse --short HEAD)"
+    say "applying ${head_sha:0:12}"
 
     # The playbook's own guards (alias, ANSIBLE_* refusal, selection) apply as ever.
     # mise-managed tools need fish's activation, so fall back to it when

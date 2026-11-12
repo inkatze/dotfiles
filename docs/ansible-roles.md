@@ -74,7 +74,7 @@ and does this, refusing with a reason (non-zero exit; past the argument check a 
 and in the log) at the first step that does not hold:
 
 1. root is refused; it never needs sudo and never prompts (git is told not to ask for
-   credentials, and ssh is told not to unless `core.sshCommand` or
+   credentials or run an askpass helper, and ssh is told not to unless `core.sshCommand` or
    `GIT_SSH_COMMAND` already chooses the command);
 2. one run at a time, through a lock directory (a dead holder's lock is taken
    over);
