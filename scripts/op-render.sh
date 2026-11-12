@@ -44,6 +44,8 @@
 # overwritten; a symlink or any other kind of path is refused. The planwright
 # overlay alone also keeps mission control's own keys across renders, in two
 # files under ~/.config/dotfiles/ (docs/machine-local-files.md).
+# It also takes its live-worker bound from ~/.config/dotfiles/fleet-max-live-workers
+# when that file holds a number, so one machine can differ from the template.
 
 set -eu
 # Every file this writes holds private values, and a caller's umask that drops
