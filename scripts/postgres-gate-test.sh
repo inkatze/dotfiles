@@ -151,6 +151,23 @@ check "a failed role check is retried while the server runs" test "$(grep -c '^c
 )
 check "a running server is stopped fast when the gate is" stopped
 
+# Settings that reach a SQL statement or a server option are refused.
+refuses() { # refuses <VAR=value>...
+    local kv
+    ! (
+        export PATH="$stubs:$PATH" POSTGRES_SOCKET_DIR="$sock" POSTGRES_GATE_SOURCE_ONLY=1
+        for kv in "$@"; do export "${kv?}"; done
+        # shellcheck disable=SC1090
+        . "$gate" "$data"
+    ) 2>/dev/null
+}
+check "a role with a quote is refused" refuses "POSTGRES_ROLE=x'; drop"
+check "a role starting with a digit is refused" refuses POSTGRES_ROLE=1x
+check "a non-numeric port is refused" refuses POSTGRES_PORT=54a
+check "a non-numeric connection cap is refused" refuses POSTGRES_MAX_CONNECTIONS=1e3
+check "a relative socket directory is refused" refuses POSTGRES_SOCKET_DIR=run
+check "a socket directory with a space is refused" refuses "POSTGRES_SOCKET_DIR=/a b"
+
 rm "$data/PG_VERSION"
 step 600 1.0 2>"$scratch/err" || true
 check "no cluster, no start" stopped

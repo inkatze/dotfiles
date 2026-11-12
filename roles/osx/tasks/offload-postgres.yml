@@ -67,7 +67,7 @@
     mode: "0600"
   when: >-
     (osx_postgres_pgpass_read.content | default('') | b64decode
-     | regex_search('(?m)^localhost:' ~ osx_postgres_port ~ ':\*:' ~ osx_postgres_role ~ ':')) is none
+     | regex_search('(?m)^localhost:' ~ osx_postgres_port ~ ':\\*:' ~ osx_postgres_role ~ ':')) is none
   no_log: true
   tags: [osx, offload, postgres]
 

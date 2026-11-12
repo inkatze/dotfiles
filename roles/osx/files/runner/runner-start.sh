@@ -16,6 +16,7 @@ gate="${RUNNER_GATE:-$here/runner-gate.sh}"
 cache="${RUNNER_CACHE_DIR:-$HOME/.cache}"
 nice_level="${RUNNER_NICE:-10}"
 prefix="${RUNNER_PID_PREFIX:-dotfiles-runner}"
+case "$prefix" in '' | *[!A-Za-z0-9_.-]*) echo "runner-start: RUNNER_PID_PREFIX must be a plain name" >&2; exit 1 ;; esac
 slug="$(basename -- "$dir")"
 pidfile="$cache/$prefix-$slug.pid"
 lock="$cache/$prefix-$slug.lock"

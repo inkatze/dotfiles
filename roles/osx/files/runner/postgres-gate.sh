@@ -20,6 +20,12 @@ max_connections="${POSTGRES_MAX_CONNECTIONS:-100}"
 sockdir="${POSTGRES_SOCKET_DIR:?POSTGRES_SOCKET_DIR is not set}"
 pgpass="${PGPASSFILE:-$HOME/.pgpass}"
 poll="${RUNNER_POLL_SECONDS:-10}"
+# These reach a shell command, a SQL statement and a server option string, so
+# refuse anything outside the plain shapes the role defaults produce.
+case "$port$max_connections" in '' | *[!0-9]*) echo "postgres-gate: port and connection cap must be numbers" >&2; exit 1 ;; esac
+case "$role" in '' | [0-9]* | *[!A-Za-z0-9_]*) echo "postgres-gate: role must be a plain identifier" >&2; exit 1 ;; esac
+case "$sockdir" in /*) ;; *) echo "postgres-gate: socket directory must be an absolute path" >&2; exit 1 ;; esac
+case "$sockdir" in *[!A-Za-z0-9_./-]*) echo "postgres-gate: socket directory holds a character the server option cannot carry" >&2; exit 1 ;; esac
 here="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 # The decision functions only; runner-gate.sh's loop stays unstarted.

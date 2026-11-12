@@ -253,7 +253,8 @@ owner's account or settings.
   `PG_VERSION`, with `--auth-local=peer --auth-host=scram-sha-256`. The server
   listens on `localhost` and on a Unix socket in `osx_postgres_socket_dir`
   (default `~/postgresql-16-run`, mode 0700, socket mode 0700), so another
-  account on the Mac reaches neither. The `fleet` role is the cluster's
+  account on the Mac cannot enter the socket directory and, though it can reach
+  the TCP port, cannot log in without the password. The `fleet` role is the cluster's
   bootstrap superuser, and the gate creates `osx_postgres_role` with
   `createuser -s` only when it is missing, so it covers any database a suite
   creates.

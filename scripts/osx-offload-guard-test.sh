@@ -193,6 +193,31 @@ good = [t for t in checks if "{32,}" in str(t["ansible.builtin.assert"]["that"])
 ok("a stored password shorter than 32 characters fails the play, quietly, outside check mode") if good else ko("no no_log, non-check-mode assert that the stored password has 32 characters")
 order = [next(i for i, t in enumerate(pg) if x in t) for x in ("ansible.builtin.lineinfile", "ansible.builtin.assert")]
 ok("the length check runs after the line is written") if order[0] < order[1] else ko("the length check runs before the line is written")
+# The two .pgpass expressions are run, not only read, through jinja2 with the
+# regex_search and b64decode filters ansible supplies.
+try:
+    import base64, re, jinja2
+    jenv = jinja2.Environment()
+    jenv.filters["regex_search"] = lambda s, p: (re.search(p, s).group(0) if re.search(p, s) else None)
+    jenv.filters["b64decode"] = lambda s: base64.b64decode(s).decode()
+    def run_expr(expr, var, text):
+        b64 = base64.b64encode(text.encode()).decode()
+        src = expr if "{{" in expr else "{{ " + expr + " }}"
+        return jenv.from_string(src).render(**{var: {"content": b64}}, osx_postgres_port=5432, osx_postgres_role="fleet") == "True"
+    write = [t for t in pg if "ansible.builtin.lineinfile" in t][0]["when"]
+    final = [t for t in checks][0]["ansible.builtin.assert"]["that"]
+    long_line = "localhost:5432:*:fleet:" + "a" * 32 + "\n"
+    for label, got, want in (
+        ("a missing file gets a password written", run_expr(write, "osx_postgres_pgpass_read", ""), True),
+        ("another host's line does not stop it", run_expr(write, "osx_postgres_pgpass_read", "other:1:*:x:y\n"), True),
+        ("an existing line is kept", run_expr(write, "osx_postgres_pgpass_read", long_line), False),
+        ("a short stored password fails the length check", run_expr(final, "osx_postgres_pgpass_final", "localhost:5432:*:fleet:abc\n"), False),
+        ("an empty stored password fails the length check", run_expr(final, "osx_postgres_pgpass_final", "localhost:5432:*:fleet:\n"), False),
+        ("a full-length stored password passes the length check", run_expr(final, "osx_postgres_pgpass_final", long_line), True),
+    ):
+        ok(label) if got == want else ko(label)
+except ImportError:
+    ok("jinja2 not installed here: the .pgpass expressions are only read, not run")
 cron = [t["ansible.builtin.cron"] for t in pg if "ansible.builtin.cron" in t]
 ok("an @reboot job") if any(c.get("special_time") == "reboot" for c in cron) else ko("no @reboot cron job")
 ok("a periodic re-check job") if any(str(c.get("minute", "")).startswith("*/") for c in cron) else ko("no periodic re-check cron job")
