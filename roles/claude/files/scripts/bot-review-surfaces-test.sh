@@ -208,6 +208,20 @@ check shared-login-errored "$out" '.errored == true'
 out="$(surfaces '[]' \
   "[{\"id\": 78, \"user\": $gha, \"updated_at\": \"2026-01-01T00:00:06Z\", \"body\": \"<!-- pr-agent-run: id=10.1 head=$HEAD_B status=failure -->\"}]" '[]')"
 check shared-login-failed-run "$out" '.errored == true and .build_id.value == "10.1" and .reviewed_head == null'
+
+# The marker the PR-Agent workflow posts is the one these patterns read: render
+# its body line with a sample run and head, and feed it through the filter.
+tpl="$(grep -m1 -o '<!-- pr-agent-run: id=[^"]*-->' "$ROOT/.github/workflows/pr-agent.yml" || true)"
+[ -n "$tpl" ] || fail workflow-marker "no pr-agent-run marker line in .github/workflows/pr-agent.yml"
+for st in success failure; do
+  rendered="${tpl//\$\{RUN_ID\}/12.3}"; rendered="${rendered//\$\{HEAD_SHA\}/$HEAD_A}"; rendered="${rendered//\$\{status\}/$st}"
+  out="$(surfaces '[]' "[{\"id\": 79, \"user\": $gha, \"updated_at\": \"2026-01-01T00:00:04Z\", \"body\": \"$rendered\\nPR-Agent run\"}]" '[]')"
+  if [ "$st" = success ]; then
+    check "workflow-marker-$st" "$out" ".build_id.value == \"12.3\" and .reviewed_head.value == \"$HEAD_A\" and .errored == false"
+  else
+    check "workflow-marker-$st" "$out" '.build_id.value == "12.3" and .reviewed_head == null and .errored == true'
+  fi
+done
 CFG="$CFG_SAVED"
 
 # A reviewer missing from the config is an error, never an empty PR.

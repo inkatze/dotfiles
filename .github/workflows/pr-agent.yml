@@ -33,6 +33,7 @@ jobs:
         run: echo "::notice title=PR-Agent skipped::Repository secret OPENROUTER_API_KEY is not set; no review was run."
 
       - name: PR-Agent review
+        id: review
         if: env.HAS_MODEL_KEY == 'true'
         # v0.50.0
         uses: the-pr-agent/pr-agent@e673a02076ce09a4726c3d0c3cc85780e59ca52b
@@ -49,3 +50,30 @@ jobs:
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "false"
           github_action_config.auto_improve: "false"
+
+      # PR-Agent embeds no head SHA or status in what it posts, and /bot-review
+      # ties a review to a head through this marker; keep the format in step
+      # with the pr_agent patterns in the rendered bot-review.json.
+      - name: Record the reviewed head
+        if: ${{ !cancelled() && steps.review.outcome != 'skipped' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_ID: ${{ github.run_id }}.${{ github.run_attempt }}
+          OUTCOME: ${{ steps.review.outcome }}
+        run: |
+          status=failure
+          [ "$OUTCOME" = success ] && status=success
+          body="<!-- pr-agent-run: id=${RUN_ID} head=${HEAD_SHA} status=${status} -->"
+          body+=$'\n'"PR-Agent run ${RUN_ID} on ${HEAD_SHA}: ${status}"
+          pick='[.[] | select(.user.login == "github-actions[bot]"
+            and (.body | startswith("<!-- pr-agent-run: ")))] | last | .id // empty'
+          existing="$(gh api --paginate "repos/${REPO}/issues/${PR}/comments?per_page=100" \
+            --jq "$pick" | tail -n 1)"
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/${REPO}/issues/comments/${existing}" -f body="$body" > /dev/null
+          else
+            gh api -X POST "repos/${REPO}/issues/${PR}/comments" -f body="$body" > /dev/null
+          fi
