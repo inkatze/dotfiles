@@ -97,12 +97,19 @@ else fail no-arguments "rc=$rc out=$out"; fi
 
 d="$(fixture lock)"; mkdir -p "$XDG_STATE_HOME/dotfiles/apply-user-config.lock"
 sleep 30 & holder=$!
+trap 'kill "$holder" 2>/dev/null; rm -rf "$work"' EXIT
 echo "$holder" >"$XDG_STATE_HOME/dotfiles/apply-user-config.lock/pid"
 refused lock-held "$d" 'holds the lock'
 kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
 out="$(run "$d")"; rc=$?
 if [ $rc -eq 0 ] && [ -e "$d/ran" ] && [ ! -e "$XDG_STATE_HOME/dotfiles/apply-user-config.lock" ]; then ok stale-lock "dead holder's lock is taken over and released"
 else fail stale-lock "rc=$rc out=$out"; fi
+
+d="$(fixture root)"; mkdir -p "$work/rootbin"
+printf '#!/usr/bin/env bash\necho 0\n' >"$work/rootbin/id"; chmod +x "$work/rootbin/id"
+out="$(cd "$d/checkout" && PATH="$work/rootbin:$PATH" scripts/apply-user-config.sh 2>&1)"; rc=$?
+if [ $rc -ne 0 ] && grep -q 'as root' <<<"$out" && [ ! -e "$d/ran" ]; then ok root-refused "refuses to run as root"
+else fail root-refused "rc=$rc out=$out"; fi
 
 d="$(fixture failing)"; rm -f "$log"
 out="$(run "$d" STUB_EXIT=3)"; rc=$?

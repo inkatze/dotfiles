@@ -50,7 +50,7 @@ main() {
 
     if ! mkdir -- "$lock" 2>/dev/null; then
         holder="$(cat -- "$lock/pid" 2>/dev/null || true)"
-        if [[ -n "$holder" ]] && kill -0 "$holder" 2>/dev/null; then
+        if [[ "$holder" =~ ^[1-9][0-9]*$ ]] && kill -0 "$holder" 2>/dev/null; then
             die "another run holds the lock (pid $holder)"
         fi
         # No pid yet means the holder is between mkdir and its pid write: only
@@ -58,8 +58,10 @@ main() {
         if [[ -z "$holder" && -n "$(find "$lock" -maxdepth 0 -mmin -1 2>/dev/null)" ]]; then
             die "another run is taking the lock"
         fi
-        rm -rf -- "$lock"
-        mkdir -- "$lock" 2>/dev/null || die "could not take the lock at $lock"
+        # Renaming is atomic, so of several runs finding it stale only one wins.
+        mv -- "$lock" "$lock.stale.$$" 2>/dev/null || die "another run is taking the lock"
+        rm -rf -- "$lock.stale.$$"
+        mkdir -- "$lock" 2>/dev/null || die "another run is taking the lock"
     fi
     trap 'rm -rf -- "$lock"' EXIT
     trap 'exit 130' INT TERM HUP

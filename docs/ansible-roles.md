@@ -73,8 +73,9 @@ may not run the playbook with its open argument surface. It takes no arguments
 and does this, refusing with a reason (non-zero exit; past the argument check a `FAILED:` line on the terminal
 and in the log) at the first step that does not hold:
 
-1. root is refused; it never needs sudo and never prompts (git and ssh are
-   told not to ask);
+1. root is refused; it never needs sudo and never prompts (git is told not to ask for
+   credentials, and ssh is told not to unless `core.sshCommand` or
+   `GIT_SSH_COMMAND` already chooses the command);
 2. one run at a time, through a lock directory (a dead holder's lock is taken
    over);
 3. it must be the main checkout, not a linked worktree, on `main`, with no
