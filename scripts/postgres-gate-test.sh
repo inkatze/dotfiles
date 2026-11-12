@@ -129,6 +129,11 @@ step 10 1.0
 step 600 1.0 yes
 check "with no stored password the role is left as it is" not_logged "-f -"
 
+printf 'localhost:5599:*:fleet:\n' >"$scratch/pgpass"
+step 10 1.0
+step 600 1.0 yes
+check "an empty stored password is never applied" not_logged "-f -"
+
 # A term of the gate stops a running server the same way.
 : >"$scratch/log"
 (

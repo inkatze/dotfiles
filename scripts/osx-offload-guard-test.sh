@@ -188,6 +188,11 @@ if pgpass and all(whens(t) and "regex_search" in whens(t)[0] for t in pgpass):
     ok("an existing .pgpass line is kept: the write runs only when it is absent")
 else:
     ko("the .pgpass write is not conditional on the line being absent")
+checks = [t for t in pg if "ansible.builtin.assert" in t]
+good = [t for t in checks if "{32,}" in str(t["ansible.builtin.assert"]["that"]) and t.get("no_log") and "ansible_check_mode" in str(t.get("when")) and "Remove that line and re-run" in " ".join(str(t["ansible.builtin.assert"]["fail_msg"]).split())]
+ok("a stored password shorter than 32 characters fails the play, quietly, outside check mode") if good else ko("no no_log, non-check-mode assert that the stored password has 32 characters")
+order = [next(i for i, t in enumerate(pg) if x in t) for x in ("ansible.builtin.lineinfile", "ansible.builtin.assert")]
+ok("the length check runs after the line is written") if order[0] < order[1] else ko("the length check runs before the line is written")
 cron = [t["ansible.builtin.cron"] for t in pg if "ansible.builtin.cron" in t]
 ok("an @reboot job") if any(c.get("special_time") == "reboot" for c in cron) else ko("no @reboot cron job")
 ok("a periodic re-check job") if any(str(c.get("minute", "")).startswith("*/") for c in cron) else ko("no periodic re-check cron job")

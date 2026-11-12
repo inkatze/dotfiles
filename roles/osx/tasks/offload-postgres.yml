@@ -71,6 +71,32 @@
   no_log: true
   tags: [osx, offload, postgres]
 
+- name: Read the account's .pgpass again
+  ansible.builtin.slurp:
+    src: "{{ osx_postgres_pgpass }}"
+  register: osx_postgres_pgpass_final
+  failed_when: false
+  no_log: true
+  check_mode: false
+  tags: [osx, offload, postgres]
+
+# A line kept from a hand edit or an earlier version of this task may carry a
+# short or empty password, which the gate would apply on every start (an empty
+# one it skips, leaving TCP logins failing with no sign why).
+- name: Require a full-length stored password
+  ansible.builtin.assert:
+    that: >-
+      (osx_postgres_pgpass_final.content | default('') | b64decode
+       | regex_search('(?m)^localhost:' ~ osx_postgres_port ~ ':\\*:' ~ osx_postgres_role ~ ':.{32,}$')) is not none
+    fail_msg: >-
+      The localhost:{{ osx_postgres_port }}:*:{{ osx_postgres_role }}: line in
+      {{ osx_postgres_pgpass }} has a password shorter than 32 characters.
+      Remove that line and re-run, which generates a new one.
+    quiet: true
+  when: not ansible_check_mode
+  no_log: true
+  tags: [osx, offload, postgres]
+
 # The fleet account only ever logs in over ssh, so it has no launchd user
 # domain; see the runner crontab tasks. An unchanged job leaves a running
 # server alone.
