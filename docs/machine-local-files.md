@@ -65,6 +65,18 @@ serialized: the render refuses to replace an overlay that changed since it
 read it, but a write landing in the instant between that check and the
 rename is lost.
 
+`fleet-max-live-workers` sets the host-wide live-worker bound
+(`fleet_host_max_live_workers`) for one machine. The overlay template carries
+the shared default of 8; when this file holds a whole number from 1 to 99 (one
+line, surrounding whitespace ignored) the renderer substitutes it for that
+line's value, and an empty or absent file keeps 8. Anything else, a symlink or
+a non-regular file fails the render. It needs no 1Password item and is applied
+before the supplement, which only carries `mission_control_*` and `program_*`
+keys. On a machine that runs more workers, write it once with
+`echo 10 > ~/.config/dotfiles/fleet-max-live-workers`; the next playbook run
+renders it. It has no row in the repo-root table, which sits at its line
+ceiling; this section is its record.
+
 `git-work-orgs` is rendered the same way from the item
 `dotfiles-git-work-orgs` (field `orgs`, owner names separated by whitespace),
 by a task in the git role rather than the claude role, because the git role

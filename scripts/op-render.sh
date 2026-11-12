@@ -269,6 +269,28 @@ else
     "$template" >"$work/rendered"
 fi
 
+# The live-worker bound is per machine: the template carries the shared default
+# and an optional one-line file replaces its value, so no 1Password item changes.
+if [ "$rule" = planwright-overlay ]; then
+  bound_file="$HOME/.config/dotfiles/fleet-max-live-workers"
+  if [ -e "$bound_file" ] || [ -L "$bound_file" ]; then
+    [ ! -L "$bound_file" ] || fail "refusing to read $bound_file: it is a symlink"
+    [ -f "$bound_file" ] || fail "refusing to read $bound_file: not a regular file"
+    bound="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$bound_file")" || fail "could not read $bound_file"
+    if [ -n "$bound" ]; then
+      case "$bound" in
+        [1-9] | [1-9][0-9]) ;;
+        *) fail "$bound_file must hold one whole number from 1 to 99" ;;
+      esac
+      grep -q '^fleet_host_max_live_workers: ' "$work/rendered" \
+        || fail "the template has no fleet_host_max_live_workers line for $bound_file to set"
+      sed -e "s/^fleet_host_max_live_workers: .*/fleet_host_max_live_workers: $bound/" \
+        "$work/rendered" >"$work/bounded" || fail "could not apply $bound_file"
+      mv -f -- "$work/bounded" "$work/rendered"
+    fi
+  fi
+fi
+
 # The overlay is also mission control's write target (planwright's
 # mc-config.sh), which refuses a file whose header says another tool renders
 # it. So its own keys survive the render instead: any it changed since the
