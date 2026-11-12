@@ -1,0 +1,108 @@
+---
+
+# PostgreSQL for the work account: the mise-installed server, one data directory
+# in its home, started from its own crontab like the runners
+# (offload-runner.yml) and only while the Mac is idle. No sudo, no Homebrew.
+# postgres-gate.sh holds the start, the fast stop and the role check
+# (docs/offload-host.md).
+
+# The runner roles install these too; repeated so a run limited to this tag
+# still finds all three.
+- name: Install the postgres gate and the shared gate and start scripts
+  ansible.builtin.copy:
+    src: "runner/{{ item }}"
+    dest: "{{ ansible_facts.env.HOME }}/.local/bin/{{ item }}"
+    mode: "0755"
+  loop:
+    - postgres-gate.sh
+    - runner-gate.sh
+    - runner-start.sh
+  tags: [osx, offload, postgres]
+
+- name: Create the socket directory, readable by this account only
+  ansible.builtin.file:
+    path: "{{ osx_postgres_socket_dir }}"
+    state: directory
+    mode: "0700"
+  tags: [osx, offload, postgres]
+
+# From $HOME, as the mise install does: a shim reads the config of the
+# directory it runs in. Peer on the socket, scram over TCP: another account on
+# this Mac cannot reach the server without the password in this account's
+# ~/.pgpass.
+- name: Initialise the cluster only when its data directory is absent
+  ansible.builtin.command:
+    argv:
+      - initdb
+      - --pgdata={{ osx_postgres_data }}
+      - --encoding=UTF8
+      - --locale=en_US.UTF-8
+      - --auth-local=peer
+      - --auth-host=scram-sha-256
+    chdir: "{{ ansible_facts.env.HOME }}"
+    creates: "{{ osx_postgres_data }}/PG_VERSION"
+  environment:
+    PATH: "{{ osx_runner_path }}"
+  tags: [osx, offload, postgres]
+
+- name: Read the account's .pgpass
+  ansible.builtin.slurp:
+    src: "{{ osx_postgres_pgpass }}"
+  register: osx_postgres_pgpass_read
+  failed_when: false
+  no_log: true
+  check_mode: false
+  tags: [osx, offload, postgres]
+
+# An existing line is kept, never regenerated: the gate sets the role's
+# password from it on each start. The password is random, lives in this task's
+# memory and the 0600 file only, and is never printed, so the task is no_log.
+- name: Store a generated password for the role, once
+  ansible.builtin.lineinfile:
+    path: "{{ osx_postgres_pgpass }}"
+    line: >-
+      localhost:{{ osx_postgres_port }}:*:{{ osx_postgres_role }}:{{
+      lookup('ansible.builtin.password', '/dev/null chars=ascii_letters,digits length=32') }}
+    create: true
+    mode: "0600"
+  when: >-
+    (osx_postgres_pgpass_read.content | default('') | b64decode
+     | regex_search('(?m)^localhost:' ~ osx_postgres_port ~ ':\*:' ~ osx_postgres_role ~ ':')) is none
+  no_log: true
+  tags: [osx, offload, postgres]
+
+# The fleet account only ever logs in over ssh, so it has no launchd user
+# domain; see the runner crontab tasks. An unchanged job leaves a running
+# server alone.
+- name: Start the postgres gate at boot
+  ansible.builtin.cron:
+    name: "dotfiles postgres at boot"
+    special_time: reboot
+    job: "{{ osx_postgres_start_job }}"
+  tags: [osx, offload, postgres]
+
+- name: Re-check the postgres gate periodically
+  ansible.builtin.cron:
+    name: "dotfiles postgres re-check"
+    minute: "*/{{ osx_runner_recheck_minutes }}"
+    job: "{{ osx_postgres_start_job }}"
+  tags: [osx, offload, postgres]
+
+- name: Start the postgres gate now
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_facts.env.HOME }}/.local/bin/runner-start.sh"
+      - "{{ osx_postgres_data }}"
+  environment:
+    PATH: "{{ osx_runner_path }}"
+    RUNNER_IDLE_SECONDS: "{{ osx_runner_idle_seconds }}"
+    RUNNER_LOAD_MAX: "{{ osx_runner_load_max }}"
+    RUNNER_NICE: "{{ osx_runner_nice }}"
+    RUNNER_GATE: "{{ ansible_facts.env.HOME }}/.local/bin/postgres-gate.sh"
+    RUNNER_PID_PREFIX: dotfiles-postgres
+    POSTGRES_PORT: "{{ osx_postgres_port }}"
+    POSTGRES_SOCKET_DIR: "{{ osx_postgres_socket_dir }}"
+    POSTGRES_MAX_CONNECTIONS: "{{ osx_postgres_max_connections }}"
+    POSTGRES_ROLE: "{{ osx_postgres_role }}"
+  changed_when: false
+  tags: [osx, offload, postgres]

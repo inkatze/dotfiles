@@ -80,6 +80,15 @@ touch -t 200001010000 "$scratch/cache/dotfiles-runner-r.lock"
 settle 4
 check "a stale lock is cleared and the gate started" starts_is 4
 
+# RUNNER_PID_PREFIX gives another gate its own pid, lock and log names, so the
+# postgres gate and a runner never share a pid file.
+mkdir -p "$scratch/p"
+RUNNER_PID_PREFIX=dotfiles-postgres "$start" "$scratch/p"
+settle 5
+check "a prefixed gate keeps its pid under the prefix" test -s "$scratch/cache/dotfiles-postgres-p.pid"
+check "a prefixed gate leaves the runner names alone" test ! -e "$scratch/cache/dotfiles-runner-p.pid"
+kill "$(cat "$scratch/cache/dotfiles-postgres-p.pid")" 2>/dev/null || true
+
 # The role: crontab jobs, no launchd.
 contract() { python3 - "$repo" <<'PY'; }
 import re, sys, yaml

@@ -117,3 +117,8 @@
   ansible.builtin.include_tasks: offload-runner.yml
   when: inventory_hostname in osx_offload_hosts
   tags: [osx, offload, runner]
+
+- name: Import offload-host postgres tasks
+  ansible.builtin.include_tasks: offload-postgres.yml
+  when: inventory_hostname in osx_offload_hosts
+  tags: [osx, offload, postgres]

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Starts runner-gate.sh for one runner directory unless it already runs, and
-# returns at once. Usage: runner-start.sh <runner-dir>
+# Starts a gate (runner-gate.sh, or RUNNER_GATE) for one directory unless it
+# already runs, and returns at once. Usage: runner-start.sh <dir>
+# RUNNER_PID_PREFIX names its pid, lock and log files in the cache directory.
 #
 # The fleet account only ever logs in over ssh, so it has no launchd user
 # domain and no sudo: its crontab calls this at boot and every few minutes, and
@@ -14,9 +15,10 @@ here="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 gate="${RUNNER_GATE:-$here/runner-gate.sh}"
 cache="${RUNNER_CACHE_DIR:-$HOME/.cache}"
 nice_level="${RUNNER_NICE:-10}"
+prefix="${RUNNER_PID_PREFIX:-dotfiles-runner}"
 slug="$(basename -- "$dir")"
-pidfile="$cache/dotfiles-runner-$slug.pid"
-lock="$cache/dotfiles-runner-$slug.lock"
+pidfile="$cache/$prefix-$slug.pid"
+lock="$cache/$prefix-$slug.lock"
 
 mkdir -p "$cache" || exit 1
 
@@ -42,5 +44,5 @@ command -v taskpolicy >/dev/null 2>&1 && low_io=(taskpolicy -b)
 
 # The expansion form keeps an empty array legal under set -u on macOS bash 3.2.
 nohup ${low_io[@]+"${low_io[@]}"} nice -n "$nice_level" "$gate" "$dir" \
-    >>"$cache/dotfiles-runner-$slug.out" 2>>"$cache/dotfiles-runner-$slug.err" </dev/null &
+    >>"$cache/$prefix-$slug.out" 2>>"$cache/$prefix-$slug.err" </dev/null &
 echo $! >"$pidfile"

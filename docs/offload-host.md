@@ -233,3 +233,70 @@ defaults; bump both together.
   if you want the narrower token back after the first run.
 - **Logs:** `~/.cache/dotfiles-runner-<owner>-<repo>.{out,err}` (cron's own
   mail for the account is empty unless a job line breaks).
+
+## PostgreSQL
+
+The play (`roles/osx/tasks/offload-postgres.yml`) gives the work account a
+PostgreSQL 16 server for test suites run on the Mac. Same posture as the
+runners: nothing uses sudo or the owner's Homebrew, and nothing touches the
+owner's account or settings.
+
+- **Install.** `postgres` is pinned in `roles/osx/files/mise-offload/offload.toml`
+  beside the other tools; mise's postgres plugin compiles it from source, so
+  the Command Line Tools must be present. `POSTGRES_CONFIGURE_OPTIONS` in that
+  file builds without icu, readline and openssl (the plugin's defaults would
+  reach into the owner's Homebrew), and with no uuid support: a localhost test
+  server needs none, `psql` simply has no line editing, and there are no
+  TLS connections. The pinned minor is a reviewed bump.
+- **Data and access.** The cluster is `osx_postgres_data` (default
+  `~/postgresql-16`), initialised by `initdb` only when that directory has no
+  `PG_VERSION`, with `--auth-local=peer --auth-host=scram-sha-256`. The server
+  listens on `localhost` and on a Unix socket in `osx_postgres_socket_dir`
+  (default `~/postgresql-16-run`, mode 0700, socket mode 0700), so another
+  account on the Mac reaches neither. The `fleet` role is the cluster's
+  bootstrap superuser, and the gate creates `osx_postgres_role` with
+  `createuser -s` only when it is missing, so it covers any database a suite
+  creates.
+- **Password.** The play appends `localhost:<port>:*:fleet:<password>` to
+  `~/.pgpass` (mode 0600), a random password, only while no such line exists,
+  and never prints it (`no_log`). The gate sets it on the role with `ALTER ROLE`
+  over a peer connection on each start, from the file, feeding the statement
+  on stdin so no process list shows it. Nothing writes it anywhere shared or
+  tracked.
+- **Connecting.** Port 5432 (`osx_postgres_port`). The local mode needs no
+  password: a suite that takes `POSTGRES_SOCKET_DIR` connects over the socket
+  with peer auth, `POSTGRES_SOCKET_DIR=$HOME/postgresql-16-run`. Over TCP,
+  `psql -h localhost` reads `~/.pgpass`; a suite that does not read it needs
+  `POSTGRES_USER` (default `fleet`) and `POSTGRES_PASSWORD`, exported in the
+  session from the file, not stored:
+
+  ```zsh
+  export POSTGRES_PASSWORD="$(awk -F: '$1=="localhost" && $4=="fleet" {print $5; exit}' ~/.pgpass)"
+  ```
+
+  (a password with a `\` or `:` is escaped in the file, but the generated ones
+  hold neither).
+- **Connections.** `max_connections` is `osx_postgres_max_connections`: a test
+  pool is two connections per scheduler per partition, so it is the Mac's
+  cores times two times `osx_postgres_partitions` (default 4) plus 50, and
+  never below PostgreSQL's 100. Raise the partitions for a wider run.
+- **Keeping it running.** Like the runners: an `@reboot` crontab line and one
+  every `osx_runner_recheck_minutes`, both calling `runner-start.sh` (the
+  runners' starter, told by `RUNNER_GATE` and `RUNNER_PID_PREFIX` to run
+  `postgres-gate.sh` and keep its pid, lock and logs as
+  `~/.cache/dotfiles-postgres-<dir>.*`). It starts the gate detached at nice
+  10 and does nothing when it already runs. The server log is
+  `<data dir>/server.log`. To stop it for good, remove the two `dotfiles
+  postgres` crontab lines, then kill the pid in the pid file; the gate stops
+  the server fast on `TERM`.
+- **Yielding.** `postgres-gate.sh` starts the server only when
+  `runner-gate.sh`'s `mac_is_free` holds: input idle for
+  `osx_runner_idle_seconds` and the one-minute load under
+  `osx_runner_load_max`. Once input arrives, within that window, it runs
+  `pg_ctl stop -m fast`: sessions are disconnected, their open transactions
+  rolled back, committed data flushed, nothing killed mid-write, so a test run
+  in flight fails and is re-run. It starts again on the next idle check
+  (every ten seconds). Load alone never stops it: a test run loads the Mac
+  through the server it uses, and stopping on that would end every busy run.
+  The runner's rule is the opposite on this point (a running job is left to
+  finish), by the owner's priority over a job that can be rerun.

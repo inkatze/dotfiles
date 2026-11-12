@@ -113,7 +113,7 @@ else:
     ko(f"osx_brew_writable is set ahead of the imports as {writable}")
 
 print("1b. the offload host's own tasks never ask for sudo")
-for fname in ("offload-host.yml", "offload-tools.yml", "offload-runner.yml"):
+for fname in ("offload-host.yml", "offload-tools.yml", "offload-runner.yml", "offload-postgres.yml"):
     becomes = [
         sub["name"]
         for t in load(fname)
@@ -152,6 +152,56 @@ for name in ("homebrew.yml", "upgrade.yml"):
     for t in syncs:
         skips = any(w.strip() == "inventory_hostname not in osx_offload_hosts" for w in whens(t))
         ok(f"{name}: {t['name']}: skipped there") if skips else ko(f"{name}: {t['name']}: runs on the offload host")
+
+print("5. postgres runs from the fleet account's mise and crontab, with no Homebrew")
+pg = load("offload-postgres.yml")
+defaults = load("../defaults/main.yml")
+with open(f"{tasks_dir}/../files/mise-offload/offload.toml") as f:
+    toml_lines = [l.split("#")[0].strip() for l in f]
+ok("offload.toml pins postgres 16") if any(l.startswith('postgres = "16.') for l in toml_lines) else ko("offload.toml does not pin postgres 16")
+opts = next((l for l in toml_lines if l.startswith("POSTGRES_CONFIGURE_OPTIONS")), "")
+if all(w in opts for w in ("--without-icu", "--without-readline", "--without-openssl")):
+    ok("the build drops the libraries the owner's Homebrew would supply")
+else:
+    ko("offload.toml does not drop icu, readline and openssl from the postgres build")
+ok("postgres is among the mise tools installed") if "postgres" in defaults["osx_offload_mise_tools"] else ko("postgres is not in osx_offload_mise_tools")
+initdb = [t for t in pg if "initdb" in command_text(t)]
+if initdb and all(arg(t, "ansible.builtin.command", "creates") == "{{ osx_postgres_data }}/PG_VERSION" for t in initdb):
+    ok("initdb runs only when the data directory is absent")
+else:
+    ko("initdb is missing or not guarded by creates on PG_VERSION")
+args = [str(a) for t in initdb for a in arg(t, "ansible.builtin.command", "argv")]
+for want in ("--auth-local=peer", "--auth-host=scram-sha-256"):
+    ok(f"initdb passes {want}") if want in args else ko(f"initdb lacks {want}")
+ko("initdb allows trust") if any("trust" in a for a in args) else ok("initdb allows no trust login")
+socket = [t for t in pg if arg(t, "ansible.builtin.file", "path") == "{{ osx_postgres_socket_dir }}"]
+if socket and all(arg(t, "ansible.builtin.file", "mode") == "0700" for t in socket):
+    ok("the socket directory is mode 0700")
+else:
+    ko("the socket directory is not created with mode 0700")
+pgpass = [t for t in pg if arg(t, "ansible.builtin.lineinfile", "path") == "{{ osx_postgres_pgpass }}"]
+if pgpass and all(arg(t, "ansible.builtin.lineinfile", "mode") == "0600" and t.get("no_log") for t in pgpass):
+    ok("the password lands in a 0600 file, from a no_log task")
+else:
+    ko("the .pgpass line is not written 0600 from a no_log task")
+if pgpass and all(whens(t) and "regex_search" in whens(t)[0] for t in pgpass):
+    ok("an existing .pgpass line is kept: the write runs only when it is absent")
+else:
+    ko("the .pgpass write is not conditional on the line being absent")
+cron = [t["ansible.builtin.cron"] for t in pg if "ansible.builtin.cron" in t]
+ok("an @reboot job") if any(c.get("special_time") == "reboot" for c in cron) else ko("no @reboot cron job")
+ok("a periodic re-check job") if any(str(c.get("minute", "")).startswith("*/") for c in cron) else ko("no periodic re-check cron job")
+for c in cron:
+    ok(f"{c['name']}: the shared start job") if c["job"] == "{{ osx_postgres_start_job }}" else ko(f"{c['name']}: job is not the shared start job")
+job = defaults["osx_postgres_start_job"]
+for needle in ("PATH=", "RUNNER_IDLE_SECONDS=", "RUNNER_LOAD_MAX=", "RUNNER_NICE=", "RUNNER_GATE=", "RUNNER_PID_PREFIX=", "POSTGRES_SOCKET_DIR=", "POSTGRES_MAX_CONNECTIONS=", "runner-start.sh"):
+    ok(f"start job carries {needle}") if needle in job else ko(f"start job lacks {needle}")
+ok("start job holds no %") if "%" not in job else ko("start job holds a % (it ends a cron command)")
+ok("start job carries no password") if "PASSWORD" not in job.upper() else ko("start job names a password")
+code = open(f"{tasks_dir}/offload-postgres.yml").read()
+code = "\n".join(l for l in code.splitlines() if not l.lstrip().startswith("#"))
+for word in ("launchctl", "LaunchAgents", "brew", "become"):
+    ko(f"offload-postgres.yml mentions {word}") if word in code else ok(f"offload-postgres.yml never mentions {word}")
 
 print(f"\nosx-offload-guard: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
