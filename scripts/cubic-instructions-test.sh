@@ -22,7 +22,9 @@ cat >"$play" <<'YAML'
   hosts: localhost
   connection: local
   gather_facts: true
-  gather_subset: [min]
+  # Only the fact subsets these tasks read: the default set and `min` each cost
+  # about 72s a play on GitHub's macOS runners, most of the lint job's time.
+  gather_subset: ['!all', '!min', 'env', 'user']
   tasks:
     - name: Run only the tasks that own the cubic CLI's files
       ansible.builtin.include_role:
@@ -35,7 +37,7 @@ YAML
 run_role() {
   local home="$1"
   shift
-  HOME="$home" ansible-playbook "$play" "$@" >"$work/out" 2>&1
+  HOME="$home" ANSIBLE_PIPELINING=true ansible-playbook "$play" "$@" >"$work/out" 2>&1
   if ! grep -q 'PLAY RECAP' "$work/out" || grep -qE '^fatal|failed=[1-9]' "$work/out"; then
     fail play "the play failed"
     sed 's/^/    /' "$work/out" | tail -12

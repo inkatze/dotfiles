@@ -3,7 +3,7 @@
 # item (for a JSON template, optionally a second), then validate it before it
 # lands.
 #
-# Usage: op-render.sh <template> <item> <output>
+# Usage: op-render.sh [--work-account] <template> <item> <output>
 #
 # A template reference is `{{ op://__OP_VAULT__/__OP_ITEM__/<field> }}`, the
 # shape scripts/ssh-lan-config-sync.sh uses, resolved against <item> in the
@@ -29,13 +29,21 @@
 # service-account token, which cannot reach another account; with the three
 # unset, every such reference resolves empty.
 #
+# --work-account reads <item> itself from that account and the vault
+# DOTFILES_OP_WORK_VAULT names, in the same way, and refuses to run with the
+# three unset rather than fall back to the service-account vault: it is how a
+# host keeps a file whose values must never sit in a personal item.
+#
 # The template's basename picks the validation rule; a template with none is
 # refused rather than rendered unchecked.
 #
-# Prints OK when the output already matches, CHANGED when it is (re)written or
-# its mode tightened, and exits non-zero with a FAILED: line otherwise; Ansible
+# Prints OK when the output already matches, CHANGED when it (or, for the
+# overlay, the supplement or snapshot below) is (re)written, removed or its
+# mode tightened, and exits non-zero with a FAILED: line otherwise; Ansible
 # gates changed_when on CHANGED. A plain regular file at the output is
-# overwritten; a symlink or any other kind of path is refused.
+# overwritten; a symlink or any other kind of path is refused. The planwright
+# overlay alone also keeps mission control's own keys across renders, in two
+# files under ~/.config/dotfiles/ (docs/machine-local-files.md).
 
 set -eu
 # Every file this writes holds private values, and a caller's umask that drops
@@ -47,7 +55,12 @@ fail() {
   exit 1
 }
 
-[ "$#" -eq 3 ] || fail "usage: op-render.sh <template> <item> <output>"
+from_work=false
+if [ "${1:-}" = --work-account ]; then
+  from_work=true
+  shift
+fi
+[ "$#" -eq 3 ] || fail "usage: op-render.sh [--work-account] <template> <item> <output>"
 template="$1"
 item="$2"
 output="$3"
@@ -77,8 +90,12 @@ check_name() { # check_name <what> <value> <allowed after the first character, `
 check_name "the item name" "$item" '._ -'
 
 # The work item is checked before any op call, so a bad setting costs no read.
-work_on=false
+work_refs=false
 if [ "$format" = json ] && grep -qF '__OP_WORK_VAULT__' "$template"; then
+  work_refs=true
+fi
+work_set=false
+if [ "$work_refs" = true ] || [ "$from_work" = true ]; then
   w_account="${DOTFILES_OP_WORK_ACCOUNT:-}"
   w_vault="${DOTFILES_OP_WORK_VAULT:-}"
   w_item="${DOTFILES_OP_WORK_ITEM:-}"
@@ -88,14 +105,19 @@ if [ "$format" = json ] && grep -qF '__OP_WORK_VAULT__' "$template"; then
     check_name DOTFILES_OP_WORK_ACCOUNT "$w_account" '._@-'
     check_name DOTFILES_OP_WORK_VAULT "$w_vault" '._ -'
     check_name DOTFILES_OP_WORK_ITEM "$w_item" '._ -'
-    work_on=true
+    work_set=true
+  elif [ "$from_work" = true ]; then
+    fail "--work-account needs DOTFILES_OP_WORK_ACCOUNT, DOTFILES_OP_WORK_VAULT and DOTFILES_OP_WORK_ITEM, which scripts/playbook.sh exports from ~/.config/dotfiles/op-work-item; none is set"
   fi
 fi
+work_on=false
+[ "$work_refs" = false ] || [ "$work_set" = false ] || work_on=true
 
-check_output() {
-  if [ -e "$output" ] || [ -L "$output" ]; then
-    [ -L "$output" ] && fail "refusing to write $output: it is a symlink"
-    [ -f "$output" ] || fail "refusing to write $output: not a regular file"
+check_output() { # check_output [<path>], the output by default
+  local path="${1:-$output}"
+  if [ -e "$path" ] || [ -L "$path" ]; then
+    [ -L "$path" ] && fail "refusing to write $path: it is a symlink"
+    [ -f "$path" ] || fail "refusing to write $path: not a regular file"
   fi
   return 0
 }
@@ -144,7 +166,11 @@ jq_or_fail() {
   fi
 }
 
-if ! op_run item get "$item" --vault "$VAULT" --format json --reveal >"$work/item.json"; then
+if [ "$from_work" = true ]; then
+  if ! op item get "$item" --vault "$w_vault" --account "$w_account" --format json --reveal >"$work/item.json"; then
+    fail "op item get failed reading the item argument from the work account and vault DOTFILES_OP_WORK_ACCOUNT and DOTFILES_OP_WORK_VAULT name; see the op error above (locked session? missing item?)"
+  fi
+elif ! op_run item get "$item" --vault "$VAULT" --format json --reveal >"$work/item.json"; then
   fail "op item get failed reading the item argument from the vault DOTFILES_OP_VAULT names (Dotfiles Service Account when unset); see the op error above (locked session? missing item?)"
 fi
 
@@ -243,6 +269,91 @@ else
     "$template" >"$work/rendered"
 fi
 
+# The overlay is also mission control's write target (planwright's
+# mc-config.sh), which refuses a file whose header says another tool renders
+# it. So its own keys survive the render instead: any it changed since the
+# last render (the snapshot) are kept in the supplement, and the supplement is
+# applied over the item. Every other key still comes from the item alone.
+supplement=""
+snapshot=""
+live_sum=""
+if [ "$rule" = planwright-overlay ]; then
+  supplement="$HOME/.config/dotfiles/planwright-overlay.supplement.yml"
+  snapshot="$HOME/.config/dotfiles/planwright-overlay.rendered"
+  check_output "$supplement"
+  check_output "$snapshot"
+  harvest=0
+  live=/dev/null
+  last=/dev/null
+  # With no snapshot there is no telling mission control's writes from the
+  # item's old values, so nothing is harvested; the run writes the snapshot.
+  if [ -f "$output" ] && [ -f "$snapshot" ]; then
+    harvest=1
+    live="$output"
+    last="$snapshot"
+    live_sum="$(cksum <"$output")" || fail "could not read $output"
+  fi
+  sup_in=/dev/null
+  [ ! -f "$supplement" ] || sup_in="$supplement"
+  if ! awk -v harvest="$harvest" -v last="$last" -v live="$live" -v sup="$sup_in" \
+    -v base="$work/rendered" -v sup_out="$work/supplement" -v sup_name="$supplement" '
+    function key_of(l) { return match(l, /^[a-z][a-z0-9_]*:/) ? substr(l, 1, RLENGTH - 1) : "" }
+    function mc_key(k) { return k ~ /^mission_control_[a-z0-9_]+$/ || k ~ /^program_[a-z0-9_]+$/ }
+    function set(k, l) { if (!(k in s)) order[++n] = k; s[k] = l }
+    # getline reads an unreadable file as an empty one, which would drop kept
+    # writes or harvest every key.
+    function readable(f) {
+      if ((getline l < f) < 0) { printf "could not read %s\n", f > "/dev/stderr"; exit 1 }
+      close(f)
+    }
+    BEGIN {
+      readable(last); readable(live); readable(sup); readable(base)
+      while ((getline l < last) > 0) {
+        k = key_of(l)
+        if (mc_key(k)) { if (!(k in p)) porder[++pn] = k; p[k] = l }
+      }
+      while ((getline l < live) > 0) {
+        k = key_of(l)
+        if (mc_key(k)) { if (!(k in v)) lorder[++ln] = k; v[k] = l }
+      }
+      while ((getline l < sup) > 0) {
+        ln_no++
+        if (l ~ /^[[:space:]]*(#.*)?$/) continue
+        k = (l ~ /^remove [a-z][a-z0-9_]*$/) ? substr(l, 8) : key_of(l)
+        if (!mc_key(k)) {
+          printf "%s line %d is not a `key: value` or `remove <key>` line for a mission_control_ or program_ key\n", sup_name, ln_no > "/dev/stderr"
+          bad = 1
+          continue
+        }
+        set(k, l)
+      }
+      if (bad) exit 1
+      if (harvest) {
+        for (i = 1; i <= ln; i++) { k = lorder[i]; if (!(k in p) || p[k] != v[k]) set(k, v[k]) }
+        for (i = 1; i <= pn; i++) if (!(porder[i] in v)) set(porder[i], "remove " porder[i])
+      }
+      while ((getline l < base) > 0) {
+        k = key_of(l)
+        if (k != "" && (k in s)) {
+          in_base[k] = 1
+          if (s[k] == l) done[k] = 1
+          if (s[k] !~ /^remove /) print s[k]
+        } else print l
+      }
+      for (i = 1; i <= n; i++) {
+        k = order[i]
+        if (k in in_base) continue
+        if (s[k] ~ /^remove /) done[k] = 1
+        else print s[k]
+      }
+      for (i = 1; i <= n; i++) if (!(order[i] in done)) print s[order[i]] > sup_out
+    }' >"$work/merged"; then
+    fail "could not apply $supplement; the problem is listed above"
+  fi
+  mv -f -- "$work/merged" "$work/rendered"
+  [ -f "$work/supplement" ] || : >"$work/supplement"
+fi
+
 case "$rule" in
   review-config | sibling-map)
     version_error="$(jq -r '
@@ -335,23 +446,65 @@ if [ -n "$errors" ]; then
   fail "$output would not satisfy its rule; the violations are listed above"
 fi
 
-if [ -f "$output" ] && [ ! -L "$output" ] && cmp -s "$work/rendered" "$output" \
-  && [ "$(mode_of "$output")" = 600 ]; then
-  echo "OK: $output already matches 1Password"
-  exit 0
+matches() { # matches <content> <path>: <path> holds <content> at 0600
+  [ -f "$2" ] && [ ! -L "$2" ] && cmp -s "$1" "$2" && [ "$(mode_of "$2")" = 600 ]
+}
+
+# place <content> <path>: write <content> to <path> through a temp file beside
+# it, so the rename is atomic: a reader sees the old file or the new one, never
+# a partial write. A mode-only fix goes this way too, so no chmod ever follows a
+# path that changed under it.
+place() {
+  local dir
+  dir="$(dirname -- "$2")"
+  mkdir -p -- "$dir" || fail "could not create $dir"
+  tmp_out="$(mktemp "$dir/.${2##*/}.XXXXXX")" || fail "could not create a temp file in $dir"
+  # The umask above makes it 0600, the mode every file this writes must have.
+  cat "$1" >"$tmp_out" || fail "could not write $tmp_out"
+  # Again, because the op call takes seconds: GNU mv would move the file into
+  # a directory that appeared at the path meanwhile.
+  check_output "$2"
+  # A write mission control landed since the harvest would be lost.
+  if [ -n "$live_sum" ] && [ "$2" = "$output" ] && [ "$(cksum <"$output")" != "$live_sum" ]; then
+    fail "$output changed while it was rendered; nothing of it was replaced, so run again"
+  fi
+  mv -f -- "$tmp_out" "$2" || fail "could not move the rendered file into $2"
+  tmp_out=""
+}
+
+# The output goes first: its concurrent-write check must pass before the
+# supplement records anything this run derived from it.
+changed=""
+if ! matches "$work/rendered" "$output"; then
+  place "$work/rendered" "$output"
+  changed="${changed}rendered $output from 1Password (item '$item'); "
 fi
 
-out_dir="$(dirname -- "$output")"
-mkdir -p -- "$out_dir" || fail "could not create $out_dir"
-# Beside the output, so the rename is atomic: a reader sees the old file or the
-# new one, never a partial write. A mode-only fix goes this way too, so no
-# chmod ever follows a path that changed under it.
-tmp_out="$(mktemp "$out_dir/.${output##*/}.XXXXXX")" || fail "could not create a temp file in $out_dir"
-# The umask above makes it 0600, the mode the output must have.
-cat "$work/rendered" >"$tmp_out" || fail "could not write $tmp_out"
-# Again, because the op call takes seconds: GNU mv would move the rendered file
-# into a directory that appeared at the output meanwhile.
-check_output
-mv -f -- "$tmp_out" "$output" || fail "could not move the rendered file into $output"
-tmp_out=""
-echo "CHANGED: rendered $output from 1Password (item '$item')"
+if [ -n "$supplement" ]; then
+  if [ -s "$work/supplement" ]; then
+    {
+      echo "# Mission control's writes to the planwright adopter overlay, which"
+      echo "# scripts/op-render.sh carries over the 1Password item on every run. An"
+      echo "# entry the item comes to match drops out; delete one to let the item win."
+      cat "$work/supplement"
+    } >"$work/supplement.full"
+    if ! matches "$work/supplement.full" "$supplement"; then
+      place "$work/supplement.full" "$supplement"
+      changed="${changed}kept mission control's writes in $supplement; "
+    fi
+  elif [ -f "$supplement" ]; then
+    rm -f -- "$supplement" || fail "could not remove $supplement"
+    changed="${changed}removed $supplement, which the item now matches; "
+  fi
+fi
+
+if [ -n "$snapshot" ] && ! matches "$work/rendered" "$snapshot"; then
+  place "$work/rendered" "$snapshot"
+  changed="${changed}recorded the render in $snapshot; "
+fi
+
+if [ -z "$changed" ]; then
+  echo "OK: $output already matches 1Password"
+else
+  echo "CHANGED: ${changed%; }"
+fi

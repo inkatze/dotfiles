@@ -45,6 +45,26 @@ key in the overlay since a step list is a per-repository decision, and
 overwrites a hand-written file at its output: carry anything worth keeping
 into the item before the first run.
 
+The overlay is the one exception, for mission control's own keys
+(`mission_control_*` and `program_*`, every key planwright's
+`mc-config.sh` writes). Its header deliberately avoids the phrases
+planwright's `docs/overlays.md` lists as marking a file managed elsewhere,
+since mission control refuses every write to a file whose header has one.
+Each render compares the live file with `planwright-overlay.rendered`, its
+snapshot of what the last render wrote, keeps each of those keys mission
+control changed, added or removed since in `planwright-overlay.supplement.yml`
+(`key: value` lines, and `remove <key>` for a removal), and applies that
+supplement over the item. An entry the item comes to match drops out, and
+the file goes once it is empty, so copying a change into the item's
+`mission_control` field retires it; deleting a line lets the item win
+instead. Any other key in the supplement fails the render, and with no
+snapshot (a first run) nothing is kept. Both files are 0600 and must be
+regular files; deleting the snapshot loses mission control's writes since
+the last render. A render and a mission-control write are not fully
+serialized: the render refuses to replace an overlay that changed since it
+read it, but a write landing in the instant between that check and the
+rename is lost.
+
 `git-work-orgs` is rendered the same way from the item
 `dotfiles-git-work-orgs` (field `orgs`, owner names separated by whitespace),
 by a task in the git role rather than the claude role, because the git role
@@ -80,6 +100,16 @@ The renderer then reads that item with `op --account`, through the desktop
 app rather than the service-account token, which cannot reach another
 account; with neither the file nor the three variables exported, every such
 reference resolves empty and the entry drops out. The file names an employer's account, so it stays untracked.
+
+A host listed in `claude_planwright_overlay_work_hosts`
+(`roles/claude/defaults/main.yml`) renders the overlay from its own item,
+`dotfiles-planwright-overlay-<alias>`, which `op-render.sh --work-account`
+reads from the account and vault `op-work-item` names (the item it names is
+for the review template and plays no part here). Its program settings
+therefore never sit in the shared item the other hosts render, and a listed
+host with no `op-work-item` fails the play rather than render the shared
+item's programs. Create that item, with the same `flight_pr_hosts` and
+`mission_control` fields, before the host's first run after joining the list.
 
 `cubic-api-key` is synced by `scripts/op-key-sync.sh` from the `credential`
 field of the `dotfiles-cubic-api-key` item (category API Credential), through a

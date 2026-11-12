@@ -30,6 +30,15 @@ Host {{ op://__OP_VAULT__/__OP_ITEM__/server_alias }} {{ op://__OP_VAULT__/__OP_
 Host {{ op://__OP_VAULT__/__OP_ITEM__/server_alias }}
     Hostname {{ op://__OP_VAULT__/__OP_ITEM__/server_host }}
 
+# A fixed name, since the global Claude allow rule for mission control's relay
+# names it literally. No agent forwarding and no extra SendEnv, since that rule
+# runs without a prompt; the system-wide `Host *` locale SendEnv still applies.
+Host planwright-relay
+    Hostname {{ op://__OP_VAULT__/__OP_ITEM__/server_host }}
+    User {{ op://__OP_VAULT__/__OP_ITEM__/server_user }}
+    ForwardAgent no
+    BatchMode yes
+
 # The offload host (docs/offload-host.md). It trusts the offload key only from
 # server's IPv4 address (server_ip), so the connection must not go out over IPv6, which
 # an mDNS name often resolves to first. IdentityAgent none keeps a locked
