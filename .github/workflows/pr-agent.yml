@@ -37,6 +37,11 @@ jobs:
         if: env.HAS_MODEL_KEY == 'true'
         # v0.50.0
         uses: the-pr-agent/pr-agent@e673a02076ce09a4726c3d0c3cc85780e59ca52b
+        # ai_timeout is a per-read inactivity limit, not a total deadline, so an
+        # OpenRouter call that keeps the connection open can outlive it. This
+        # step limit is the hard bound: it fails the step (the head marker
+        # still posts) instead of letting the job timeout report "cancelled".
+        timeout-minutes: 10
         env:
           OPENROUTER.KEY: ${{ secrets.OPENROUTER_API_KEY }}
           # Override the model through repository variables; litellm does not
@@ -46,6 +51,10 @@ jobs:
             ${{ vars.PR_AGENT_FALLBACK_MODELS
             || '["openrouter/deepseek/deepseek-v4-pro-0813", "openrouter/google/gemini-3.8-flash"]' }}
           CONFIG.CUSTOM_MODEL_MAX_TOKENS: "262144"
+          # Per-call limit, and no replay on the model that just missed it: the
+          # default (120 s, one replay) lets three models spend 12 minutes.
+          CONFIG.AI_TIMEOUT: "90"
+          CONFIG.RETRY_SAME_MODEL_ON_TIMEOUT: "false"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "false"
