@@ -1,7 +1,7 @@
 ---
 
 # The offload host as a self-hosted GitHub Actions runner, one runner per
-# repository, all in the work account's home and launchd domain: no sudo, no
+# repository, all in the work account's home and crontab: no sudo, no
 # Homebrew, nothing of the owner's. runner-gate.sh holds the yield-to-the-owner
 # rule (docs/offload-host.md).
 
@@ -48,11 +48,14 @@
     mode: "0644"
   tags: [osx, offload, runner]
 
-- name: Install the runner gate script
+- name: Install the runner gate and start scripts
   ansible.builtin.copy:
-    src: runner/runner-gate.sh
-    dest: "{{ ansible_facts.env.HOME }}/.local/bin/runner-gate.sh"
+    src: "runner/{{ item }}"
+    dest: "{{ ansible_facts.env.HOME }}/.local/bin/{{ item }}"
     mode: "0755"
+  loop:
+    - runner-gate.sh
+    - runner-start.sh
   tags: [osx, offload, runner]
 
 - name: Create a runner directory per repository
@@ -133,45 +136,41 @@
     label: "{{ item.item.item }}"
   tags: [osx, offload, runner]
 
-- name: Deploy a LaunchAgent per runner
-  ansible.builtin.template:
-    src: runner.plist.j2
-    dest: "{{ ansible_facts.env.HOME }}/Library/LaunchAgents/{{ osx_runner_launch_prefix }}.{{ slug }}.plist"
-    mode: "0644"
+# The fleet account only ever logs in over ssh, so it has no launchd user domain
+# (gui/ and user/ bootstraps both fail) and no sudo for a LaunchDaemon. Its own
+# crontab starts each gate at boot and re-checks every few minutes;
+# runner-start.sh does nothing when the gate already runs. An unchanged job
+# leaves the running gate, and any job it is serving, alone.
+- name: Start each runner's gate at boot
+  ansible.builtin.cron:
+    name: "dotfiles runner {{ item }} at boot"
+    special_time: reboot
+    job: "{{ osx_runner_start_job }}"
   vars:
     slug: "{{ item | replace('/', '-') }}"
   loop: "{{ osx_runner_all_repos }}"
-  register: osx_runner_plists
   tags: [osx, offload, runner]
 
-- name: Check which runner agents are loaded
-  ansible.builtin.command:
-    argv:
-      - launchctl
-      - print
-      - "gui/{{ ansible_facts.user_uid }}/{{ osx_runner_launch_prefix }}.{{ item | replace('/', '-') }}"
-  register: osx_runner_loaded
-  changed_when: false
-  failed_when: false
-  check_mode: false
+- name: Re-check each runner's gate periodically
+  ansible.builtin.cron:
+    name: "dotfiles runner {{ item }} re-check"
+    minute: "*/{{ osx_runner_recheck_minutes }}"
+    job: "{{ osx_runner_start_job }}"
+  vars:
+    slug: "{{ item | replace('/', '-') }}"
   loop: "{{ osx_runner_all_repos }}"
   tags: [osx, offload, runner]
 
-# bootout then bootstrap, so a changed plist is re-read; an unchanged, loaded
-# agent is left running (and its job undisturbed).
-- name: Load each runner agent that is new or changed
-  ansible.builtin.shell:
-    cmd: |
-      launchctl bootout {{ dom }}/{{ lbl }} 2>/dev/null || true
-      launchctl bootstrap {{ dom }} {{ plist }}
-  vars:
-    dom: "gui/{{ ansible_facts.user_uid }}"
-    lbl: "{{ osx_runner_launch_prefix }}.{{ item.item | replace('/', '-') }}"
-    plist: "{{ ansible_facts.env.HOME }}/Library/LaunchAgents/{{ lbl }}.plist"
-  loop: "{{ osx_runner_plists.results }}"
-  loop_control:
-    label: "{{ item.item }}"
-    extended: true
-  when: item.changed or osx_runner_loaded.results[ansible_loop.index0].rc != 0
-  changed_when: true
+- name: Start each runner's gate now
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_facts.env.HOME }}/.local/bin/runner-start.sh"
+      - "{{ osx_runner_root }}/{{ item | replace('/', '-') }}"
+  environment:
+    PATH: "{{ osx_runner_path }}"
+    RUNNER_IDLE_SECONDS: "{{ osx_runner_idle_seconds }}"
+    RUNNER_LOAD_MAX: "{{ osx_runner_load_max }}"
+    RUNNER_NICE: "{{ osx_runner_nice }}"
+  changed_when: false
+  loop: "{{ osx_runner_all_repos }}"
   tags: [osx, offload, runner]

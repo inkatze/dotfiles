@@ -9,7 +9,7 @@
 # most one job and exits; this loop starts the next only after re-checking.
 # While the Mac is in use and no job has started, the listener is stopped and
 # the runner shows offline. A job already running is never interrupted: it
-# finishes niced (the agent's priority is inherited), and nothing new starts.
+# finishes niced (the starter's priority is inherited), and nothing new starts.
 set -u
 
 dir="${1:?usage: runner-gate.sh <runner-dir>}"

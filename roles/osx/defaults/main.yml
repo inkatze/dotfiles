@@ -294,7 +294,8 @@ osx_offload_op_item: dotfiles-lan-ssh
 osx_offload_sshd_dropin: 050-dotfiles-hardening.conf
 
 # The Mac as a self-hosted GitHub Actions runner, in the offload account only:
-# one runner per repository, each its own directory and launchd agent.
+# one runner per repository, each its own directory, started from the account's
+# crontab (it has no launchd user domain).
 # Version and checksum move together; the checksum is the one in that release's
 # notes (https://github.com/actions/runner/releases).
 osx_runner_version: 2.338.2
@@ -304,8 +305,18 @@ osx_runner_asset: "actions-runner-osx-{{ osx_runner_arch }}-{{ osx_runner_versio
 osx_runner_url: "https://github.com/actions/runner/releases/download/v{{ osx_runner_version }}/{{ osx_runner_asset }}"
 osx_runner_root: "{{ ansible_facts.env.HOME }}/actions-runners"
 osx_runner_labels: mac-fleet
-osx_runner_launch_prefix: com.inkatze.dotfiles.runner
 osx_runner_nice: 10
+# Minutes between the crontab's checks that each gate still runs.
+osx_runner_recheck_minutes: 5
+# One crontab line per runner. A literal % would end a cron command, so none
+# may appear in it; env sets what cron's bare environment lacks.
+osx_runner_start_job: >-
+  /usr/bin/env PATH={{ osx_runner_path }}
+  RUNNER_IDLE_SECONDS={{ osx_runner_idle_seconds }}
+  RUNNER_LOAD_MAX={{ osx_runner_load_max }}
+  RUNNER_NICE={{ osx_runner_nice }}
+  {{ ansible_facts.env.HOME }}/.local/bin/runner-start.sh
+  {{ osx_runner_root }}/{{ slug }}
 osx_runner_system_path: /usr/bin:/bin:/usr/sbin:/sbin
 osx_runner_path: >-
   {{ osx_offload_mise_bin | dirname }}:{{ osx_runner_shims }}:{{ osx_offload_brew_bin }}:{{ osx_runner_system_path }}

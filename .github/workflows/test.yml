@@ -92,6 +92,10 @@ jobs:
         timeout-minutes: 5
         run: scripts/runner-gate-test.sh
 
+      - name: Run the runner start suite
+        timeout-minutes: 5
+        run: scripts/runner-start-test.sh
+
       # BSD sed and mktemp are what this leg adds; the script runs on macOS.
       - name: Run the offload sshd hardening suite
         timeout-minutes: 5

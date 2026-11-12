@@ -200,10 +200,21 @@ self-hosted runner for the repositories in `osx_runner_repos`, plus any
 `owner/repo` lines in `~/.config/dotfiles/runner-repos` (private names stay
 out of the repo). One runner per repository, each in
 `~/actions-runners/<owner>-<repo>`, labelled `self-hosted`, `macOS`,
-`mac-fleet`, run by its own per-user launchd agent at `nice 10`. Nothing uses
+`mac-fleet`, each kept running by the work account's own crontab at `nice 10`.
+The account only logs in over ssh, so it has no launchd user domain (`gui/` and
+`user/` bootstraps both fail) and no sudo for a LaunchDaemon. Nothing uses
 sudo or Homebrew. The release is pinned with its published sha256 in the role
 defaults; bump both together.
 
+- **Keeping it running.** Per repository the play adds an `@reboot` crontab
+  line and one every `osx_runner_recheck_minutes` (default 5), both calling
+  `runner-start.sh`, and runs it once itself. That script starts
+  `runner-gate.sh` detached and niced (a pid file in `~/.cache` names the
+  running copy) and does nothing when it already runs, so a re-check never
+  disturbs a job. The gate outlives the cron job and any ssh session. The
+  crontab lines carry no `%`, which cron reads as a newline. To stop a runner,
+  kill the pid in `~/.cache/dotfiles-runner-<owner>-<repo>.pid` and remove its
+  two `dotfiles runner` lines from `crontab -e`.
 - **Yielding.** `runner-gate.sh` starts the runner in `--once` mode, only while
   the keyboard and mouse have been still for `osx_runner_idle_seconds` and the
   one-minute load average is under `osx_runner_load_max` (default 6). Whichever
@@ -220,4 +231,5 @@ defaults; bump both together.
   alone. The login needs admin on each repository and the `repo` scope:
   `gh auth refresh --scopes repo` once over `ssh <alias>`, then drop it again
   if you want the narrower token back after the first run.
-- **Logs:** `~/.cache/dotfiles-runner-<owner>-<repo>.{out,err}`.
+- **Logs:** `~/.cache/dotfiles-runner-<owner>-<repo>.{out,err}` (cron's own
+  mail for the account is empty unless a job line breaks).
