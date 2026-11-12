@@ -44,7 +44,7 @@ main() {
     # Only when nothing else picks the ssh command: GIT_SSH_COMMAND would
     # override a configured core.sshCommand.
     if [[ -z "${GIT_SSH_COMMAND:-}" && -z "$(git -C "$repo" config --get core.sshCommand || true)" ]]; then
-        export GIT_SSH_COMMAND="ssh -o BatchMode=yes"
+        export GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=30"
     fi
     git_() { git -C "$repo" "$@"; }
 
@@ -65,7 +65,7 @@ main() {
     fi
     trap 'rm -rf -- "$lock"' EXIT
     trap 'exit 130' INT TERM HUP
-    echo "$$" >"$lock/pid"
+    echo "${BASHPID:-$$}" >"$lock/pid"
 
     [[ "$(git_ rev-parse --git-dir)" == "$(git_ rev-parse --git-common-dir)" ]] \
         || die "$repo is a linked worktree; run it from the main checkout"

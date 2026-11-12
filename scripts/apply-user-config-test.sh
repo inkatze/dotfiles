@@ -65,6 +65,8 @@ refused() { # name dir expected-text
 
 d="$(fixture dirty)"; echo y >"$d/checkout/scratch"
 refused dirty-untracked "$d" 'uncommitted or untracked'
+if [ ! -e "$XDG_STATE_HOME/dotfiles/apply-user-config.lock" ]; then ok lock-released-on-refusal "a refusal releases the lock"
+else fail lock-released-on-refusal "lock left behind"; fi
 rm -f "$d/checkout/scratch"; echo z >>"$d/checkout/scripts/playbook.sh"
 refused dirty-tracked "$d" 'uncommitted or untracked'
 
@@ -83,6 +85,10 @@ refused ahead "$d" 'not level with origin/main'
 
 d="$(fixture fresh-lock)"; mkdir -p "$XDG_STATE_HOME/dotfiles/apply-user-config.lock"
 refused lock-being-taken "$d" 'taking the lock'
+touch -d '10 minutes ago' "$XDG_STATE_HOME/dotfiles/apply-user-config.lock"
+out="$(run "$d")"; rc=$?
+if [ $rc -eq 0 ] && [ -e "$d/ran" ]; then ok old-pidless-lock "an old lock with no pid is taken over"
+else fail old-pidless-lock "rc=$rc out=$out"; fi
 rm -rf "$XDG_STATE_HOME/dotfiles/apply-user-config.lock"
 
 d="$(fixture worktree)"; git -C "$d/checkout" worktree add -q -b wt "$d/wt" 2>/dev/null
