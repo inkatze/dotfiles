@@ -56,11 +56,26 @@ ensure_role() {
 start_server() {
     [ -f "$dir/PG_VERSION" ] || { echo "postgres-gate: no cluster in $dir" >&2; return 1; }
     pg_ctl -D "$dir" -l "$dir/server.log" -w \
-        -o "-c listen_addresses=localhost -c port=$port -c unix_socket_directories=$sockdir -c unix_socket_permissions=0700 -c max_connections=$max_connections" start &&
-        ensure_role
+        -o "-c listen_addresses=localhost -c port=$port -c unix_socket_directories=$sockdir -c unix_socket_permissions=0700 -c max_connections=$max_connections" start
 }
 
-stop_server() { pg_ctl -D "$dir" -m fast -w stop; }
+stop_server() {
+    role_ready=""
+    pg_ctl -D "$dir" -m fast -w stop
+}
+
+# One pass of the loop. The role is checked on every pass until it succeeds
+# once, so a failure right after a start is retried rather than left until the
+# next restart.
+role_ready=""
+tick() {
+    if server_running; then
+        owner_idle || { stop_server; return 0; }
+        [ -n "$role_ready" ] || { ensure_role && role_ready=1; }
+    elif mac_is_free; then
+        start_server
+    fi
+}
 
 trap 'server_running && stop_server; exit 0' TERM INT
 
@@ -68,11 +83,7 @@ trap 'server_running && stop_server; exit 0' TERM INT
 [ -n "${POSTGRES_GATE_SOURCE_ONLY:-}" ] && return 0
 
 while :; do
-    if server_running; then
-        owner_idle || stop_server
-    elif mac_is_free; then
-        start_server
-    fi
+    tick
     sleep "$poll" &
     wait $!
 done

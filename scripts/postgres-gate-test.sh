@@ -48,6 +48,7 @@ STUB
 cat >"$stubs/createuser" <<'STUB'
 #!/bin/sh
 echo "createuser $*" >>"$STUB_LOG"
+[ -z "${STUB_CREATE_FAIL-}" ]
 STUB
 chmod +x "$stubs"/*
 
@@ -65,8 +66,8 @@ logged() { grep -qF -- "$1" "$scratch/log"; }
 not_logged() { ! grep -qF -- "$1" "$scratch/log"; }
 stdin_has() { grep -qF -- "$1" "$scratch/stdin"; }
 
-# step <idle seconds> <load> [role exists]: one pass of the gate's decision,
-# the loop body, against the current stub state.
+# step <idle seconds> <load> [role exists]: the gate's loop body (three times:
+# start, role, role again) against the current stub state.
 step() {
     : >"$scratch/log"
     : >"$scratch/stdin"
@@ -74,15 +75,14 @@ step() {
         export PATH="$stubs:$PATH" STUB_LOG="$scratch/log" STUB_STDIN="$scratch/stdin" STUB_STATE="$scratch/running"
         export STUB_IDLE="$1" STUB_LOAD="$2" STUB_ROLE_EXISTS="${3-}"
         export RUNNER_IDLE_SECONDS=300 RUNNER_LOAD_MAX=6 POSTGRES_PORT=5599 POSTGRES_SOCKET_DIR="$sock"
-        export POSTGRES_MAX_CONNECTIONS=180 PGPASSFILE="$scratch/pgpass"
+        export STUB_CREATE_FAIL="${STUB_CREATE_FAIL-}" POSTGRES_MAX_CONNECTIONS=180 PGPASSFILE="$scratch/pgpass"
         export POSTGRES_GATE_SOURCE_ONLY=1
         # shellcheck disable=SC1090
         . "$gate" "$data"
-        if server_running; then
-            owner_idle || stop_server
-        elif mac_is_free; then
-            start_server
-        fi
+        tick
+        # A server that came up gets its role on the next pass, retried after.
+        tick
+        tick
     )
 }
 running() { [ -f "$scratch/running" ]; }
@@ -133,6 +133,11 @@ printf 'localhost:5599:*:fleet:\n' >"$scratch/pgpass"
 step 10 1.0
 step 600 1.0 yes
 check "an empty stored password is never applied" not_logged "-f -"
+
+# A role that failed right after the start is retried on the next pass.
+rm -f "$scratch/running"
+STUB_CREATE_FAIL=1 step 600 1.0 || true
+check "a failed role check is retried while the server runs" test "$(grep -c '^createuser' "$scratch/log")" = 2
 
 # A term of the gate stops a running server the same way.
 : >"$scratch/log"
