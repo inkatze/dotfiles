@@ -50,6 +50,8 @@ jobs:
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "false"
           github_action_config.auto_improve: "false"
+          github_action_config.pr_actions: >-
+            ["opened", "reopened", "ready_for_review", "review_requested", "synchronize"]
 
       # PR-Agent embeds no head SHA or status in what it posts, and /bot-review
       # ties a review to a head through this marker; keep the format in step
