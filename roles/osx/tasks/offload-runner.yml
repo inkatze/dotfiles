@@ -37,6 +37,7 @@
     - "{{ osx_runner_root }}"
     - "{{ osx_runner_root }}/_download"
     - "{{ ansible_facts.env.HOME }}/.cache"
+    - "{{ ansible_facts.env.HOME }}/.local/bin"
   tags: [osx, offload, runner]
 
 # get_url verifies the pinned sha256 and re-downloads only when it differs.

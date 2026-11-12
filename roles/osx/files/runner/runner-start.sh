@@ -18,7 +18,7 @@ slug="$(basename -- "$dir")"
 pidfile="$cache/dotfiles-runner-$slug.pid"
 lock="$cache/dotfiles-runner-$slug.lock"
 
-mkdir -p "$cache"
+mkdir -p "$cache" || exit 1
 
 running() {
     local pid

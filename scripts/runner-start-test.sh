@@ -40,10 +40,11 @@ check() { # check <label> <command...>
 }
 starts() { wc -l <"$scratch/starts" 2>/dev/null | tr -d ' ' || echo 0; }
 starts_is() { [ "$(starts)" = "$1" ]; }
-settle() { local i=0; while [ ! -s "$scratch/starts" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done; }
+# settle <n>: wait up to five seconds for the nth start to be logged.
+settle() { local i=0; while [ "$(starts)" -lt "$1" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done; }
 
 "$start" "$scratch/r"
-settle
+settle 1
 check "starts the gate once" starts_is 1
 check "records its pid" test -s "$pidfile"
 check "logs into the cache directory" test -f "$scratch/cache/dotfiles-runner-r.out"
@@ -54,14 +55,14 @@ check "a second call leaves the running gate alone" starts_is 1
 
 kill "$(cat "$pidfile")"; sleep 0.3
 "$start" "$scratch/r"
-sleep 0.5
+settle 2
 check "a dead gate is started again" starts_is 2
 kill "$(cat "$pidfile")"; sleep 0.3
 
 sleep 60 & decoy=$!
 echo "$decoy" >"$pidfile"
 "$start" "$scratch/r"
-sleep 0.5
+settle 3
 check "a recycled pid is not mistaken for the gate" starts_is 3
 kill "$decoy"; decoy=
 kill "$(cat "$pidfile")"; sleep 0.3
@@ -74,7 +75,7 @@ check "a held lock is left in place" test -d "$scratch/cache/dotfiles-runner-r.l
 
 touch -t 200001010000 "$scratch/cache/dotfiles-runner-r.lock"
 "$start" "$scratch/r"
-sleep 0.5
+settle 4
 check "a stale lock is cleared and the gate started" starts_is 4
 
 # The role: crontab jobs, no launchd.
