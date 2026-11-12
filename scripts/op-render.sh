@@ -43,7 +43,11 @@
 # gates changed_when on CHANGED. A plain regular file at the output is
 # overwritten; a symlink or any other kind of path is refused. The planwright
 # overlay alone also keeps mission control's own keys across renders, in two
-# files under ~/.config/dotfiles/ (docs/machine-local-files.md).
+# files under ~/.config/dotfiles/ (docs/machine-local-files.md). A key the
+# supplement keeps that has gone from the live overlay since the last render
+# is ambiguous (mission control removed it, or an older backup of the overlay
+# was restored), so the render refuses, writing nothing, until
+# OP_RENDER_ACCEPT_REMOVALS=1 says the removal was real.
 
 set -eu
 # Every file this writes holds private values, and a caller's umask that drops
@@ -296,7 +300,8 @@ if [ "$rule" = planwright-overlay ]; then
   sup_in=/dev/null
   [ ! -f "$supplement" ] || sup_in="$supplement"
   if ! awk -v harvest="$harvest" -v last="$last" -v live="$live" -v sup="$sup_in" \
-    -v base="$work/rendered" -v sup_out="$work/supplement" -v sup_name="$supplement" '
+    -v base="$work/rendered" -v sup_out="$work/supplement" -v sup_name="$supplement" \
+    -v accept="${OP_RENDER_ACCEPT_REMOVALS:-}" -v live_name="$output" -v snap_name="$snapshot" '
     function key_of(l) { return match(l, /^[a-z][a-z0-9_]*:/) ? substr(l, 1, RLENGTH - 1) : "" }
     function mc_key(k) { return k ~ /^mission_control_[a-z0-9_]+$/ || k ~ /^program_[a-z0-9_]+$/ }
     function set(k, l) { if (!(k in s)) order[++n] = k; s[k] = l }
@@ -330,7 +335,20 @@ if [ "$rule" = planwright-overlay ]; then
       if (bad) exit 1
       if (harvest) {
         for (i = 1; i <= ln; i++) { k = lorder[i]; if (!(k in p) || p[k] != v[k]) set(k, v[k]) }
-        for (i = 1; i <= pn; i++) if (!(porder[i] in v)) set(porder[i], "remove " porder[i])
+        for (i = 1; i <= pn; i++) {
+          k = porder[i]
+          if (k in v) continue
+          # A key the supplement still carries, gone from the live file: either
+          # mission control removed it or an older copy of the file was put back.
+          if (accept != "1" && (k in s) && s[k] !~ /^remove /) lost = lost " " k
+          set(k, "remove " k)
+        }
+        if (lost != "") {
+          printf "%s no longer has%s, which %s still keeps and the last render wrote.\n", live_name, lost, sup_name > "/dev/stderr"
+          printf "If an older copy of the overlay was restored, copy %s over it and run again.\n", snap_name > "/dev/stderr"
+          printf "If mission control removed them, run again with OP_RENDER_ACCEPT_REMOVALS=1.\n" > "/dev/stderr"
+          exit 1
+        }
       }
       while ((getline l < base) > 0) {
         k = key_of(l)
