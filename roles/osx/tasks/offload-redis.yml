@@ -1,0 +1,104 @@
+---
+
+# A localhost Redis in the work account for a test suite's CI, started from its
+# crontab like the runners and yielding to the owner the same way: no sudo, no
+# Homebrew, nothing of the owner's. redis-gate.sh holds the rule
+# (docs/offload-host.md).
+
+- name: Create the Redis directory
+  ansible.builtin.file:
+    path: "{{ osx_redis_dir }}"
+    state: directory
+    mode: "0700"
+  tags: [osx, offload, redis]
+
+# Generated once and kept: creates leaves an existing file alone, and the
+# output of this command is only the file. umask 077 so it is never readable by
+# another account, even briefly; macOS's own openssl by absolute path, since a
+# bare name can resolve to the owner's Homebrew.
+- name: Generate the Redis password once
+  ansible.builtin.shell:
+    cmd: umask 077 && /usr/bin/openssl rand -hex 24 >{{ osx_redis_passfile | quote }}
+    executable: /bin/bash
+    creates: "{{ osx_redis_passfile }}"
+  no_log: true
+  tags: [osx, offload, redis]
+
+- name: Keep the Redis password file private
+  ansible.builtin.file:
+    path: "{{ osx_redis_passfile }}"
+    mode: "0600"
+  tags: [osx, offload, redis]
+
+- name: Read the Redis password
+  ansible.builtin.slurp:
+    src: "{{ osx_redis_passfile }}"
+  register: osx_redis_pass_raw
+  failed_when: false
+  no_log: true
+  check_mode: false
+  tags: [osx, offload, redis]
+
+# No Homebrew libraries and no TLS (it serves localhost only): the build runs
+# with the system path alone, and the compiler is not pointed at the owner's
+# prefix. An installed version is left alone.
+- name: Install Redis with mise
+  ansible.builtin.command:
+    argv: ["{{ osx_offload_mise_bin }}", install, redis]
+    chdir: "{{ ansible_facts.env.HOME }}"
+  environment:
+    PATH: "{{ osx_offload_mise_bin | dirname }}:{{ osx_runner_system_path }}"
+    BUILD_TLS: "no"
+    CPATH: ""
+    LIBRARY_PATH: ""
+    PKG_CONFIG_PATH: ""
+  register: osx_redis_install
+  changed_when: "'installed' in osx_redis_install.stderr"
+  tags: [osx, offload, redis]
+
+- name: Render redis.conf
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: "{{ osx_redis_dir }}/redis.conf"
+    mode: "0600"
+  vars:
+    osx_redis_password: "{{ osx_redis_pass_raw.content | default('') | b64decode | trim }}"
+  no_log: true
+  tags: [osx, offload, redis]
+
+- name: Install the Redis gate
+  ansible.builtin.copy:
+    src: redis/redis-gate.sh
+    dest: "{{ ansible_facts.env.HOME }}/.local/bin/redis-gate.sh"
+    mode: "0755"
+  tags: [osx, offload, redis]
+
+# The same starter the runners use, naming this gate and its own pid, lock and
+# log files. An unchanged job leaves a running server alone.
+- name: Start Redis's gate at boot
+  ansible.builtin.cron:
+    name: "dotfiles redis at boot"
+    special_time: reboot
+    job: "{{ osx_redis_start_job }}"
+  tags: [osx, offload, redis]
+
+- name: Re-check Redis's gate periodically
+  ansible.builtin.cron:
+    name: "dotfiles redis re-check"
+    minute: "*/{{ osx_runner_recheck_minutes }}"
+    job: "{{ osx_redis_start_job }}"
+  tags: [osx, offload, redis]
+
+- name: Start Redis's gate now
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_facts.env.HOME }}/.local/bin/runner-start.sh"
+      - "{{ osx_redis_dir }}"
+  environment:
+    PATH: "{{ osx_runner_path }}"
+    RUNNER_GATE: "{{ ansible_facts.env.HOME }}/.local/bin/redis-gate.sh"
+    RUNNER_PID_PREFIX: dotfiles-redis
+    RUNNER_IDLE_SECONDS: "{{ osx_runner_idle_seconds }}"
+    RUNNER_NICE: "{{ osx_runner_nice }}"
+  changed_when: false
+  tags: [osx, offload, redis]

@@ -96,6 +96,10 @@ jobs:
         timeout-minutes: 5
         run: scripts/runner-start-test.sh
 
+      - name: Run the Redis gate suite
+        timeout-minutes: 5
+        run: scripts/redis-gate-test.sh
+
       # BSD sed and mktemp are what this leg adds; the script runs on macOS.
       - name: Run the offload sshd hardening suite
         timeout-minutes: 5
