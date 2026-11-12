@@ -66,6 +66,32 @@ carries the `privileged` tag. `scripts/user-config-selection-test.sh` pins the
 selection and the refusal; `scripts/playbook-alias-test.sh` pins the argument
 handling.
 
+### The apply entry: `scripts/apply-user-config.sh`
+
+The narrow, non-interactive way to apply a merge, for a host-chore session that
+may not run the playbook with its open argument surface. It takes no arguments
+and does this, refusing with a reason (non-zero exit; past the argument check a `FAILED:` line on the terminal
+and in the log) at the first step that does not hold:
+
+1. root is refused; it never needs sudo and never prompts (git is told not to ask for
+   credentials or run an askpass helper, and ssh is told not to unless `core.sshCommand` or
+   `GIT_SSH_COMMAND` already chooses the command);
+2. one run at a time, through a lock directory (a dead holder's lock is taken
+   over);
+3. it must be the main checkout, not a linked worktree, on `main`, with no
+   tracked or untracked changes, so nothing off `main` is ever applied;
+4. `origin/main` is fetched and `main` fast-forwarded to it (a `main` that is diverged or ahead
+   is refused);
+5. `./scripts/playbook.sh --user-config`, through fish when `ansible-playbook`
+   is not on `PATH` (mise activation), with every guard of that mode intact.
+
+Safe to re-run: the playbook is idempotent. The log is
+`${XDG_STATE_HOME:-~/.local/state}/dotfiles/apply-user-config.log`.
+`scripts/apply-user-config-test.sh` pins the refusals, the lock and the log.
+planwright 0.74.0 defines no host-chore act or knob for it, so a host-chore
+session can name this script only once planwright (or the operator's overlay)
+does.
+
 ## `~/.my.cnf` and `~/.npmrc` are applied to, not owned
 
 Their canonical content is credentials (a client password; registry
