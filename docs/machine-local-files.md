@@ -160,3 +160,10 @@ terminal (it is shown exactly once), then move it into place. Replace
 
 Re-run the syncs that use it; once they pass, revoke the old service account
 on 1Password.com, since the CLI cannot delete one.
+
+## `runner-repos`
+
+Optional, read by `roles/osx/tasks/offload-runner.yml` on the offload host:
+extra `owner/repo` names (one per line, `#` comments) to register a runner
+for, beyond `osx_runner_repos` in the role defaults. It exists so private
+repository names stay out of this public repo. Written by hand.
