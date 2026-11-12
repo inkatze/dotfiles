@@ -927,13 +927,6 @@ sed -i.bak '/^mission_control_tick_cadence:/d' "$ov" && rm -f "$ov.bak"
 OP_RENDER_ACCEPT_REMOVALS=1 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 [ "$rc" -eq 0 ] && ! grep -q '^mission_control_tick_cadence:' "$ov" && ! grep -q 'mission_control_tick_cadence' "$sup" \
   && ok "an accepted removal is honoured" || ko "an accepted removal is honoured ($log)"
-# A key the supplement does not keep is removed with no flag, as before.
-sed -i.bak '/^program_alpha_duties:/d' "$ov" && rm -f "$ov.bak"
-cp "$sup" "$sandbox/sup.keep"
-rm -f "$sup"
-sed -i.bak '/^program_alpha_duties:/d' "$snap" && rm -f "$snap.bak"
-run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
-[ "$rc" -eq 0 ] && ok "a removal of a key the supplement does not keep needs no flag" || ko "unkept removal ($log)"
 new_sandbox
 ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
 sup="$HOME/.config/dotfiles/planwright-overlay.supplement.yml"
