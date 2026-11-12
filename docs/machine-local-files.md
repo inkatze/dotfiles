@@ -69,7 +69,7 @@ rename is lost.
 (`fleet_host_max_live_workers`) for one machine. The overlay template carries
 the shared default of 8; when this file holds a whole number from 1 to 99 (one
 line, surrounding whitespace ignored) the renderer substitutes it for that
-line's value, and an empty or absent file keeps 8. Anything else, a symlink or
+line's value, and an empty, blank or absent file keeps 8. Anything else, a symlink or
 a non-regular file fails the render. It needs no 1Password item and is applied
 before the supplement, which only carries `mission_control_*` and `program_*`
 keys. On a machine that runs more workers, write it once with

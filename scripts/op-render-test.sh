@@ -979,7 +979,7 @@ grep -c -- '--account' "$OP_STUB_ARGV" | grep -qx 1 && ! grep -qv -- '--account'
   && ok "a failing work read never falls back to the personal vault" || ko "a failing work read fell back ($(cat "$OP_STUB_ARGV"))"
 unset DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM
 
-echo "21. the live-worker bound is per machine"
+echo "30. the live-worker bound is per machine"
 new_sandbox
 ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
 bound="$HOME/.config/dotfiles/fleet-max-live-workers"
@@ -999,6 +999,20 @@ for bad in 0 007 100 ten 8.5 -3 '1 0'; do
   run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
   expect_failed "malformed bound '$bad'" "must hold one whole number from 1 to 99"
 done
+printf '  12 \n' >"$bound"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+grep -qx 'fleet_host_max_live_workers: 12' "$ov" 2>/dev/null && ok "surrounding whitespace is ignored" || ko "surrounding whitespace ($log)"
+printf '10\n20\n' >"$bound"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "a two-line bound file" "must hold one whole number from 1 to 99"
+rm -f "$bound"
+mkdir "$bound"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "a directory at the bound path" "not a regular file"
+rmdir "$bound"
+printf '10\n' >"$bound"
+rm -f "$bound"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 grep -qx 'fleet_host_max_live_workers: 8' "$ov" 2>/dev/null && ok "a refused bound leaves the live file alone" || ko "live file after refusal"
 rm -f "$bound"
 printf '10\n' >"$sandbox/real"
