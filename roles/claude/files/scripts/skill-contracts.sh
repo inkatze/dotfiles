@@ -612,7 +612,7 @@ done
 [ ! -f CLAUDE.md ] || forbid_normalized CLAUDE.md "copy of a global rule or the Slack mechanics" \
   "$OUTBOUND_ANCHOR" "$RESOLUTION_ANCHOR" "$FIXED_TEMPLATE"
 require_normalized "$SHARED/slack.md" "confirm-step exceptions" \
-  "unless one of the user-global outbound rule's exceptions covers the message (a go-ahead for that message or its run, covering only the recipients and message kinds named; a reply to an automated reviewer; or a hub go-ahead, relayed for that message or standing under a live program rule that names it, the send naming the rule's id):"
+  "unless one of the user-global outbound rule's exceptions covers the message (a go-ahead for that message or its run, covering only the recipients and message kinds named; a reply to an automated reviewer; or a hub go-ahead, relayed for that message, or standing under a live program rule that names it (the send then naming the rule's id)):"
 require_normalized "$SHARED/workflow.md" "unwalked handoff" \
   "A nested loop hands off a small residue, and so does a review the user-global review rule exempts from the walk choice, so skip"
 require_normalized "$SHARED/slack.md" "unattended handoff step" \

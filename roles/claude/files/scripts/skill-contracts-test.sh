@@ -1010,6 +1010,10 @@ expect_fail ready-flip-unknown-dropped \
   "perl -0pi -e 's/, including a mergeability GitHub still\\s+reports as \`UNKNOWN\` after one re-query a few seconds later//' $GLOBAL_MD" "ready-flip sentence"
 expect_pass ready-flip-reflow \
   "perl -0pi -e 's/only once it is/only\\nonce it is/' $GLOBAL_MD"
+PIN="Any other flip there, another person's PR included, is mine to request and yours to perform" \
+  expect_fail ready-flip-other-flips-request-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
+PIN=", or once a session my hub (my program's mission-control session) dispatched" \
+  expect_fail ready-flip-hub-opened-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN=" or collaborative repo it covers a PR I authored" \
   expect_fail ready-flip-collaborative-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "ready-flip scope"
 PIN=", another person's PR included" \
@@ -1082,7 +1086,7 @@ PIN=" to my own branch and either runs unattended" \
 PIN=" that stops for findings" \
   expect_fail walk-loop-scope-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "walk rule"
 expect_fail walk-other-review-applies \
-  "perl -0pi -e 's/hands off its findings and\\s+applies none\\./applies its findings./' $GLOBAL_MD" "walk rule"
+  "perl -0pi -e 's/hands off its\\s+findings\\s+and\\s+applies\\s+none\\./applies its findings./' $GLOBAL_MD" "walk rule"
 PIN="and so does a review the user-global review rule exempts from the walk choice" \
   expect_fail workflow-unwalked-handoff-dropped 'drop_pin "$PIN" "$SHARED/workflow.md"' "unwalked handoff"
 PIN="then let me choose how to walk it" \
@@ -1227,7 +1231,7 @@ PIN=" a withdrawn rule, or a record you cannot read, covers nothing." \
   expect_fail standing-go-ahead-unreadable-dropped 'drop_pin "$PIN" "$GLOBAL_MD"' "outbound-message rule"
 PIN=" A send under a standing go-ahead names the rule that covered it, by its rule id, in your reply or handoff." \
   expect_fail standing-go-ahead-unnamed-send 'drop_pin "$PIN" "$GLOBAL_MD"' "outbound-message rule"
-PIN="unless one of the user-global outbound rule's exceptions covers the message (a go-ahead for that message or its run, covering only the recipients and message kinds named; a reply to an automated reviewer; or a hub go-ahead, relayed for that message or standing under a live program rule that names it, the send naming the rule's id)" \
+PIN="unless one of the user-global outbound rule's exceptions covers the message (a go-ahead for that message or its run, covering only the recipients and message kinds named; a reply to an automated reviewer; or a hub go-ahead, relayed for that message, or standing under a live program rule that names it (the send then naming the rule's id))" \
   expect_fail slack-confirm-exceptions-dropped 'drop_pin "$PIN" "$SHARED/slack.md"' "confirm-step exceptions"
 expect_fail exceptions-anchor-missing \
   "perl -0pi -e 's/The rule has exactly three exceptions:/The exceptions:/' $GLOBAL_MD" "no \"exactly three exceptions:\" list"
