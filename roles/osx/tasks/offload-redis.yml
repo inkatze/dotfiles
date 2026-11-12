@@ -39,6 +39,18 @@
   check_mode: false
   tags: [osx, offload, redis]
 
+# An interrupted generation would leave a short or empty file that `creates`
+# keeps forever, and an empty requirepass leaves the server open. Delete the
+# file by hand to have it regenerated.
+- name: Require a full-length Redis password
+  ansible.builtin.assert:
+    that: osx_redis_pass_raw.content | default('') | b64decode | trim | length >= 48
+    fail_msg: "{{ osx_redis_passfile }} is short or empty; remove it and re-run."
+    quiet: true
+  no_log: true
+  when: not ansible_check_mode
+  tags: [osx, offload, redis]
+
 # No Homebrew libraries and no TLS (it serves localhost only): the build runs
 # with the system path alone, and the compiler is not pointed at the owner's
 # prefix. An installed version is left alone.
