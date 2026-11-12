@@ -67,11 +67,16 @@ main() {
     trap 'exit 130' INT TERM HUP
     echo "${BASHPID:-$$}" >"$lock/pid"
 
-    [[ "$(git_ rev-parse --git-dir)" == "$(git_ rev-parse --git-common-dir)" ]] \
+    # Assigned apart from the test, so a failing git cannot read as an empty
+    # (passing) answer.
+    git_dir="$(git_ rev-parse --git-dir)" || die "git cannot read $repo"
+    common_dir="$(git_ rev-parse --git-common-dir)" || die "git cannot read $repo"
+    [[ "$git_dir" == "$common_dir" ]] \
         || die "$repo is a linked worktree; run it from the main checkout"
     branch="$(git_ symbolic-ref --short -q HEAD || true)"
     [[ "$branch" == main ]] || die "checked out branch is '${branch:-detached HEAD}', not main"
-    [[ -z "$(git_ status --porcelain --untracked-files=all)" ]] \
+    changes="$(git_ status --porcelain --untracked-files=all)" || die "git status failed in $repo"
+    [[ -z "$changes" ]] \
         || die "the checkout has uncommitted or untracked changes"
 
     # A hung fetch would hold the lock for good, so bound it where timeout exists.

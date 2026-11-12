@@ -85,7 +85,7 @@ refused ahead "$d" 'not level with origin/main'
 
 d="$(fixture fresh-lock)"; mkdir -p "$XDG_STATE_HOME/dotfiles/apply-user-config.lock"
 refused lock-being-taken "$d" 'taking the lock'
-touch -d '10 minutes ago' "$XDG_STATE_HOME/dotfiles/apply-user-config.lock"
+touch -t 200001010000 "$XDG_STATE_HOME/dotfiles/apply-user-config.lock"
 out="$(run "$d")"; rc=$?
 if [ $rc -eq 0 ] && [ -e "$d/ran" ]; then ok old-pidless-lock "an old lock with no pid is taken over"
 else fail old-pidless-lock "rc=$rc out=$out"; fi
