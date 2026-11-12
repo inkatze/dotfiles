@@ -21,7 +21,7 @@ worker_hook_exclude: skill-contracts-suite claude-skills-link copilot-retirement
 fleet_compute_host: mac
 
 # Host-wide, so it lives in this user-level layer.
-fleet_host_max_live_workers: 8
+fleet_host_max_live_workers: 10
 
 allocation_model_offload: sonnet
 allocation_effort_offload: medium
