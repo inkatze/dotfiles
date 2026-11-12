@@ -191,6 +191,13 @@ else:
 checks = [t for t in pg if "ansible.builtin.assert" in t]
 good = [t for t in checks if "{32,}" in str(t["ansible.builtin.assert"]["that"]) and t.get("no_log") and "ansible_check_mode" in str(t.get("when")) and "Remove that line and re-run" in " ".join(str(t["ansible.builtin.assert"]["fail_msg"]).split())]
 ok("a stored password shorter than 32 characters fails the play, quietly, outside check mode") if good else ko("no no_log, non-check-mode assert that the stored password has 32 characters")
+keep = [t for t in pg if arg(t, "ansible.builtin.file", "path") == "{{ osx_postgres_pgpass }}"]
+if keep and all(arg(t, "ansible.builtin.file", "mode") == "0600" and arg(t, "ansible.builtin.file", "state") == "file" and t.get("no_log") and "ansible_check_mode" in str(t.get("when")) for t in keep):
+    ok("the .pgpass is held to 0600 on every run, quietly, outside check mode")
+else:
+    ko("no no_log task holds an existing .pgpass to 0600 (state file, skipped in check mode)")
+first_write = next(i for i, t in enumerate(pg) if "ansible.builtin.lineinfile" in t)
+ok("the mode is enforced after the write") if keep and pg.index(keep[0]) > first_write else ko("the mode task does not follow the .pgpass write")
 order = [next(i for i, t in enumerate(pg) if x in t) for x in ("ansible.builtin.lineinfile", "ansible.builtin.assert")]
 ok("the length check runs after the line is written") if order[0] < order[1] else ko("the length check runs before the line is written")
 # The two .pgpass expressions are run, not only read, through jinja2 with the

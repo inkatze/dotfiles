@@ -71,6 +71,17 @@
   no_log: true
   tags: [osx, offload, postgres]
 
+# The write above sets the mode only when it runs; a file that already holds the
+# role's line, or one hand-edited loose, would otherwise keep its mode.
+- name: Keep the .pgpass readable by this account only
+  ansible.builtin.file:
+    path: "{{ osx_postgres_pgpass }}"
+    state: file
+    mode: "0600"
+  when: not ansible_check_mode
+  no_log: true
+  tags: [osx, offload, postgres]
+
 - name: Read the account's .pgpass again
   ansible.builtin.slurp:
     src: "{{ osx_postgres_pgpass }}"
