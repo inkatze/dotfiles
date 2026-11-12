@@ -25,7 +25,11 @@ state="${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles"
 log="$state/apply-user-config.log"
 lock="$state/apply-user-config.lock"
 
-mkdir -p -- "$state"
+# Private: the log holds playbook output.
+if ! { mkdir -p -- "$state" && chmod 700 -- "$state" && : >>"$log" && chmod 600 -- "$log"; }; then
+    echo "apply-user-config.sh: cannot prepare $state" >&2
+    exit 1
+fi
 exec </dev/null
 
 say() { printf 'apply-user-config: %s\n' "$*"; }

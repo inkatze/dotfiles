@@ -28,7 +28,7 @@ fixture() {
     mkdir -p "$d" && git init -q --bare -b main "$d/origin.git"
     git clone -q "$d/origin.git" "$d/checkout" 2>/dev/null
     (
-        cd "$d/checkout" && git checkout -q -b main 2>/dev/null
+        set -e; cd "$d/checkout" && git checkout -q -b main 2>/dev/null || true
         mkdir scripts
         cp "$here/apply-user-config.sh" scripts/
         cat >scripts/playbook.sh <<SH
@@ -79,6 +79,9 @@ d="$(fixture diverged)"
 (cd "$d" && git clone -q origin.git other 2>/dev/null && cd other && git checkout -q main && echo x >f && git add f && git commit -q -m up && git push -q origin main)
 (cd "$d/checkout" && echo l >g && git add g && git commit -q -m local)
 refused diverged "$d" 'does not fast-forward'
+
+d="$(fixture nofetch)"; git -C "$d/checkout" remote set-url origin "$d/gone.git"
+refused fetch-fails "$d" "could not fetch"
 
 d="$(fixture ahead)"; (cd "$d/checkout" && echo l >g && git add g && git commit -q -m local)
 refused ahead "$d" 'not level with origin/main'
