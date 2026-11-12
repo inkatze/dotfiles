@@ -37,10 +37,10 @@ jobs:
         if: env.HAS_MODEL_KEY == 'true'
         # v0.50.0
         uses: the-pr-agent/pr-agent@e673a02076ce09a4726c3d0c3cc85780e59ca52b
-        # ai_timeout is a per-read inactivity limit, not a total deadline, so an
-        # OpenRouter call that keeps the connection open can outlive it. This
-        # step limit is the hard bound: it fails the step (the head marker
-        # still posts) instead of letting the job timeout report "cancelled".
+        # A run sat silent for the whole 15 minutes with the default 120 s
+        # ai_timeout, so that setting alone has not bounded the call. This step
+        # limit is the hard bound: it fails the step (the head marker still
+        # posts) instead of letting the job timeout report "cancelled".
         timeout-minutes: 10
         env:
           OPENROUTER.KEY: ${{ secrets.OPENROUTER_API_KEY }}
