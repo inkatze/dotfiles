@@ -206,6 +206,11 @@ args = [str(a) for t in initdb for a in arg(t, "ansible.builtin.command", "argv"
 for want in ("--auth-local=peer", "--auth-host=scram-sha-256"):
     ok(f"initdb passes {want}") if want in args else ko(f"initdb lacks {want}")
 ko("initdb allows trust") if any("trust" in a for a in args) else ok("initdb allows no trust login")
+starts = [t for t in pg if "runner-start.sh" in command_text(t)]
+if starts and all(arg(t, "ansible.builtin.command", "chdir") == "{{ ansible_facts.env.HOME }}" for t in starts):
+    ok("the gate is started from the account's home, where a mise shim finds its config")
+else:
+    ko("the postgres start task does not run from the account's home")
 socket = [t for t in pg if arg(t, "ansible.builtin.file", "path") == "{{ osx_postgres_socket_dir }}"]
 if socket and all(arg(t, "ansible.builtin.file", "mode") == "0700" for t in socket):
     ok("the socket directory is mode 0700")
