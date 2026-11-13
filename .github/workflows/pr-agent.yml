@@ -19,7 +19,7 @@ jobs:
     name: PR-Agent
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
       contents: read
       issues: write
@@ -41,7 +41,7 @@ jobs:
         # ai_timeout, so that setting alone has not bounded the call. This step
         # limit is the hard bound: it fails the step (the head marker still
         # posts) instead of letting the job timeout report "cancelled".
-        timeout-minutes: 10
+        timeout-minutes: 20
         env:
           OPENROUTER.KEY: ${{ secrets.OPENROUTER_API_KEY }}
           # Override the model through repository variables; litellm does not
