@@ -28,3 +28,9 @@ gitleaks = "8.30.0"
 # The /panel-review and /code-review backend, which the owner's Homebrew need
 # not carry; mise bootstraps the node its npm backend runs on.
 gemini = "0.54.4"
+
+# A localhost Redis for a test suite's CI, built from source by the mise plugin
+# in the work account (no TLS, no Homebrew libraries); installed by
+# roles/osx/tasks/offload-redis.yml rather than the shared loop, which runs
+# with the owner's Homebrew on PATH.
+redis = "7.4.12"
