@@ -70,16 +70,17 @@ stop_server() {
     pg_ctl -D "$dir" -m fast -w stop
 }
 
-# One pass of the loop. The role is checked on every pass until it succeeds
-# once, so a failure right after a start is retried rather than left until the
-# next restart.
+# One pass of the loop. The role is ensured right after a start, so a client
+# arriving as the server opens finds it, and checked on every later pass until
+# it succeeds once, so a failure is retried rather than left until the next
+# restart.
 role_ready=""
 tick() {
     if server_running; then
         owner_idle || { stop_server; return 0; }
         [ -n "$role_ready" ] || { ensure_role && role_ready=1; }
     elif mac_is_free; then
-        start_server
+        start_server && { ensure_role && role_ready=1; }
     fi
 }
 

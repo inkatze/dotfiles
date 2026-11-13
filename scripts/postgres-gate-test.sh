@@ -66,8 +66,8 @@ logged() { grep -qF -- "$1" "$scratch/log"; }
 not_logged() { ! grep -qF -- "$1" "$scratch/log"; }
 stdin_has() { grep -qF -- "$1" "$scratch/stdin"; }
 
-# step <idle seconds> <load> [role exists]: the gate's loop body (three times:
-# start, role, role again) against the current stub state.
+# step <idle seconds> <load> [role exists]: the gate's loop body, three passes
+# against the current stub state.
 step() {
     : >"$scratch/log"
     : >"$scratch/stdin"
@@ -80,7 +80,6 @@ step() {
         # shellcheck disable=SC1090
         . "$gate" "$data"
         tick
-        # A server that came up gets its role on the next pass, retried after.
         tick
         tick
     )
@@ -136,7 +135,7 @@ check "an empty stored password is never applied" not_logged "-f -"
 # A role that failed right after the start is retried on the next pass.
 rm -f "$scratch/running"
 STUB_CREATE_FAIL=1 step 600 1.0 || true
-check "a failed role check is retried while the server runs" test "$(grep -c '^createuser' "$scratch/log")" = 2
+check "a failed role check is retried while the server runs" test "$(grep -c '^createuser' "$scratch/log")" = 3
 
 # A term of the gate stops a running server the same way.
 : >"$scratch/log"
