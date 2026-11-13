@@ -335,6 +335,23 @@ osx_runner_repos_file: "{{ ansible_facts.env.HOME }}/.config/dotfiles/runner-rep
 osx_runner_idle_seconds: 300
 osx_runner_load_max: 6
 
+# A localhost Redis in the offload account, for a test suite's CI. Version in
+# roles/osx/files/mise-offload/offload.toml. Started through the runners'
+# starter from the same crontab, and stopped while the owner is at the Mac
+# (docs/offload-host.md).
+osx_redis_port: 6379
+osx_redis_dir: "{{ ansible_facts.env.HOME }}/redis"
+# Generated once by the play, 0600, never rendered anywhere tracked.
+osx_redis_passfile: "{{ osx_redis_dir }}/redis.pass"
+osx_redis_start_job: >-
+  /usr/bin/env PATH={{ osx_runner_path }}
+  RUNNER_GATE={{ ansible_facts.env.HOME }}/.local/bin/redis-gate.sh
+  RUNNER_PID_PREFIX=dotfiles-redis
+  RUNNER_IDLE_SECONDS={{ osx_runner_idle_seconds }}
+  RUNNER_NICE={{ osx_runner_nice }}
+  {{ ansible_facts.env.HOME }}/.local/bin/runner-start.sh
+  {{ osx_redis_dir }}
+
 # PostgreSQL for the offload account, from mise (osx_offload_mise_tools). The
 # server runs only while the Mac is idle, started from the account's crontab by
 # the same starter as the runners, under runner-gate.sh's idle rule

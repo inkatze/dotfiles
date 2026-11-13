@@ -80,6 +80,14 @@ touch -t 200001010000 "$scratch/cache/dotfiles-runner-r.lock"
 settle 4
 check "a stale lock is cleared and the gate started" starts_is 4
 
+# RUNNER_PID_PREFIX names the pid, lock and log files, leaving the default's alone.
+kill "$(cat "$pidfile")" 2>/dev/null || true; sleep 0.3
+RUNNER_PID_PREFIX=other "$start" "$scratch/r"
+settle 5
+check "a prefix names its own pid file" test -s "$scratch/cache/other-r.pid"
+check "a prefix names its own log file" test -f "$scratch/cache/other-r.out"
+kill "$(cat "$scratch/cache/other-r.pid")" 2>/dev/null || true
+
 # RUNNER_PID_PREFIX gives another gate its own pid, lock and log names, so the
 # postgres gate and a runner never share a pid file.
 mkdir -p "$scratch/p"

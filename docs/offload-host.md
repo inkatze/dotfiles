@@ -234,6 +234,59 @@ defaults; bump both together.
 - **Logs:** `~/.cache/dotfiles-runner-<owner>-<repo>.{out,err}` (cron's own
   mail for the account is empty unless a job line breaks).
 
+## Redis for a test suite
+
+The play (`roles/osx/tasks/offload-redis.yml`) also runs a Redis 7 on
+`localhost:6379` in the work account, for a test suite's full CI on this Mac.
+It is installed with mise, pinned in `roles/osx/files/mise-offload/offload.toml`
+and built from source in the work account with only the system `PATH`, no TLS
+and none of the owner's Homebrew libraries. Nothing uses sudo, Homebrew or the
+owner's account.
+
+- **Config.** The play renders `~/redis/redis.conf` (mode 0600) from
+  `roles/osx/templates/redis.conf.j2`: `bind 127.0.0.1 -::1`,
+  `protected-mode yes`, `port 6379`, `save ""` and `appendonly no` (nothing is
+  persisted), and `requirepass` from `~/redis/redis.pass`. `~/redis` is mode
+  0700 and is the server's working directory. The password is 48 random hex
+  characters generated once with the system `openssl` into that 0600 file; an
+  existing file is kept, never regenerated, and the play never prints or logs
+  it. Changing the config takes effect at the server's next start.
+- **Keeping it running.** The same shape as the runners: an `@reboot` crontab
+  line and one every `osx_runner_recheck_minutes`, calling
+  `runner-start.sh` with `RUNNER_GATE` set to `redis-gate.sh` and
+  `RUNNER_PID_PREFIX=dotfiles-redis`, so its pid, lock and log files are
+  `~/.cache/dotfiles-redis-redis.*` and never collide with a runner's. To stop
+  it for good, kill the pid in `~/.cache/dotfiles-redis-redis.pid` and remove
+  the two `dotfiles redis` lines from `crontab -e`.
+- **Yielding.** `redis-gate.sh` runs the server only while the keyboard and
+  mouse have been still for `osx_runner_idle_seconds` (`owner_idle` in
+  `runner-gate.sh`, the idle-time half of the runner's free check). When the
+  owner returns it runs `redis-cli shutdown nosave`, with the password in the
+  `REDISCLI_AUTH` environment variable (never on a command line), and starts
+  the server again once the Mac has been idle long enough. Load is not part of
+  the rule: a server stopped by its own load would never stay up under the
+  suite it serves. Anything using it loses its data at that moment, as with a
+  runner job dropped when the owner returns; re-run it.
+
+### Client settings
+
+A test suite reads these; the defaults need nothing set:
+
+| Variable | Value |
+|---|---|
+| `REDIS_HOST` | `localhost` (the default) |
+| `REDIS_PORT` | `6379` (the default) |
+| `REDIS_PASSWORD` | the contents of `~/redis/redis.pass` in the work account |
+| `REDIS_DATABASE` | `0` (the default) |
+| `REDIS_SSL` | unset or `false`: no TLS |
+
+A job on a runner here exports the password from the file at run time and never
+writes it into a tracked file or a workflow:
+
+```sh
+export REDIS_PASSWORD="$(cat ~/redis/redis.pass)"
+```
+
 ## PostgreSQL
 
 The play (`roles/osx/tasks/offload-postgres.yml`) gives the work account a

@@ -113,7 +113,7 @@ else:
     ko(f"osx_brew_writable is set ahead of the imports as {writable}")
 
 print("1b. the offload host's own tasks never ask for sudo")
-for fname in ("offload-host.yml", "offload-tools.yml", "offload-runner.yml", "offload-postgres.yml"):
+for fname in ("offload-host.yml", "offload-tools.yml", "offload-runner.yml", "offload-redis.yml", "offload-postgres.yml"):
     becomes = [
         sub["name"]
         for t in load(fname)
@@ -153,7 +153,39 @@ for name in ("homebrew.yml", "upgrade.yml"):
         skips = any(w.strip() == "inventory_hostname not in osx_offload_hosts" for w in whens(t))
         ok(f"{name}: {t['name']}: skipped there") if skips else ko(f"{name}: {t['name']}: runs on the offload host")
 
-print("5. postgres runs from the fleet account's mise and crontab, with no Homebrew")
+print("5. the Redis tasks stay in the work account, private and off Homebrew")
+redis = load("offload-redis.yml")
+redis_text = open(f"{tasks_dir}/offload-redis.yml").read()
+redis_code = "\n".join(l for l in redis_text.splitlines() if not l.lstrip().startswith("#"))
+ok("no Homebrew write") if not any(writes_homebrew(t) for t in redis) and "brew" not in redis_code.replace("Homebrew", "") else ko("a Redis task touches brew")
+mise_pin = open(f"{tasks_dir}/../files/mise-offload/offload.toml").read()
+ok("redis is pinned in offload.toml") if any(l.startswith('redis = "7.') for l in mise_pin.splitlines()) else ko("redis is not pinned to a 7.x release in offload.toml")
+conf = open(f"{tasks_dir}/../templates/redis.conf.j2").read().splitlines()
+for line in ("bind 127.0.0.1 -::1", "protected-mode yes", "port {{ osx_redis_port }}", 'save ""', "appendonly no", "requirepass {{ osx_redis_password }}"):
+    ok(f"redis.conf has `{line}`") if line in conf else ko(f"redis.conf lacks `{line}`")
+for t in redis:
+    if "ansible.builtin.slurp" in t or "ansible.builtin.template" in t or "ansible.builtin.shell" in t:
+        ok(f"{t['name']}: no_log") if t.get("no_log") is True else ko(f"{t['name']}: handles the password without no_log")
+gen = next(t for t in redis if "ansible.builtin.shell" in t)
+cmd = gen["ansible.builtin.shell"]["cmd"]
+ok("the password file is made once, under umask 077") if gen["ansible.builtin.shell"].get("creates") == "{{ osx_redis_passfile }}" and "umask 077" in cmd else ko("the password is not generated once under umask 077")
+ok("openssl is called by absolute path, never the owner's Homebrew one") if "&& /usr/bin/openssl rand " in cmd else ko("the password generator does not call /usr/bin/openssl")
+modes = {t["ansible.builtin.file"]["path"]: t["ansible.builtin.file"].get("mode") for t in redis if "ansible.builtin.file" in t}
+ok("the working directory is 0700") if modes.get("{{ osx_redis_dir }}") == "0700" else ko("the working directory is not 0700")
+ok("the password file is kept 0600") if modes.get("{{ osx_redis_passfile }}") == "0600" else ko("the password file is not kept 0600")
+rendered = next(t for t in redis if "ansible.builtin.template" in t)["ansible.builtin.template"]
+ok("redis.conf is rendered 0600") if rendered.get("mode") == "0600" else ko("redis.conf is not rendered 0600")
+cron = [t["ansible.builtin.cron"] for t in redis if "ansible.builtin.cron" in t]
+ok("started at boot and re-checked") if any(c.get("special_time") == "reboot" for c in cron) and any(str(c.get("minute", "")).startswith("*/") for c in cron) else ko("no @reboot and periodic cron jobs")
+ok("both jobs are the shared start job") if cron and all(c["job"] == "{{ osx_redis_start_job }}" for c in cron) else ko("a cron job is not the Redis start job")
+with open(f"{tasks_dir}/../defaults/main.yml") as f:
+    job = yaml.safe_load(f)["osx_redis_start_job"]
+for needle in ("runner-start.sh", "RUNNER_GATE=", "redis-gate.sh", "RUNNER_PID_PREFIX=dotfiles-redis", "RUNNER_IDLE_SECONDS="):
+    ok(f"the job carries {needle}") if needle in job else ko(f"the job lacks {needle}")
+ok("the job has no %, which ends a cron command") if "%" not in job else ko("the job holds a %")
+ok("the job has no RUNNER_LOAD_MAX: load never stops the server") if "RUNNER_LOAD_MAX" not in job else ko("the job sets RUNNER_LOAD_MAX")
+
+print("6. postgres runs from the fleet account's mise and crontab, with no Homebrew")
 pg = load("offload-postgres.yml")
 defaults = load("../defaults/main.yml")
 with open(f"{tasks_dir}/../files/mise-offload/offload.toml") as f:

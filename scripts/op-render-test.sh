@@ -896,6 +896,52 @@ block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a, b]\npr
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 [ "$rc" -eq 0 ] && [ ! -e "$sup" ] && grep -qF "removed $sup" <<<"$log" && ok "a supplement the item fully matches is removed" || ko "a fully matched supplement is removed ($log)"
 cmp -s "$ov" "$snap" && ok "the snapshot follows the output" || ko "the snapshot follows the output"
+# An older backup of the overlay put back after a render must not turn the
+# writes the supplement keeps into removals.
+new_sandbox
+ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
+sup="$HOME/.config/dotfiles/planwright-overlay.supplement.yml"
+snap="$HOME/.config/dotfiles/planwright-overlay.rendered"
+block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a]'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+cp "$ov" "$sandbox/backup"
+echo 'mission_control_tick_cadence: 5m' >>"$ov"
+sed -i.bak 's/^program_alpha_duties: .*/program_alpha_duties: [a, b]/' "$ov" && rm -f "$ov.bak"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+cp "$sup" "$sandbox/sup.before"
+cp "$snap" "$sandbox/snap.before"
+cp "$sandbox/backup" "$ov"
+cp "$ov" "$sandbox/ov.before"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -ne 0 ] && grep -qF 'mission_control_tick_cadence' <<<"$log" && grep -qF 'OP_RENDER_ACCEPT_REMOVALS' <<<"$log" \
+  && ok "a restored overlay is refused, naming the key and the way out" || ko "a restored overlay is refused ($rc $log)"
+cmp -s "$sup" "$sandbox/sup.before" && cmp -s "$snap" "$sandbox/snap.before" && cmp -s "$ov" "$sandbox/ov.before" \
+  && ok "a refused restore writes nothing" || ko "a refused restore writes nothing"
+grep -q '^remove ' "$sup" && ko "the restore became a remove entry" || ok "the restore recorded no remove entry"
+cp "$snap" "$ov"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && grep -qx 'mission_control_tick_cadence: 5m' "$ov" && grep -qx 'program_alpha_duties: \[a, b\]' "$ov" \
+  && ok "putting the snapshot back recovers every kept write" || ko "recovery from the snapshot ($log)"
+# Only the value 1 accepts removals.
+cp "$ov" "$sandbox/ov.before"
+sed -i.bak '/^mission_control_tick_cadence:/d' "$ov" && rm -f "$ov.bak"
+OP_RENDER_ACCEPT_REMOVALS=false run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -ne 0 ] && ok "a value other than 1 does not accept removals" || ko "a value other than 1 does not accept removals ($log)"
+# A removal the operator really made after a clean render is still honoured.
+sed -i.bak '/^mission_control_tick_cadence:/d' "$ov" && rm -f "$ov.bak"
+OP_RENDER_ACCEPT_REMOVALS=1 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && ! grep -q '^mission_control_tick_cadence:' "$ov" && ! grep -q 'mission_control_tick_cadence' "$sup" \
+  && ok "an accepted removal is honoured" || ko "an accepted removal is honoured ($log)"
+new_sandbox
+ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
+sup="$HOME/.config/dotfiles/planwright-overlay.supplement.yml"
+snap="$HOME/.config/dotfiles/planwright-overlay.rendered"
+block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a]\nprogram_alpha_home: /h'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+sed -i.bak '/^program_alpha_home:/d' "$ov" && rm -f "$ov.bak"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && grep -qx 'remove program_alpha_home' "$sup" \
+  && ok "a removal after a clean render, of an item key, is still recorded" || ko "removal of an item key ($log)"
 # A supplement line for any other key would let a local file override the item.
 printf 'ready_guard_behind_base: never\n' >"$sup"
 cp "$ov" "$sandbox/before"

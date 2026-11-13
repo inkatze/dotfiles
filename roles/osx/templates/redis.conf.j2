@@ -1,0 +1,10 @@
+# Managed by roles/osx/tasks/offload-redis.yml; edits are overwritten.
+# A localhost-only server for a test suite, with no data worth keeping.
+bind 127.0.0.1 -::1
+protected-mode yes
+port {{ osx_redis_port }}
+dir {{ osx_redis_dir }}
+requirepass {{ osx_redis_password }}
+save ""
+appendonly no
+daemonize no

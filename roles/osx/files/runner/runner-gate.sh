@@ -28,8 +28,8 @@ hid_idle_seconds() {
 # counts as busy.
 load_one_minute() { sysctl -n vm.loadavg 2>/dev/null | awk '{ print $2; exit }'; }
 
-# The keyboard and mouse have been still long enough. Alone, this is what
-# postgres-gate.sh stops on: load must not stop a server its own tests load.
+# The idle-time half of mac_is_free, for a server that must not be stopped by
+# its own load.
 owner_idle() {
     local idle
     idle="$(hid_idle_seconds)"
