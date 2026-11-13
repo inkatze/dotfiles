@@ -152,7 +152,9 @@ In order; each step needs a person, except the playbook run on `server`.
    anything else with mise. The play also refuses, before its Homebrew and
    macOS tasks, while one of `osx_offload_required_tools` is missing. The run
    renders the key the next step needs and keeps the same `PATH` for later
-   sessions in `~/.zshenv`; password login stays on until step 6.
+   sessions in `~/.zshenv`; password login stays on until step 6. The
+   owner's desktop defaults (`osx.yml`: Finder, Dock, screensaver) are skipped
+   on this host.
 
 6. **Close password login**, in an administrator's session on the Mac (zsh),
    once step 5's run has rendered the key. The clone is the administrator's
