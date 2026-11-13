@@ -307,10 +307,10 @@ owner's account or settings.
   listens on `localhost` and on a Unix socket in `osx_postgres_socket_dir`
   (default `~/postgresql-16-run`, mode 0700, socket mode 0700), so another
   account on the Mac cannot enter the socket directory and, though it can reach
-  the TCP port, cannot log in without the password. The `fleet` role is the cluster's
-  bootstrap superuser, and the gate creates `osx_postgres_role` with
-  `createuser -s` only when it is missing, so it covers any database a suite
-  creates.
+  the TCP port, cannot log in without the password. `initdb` makes the account's own
+  login the bootstrap superuser, and the gate also creates `osx_postgres_role`
+  (default `fleet`) with `createuser -s` only when it is missing, so it covers
+  any database a suite creates.
 - **Password.** The play appends `localhost:<port>:*:fleet:<password>` to
   `~/.pgpass` (mode 0600), a random password, only while no such line exists,
   and never prints it (`no_log`). The gate sets it on the role with `ALTER ROLE`

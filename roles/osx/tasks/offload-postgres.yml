@@ -130,6 +130,7 @@
     argv:
       - "{{ ansible_facts.env.HOME }}/.local/bin/runner-start.sh"
       - "{{ osx_postgres_data }}"
+    chdir: "{{ ansible_facts.env.HOME }}"
   environment:
     PATH: "{{ osx_runner_path }}"
     RUNNER_IDLE_SECONDS: "{{ osx_runner_idle_seconds }}"

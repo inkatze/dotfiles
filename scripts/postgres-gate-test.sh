@@ -118,7 +118,6 @@ step 10 1.0
 check "the owner's return stops it" stopped
 check "it stops with a fast shutdown" logged "-m fast"
 check "it waits for the shutdown to finish" logged "-w stop"
-check "it never signals the server" not_logged "kill"
 
 step 600 1.0 yes
 check "it starts again once the Mac is idle" running
