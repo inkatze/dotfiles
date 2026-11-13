@@ -15,8 +15,9 @@ gate="${RUNNER_GATE:-$here/runner-gate.sh}"
 cache="${RUNNER_CACHE_DIR:-$HOME/.cache}"
 nice_level="${RUNNER_NICE:-10}"
 slug="$(basename -- "$dir")"
-pidfile="$cache/dotfiles-runner-$slug.pid"
-lock="$cache/dotfiles-runner-$slug.lock"
+prefix="${RUNNER_PID_PREFIX:-dotfiles-runner}"
+pidfile="$cache/$prefix-$slug.pid"
+lock="$cache/$prefix-$slug.lock"
 
 mkdir -p "$cache" || exit 1
 
@@ -42,5 +43,5 @@ command -v taskpolicy >/dev/null 2>&1 && low_io=(taskpolicy -b)
 
 # The expansion form keeps an empty array legal under set -u on macOS bash 3.2.
 nohup ${low_io[@]+"${low_io[@]}"} nice -n "$nice_level" "$gate" "$dir" \
-    >>"$cache/dotfiles-runner-$slug.out" 2>>"$cache/dotfiles-runner-$slug.err" </dev/null &
+    >>"$cache/$prefix-$slug.out" 2>>"$cache/$prefix-$slug.err" </dev/null &
 echo $! >"$pidfile"
