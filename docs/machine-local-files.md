@@ -116,6 +116,17 @@ host with no `op-work-item` fails the play rather than render the shared
 item's programs. Create that item, with the same `flight_pr_hosts` and
 `mission_control` fields, before the host's first run after joining the list.
 
+`claude-settings-work.json` holds permission rules only work machines carry
+(read-only work MCP tools, say), which must not reach the tracked
+`settings.json`. `op-render.sh --work-account` renders it from the
+`claude_permissions_allow` field (a JSON list of rules) of the item
+`op-work-item` names, so a host with no `op-work-item` file skips the render; left
+empty, the field renders an empty fragment. `scripts/claude-settings-merge.sh`
+unions its `permissions.allow` and `permissions.deny` into the live settings
+and refuses a fragment carrying any other key. A rule added by hand on a work
+machine is kept by the merge there, but belongs in the field too, or a fresh
+machine never gets it.
+
 `cubic-api-key` is synced by `scripts/op-key-sync.sh` from the `credential`
 field of the `dotfiles-cubic-api-key` item (category API Credential), through a
 task in the same file and behind the same guards. It is a raw key, not a

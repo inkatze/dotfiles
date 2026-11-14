@@ -1,0 +1,11 @@
+---
+
+- name: Apply the Claude work settings fragment
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_facts.env.PWD }}/scripts/claude-settings-merge.sh"
+      - "{{ ansible_facts.env.HOME }}/.claude/settings.json"
+      - "{{ ansible_facts.env.PWD }}/roles/claude/files/settings.json"
+      - "{{ claude_settings_work_fragment }}"
+  register: claude_settings_work_merge
+  changed_when: "'CHANGED' in claude_settings_work_merge.stdout"

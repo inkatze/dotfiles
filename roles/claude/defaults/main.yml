@@ -18,6 +18,9 @@ claude_planwright_overlay_from_work: "{{ inventory_hostname in claude_planwright
 claude_planwright_overlay_item: >-
   {{ 'dotfiles-planwright-overlay-' ~ inventory_hostname
      if claude_planwright_overlay_from_work else 'dotfiles-planwright-overlay' }}
+# Permission rules that must not be committed, rendered from the op-work-item
+# item and unioned into ~/.claude/settings.json by claude-settings-merge.sh.
+claude_settings_work_fragment: "{{ ansible_facts.env.HOME }}/.config/dotfiles/claude-settings-work.json"
 claude_steps_catalog_src: "{{ ansible_facts.env.PWD }}/roles/claude/files/planwright/steps.yaml"
 # The first line of the tracked catalog, and what makes a file at the overlay's
 # catalogs/steps.yaml this role's to replace or remove.

@@ -127,6 +127,7 @@ row names a writer. Keep machine-specific values here, never in tracked files.
 | `cubic-api-key` | `roles/claude/files/skills/panel-review/reviewer-backend.md`, through the cubic entry's `cli.env_files` | The cubic.dev CLI's API key (0600), written by `scripts/op-key-sync.sh` from the `dotfiles-cubic-api-key` item, without which a playbook run where `op` works fails |
 | `code-review-egress.json` | `roles/claude/files/skills/review-shared/egress.md` | Per-repo (and per-reviewer) upload consents (0600), written by the skills |
 | `bot-review.json` | the `/bot-review` skill, `/panel-review`'s `reviewer:<name>` backend, `/peer-review` (its login patterns) | Named third-party reviewers, one schema (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/bot-review/bot-review.json.tpl` |
+| `claude-settings-work.json` | `scripts/claude-settings-merge.sh` | Work-only permission rules unioned into `~/.claude/settings.json` (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/claude-settings-work.json.tpl` and the `op-work-item` item |
 | `sibling-repos.json` | `roles/claude/files/skills/review-shared/siblings.md`, for `/code-review` and `/panel-review` | Consuming repository to its producers' clone paths (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/review-shared/sibling-repos.json.tpl` |
 | `private-identifiers` | `scripts/gitleaks-identifier-rules.sh`, `roles/claude/files/scripts/identifier-check.sh` | Names that must never reach a committed file |
 | `claude-instructions-inventory/` | the `specs/claude-instructions` tasks, by hand | Dated instruction-surface audit (directory 0700, files 0600) |
@@ -141,8 +142,7 @@ accounts cannot read Personal or Private); moving one there reassigns its id.
 Do not wire `scripts/gitleaks-identifier-rules.sh` into a hook or CI without
 first amending `specs/dev-services`, which retired that guard. The review-time
 check is `roles/claude/files/scripts/identifier-check.sh`, run by hand at task
-review; it never blocks a commit. See
-[docs/identifier-guard.md](docs/identifier-guard.md).
+review; it never blocks a commit. See [docs/identifier-guard.md](docs/identifier-guard.md).
 
 ## Ansible role layout
 

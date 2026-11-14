@@ -49,7 +49,11 @@ so removing the status line means editing each live
 `scripts/claude-settings-merge.sh` asserts the keys this repo declares and
 leaves everything else alone, so Claude Code keeps ownership of what it writes
 itself (theme, onboarding state, per-project trust). Its header documents the
-hook-array semantics.
+hook-array semantics. `permissions.allow` and `permissions.deny` are a union
+of the tracked rules, the machine-local work fragment
+([machine-local-files.md](machine-local-files.md)) and the live file's own, so
+removing a rule from the tracked file means deleting it from each live
+`~/.claude/settings.json` too.
 
 The cost is that a key set by hand on one machine, or persisted there by the
 app when you toggle something, works on that machine and is invisible to

@@ -163,6 +163,53 @@ else
     fail allow-home-expanded "got $got"
 fi
 
+# 11. permission lists are a union: tracked rules, then the fragment's, then
+#     rules only the live file carries, each once and in a stable order
+printf '%s\n' '{"permissions":{"allow":["Bash(ls:*)","Bash(app-added:*)","mcp__work__read"],"deny":["Bash(live-deny:*)"]}}' >"$work/live.json"
+printf '%s\n' '{"permissions":{"allow":["Bash(ls:*)","Bash(git status:*)"],"deny":["Bash(rm -rf:*)"]}}' >"$work/managed.json"
+printf '%s\n' '{"permissions":{"allow":["mcp__work__read","mcp__work__search"],"deny":["mcp__work__write"]}}' >"$work/fragment.json"
+"$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null
+got=$(jq -c '.permissions' "$work/live.json")
+want='{"allow":["Bash(ls:*)","Bash(git status:*)","mcp__work__read","mcp__work__search","Bash(app-added:*)"],"deny":["Bash(rm -rf:*)","mcp__work__write","Bash(live-deny:*)"]}'
+if [ "$got" = "$want" ]; then
+    ok permission-union "tracked, fragment and live-only rules all kept, deduplicated"
+else
+    fail permission-union "got $got"
+fi
+
+# 12. a rerun with the same fragment is idempotent
+first=$(cat "$work/live.json")
+status=$("$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json")
+if [ "$status" = OK ] && [ "$first" = "$(cat "$work/live.json")" ]; then
+    ok union-idempotent "second run with the fragment reported OK and rewrote nothing"
+else
+    fail union-idempotent "status=$status"
+fi
+
+# 13. a missing fragment is a no-op: the same result as passing none
+printf '%s\n' '{"permissions":{"allow":["Bash(app-added:*)"]}}' >"$work/live.json"
+"$merge" "$work/live.json" "$work/managed.json" >"$work/none.out"
+cp "$work/live.json" "$work/none.json"
+printf '%s\n' '{"permissions":{"allow":["Bash(app-added:*)"]}}' >"$work/live.json"
+"$merge" "$work/live.json" "$work/managed.json" "$work/absent.json" >"$work/absent.out"
+if cmp -s "$work/none.json" "$work/live.json" && cmp -s "$work/none.out" "$work/absent.out" \
+    && [ "$(jq -c '.permissions.allow' "$work/live.json")" = '["Bash(ls:*)","Bash(git status:*)","Bash(app-added:*)"]' ]; then
+    ok missing-fragment-noop "an absent fragment merges exactly as no fragment"
+else
+    fail missing-fragment-noop "got $(jq -c '.permissions' "$work/live.json")"
+fi
+
+# 14. a fragment carrying anything but the two rule lists is refused, live untouched
+printf '%s\n' '{"permissions":{"allow":["x"],"defaultMode":"bypassPermissions"}}' >"$work/fragment.json"
+before=$(cat "$work/live.json")
+if out=$("$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" 2>&1); then
+    fail refuses-bad-fragment "exited 0 on a fragment setting defaultMode"
+elif [ "$before" = "$(cat "$work/live.json")" ] && [[ "$out" == *"settings fragment must hold only"* ]]; then
+    ok refuses-bad-fragment "refused, live file untouched"
+else
+    fail refuses-bad-fragment "wrong outcome: $out"
+fi
+
 if [ "$fails" -ne 0 ]; then
     printf 'claude-settings-merge-test: %d assertion(s) failed\n' "$fails"
     exit 1
