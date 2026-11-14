@@ -42,6 +42,7 @@ scratch="$(mktemp -d /tmp/tpmguard.XXXXXX)" && [ -n "$scratch" ] || {
     echo "tmux-tpm-guard-test: cannot create a scratch directory" >&2
     exit 2
 }
+trap 'sweep; rm -rf "$scratch"' EXIT
 home="$scratch/home"
 runs="$scratch/runs"
 mkdir -p "$home/.tmux/plugins/tpm" "$scratch/sock" "$scratch/empty"
@@ -92,8 +93,6 @@ sweep() {
     find "$scratch/sock" "$scratch/empty" -type s -delete 2>/dev/null
     : >"$runs"
 }
-trap 'sweep; rm -rf "$scratch"' EXIT
-
 pass() { echo "ok[$1]: $2"; }
 fail() { echo "FAIL[$1]: $2" >&2; fails=$((fails + 1)); }
 
@@ -112,16 +111,17 @@ wait_runs() {
 settle() { sleep 3; }
 
 expect_no_leftovers() {
-    local case="$1" what="$2" left alive
+    local label="$1" what="$2" left alive
     left="$(leftover_procs)"
-    if [ -z "$left" ]; then pass "$case" "no process outlived the $what"; else fail "$case" "processes outlived the $what: $left"; fi
+    if [ -z "$left" ]; then pass "$label" "no process outlived the $what"; else fail "$label" "processes outlived the $what: $left"; fi
     alive="$(live_servers)"
-    if [ -z "$alive" ]; then pass "$case" "no server re-spawned"; else fail "$case" "live server(s) at: $alive"; fi
+    if [ -z "$alive" ]; then pass "$label" "no server re-spawned"; else fail "$label" "live server(s) at: $alive"; fi
 }
 
 # 1. The incident: a private server, killed a moment after it starts.
 probe="$scratch/sock/probe"
 tm -S "$probe" -f "$conf" new-session -d -s probe 'sleep 600'
+if tm -N -S "$probe" list-sessions >/dev/null 2>&1; then pass 1 "the private server started"; else fail 1 "the private server did not start"; fi
 sleep 0.3
 tm -N -S "$probe" kill-server 2>/dev/null
 settle
@@ -150,8 +150,9 @@ tm -S "$main" -f "$conf" new-session -d -s main 'sleep 600'
 if wait_runs "$main" 1; then pass 3 "tpm ran on a fresh default-socket start"; else fail 3 "tpm did not run on a fresh default-socket start"; fi
 
 # 4. A manual source-file on that server loads them again.
+before="$(runs_for "$main")"
 tm -N -S "$main" source-file "$conf"
-if wait_runs "$main" 2; then pass 4 "tpm ran again on source-file"; else fail 4 "tpm did not run on source-file"; fi
+if wait_runs "$main" $((before + 1)); then pass 4 "tpm ran again on source-file"; else fail 4 "tpm did not run on source-file"; fi
 
 # 5. Killed while tpm's children still run, the server must stay dead.
 before="$(runs_for "$main")"
@@ -177,6 +178,7 @@ else
     chmod +x "$home/.tmux/plugins/tmux-sensible/sensible.tmux"
     real="$scratch/sock/default"
     tm -S "$real" -f "$conf" new-session -d -s real 'sleep 600'
+    tm -N -S "$real" list-sessions >/dev/null 2>&1 || fail 6 "the server did not start"
     got=""
     for _ in $(seq 50); do
         got="$(tm -N -S "$real" show -gqv @tpm_guard_test)"
@@ -186,6 +188,13 @@ else
     if [ "$got" = loaded ]; then pass 6 "the real tpm sourced a plugin through the guard"; else fail 6 "the real tpm did not source the plugin (got '${got}')"; fi
     tm -N -S "$real" kill-server 2>/dev/null
 fi
+
+# 7. The shim alone: against a dead socket it must not start a server.
+dead="$scratch/sock/shim-dead"
+shim="$repo/roles/tmux/files/scripts/tpm-guard-bin/tmux"
+env -u TMUX TMUX_TMPDIR="$scratch/sock" TPM_GUARD_REAL_TMUX="$(command -v tmux)" "$shim" -S "$dead" list-keys >/dev/null 2>&1
+sleep 0.3
+if [ -S "$dead" ]; then fail 7 "the shim started a server on a dead socket"; else pass 7 "the shim started no server on a dead socket"; fi
 
 if [ "$fails" -gt 0 ]; then
     echo "tmux-tpm-guard-test: $fails failure(s)" >&2

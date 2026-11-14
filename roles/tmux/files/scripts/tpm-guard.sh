@@ -14,6 +14,8 @@
 # none for a moment.
 
 real_tmux=$(command -v tmux) || exit 0
+# A server started from inside tpm inherits the shim on PATH; the shim would exec itself.
+case $real_tmux in */tpm-guard-bin/tmux) exit 0 ;; esac
 socket=${TMUX%%,*}
 [ -n "$socket" ] || exit 0
 [ "${socket##*/}" = default ] || exit 0

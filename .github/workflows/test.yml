@@ -406,9 +406,10 @@ jobs:
         timeout-minutes: 20
         run: mise run ${{ matrix.role }}
 
-      # The leg that installs tmux; the suite needs nothing the role provides.
+      # Runs after the role: its last case needs the tpm the role installs.
       - name: Run the tpm guard suite
         if: matrix.role == 'tmux'
+        timeout-minutes: 10
         run: scripts/tmux-tpm-guard-test.sh
 
       - name: Idempotency check
