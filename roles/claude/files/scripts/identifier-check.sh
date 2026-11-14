@@ -12,8 +12,9 @@
 # Reports file and line only, never the matched name. A missing identifier
 # file is a warning, not a pass. Run by hand at task review and from
 # skill-contracts-test.sh; it is never a commit gate.
-# Exit 1 means hits; exit 2 means the check could not run as asked, a named
-# file or (with named files) the identifier file missing or unreadable included.
+# Exit 1 means hits; exit 2 means the check could not run as asked: an
+# unreadable identifier file, a named file that is not readable or, with named
+# files, an absent or empty identifier file.
 set -euo pipefail
 
 idfile="${IDENTIFIER_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/private-identifiers}"
@@ -66,11 +67,21 @@ if [ ! -s "$patterns" ]; then
   exit 0
 fi
 
+# A named path is user-chosen and may itself hold an identifier, so every
+# message that shows one goes through here; a grep error counts as a match.
+shown() {
+  local rc=0
+  printf '%s\n' "$1" | grep -qiF -f "$patterns" || rc=$?
+  if [ "$rc" -eq 1 ]; then printf '%s' "$1"; else printf 'argument %s' "$2"; fi
+}
+
 paths=()
 if [ "$#" -gt 0 ]; then
+  i=0
   for p in "$@"; do
+    i=$((i + 1))
     case "$p" in *$'\n'*) echo "ERROR: a named path contains a newline" >&2; exit 2 ;; esac
-    if [ ! -f "$p" ] || [ ! -r "$p" ]; then echo "ERROR: $p is not a readable file" >&2; exit 2; fi
+    if [ ! -f "$p" ] || [ ! -r "$p" ]; then echo "ERROR: $(shown "$p" "$i") is not a readable file" >&2; exit 2; fi
     paths+=("$p")
   done
 else
@@ -85,9 +96,9 @@ fi
 # name inside a longer word is not a hit.
 if [ "$#" -gt 0 ]; then
   # Named files are scanned one by one as text (-a): -I would skip a binary or
-  # invalid-encoding body and report it clean, and the report is built here so
-  # a path holding a colon stays intact. A path that itself names an
-  # identifier is reported by position instead, never echoing the name.
+  # invalid-encoding body and report it clean. The report is built in bash so
+  # a path is never interpreted, and one that itself holds an identifier is
+  # shown by position, never echoed.
   hits=""
   i=0
   for p in "${paths[@]}"; do
@@ -96,10 +107,10 @@ if [ "$#" -gt 0 ]; then
     lines="$(grep -naiw -F -f "$patterns" -- "$p")"
     status=$?
     set -e
-    [ "$status" -le 1 ] || { echo "ERROR: grep could not read $p (exit $status)" >&2; exit 2; }
-    label="$p"
-    if printf '%s\n' "$p" | grep -qiwF -f "$patterns"; then label="argument $i"; fi
-    [ -z "$lines" ] || hits+="$(printf '%s\n' "$lines" | cut -d: -f1 | sed "s|^|$label:|")"$'\n'
+    [ "$status" -le 1 ] || { echo "ERROR: grep could not read $(shown "$p" "$i") (exit $status)" >&2; exit 2; }
+    [ -n "$lines" ] || continue
+    label="$(shown "$p" "$i")"
+    while IFS=: read -r ln _; do hits+="$label:$ln"$'\n'; done <<< "$lines"
   done
   hits="$(printf '%s' "$hits" | grep . || true)"
 else

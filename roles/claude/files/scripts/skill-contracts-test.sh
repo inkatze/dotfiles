@@ -1433,6 +1433,32 @@ out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" a:b.md 2>
 if [ "$rc" -ne 1 ] || ! printf '%s\n' "$out" | grep -qxF 'a:b.md:1'; then
   echo "FAIL identifier-file-colon-path: a path with a colon lost its line number (exit $rc): $out"; failures=$((failures + 1))
 fi
+# Path text is never interpreted: sed metacharacters, a substring match of the
+# name, and a name in the path of an unreadable file.
+mkdir "$tmp/d"
+printf 'Seen in the zqx-synthetic-project repo.\n' > "$tmp/d/x|e;s|^|.md"
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" "d/x|e;s|^|.md" 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 1 ] || ! printf '%s\n' "$out" | grep -qxF 'd/x|e;s|^|.md:1'; then
+  echo "FAIL identifier-file-metachar-path: a path with sed metacharacters was not reported intact (exit $rc): $out"; failures=$((failures + 1))
+fi
+printf 'Seen in the zqx-synthetic-project repo.\n' > "$tmp/pre-zqx-synthetic-projectfoo.md"
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" body-clean.md pre-zqx-synthetic-projectfoo.md 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 1 ] || ! printf '%s\n' "$out" | grep -qxF 'argument 2:1' || printf '%s' "$out" | grep -qF 'zqx-synthetic-project'; then
+  echo "FAIL identifier-file-substring-path: a path holding the name as a substring was echoed or mis-indexed (exit $rc): $out"; failures=$((failures + 1))
+fi
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" body-clean.md missing-zqx-synthetic-project.md 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 2 ] || printf '%s' "$out" | grep -qF 'zqx-synthetic-project'; then
+  echo "FAIL identifier-file-name-in-error: the error for an unreadable file printed the name (exit $rc): $out"; failures=$((failures + 1))
+fi
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" $'nl\nx.md' 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 2 ]; then
+  echo "FAIL identifier-file-newline-path: a path with a newline did not exit 2 (exit $rc): $out"; failures=$((failures + 1))
+fi
+printf 'Seen in the ZQX-Synthetic-Project repo.\nzqx-synthetic-projectfoo\n' > "$tmp/body-case.md"
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" body-case.md 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 1 ] || ! printf '%s\n' "$out" | grep -qxF 'body-case.md:1' || printf '%s' "$out" | grep -qF 'body-case.md:2'; then
+  echo "FAIL identifier-file-case-and-word: named-file matching is not case-insensitive whole-word (exit $rc): $out"; failures=$((failures + 1))
+fi
 printf 'Seen in the zqx-synthetic-project repo.\n' > "$tmp/zqx-synthetic-project.md"
 out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" zqx-synthetic-project.md 2>&1)" && rc=0 || rc=$?
 if [ "$rc" -ne 1 ] || printf '%s' "$out" | grep -qF 'zqx-synthetic-project'; then
