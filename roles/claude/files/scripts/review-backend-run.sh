@@ -115,6 +115,7 @@ cmd_gemini() {
   for f in "$lens_doc" "$instr" "$fmt" "$tooling"; do
     [ -n "$f" ] && [ -s "$f" ] || die "gemini: a required input file is missing or empty: ${f:-unset}"
   done
+  [ -z "$extra" ] || [ -s "$extra" ] || die "gemini: --extra-lens-file is missing or empty: $extra"
   [ -n "$base" ] || die "gemini: --base is required"
   case "$bound" in ''|*[!0-9]*|???????*) die "gemini: --timeout must be 1 to 999999 whole seconds" ;; esac
   [ "$((10#$bound))" -ge 1 ] || die "gemini: --timeout must be 1 to 999999 whole seconds"
