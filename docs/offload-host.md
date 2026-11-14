@@ -209,7 +209,7 @@ The account only logs in over ssh, so it has no launchd user domain (`gui/` and
 sudo or Homebrew. The release is pinned with its published sha256 in the role
 defaults; bump both together.
 
-- **Keeping it running.** Per repository the play adds an `@reboot` crontab
+- **Keeping it running.** Per runner instance the play adds an `@reboot` crontab
   line and one every `osx_runner_recheck_minutes` (default 5), both calling
   `runner-start.sh`, and runs it once itself. That script starts
   `runner-gate.sh` detached and niced (a pid file in `~/.cache` names the
@@ -266,14 +266,14 @@ defaults; bump both together.
 - **Existing runners.** A directory with a `.runner` file is never
   re-registered, so the stopgap's four planwright runners keep their
   registrations and names (`offload-mac-ci`, `-2`, `-3`, `-4`); the play only
-  adds the hook, `.env`, `.path` and gate. It removes the stopgap's hand-set
+  adds the hook, `.env`, `.path`, gate and the Spotlight-skipping work directory. It removes the stopgap's hand-set
   `@reboot` lines (tagged `# offload-mac-ci-...-runner`), which start `run.sh`
   bare, then schedules the gates. A listener those lines already started keeps
   running until stopped: before the first play run, stop each stopgap listener
   while no job runs (`pkill -f 'actions-runners/inkatze-planwright.*Runner.Listener'`),
   or the new gate's listener will collide with it.
-- **Job-started hook.** No fork's code may run here. Per repository the play
-  installs `~/.local/bin/runner-hook-<owner>-<repo>.sh` beside a `.repo` file
+- **Job-started hook.** No fork's code may run here. Per runner instance the play
+  installs `~/.local/bin/runner-hook-<slug>.sh` (the instance's directory name) beside a `.repo` file
   naming the repository, and writes
   `ACTIONS_RUNNER_HOOK_JOB_STARTED=<that path>` into the runner directory's
   `.env`, after registration and before any gate starts (the play fails if it cannot).
@@ -293,7 +293,7 @@ defaults; bump both together.
      echo '{"pull_request":{"head":{"repo":{"full_name":"someone/fork"}}}}' > <dir>/fork.json
      GITHUB_REPOSITORY=<owner>/<repo> GITHUB_EVENT_NAME=pull_request \
        GITHUB_EVENT_PATH=<dir>/fork.json \
-       ~/.local/bin/runner-hook-<owner>-<repo>.sh; echo $?
+       ~/.local/bin/runner-hook-<slug>.sh; echo $?
      ```
 
      It prints `offload-mac-ci: refusing this job` and exits 1.
