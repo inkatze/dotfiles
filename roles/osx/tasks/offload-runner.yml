@@ -241,6 +241,19 @@
   register: osx_runner_npm_env
   tags: [osx, offload, runner]
 
+- name: Split the Mac's cores between a repository's runners
+  ansible.builtin.lineinfile:
+    path: "{{ item.dir }}/.env"
+    regexp: "^PLANWRIGHT_TEST_JOBS="
+    line: "PLANWRIGHT_TEST_JOBS={{ osx_runner_test_jobs | trim }}"
+    create: true
+    mode: "0644"
+  loop: "{{ osx_runner_units }}"
+  loop_control:
+    label: "{{ item.slug }}"
+  register: osx_runner_jobs_env
+  tags: [osx, offload, runner]
+
 # The pattern skips a .path already prefixed.
 - name: Put each runner's npm prefix and node first on its job PATH
   ansible.builtin.lineinfile:
@@ -266,6 +279,7 @@
   when: >-
     osx_runner_hook_env.results[idx].changed
     or osx_runner_npm_env.results[idx].changed
+    or osx_runner_jobs_env.results[idx].changed
     or osx_runner_job_path.results[idx].changed
   changed_when: false
   tags: [osx, offload, runner]

@@ -269,12 +269,25 @@ if not ref or not (at("Put each runner's npm prefix and node first on its job PA
     bad.append("no listener restart between the .env/.path writes and the gates")
 else:
     cond = str(ref[0].get("when"))
-    for reg in ("osx_runner_hook_env", "osx_runner_npm_env", "osx_runner_job_path"):
+    for reg in ("osx_runner_hook_env", "osx_runner_npm_env", "osx_runner_jobs_env", "osx_runner_job_path"):
         if reg not in cond:
             bad.append(f"listener restart ignores {reg}")
 if not any(t["name"] == "Require the system jq the job-started hook reads payloads with"
            and at(t["name"]) < at("Install each runner's job-started hook") for t in tasks):
     bad.append("the play does not require /usr/bin/jq before installing the hook")
+jobs = line_task("PLANWRIGHT_TEST_JOBS=")
+if len(jobs) != 1 or not jobs[0]["ansible.builtin.lineinfile"]["path"].endswith("/.env"):
+    bad.append("no single .env line setting PLANWRIGHT_TEST_JOBS")
+elif not (at("Register each unregistered runner") < at(jobs[0]["name"]) < at("Start each runner's gate at boot")):
+    bad.append("PLANWRIGHT_TEST_JOBS not written after registration and before the gates")
+import jinja2
+tmpl = jinja2.Environment().from_string(str(defaults["osx_runner_test_jobs"]))
+def jobs_for(cores, count, repo="o/r"):
+    units = [{"repo": repo}] * count + [{"repo": "x/y"}] * 3
+    return int(tmpl.render(ansible_facts={"processor_vcpus": cores}, osx_runner_units=units, item={"repo": repo}).strip())
+for cores, count, want in ((16, 4, 4), (16, 1, 16), (2, 4, 1), (10, 3, 3)):
+    if jobs_for(cores, count) != want:
+        bad.append(f"{cores} cores over {count} runners gives {jobs_for(cores, count)}, not {want}")
 if bad:
     print("\n".join("    " + b for b in bad)); sys.exit(1)
 PY

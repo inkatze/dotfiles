@@ -242,7 +242,11 @@ defaults; bump both together.
   stay niced and the gate still stops the listener while someone uses the Mac.
   Stopping a runner now means stopping its gate and the caffeinate above it:
   `pkill -f 'runner-gate.sh <runner-dir>'` as well as the pid file's process.
-- **Job environment.** Each runner's `.env` sets `NPM_CONFIG_PREFIX` to
+- **Job environment.** Each runner's `.env` sets `PLANWRIGHT_TEST_JOBS` to the
+  Mac's core count (from Ansible's facts) divided by that repository's runner
+  count, at least 1, so the suites of several runners at once do not each fan
+  out across every core (four at full width overloaded the Mac), and
+  `NPM_CONFIG_PREFIX` to
   `~/.npm-global` (a job's `npm install -g` must not reach the owner's Homebrew
   prefix), and its `.path` starts with that prefix's `bin` and the bin of a node
   the play installs with mise (`osx_runner_node_version`), so `npm` never
