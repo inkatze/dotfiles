@@ -125,6 +125,8 @@ sleep 0.5
 if under_worker; then skip "a process only mentioning Runner.Worker gets no hold"; else
     check "a process only mentioning Runner.Worker gets no hold" test ! -e "$scratch/awake"
 fi
+# Under a real worker that run held; clear it so the next case starts clean.
+rm -f "$scratch/awake" "$scratch/awake.pid"
 GITHUB_REPOSITORY=x/y GITHUB_EVENT_NAME=push RUNNER_HOOK_CAFFEINATE="$scratch/caffeinate" \
     "$hook" >/dev/null 2>&1 || true
 sleep 0.5
