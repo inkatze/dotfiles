@@ -30,7 +30,8 @@ while :; do
 	sleep 0.1
 done
 
+guard_dir=$(cd "$(dirname "$0")" && pwd) || exit 0
 TPM_GUARD_REAL_TMUX=$real_tmux
-PATH="$(cd "$(dirname "$0")" && pwd)/tpm-guard-bin:$PATH"
+PATH="$guard_dir/tpm-guard-bin:$PATH"
 export TPM_GUARD_REAL_TMUX PATH
 exec "$HOME/.tmux/plugins/tpm/tpm"
