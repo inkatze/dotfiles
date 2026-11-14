@@ -364,8 +364,8 @@ owner's account.
   `~/.cache/dotfiles-redis-redis.*` and never collide with a runner's. Like
   every gate it runs under `caffeinate -i` (see Staying awake). To stop it for
   good, remove the two `dotfiles redis` lines from `crontab -e`, then kill the
-  pid in `~/.cache/dotfiles-redis-redis.pid` and `pkill -f 'redis-gate.sh
-  <redis dir>'`.
+  pid in `~/.cache/dotfiles-redis-redis.pid` and the gate with
+  `pkill -f 'redis-gate.sh <redis dir>'`.
 - **Yielding.** `redis-gate.sh` runs the server only while the keyboard and
   mouse have been still for `osx_runner_idle_seconds` (`owner_idle` in
   `runner-gate.sh`, the idle-time half of the runner's free check). When the
