@@ -227,23 +227,26 @@ replaces it with a real file.
 The play (`roles/osx/tasks/offload-runner.yml`) turns the work account into a
 self-hosted runner for the repositories in `osx_runner_repos`, plus any
 `owner/repo` lines in `~/.config/dotfiles/runner-repos` (private names stay
-out of the repo). One runner per repository, each in
-`~/actions-runners/<owner>-<repo>`, labelled `self-hosted`, `macOS`,
-`mac-fleet`, each kept running by the work account's own crontab at `nice 10`.
+out of the repo). One runner per repository by default, `osx_runner_instances`
+giving a repository more (planwright has four): the first in
+`~/actions-runners/<owner>-<repo>`, the rest in `<owner>-<repo>-2` and so on,
+named `offload-mac-ci`, `offload-mac-ci-2`, ..., all labelled `self-hosted`,
+`macOS`, `mac-fleet` and `offload-mac-ci`, each kept running by the work
+account's own crontab at `nice 10`.
 The account only logs in over ssh, so it has no launchd user domain (`gui/` and
 `user/` bootstraps both fail) and no sudo for a LaunchDaemon. Nothing uses
 sudo or Homebrew. The release is pinned with its published sha256 in the role
 defaults; bump both together.
 
-- **Keeping it running.** Per repository the play adds an `@reboot` crontab
+- **Keeping it running.** Per runner instance the play adds an `@reboot` crontab
   line and one every `osx_runner_recheck_minutes` (default 5), both calling
   `runner-start.sh`, and runs it once itself. That script starts
   `runner-gate.sh` detached and niced (a pid file in `~/.cache` names the
   running copy) and does nothing when it already runs, so a re-check never
   disturbs a job. The gate outlives the cron job and any ssh session. The
   crontab lines carry no `%`, which cron reads as a newline. To stop a runner,
-  kill the pid in `~/.cache/dotfiles-runner-<owner>-<repo>.pid` and remove its
-  two `dotfiles runner` lines from `crontab -e`.
+  remove its two `dotfiles runner` lines from `crontab -e`, then kill the pid in
+  `~/.cache/dotfiles-runner-<slug>.pid` and its gate (see Staying awake).
 - **Yielding.** `runner-gate.sh` starts the runner in `--once` mode, only while
   the keyboard and mouse have been still for `osx_runner_idle_seconds` and the
   one-minute load average is under `osx_runner_load_max` (default 6). Whichever
@@ -260,6 +263,79 @@ defaults; bump both together.
   alone. The login needs admin on each repository and the `repo` scope:
   `gh auth refresh --scopes repo` once over `ssh <alias>`, then drop it again
   if you want the narrower token back after the first run.
+- **Staying awake.** `runner-start.sh` starts each gate under
+  `/usr/bin/caffeinate -i`, held for the gate's whole life, waits included.
+  The Mac idles into sleep, which resets the runner's long poll to GitHub
+  (`Socket Error: ConnectionReset`) and shows it offline; `-i` blocks only idle
+  system sleep, with no sudo and no settings change. Yielding is unchanged: runs
+  stay niced and the gate still stops the listener while someone uses the Mac.
+  Stopping a runner now means stopping its gate and the caffeinate above it:
+  `pkill -f 'runner-gate.sh <runner-dir>'` as well as the pid file's process.
+- **Job environment.** Each runner's `.env` sets `PLANWRIGHT_TEST_JOBS` to half the
+  Mac's core count (from Ansible's facts), at least 1: one suite alone stays
+  inside its job time cap and two at once still fit, where every suite fanning
+  out across all cores overloaded the Mac, and cores divided by the runner count
+  made a lone suite too slow. The `.env` also sets `NPM_CONFIG_PREFIX` to
+  `~/.npm-global-<n>` (`n` is the instance's number, 1 for the first; a job's
+  `npm install -g` must not reach the owner's Homebrew prefix, and runners
+  sharing one prefix race on concurrent installs), and its `.path` starts with that prefix's `bin` and the bin of a node
+  the play installs with mise (`osx_runner_node_version`), so `npm` never
+  resolves to a mise shim with no version set. The hook line and both of these
+  are written after registration, because `config.sh` rewrites `.path` and may
+  rewrite `.env`, and before any gate is scheduled; a listener that started
+  earlier holds the old environment, so the play stops a changed runner's idle
+  one (`runner-refresh.sh`) and its gate starts a fresh one, while one serving
+  a job finishes first (`--once`, then the next start reads the new files). The node goes on the
+  runners' `PATH` rather than into the account's global mise config, which the
+  play leaves alone.
+- **Spotlight.** A fresh runner registers with `--work _work.noindex`, a name
+  macOS never indexes. An existing runner's work folder cannot be changed by
+  `config.sh` again, so `runner-workdir.sh` moves its `_work` to `_work.noindex`
+  and leaves a `_work` symlink the runner follows; it does nothing while a job
+  runs, and the next play run catches up.
+- **Existing runners.** A directory with a `.runner` file is never
+  re-registered, so the stopgap's four planwright runners keep their
+  registrations and names (`offload-mac-ci`, `-2`, `-3`, `-4`); the play only
+  adds the hook, `.env`, `.path`, gate and the Spotlight-skipping work directory. It removes the stopgap's hand-set
+  `@reboot` lines (tagged `# offload-mac-ci-...-runner`), which start `run.sh`
+  bare, then schedules the gates. A listener those lines already started keeps
+  running until stopped: before the first play run, stop each stopgap listener
+  while no job runs (`pkill -f 'actions-runners/inkatze-planwright.*Runner.Listener'`),
+  or the new gate's listener will collide with it.
+- **Job-started hook.** No fork's code may run here. Per runner instance the play
+  installs `~/.local/bin/runner-hook-<slug>.sh` (the instance's directory name) beside a `.repo` file
+  naming the repository, and writes
+  `ACTIONS_RUNNER_HOOK_JOB_STARTED=<that path>` into the runner directory's
+  `.env`, after registration and before any gate starts (the play fails if it cannot).
+  The runner runs it before every job and a non-zero exit fails the job before
+  its first step. It refuses unless `GITHUB_REPOSITORY` is the runner's own
+  repository and the event is `push`, or `pull_request` whose head repository
+  (read with `/usr/bin/jq`, macOS 15 and later) is that same repository; an
+  unreadable payload or any other event refuses. The runner reads
+  `.env` only at start, so the play restarts a changed runner's idle listener.
+
+  Check it once after the play:
+  1. Open a pull request from a branch of the repository whose job lands on the
+     Mac: the job's log shows the hook step and the job runs.
+  2. Run the hook by hand with a fork's event file:
+
+     ```sh
+     echo '{"pull_request":{"head":{"repo":{"full_name":"someone/fork"}}}}' > <dir>/fork.json
+     GITHUB_REPOSITORY=<owner>/<repo> GITHUB_EVENT_NAME=pull_request \
+       GITHUB_EVENT_PATH=<dir>/fork.json \
+       ~/.local/bin/runner-hook-<slug>.sh; echo $?
+     ```
+
+     It prints `offload-mac-ci: refusing this job` and exits 1.
+
+  Also set the repository's fork-approval policy, so no outside contributor's
+  workflow runs until a maintainer approves it. An operator step, from a `gh`
+  login with admin on the repository:
+
+  ```fish
+  gh api -X PUT repos/inkatze/dotfiles/actions/permissions/fork-pr-contributor-approval -f approval_policy=all_external_contributors
+  ```
+
 - **Logs:** `~/.cache/dotfiles-runner-<owner>-<repo>.{out,err}` (cron's own
   mail for the account is empty unless a job line breaks).
 
