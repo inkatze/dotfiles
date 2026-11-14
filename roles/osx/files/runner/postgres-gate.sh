@@ -49,13 +49,13 @@ pgpass_password() {
 # before creating, so it is safe on every start. The password goes in on
 # stdin, never an argument, which `ps` would show.
 ensure_role() {
-    local found pw
+    local found pw q="'"
     found="$(psql -h "$sockdir" -p "$port" -d postgres -tAc \
         "select 1 from pg_roles where rolname = '$role'" 2>/dev/null)"
     [ "$found" = 1 ] || createuser -h "$sockdir" -p "$port" -s "$role" || return 1
     pw="$(pgpass_password)"
     [ -n "$pw" ] || return 0
-    printf "alter role \"%s\" password '%s'\n" "$role" "${pw//\'/\'\'}" |
+    printf "alter role \"%s\" password '%s'\n" "$role" "${pw//$q/$q$q}" |
         psql -q -h "$sockdir" -p "$port" -d postgres -v ON_ERROR_STOP=1 -f - >/dev/null
 }
 
