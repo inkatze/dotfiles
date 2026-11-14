@@ -12,6 +12,7 @@ cleanup() {
     [ -f "$scratch/cache/dotfiles-runner-r.pid" ] &&
         kill "$(cat "$scratch/cache/dotfiles-runner-r.pid")" 2>/dev/null || true
     [ -n "${decoy:-}" ] && kill "$decoy" 2>/dev/null || true
+    pkill -f "$scratch/" 2>/dev/null || true
     rm -rf "$scratch"
 }
 trap cleanup EXIT
@@ -102,6 +103,25 @@ check "the gate starts under caffeinate -i" \
     grep -qx "caffeinate -i $scratch/gate.sh $scratch/r" "$scratch/awake"
 kill "$(cat "$scratch/cache/awake-r.pid")" 2>/dev/null || true; sleep 0.3
 check "a missing caffeinate leaves the gate starting bare" starts_is 5
+
+# The gate must see SIGHUP and SIGINT at their defaults, as every job inherits
+# them: a nohup (or a bare background start) would leave one ignored.
+cat >"$scratch/sig-gate.sh" <<'STUB'
+#!/usr/bin/env bash
+trap -p HUP INT >"$(dirname "$0")/sig"
+echo "started $1" >>"$(dirname "$0")/starts"
+sleep 60
+STUB
+chmod +x "$scratch/sig-gate.sh"
+RUNNER_GATE="$scratch/sig-gate.sh" RUNNER_PID_PREFIX=sig "$start" "$scratch/r"
+settle 7
+check "the gate sees SIGHUP and SIGINT at their defaults" test -f "$scratch/sig" -a ! -s "$scratch/sig"
+kill "$(cat "$scratch/cache/sig-r.pid")" 2>/dev/null || true
+grep -v '^[[:space:]]*#' "$start" >"$scratch/start.code"
+check "the start path carries no nohup or HUP-ignoring wrapper" \
+    sh -c '! grep -Eiq "nohup|trap +.. +(HUP|1)|SIG_IGN" "$1"' _ "$scratch/start.code"
+check "no pmset call exists anywhere in the osx role" \
+    sh -c '! grep -rIl "pmset" "$1/roles/osx"' _ "$repo"
 
 # A work directory behind a .noindex name is skipped by Spotlight: an existing
 # `_work` moves behind a symlink, a fresh runner's is left alone, a running job
