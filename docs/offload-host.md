@@ -98,15 +98,16 @@ In order; each step needs a person, except the playbook run on `server`.
 
    If Remote Login allows only listed users, add the account to the SSH
    access group **before** any demotion, from an administrator's session at
-   the Mac's console (not over SSH), then check it (the `checkmember` line
-   starts with `yes`). When Remote Login allows all users the group does not
-   exist (`dscl . -read /Groups/com.apple.access_ssh` reports no such
-   record): skip this, and never create the group, which would restrict
-   Remote Login to it.
+   the Mac's console (not over SSH), then check that `fleet` is in the
+   printed list (`checkmember` is no check for an administrator, who is a
+   member through the nested admin group). When Remote Login allows all
+   users the group does not exist (`dscl . -read /Groups/com.apple.access_ssh`
+   fails with `eDSRecordNotFound`): skip this, and never create the group,
+   which would restrict Remote Login to it.
 
    ```zsh
    sudo dseditgroup -o edit -a fleet -t user com.apple.access_ssh
-   dseditgroup -o checkmember -m fleet com.apple.access_ssh
+   dscl . -read /Groups/com.apple.access_ssh GroupMembership
    ```
 
    The order matters: that mode admits only administrators and the group's
