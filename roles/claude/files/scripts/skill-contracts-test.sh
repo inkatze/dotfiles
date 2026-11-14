@@ -725,7 +725,7 @@ for pin in \
   "**Convergence is no unresolved finding, no pending inbox finding, and the reviewed head equal to the current HEAD" \
   "**A thread a human has replied in is a message to that human**" \
   "**Proven declines:** with \`BOT_REVIEW_PROVEN_DECLINES=mission-control\` set" \
-  "anything else (script failure, no reachable mission control"; do
+  "a failed script, no reachable mission control"; do
   PIN="$pin" expect_fail "bot-review-mechanic-dropped ($pin)" 'drop_pin "$PIN" "$(md bot-review)"' "generic drain mechanic"
 done
 # The ledger, linked deferrals and replies as rules (REQ-I1.1, REQ-I1.3, REQ-I1.8)

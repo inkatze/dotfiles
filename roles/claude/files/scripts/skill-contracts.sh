@@ -903,7 +903,7 @@ require_normalized "$(skill_md bot-review)" "generic drain mechanic" \
   "**Convergence is no unresolved finding, no pending inbox finding, and the reviewed head equal to the current HEAD, never a check-state read**" \
   "**A thread a human has replied in is a message to that human**" \
   "**Proven declines:** with \`BOT_REVIEW_PROVEN_DECLINES=mission-control\` set" \
-  "anything else (script failure, no reachable mission control"
+  "a failed script, no reachable mission control"
 # The filter call bot-review-surfaces-test.sh runs as the skill's own; a
 # change here must change the suite's copy too.
 require_phrases "$(skill_md bot-review)" "surfaces command" \

@@ -11,6 +11,9 @@ trap 'rm -rf "$work"' EXIT
 cd "$work"
 printf 'one\ntwo\nthree\n' > x.sh
 printf '#!/bin/sh\n' > a_test.sh
+printf 'one\ntwo' > nonl.sh
+mkdir sub
+printf 'a\n' > sub/y.sh
 
 # expect <name> <want> <env value, or - for unset> <args...>
 expect() {
@@ -39,6 +42,13 @@ expect cite mission-control mission-control cite x.sh:2
 expect cite-range mission-control mission-control cite x.sh:1-3
 
 # Configured: incomplete proof or a judgment call stays with the operator.
+expect cite-no-trailing-newline mission-control mission-control cite nonl.sh:2
+expect cite-subdir mission-control mission-control cite sub/y.sh:1
+expect cite-absolute operator mission-control cite "$work/x.sh:1"
+expect cite-parent operator mission-control cite ../x.sh:1
+expect cite-embedded-parent operator mission-control cite sub/../x.sh:1
+expect cite-overflow operator mission-control cite x.sh:99999999999999999999
+expect test-absolute operator mission-control test "$work/a_test.sh" "case one"
 expect repro-blank operator mission-control repro " " " "
 expect test-missing-file operator mission-control test nope_test.sh "case one"
 expect test-blank-case operator mission-control test a_test.sh " "

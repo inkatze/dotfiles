@@ -15,20 +15,23 @@ set -euo pipefail
 kind="${1:-none}"
 shift || true
 
-# A cited line or a named test file must exist under the working directory.
+# A named test file or a cited line must exist, as a relative path inside the
+# working directory.
+relative() { [[ "$1" != /* && "$1" != ../* && "$1" != */../* && "$1" != */.. ]]; }
+
 proven=false
 case "$kind" in
   repro)
     [ $# -ge 2 ] && [ -n "${1//[[:space:]]/}" ] && [ -n "${2//[[:space:]]/}" ] && proven=true
     ;;
   test)
-    [ $# -ge 2 ] && [ -n "${2//[[:space:]]/}" ] && [ -f "$1" ] && proven=true
+    [ $# -ge 2 ] && [ -n "${2//[[:space:]]/}" ] && relative "$1" && [ -f "$1" ] && proven=true
     ;;
   cite)
-    if [ $# -ge 1 ] && [[ "$1" =~ ^([^[:space:]:]+):([0-9]+)(-([0-9]+))?$ ]]; then
+    if [ $# -ge 1 ] && [[ "$1" =~ ^([^[:space:]:]+):([0-9]{1,9})(-([0-9]{1,9}))?$ ]]; then
       file="${BASH_REMATCH[1]}" first="${BASH_REMATCH[2]}" last="${BASH_REMATCH[4]:-${BASH_REMATCH[2]}}"
-      if [ -f "$file" ] && [ "$first" -ge 1 ] && [ "$first" -le "$last" ] \
-        && [ "$last" -le "$(wc -l < "$file")" ]; then
+      if relative "$file" && [ -f "$file" ] && [ "$first" -ge 1 ] && [ "$first" -le "$last" ] \
+        && [ "$last" -le "$(awk 'END { print NR }' "$file")" ]; then
         proven=true
       fi
     fi
