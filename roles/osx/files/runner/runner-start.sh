@@ -5,9 +5,10 @@
 #
 # The fleet account only ever logs in over ssh, so it has no launchd user
 # domain and no sudo: its crontab calls this at boot and every few minutes, and
-# whatever it started outlives the cron job and any ssh session. The gate's
-# pid file names the one running copy, checked against the process's own
-# command line so a recycled pid is not mistaken for it.
+# whatever it started outlives the cron job and any ssh session. The pid file
+# names the process launched (caffeinate when it is present, else the gate),
+# checked against that process's own command line, which holds the gate and
+# its directory, so a recycled pid is not mistaken for it.
 set -u
 
 dir="${1:?usage: runner-start.sh <runner-dir>}"
