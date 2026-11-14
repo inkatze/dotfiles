@@ -39,7 +39,7 @@ matrix_table='
 ssh|macos-latest||true|roles/ssh/* scripts/ssh-lan-config-sync.sh scripts/op-token.sh
 git|ubuntu-latest||true|roles/git/* scripts/op-render.sh scripts/op-token.sh
 kitty|ubuntu-latest||true|roles/kitty/*
-tmux|macos-latest|tmux|false|roles/tmux/*
+tmux|macos-latest|tmux|false|roles/tmux/* scripts/tmux-tpm-guard-test.sh
 fish|macos-latest|fish|false|roles/fish/*
 osx|macos-latest|mas|false|roles/osx/* Brewfile Brewfile.* scripts/claude-mcp-sync-github.sh scripts/op-render.sh scripts/op-token.sh scripts/claude-gemini-auth-sync.sh
 environments|macos-latest|fish gpg|false|roles/environments/*
