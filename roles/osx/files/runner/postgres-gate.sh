@@ -49,6 +49,7 @@ pgpass_password() {
 # before creating, so it is safe on every start. The password goes in on
 # stdin, never an argument, which `ps` would show.
 ensure_role() {
+    # q, not an escaped quote in the pattern: the Mac's bash 3.2 keeps the backslashes.
     local found pw q="'"
     found="$(psql -h "$sockdir" -p "$port" -d postgres -tAc \
         "select 1 from pg_roles where rolname = '$role'" 2>/dev/null)"
