@@ -34,7 +34,8 @@
 #   PostgreSQL   -- the distribution's own configuration is left alone: no
 #                   task, template or file in this repo manages `pg_hba.conf`,
 #                   `postgresql.conf` or `listen_addresses` (D-4, Task 3
-#                   Done-when). The access harness is present, and refuses
+#                   Done-when), bar the one runner script that passes
+#                   `listen_addresses` as a command-line option. The access harness is present, and refuses
 #                   visibly rather than passing vacuously when it cannot
 #                   actually prove anything (REQ-A1.4).
 #
@@ -589,7 +590,9 @@ fi
 # file in this repo lives. `listen_addresses` is in the pattern alongside the
 # two filenames because it is the specific setting that would widen the bind
 # past loopback (REQ-A1.3), and it would arrive by way of managing
-# `postgresql.conf`.
+# `postgresql.conf`. The one exception is the runner's gate, which passes
+# `listen_addresses` to the server as a command-line option and so writes no
+# file; it stays subject to the two filenames.
 # ---------------------------------------------------------------------------
 
 # `--others --exclude-standard` alongside the tracked listing, and not
@@ -613,18 +616,16 @@ root, listing = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 pattern = re.compile(r"pg_hba|postgresql\.conf|listen_addresses")
 hits = []
 
-# The runner's gate starts the server with these settings as command-line
-# options, which never writes a configuration file, so it is the one place
-# allowed to name them.
-allowed = {"roles/osx/files/runner/postgres-gate.sh"}
+# The runner's gate starts the server with listen_addresses as a command-line
+# option, which writes no configuration file, so it alone may name that setting;
+# the files themselves stay forbidden to it.
+text_pattern = {"roles/osx/files/runner/postgres-gate.sh": re.compile(r"pg_hba|postgresql\.conf")}
 
 # splitlines(), not split(): git prints one path per line, and a path
 # containing a space would otherwise arrive as two nonexistent ones -- both of
 # which fail the is_file() check below and vanish from the scan silently. No
 # such path is tracked today, which is exactly why this would go unnoticed.
 for rel in filter(None, listing.read_text().splitlines()):
-    if rel in allowed:
-        continue
     path = root / rel
     # A file *named* for the configuration is one shipped to be copied into
     # place, which is managing it in the most direct way there is.
@@ -649,7 +650,7 @@ for rel in filter(None, listing.read_text().splitlines()):
             text = yaml.safe_dump(yaml.safe_load(text) or [])
         except yaml.YAMLError:
             pass
-    if pattern.search(text):
+    if text_pattern.get(rel, pattern).search(text):
         hits.append(f"{rel} -- names it in a task")
 
 if hits:
