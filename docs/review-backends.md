@@ -184,3 +184,13 @@ and nothing else (the Copilot CLI's own `~/.copilot/` stays), and is temporary:
 once every host has run the role it can go. Deleting the directory does not
 revoke the token, so also revoke the Copilot entries on GitHub, under Settings →
 Applications → Authorized OAuth Apps.
+
+## Proven bot-review declines
+
+A `/bot-review` session with `BOT_REVIEW_PROVEN_DECLINES=mission-control` in
+its environment has a rejection backed by proof settled by the supervising
+mission control rather than the operator. Only that exact value counts; unset,
+or any other value, sends every rejection to the operator. The proof check is
+`roles/claude/files/scripts/bot-review-decline-route.sh`, which verifies that a
+cited line or named test file exists inside the checkout and does not run
+anything.

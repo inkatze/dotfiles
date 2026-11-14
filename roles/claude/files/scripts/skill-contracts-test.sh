@@ -725,6 +725,8 @@ for pin in \
   "**Convergence is no unresolved finding, no pending inbox finding, and the reviewed head equal to the current HEAD" \
   "**A thread a human has replied in is a message to that human**" \
   "**Proven declines:** with \`BOT_REVIEW_PROVEN_DECLINES=mission-control\` set" \
+  "a \`new\` rejection of a non-security finding carrying proof" \
+  "/.claude/scripts/bot-review-decline-route.sh\` checks only that the proof is well-formed" \
   "a failed script, no reachable mission control"; do
   PIN="$pin" expect_fail "bot-review-mechanic-dropped ($pin)" 'drop_pin "$PIN" "$(md bot-review)"' "generic drain mechanic"
 done
