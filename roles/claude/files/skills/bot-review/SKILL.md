@@ -189,11 +189,11 @@ Take the writer lock immediately before the first fix is applied, commit the app
 
 ### 9. Commit and push, before replying to anyone
 
-Land the code first, per [github.md](../review-shared/github.md), its fixes validated by diff-scoped checks only, never the full suite or the project gate, per [state.md](../review-shared/state.md)'s fix-round rule, and after the one scoped discovery pass per push of fixes that [state.md](../review-shared/state.md) describes. Standalone: ask before pushing; on a push failure, stop before step 10, and on a hook failure follow the push-hook rule in [github.md](../review-shared/github.md); the handoff names the pushed head's CI state, a red run there being this round's test failure. `--nested`: see below.
+Land the code first, per [github.md](../review-shared/github.md), its fixes validated by diff-scoped checks only, never the full suite or the project gate, per [state.md](../review-shared/state.md)'s fix-round rule, and after the one scoped discovery pass per push of fixes. Standalone: ask before pushing; on a push failure, stop before step 10, and on a hook failure follow the push-hook rule in [github.md](../review-shared/github.md); the handoff names the pushed head's CI state, a red run there being this round's test failure. `--nested`: see below.
 
 ### 10. Reply to and resolve (or acknowledge) every disposed finding
 
-An unreplied finding is not handled, whatever bucket it started in: a replied-and-resolved finding is suppressed on the bot's next review, an unreplied one is raised again.
+An unreplied finding is not handled, whatever bucket it started in: a replied-and-resolved finding is suppressed on the bot's next review, an unreplied one may be raised again.
 
 **Every reply states the decision and its evidence in one paragraph**, so a reviewer that learns from replies records the rule rather than the instance: a fix names what changed and the commit, a rejection what was checked and why the concern does not apply (cite the three passes), a deferral the follow-up record's link.
 
@@ -252,7 +252,7 @@ The loop runs to the iteration cap in [limits.md](../review-shared/limits.md), c
 
 **Iteration boundary**, right after the cap check: write the start marker per [state.md](../review-shared/state.md), handling a moved head or merge-base as it says, and the loop reads its inbox at the top of every iteration, folding what it returns into step 7's triage.
 
-Drain-scope override: per iteration, apply Auto-applicable and Agent-resolvable fixes and reply to them; answer `recorded-reply` re-raises from the ledger; post a deferral only where a follow-up record already exists for it; queue every other Needs-sign-off item, rejections included, with its draft reply for the handoff, unposted; stop at Needs human judgment. **Never apply the code change in this bucket while nested.** Reason: the operator owns every unproven rejection and every deferral lacking a record, and an unattended loop must never land what finding-categorization's hard-disqualifier zones route to a human.
+Drain-scope override: per iteration, apply Auto-applicable and Agent-resolvable fixes and reply to them; answer `recorded-reply` re-raises from the ledger; post a deferral only where a follow-up record already exists for it; queue every other Needs-sign-off item, rejections included (bar a proven one), with its draft reply for the handoff, unposted; stop at Needs human judgment. **Never apply the code change in this bucket while nested.** Reason: the operator owns every unproven rejection and every deferral lacking a record, and an unattended loop must never land what finding-categorization's hard-disqualifier zones route to a human.
 
 Discovery cadence: this loop triages the bot's own findings and runs no discovery pass of its own beyond the scoped pass before each push of fixes; discovery for this reviewer runs through `--local`.
 

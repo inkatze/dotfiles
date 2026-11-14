@@ -7,7 +7,8 @@ R="$HERE/bot-review-decline-route.sh"
 failures=0
 
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+links="$(mktemp -d)"
+trap 'rm -rf "$work" "$links"' EXIT
 cd "$work"
 work="$(pwd -P)"
 cd "$work"
@@ -15,7 +16,8 @@ printf 'one\ntwo\nthree\n' > x.sh
 printf '#!/bin/sh\n' > a_test.sh
 printf 'one\ntwo' > nonl.sh
 mkdir sub
-ln -s /etc/hostname link.sh
+printf 'o\n' > "$links/outside.txt"
+ln -s "$links/outside.txt" link.sh
 ln -s ../x.sh sub/up.sh
 printf 'e\n' > 'a=b.sh'
 printf 'a\n' > sub/y.sh
@@ -49,7 +51,7 @@ expect cite-range mission-control mission-control cite x.sh:1-3
 # Configured: incomplete proof or a judgment call stays with the operator.
 expect cite-no-trailing-newline mission-control mission-control cite nonl.sh:2
 expect cite-subdir mission-control mission-control cite sub/y.sh:1
-expect cite-absolute-outside operator mission-control cite /etc/hostname:1
+expect cite-absolute-outside operator mission-control cite "$links/outside.txt:1"
 expect cite-parent operator mission-control cite ../x.sh:1
 expect cite-embedded-parent mission-control mission-control cite sub/../x.sh:1
 expect cite-overflow operator mission-control cite x.sh:99999999999999999999
@@ -81,12 +83,11 @@ expect unknown-kind operator mission-control hunch "I think so"
 
 
 # A checkout reached through a symlinked parent still resolves its own files.
-links="$(mktemp -d)"
 ln -s "$work" "$links/l"
 if ! (cd "$links/l" && [ "$(BOT_REVIEW_PROVEN_DECLINES=mission-control "$R" cite x.sh:1)" = mission-control ]); then
   echo "FAIL symlinked-cwd"
   failures=$((failures + 1))
 fi
-rm -rf "$links"
+rm -f "$links/l"
 [ "$failures" -eq 0 ] || { echo "$failures failure(s)"; exit 1; }
 echo "bot-review-decline-route-test: ok"
