@@ -13,6 +13,8 @@
 #   themselves stay unguarded, for the same reason.
 # - The GitHub MCP sync and the desktop defaults (osx.yml) are skipped on the
 #   offload host, and the screensaver delay is declared float.
+# - Git auto-gc is turned off in the work account by offload-git.yml, which is
+#   included only on the offload hosts and never writes through a symlink.
 
 set -eu
 
@@ -114,7 +116,7 @@ else:
     ko(f"osx_brew_writable is set ahead of the imports as {writable}")
 
 print("1b. the offload host's own tasks never ask for sudo")
-for fname in ("offload-host.yml", "offload-tools.yml", "offload-runner.yml", "offload-redis.yml"):
+for fname in ("offload-host.yml", "offload-tools.yml", "offload-runner.yml", "offload-redis.yml", "offload-git.yml"):
     becomes = [
         sub["name"]
         for t in load(fname)
@@ -198,6 +200,25 @@ for needle in ("runner-start.sh", "RUNNER_GATE=", "redis-gate.sh", "RUNNER_PID_P
     ok(f"the job carries {needle}") if needle in job else ko(f"the job lacks {needle}")
 ok("the job has no %, which ends a cron command") if "%" not in job else ko("the job holds a %")
 ok("the job has no RUNNER_LOAD_MAX: load never stops the server") if "RUNNER_LOAD_MAX" not in job else ko("the job sets RUNNER_LOAD_MAX")
+
+print("7. git auto-gc is off in the work account, on the offload host only")
+git_tasks = load("offload-git.yml")
+gc = [t["community.general.git_config"] for t in git_tasks if "community.general.git_config" in t]
+ok("git_config writes the global scope") if gc and all(g.get("scope") == "global" for g in gc) else ko("a git_config task is not global scope")
+pairs = {(i["name"], i["value"]) for t in git_tasks if "community.general.git_config" in t for i in t.get("loop", [])}
+for want in (("gc.auto", "0"), ("maintenance.auto", "false")):
+    ok(f"{want[0]}={want[1]} is set") if want in pairs else ko(f"{want[0]} is not set to {want[1]}")
+gct = next((t for t in git_tasks if "community.general.git_config" in t), None)
+if gct is None:
+    ko("offload-git.yml has no git_config task")
+else:
+    cfg = gct["community.general.git_config"]
+    ok("each key and value comes from the loop item") if cfg.get("name") == "{{ item.name }}" and cfg.get("value") == "{{ item.value }}" else ko("git_config does not write the loop item")
+    ok("a symlinked ~/.gitconfig is never written through") if "not (osx_offload_gitconfig.stat.islnk | default(false))" in whens(gct) else ko("git_config is not skipped for a symlinked ~/.gitconfig")
+    st = next((t for t in git_tasks if "ansible.builtin.stat" in t), None)
+    ok("the symlink check stats ~/.gitconfig without following it") if st and st["ansible.builtin.stat"].get("follow") is False and st["ansible.builtin.stat"].get("path", "").endswith("/.gitconfig") and st.get("register") == "osx_offload_gitconfig" else ko("the symlink check does not stat ~/.gitconfig with follow: false into osx_offload_gitconfig")
+inc = [t for t in load("main.yml") if t.get("ansible.builtin.include_tasks") == "offload-git.yml"]
+ok("offload-git.yml is included only on the offload hosts") if inc and "inventory_hostname in osx_offload_hosts" in whens(inc[0]) else ko("offload-git.yml is not guarded to the offload hosts")
 
 print(f"\nosx-offload-guard: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
