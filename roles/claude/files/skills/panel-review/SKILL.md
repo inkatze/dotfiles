@@ -65,7 +65,7 @@ Invoke each backend **once**, in parallel (separate `Bash` calls in one response
 
 > Defensive completeness and consistency: input validation and presence, type and shape guards on every consumed field (numeric-ness, presence, non-empty); symmetric handling across parallel code paths (a validation gate mirroring its mapper); once a guard exists for one field or case, flag the sibling fields or cases that lack it. Report low-reachability and currently-unwired paths too, stating the reachability, so triage can defer gold-plating quickly.
 
-Run codex and gemini in the contained forms and behind the outbound-prompt guards in [backends.md](../review-shared/backends.md). Run `reviewer:<name>` per [reviewer-backend.md](reviewer-backend.md), in the background, since its bound is longer than a foreground tool call.
+Run codex and gemini in the contained forms and behind the outbound-prompt guards in [backends.md](../review-shared/backends.md). For gemini, use the two fixed commands in its "Running gemini as two fixed commands" section, one command per step, never chained with `;` or `&&` and never carrying a `$var` or `$(...)`, so each reaches the harness in a shape it can approve once. Run `reviewer:<name>` per [reviewer-backend.md](reviewer-backend.md), in the background, since its bound is longer than a foreground tool call.
 
 A backend that does not recover stops the run, per [backends.md](../review-shared/backends.md): the user picked the backend set for its variance, and a partial run hides which source went missing.
 

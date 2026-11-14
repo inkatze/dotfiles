@@ -187,6 +187,26 @@ cwd between calls.
   later runs too. If a future CLI needs `-p`, add a short `-p` instruction
   alongside stdin rather than moving anything into argv.
 
+## Running gemini as two fixed commands
+
+Each inline snippet above is a command shape the harness cannot verify
+(`$(...)`, a `trap`, a heredoc, `~` in an assignment), and each one waits on an
+approval that a plain script call does not. For gemini, run
+`~/.claude/scripts/review-backend-run.sh` instead, as its own simple command:
+
+- `review-backend-run.sh preflight --repo <owner>/<repo>` resolves the profile,
+  probes gitleaks, the gemini binary and the key, and reads the egress consent,
+  printing `key=value` lines; a failed probe exits 1 with its reason.
+- `review-backend-run.sh gemini --lens-doc <discovery-rigor path>
+  --instruction-file <f> --format-file <f> --tooling-file <f> --base <rev>
+  [--extra-lens-file <f>]` builds the guarded prompt, scans it, runs gemini
+  contained and bounded, and prints the output, with `backend_elapsed` and
+  `backend_status` on stderr. Write the three input files with the Write tool
+  into a scratch directory beforehand, not with a shell heredoc.
+
+The script is the same guards and the same contained form as the blocks above;
+codex still runs from them.
+
 ## Judging the result
 
 Check `backend_status` immediately after the subshell, before any pipe (a pipe
