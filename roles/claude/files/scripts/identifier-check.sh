@@ -99,13 +99,14 @@ if [ "$#" -gt 0 ]; then
   # invalid-encoding body and report it clean. The report is built in bash so
   # a path is never interpreted, and one that itself holds an identifier is
   # shown by position, never echoed. Only line numbers leave the pipe, so a NUL
-  # byte in the body cannot reach the command substitution.
+  # byte in the body cannot reach the command substitution, and -s keeps
+  # grep's own message, which echoes the raw path, off stderr.
   hits=""
   i=0
   for p in "${paths[@]}"; do
     i=$((i + 1))
     set +e
-    lines="$(grep -naiw -F -f "$patterns" -- "$p" | cut -d: -f1)"
+    lines="$(grep -snaiw -F -f "$patterns" -- "$p" | cut -d: -f1)"
     status=$?
     set -e
     [ "$status" -le 1 ] || { echo "ERROR: grep could not read $(shown "$p" "$i") (exit $status)" >&2; exit 2; }
