@@ -192,5 +192,5 @@ its environment has a rejection backed by proof settled by the supervising
 mission control rather than the operator. Only that exact value counts; unset,
 or any other value, sends every rejection to the operator. The proof check is
 `roles/claude/files/scripts/bot-review-decline-route.sh`, which verifies that a
-cited line or named test file exists inside the checkout and does not run
-anything.
+cited line or named test file exists inside the checkout and takes a
+reproduction as given; it runs nothing.

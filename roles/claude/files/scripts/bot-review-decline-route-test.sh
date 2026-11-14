@@ -62,6 +62,8 @@ expect test-symlink-out operator mission-control test link.sh "case one"
 expect cite-equals-name mission-control mission-control cite a=b.sh:1
 expect cite-directory operator mission-control cite sub:1
 expect test-directory operator mission-control test sub "case one"
+expect repro-one-arg operator mission-control repro "make t"
+expect cite-no-arg operator mission-control cite
 expect repro-blank operator mission-control repro " " " "
 expect test-missing-file operator mission-control test nope_test.sh "case one"
 expect test-blank-case operator mission-control test a_test.sh " "
