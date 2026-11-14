@@ -623,8 +623,8 @@ hits = []
 # configuration stays forbidden to it.
 pattern_for = {
     "roles/osx/files/runner/postgres-gate.sh": re.compile(
-        r"pg_hba|postgresql\.(?:auto\.)?conf|alter\s+system|hba_file|config_file"
-        r"|listen_addresses(?!=localhost\b)",
+        r"pg_hba|postgresql\.(?:auto\.)?conf|alter\s+system|(?:hba|config|ident)[-_]file"
+        r"|listen[-_]addresses(?!=localhost(?=[\s\"']|$))",
         re.IGNORECASE,
     )
 }
