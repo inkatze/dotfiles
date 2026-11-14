@@ -71,6 +71,12 @@ cmd_preflight() {
       *) die "preflight: unknown argument $1" ;;
     esac
   done
+  case "$repo" in
+    '') ;;
+    */*/*|*[!A-Za-z0-9_./-]*|/*|*/) die "preflight: --repo must look like owner/repo" ;;
+    */*) ;;
+    *) die "preflight: --repo must look like owner/repo" ;;
+  esac
   resolve_profile
   case "$profile" in work) backend=codex ;; *) backend=gemini ;; esac
   printf 'profile=%s\nbackend=%s\n' "$profile" "$backend"
@@ -83,7 +89,7 @@ cmd_preflight() {
     else
       local k="$HOME/.gemini/.api-key"
       case "$(key_mode "$k")" in
-        600|400) if [ -s "$k" ]; then echo "key=ok"; else echo "key=empty file"; rc=1; fi ;;
+        600|400) if [ -f "$k" ] && [ -s "$k" ]; then echo "key=ok"; else echo "key=empty file"; rc=1; fi ;;
         *) echo "key=file missing or not mode 600/400; mise run osx or mise run linux syncs it"; rc=1 ;;
       esac
     fi
@@ -111,11 +117,12 @@ cmd_gemini() {
       *) die "gemini: unknown argument $1" ;;
     esac
   done
-  local f
-  for f in "$lens_doc" "$instr" "$fmt" "$tooling"; do
-    [ -n "$f" ] && [ -s "$f" ] || die "gemini: a required input file is missing or empty: ${f:-unset}"
+  local pair
+  for pair in "--lens-doc=$lens_doc" "--instruction-file=$instr" "--format-file=$fmt" "--tooling-file=$tooling"; do
+    [ -n "${pair#*=}" ] && [ -f "${pair#*=}" ] && [ -s "${pair#*=}" ] \
+      || die "gemini: ${pair%%=*} is unset, missing, or empty: ${pair#*=}"
   done
-  [ -z "$extra" ] || [ -s "$extra" ] || die "gemini: --extra-lens-file is missing or empty: $extra"
+  [ -z "$extra" ] || { [ -f "$extra" ] && [ -s "$extra" ]; } || die "gemini: --extra-lens-file is missing or empty: $extra"
   [ -n "$base" ] || die "gemini: --base is required"
   case "$bound" in ''|*[!0-9]*|???????*) die "gemini: --timeout must be 1 to 999999 whole seconds" ;; esac
   [ "$((10#$bound))" -ge 1 ] || die "gemini: --timeout must be 1 to 999999 whole seconds"
@@ -131,7 +138,9 @@ cmd_gemini() {
   scratch="$(mktemp -d)" || exit 1
   prompt_file="$scratch/prompt.txt"
   trap 'rm -rf "$scratch"' EXIT
-  trap 'exit 130' INT TERM HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  trap 'exit 129' HUP
   nonce="$(head -c8 /dev/urandom | od -An -tx1 | tr -d ' \n')"
   [ "${#nonce}" -eq 16 ] || die "could not generate a nonce; stopping"
   cat "$instr" > "$prompt_file" || exit 1
@@ -156,7 +165,7 @@ cmd_gemini() {
   if [ -z "${GEMINI_API_KEY:-}" ]; then
     local k="$HOME/.gemini/.api-key"
     case "$(key_mode "$k")" in
-      600|400) ;;
+      600|400) [ -f "$k" ] || die "gemini key file is not a regular file" ;;
       *) die "gemini key file missing or not mode 600/400" ;;
     esac
     GEMINI_API_KEY="$(cat "$k")" && [ -n "$GEMINI_API_KEY" ] || die "gemini key file is empty or unreadable"
