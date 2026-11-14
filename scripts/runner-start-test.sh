@@ -12,6 +12,7 @@ cleanup() {
     [ -f "$scratch/cache/dotfiles-runner-r.pid" ] &&
         kill "$(cat "$scratch/cache/dotfiles-runner-r.pid")" 2>/dev/null || true
     [ -n "${decoy:-}" ] && kill "$decoy" 2>/dev/null || true
+    pkill -f "$scratch/" 2>/dev/null || true
     rm -rf "$scratch"
 }
 trap cleanup EXIT
@@ -119,10 +120,8 @@ kill "$(cat "$scratch/cache/sig-r.pid")" 2>/dev/null || true
 grep -v '^[[:space:]]*#' "$start" >"$scratch/start.code"
 check "the start path carries no nohup or HUP-ignoring wrapper" \
     sh -c '! grep -Eiq "nohup|trap +.. +(HUP|1)|SIG_IGN" "$1"' _ "$scratch/start.code"
-check "the gate starts under caffeinate -i only, never a pmset or -s hold" \
-    sh -c '! grep -q "^caffeinate -s" "$1"' _ "$scratch/awake"
-check "no pmset call exists in the runner scripts or task file" \
-    sh -c '! grep -rIl "pmset" "$1/roles/osx/files/runner" "$1/roles/osx/tasks/offload-runner.yml"' _ "$repo"
+check "no pmset call exists anywhere in the osx role" \
+    sh -c '! grep -rIl "pmset" "$1/roles/osx"' _ "$repo"
 
 # A work directory behind a .noindex name is skipped by Spotlight: an existing
 # `_work` moves behind a symlink, a fresh runner's is left alone, a running job

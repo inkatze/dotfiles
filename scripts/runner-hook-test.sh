@@ -70,9 +70,9 @@ while kill -0 "$2" 2>/dev/null; do sleep 0.1; done
 STUB
 chmod +x "$scratch/caffeinate"
 cat >"$scratch/Runner.Worker" <<'STUB'
-#!/bin/sh
-"$1"
-sleep 1
+#!/bin/bash
+# The runner's worker shows its own path as argv0; so does this stand-in.
+exec -a "$(dirname "$0")/bin/Runner.Worker" sh -c '"$1"; sleep 1' _ "$1"
 STUB
 chmod +x "$scratch/Runner.Worker"
 GITHUB_REPOSITORY=o/r GITHUB_EVENT_NAME=push RUNNER_HOOK_CAFFEINATE="$scratch/caffeinate" \
@@ -82,17 +82,28 @@ for _ in $(seq 50); do [ -s "$scratch/awake.pid" ] && break; sleep 0.1; done
 check "an accepted job holds caffeinate -s on the runner's worker" \
     grep -qx -- "-s -w $worker" "$scratch/awake"
 wait "$worker"
+check "the hold's pid was recorded" test -s "$scratch/awake.pid"
 for _ in $(seq 50); do kill -0 "$(tail -n 1 "$scratch/awake.pid")" 2>/dev/null || break; sleep 0.1; done
 check "the hold ends with the job and leaves no caffeinate behind" \
     sh -c '! kill -0 "$(tail -n 1 "$1")" 2>/dev/null' _ "$scratch/awake.pid"
 rm -f "$scratch/awake" "$scratch/awake.pid"
 GITHUB_REPOSITORY=x/y GITHUB_EVENT_NAME=push RUNNER_HOOK_CAFFEINATE="$scratch/caffeinate" \
     "$hook" >/dev/null 2>&1 || true
+sleep 0.5
 check "a refused job holds nothing" test ! -e "$scratch/awake"
 check "a missing caffeinate does not fail an accepted job" \
     env GITHUB_REPOSITORY=o/r GITHUB_EVENT_NAME=push RUNNER_HOOK_CAFFEINATE="$scratch/none" "$hook"
-check "the hook takes the assertion with -s via /usr/bin/caffeinate" \
-    grep -q -- '/usr/bin/caffeinate' "$repo/roles/osx/files/runner/runner-job-started-hook.sh"
+hook_src="$repo/roles/osx/files/runner/runner-job-started-hook.sh"
+check "the hook defaults to /usr/bin/caffeinate and holds it with -s" \
+    sh -c 'grep -q ":-/usr/bin/caffeinate}" "$1" && grep -q "\"\$caffeinate\" -s -w" "$1"' _ "$hook_src"
+grep -v '^[[:space:]]*#' "$hook_src" >"$scratch/hook.code"
+check "the hook names no bare ps or tr" \
+    sh -c '! grep -Eq "(^|[^/[:alnum:]_.-])(ps|tr)[[:space:]]" "$1"' _ "$scratch/hook.code"
+rm -f "$scratch/awake" "$scratch/awake.pid"
+check "run by hand, with no worker above it, the hook holds nothing and still passes" \
+    env GITHUB_REPOSITORY=o/r GITHUB_EVENT_NAME=push RUNNER_HOOK_CAFFEINATE="$scratch/caffeinate" "$hook"
+sleep 0.5
+check "no hold is started without a worker" test ! -e "$scratch/awake"
 
 echo "runner-hook: $passed passed, $failed failed"
 [ "$failed" -eq 0 ]

@@ -36,22 +36,32 @@ pull_request)
 *) refuse "event '${GITHUB_EVENT_NAME:-}' is not push or pull_request" ;;
 esac
 
-# The worker runs this hook, directly or through a shell; hold on the nearest
-# ancestor that is the worker, falling back to the parent. Best effort: a Mac
-# without caffeinate still runs the job.
+# Hold on the nearest ancestor that is the worker, which outlives the hook and
+# the shell it may run through. With no worker above the hook (run by hand) there
+# is nothing to tie the hold to, and a hold on a short-lived parent would end at
+# once, so say so and hold nothing. A Mac without caffeinate still runs the job.
+# ps and tr are the system's by absolute path, as caffeinate and jq are: the
+# job's PATH can put Homebrew's copies first.
 caffeinate="${RUNNER_HOOK_CAFFEINATE:-/usr/bin/caffeinate}"
 if [ -x "$caffeinate" ]; then
-    holder=$PPID
+    holder=""
     p=$PPID
-    for _ in 1 2 3 4; do
-        case "$(ps -p "$p" -o command= 2>/dev/null)" in
-        *Runner.Worker*)
+    for _ in 1 2 3 4 5 6 7 8; do
+        # Only the process's own program counts, not an argument that mentions it.
+        # shellcheck disable=SC2046
+        set -- $(/bin/ps -ww -p "$p" -o command= 2>/dev/null)
+        case "${1:-}" in
+        */Runner.Worker)
             holder=$p
             break
             ;;
         esac
-        p="$(ps -p "$p" -o ppid= 2>/dev/null | tr -d ' ')"
+        p="$(/bin/ps -ww -p "$p" -o ppid= 2>/dev/null | /usr/bin/tr -d ' ')"
         [ -n "$p" ] && [ "$p" -gt 1 ] 2>/dev/null || break
     done
-    "$caffeinate" -s -w "$holder" </dev/null >/dev/null 2>&1 &
+    if [ -n "$holder" ]; then
+        "$caffeinate" -s -w "$holder" </dev/null >/dev/null 2>&1 &
+    else
+        echo "offload-mac-ci: no Runner.Worker above this hook; not holding the Mac awake" >&2
+    fi
 fi

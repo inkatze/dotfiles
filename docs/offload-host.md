@@ -275,7 +275,9 @@ defaults; bump both together.
   failed a running job, so each runner's job-started hook also starts
   `/usr/bin/caffeinate -s -w <worker pid>` once it accepts a job: the system stays
   awake (on AC power only) for exactly the job's lifetime, the assertion ends
-  when the worker does, and nothing is left running between jobs. No `pmset` or
+  when the worker does, and nothing is left running between jobs. The hook finds
+  the worker among its ancestors; run by hand, with none, it holds nothing and says
+  so on stderr. No `pmset` or
   system setting is touched. The start path uses neither `nohup` nor any other
   wrapper that ignores SIGHUP (jobs inherit it, which fails signal tests): it
   starts the gate under job control, so SIGHUP and SIGINT stay at their defaults.
@@ -319,7 +321,8 @@ defaults; bump both together.
   its first step. It refuses unless `GITHUB_REPOSITORY` is the runner's own
   repository and the event is `push`, or `pull_request` whose head repository
   (read with `/usr/bin/jq`, macOS 15 and later) is that same repository; an
-  unreadable payload or any other event refuses. The runner reads
+  unreadable payload or any other event refuses; an accepted job also gets its
+  keep-awake hold (see Staying awake). The runner reads
   `.env` only at start, so the play restarts a changed runner's idle listener.
 
   Check it once after the play:
