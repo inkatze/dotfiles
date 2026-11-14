@@ -271,6 +271,7 @@ defaults; bump both together.
   stay niced and the gate still stops the listener while someone uses the Mac.
   Stopping a runner now means stopping its gate and the caffeinate above it:
   `pkill -f 'runner-gate.sh <runner-dir>'` as well as the pid file's process.
+  The same wrapper covers the redis and postgres gates.
 - **Job environment.** Each runner's `.env` sets `PLANWRIGHT_TEST_JOBS` to half the
   Mac's core count (from Ansible's facts), at least 1: one suite alone stays
   inside its job time cap and two at once still fit, where every suite fanning
@@ -360,9 +361,11 @@ owner's account.
   line and one every `osx_runner_recheck_minutes`, calling
   `runner-start.sh` with `RUNNER_GATE` set to `redis-gate.sh` and
   `RUNNER_PID_PREFIX=dotfiles-redis`, so its pid, lock and log files are
-  `~/.cache/dotfiles-redis-redis.*` and never collide with a runner's. To stop
-  it for good, kill the pid in `~/.cache/dotfiles-redis-redis.pid` and remove
-  the two `dotfiles redis` lines from `crontab -e`.
+  `~/.cache/dotfiles-redis-redis.*` and never collide with a runner's. Like
+  every gate it runs under `caffeinate -i` (see Staying awake). To stop it for
+  good, remove the two `dotfiles redis` lines from `crontab -e`, then kill the
+  pid in `~/.cache/dotfiles-redis-redis.pid` and `pkill -f 'redis-gate.sh
+  <redis dir>'`.
 - **Yielding.** `redis-gate.sh` runs the server only while the keyboard and
   mouse have been still for `osx_runner_idle_seconds` (`owner_idle` in
   `runner-gate.sh`, the idle-time half of the runner's free check). When the
@@ -446,10 +449,12 @@ owner's account or settings.
   runners' starter, told by `RUNNER_GATE` and `RUNNER_PID_PREFIX` to run
   `postgres-gate.sh` and keep its pid, lock and logs as
   `~/.cache/dotfiles-postgres-<dir>.*`). It starts the gate detached at nice
-  10 and does nothing when it already runs. The server log is
-  `<data dir>/server.log`. To stop it for good, remove the two `dotfiles
-  postgres` crontab lines, then kill the pid in the pid file; the gate stops
-  the server fast on `TERM`.
+  10 and under `caffeinate -i` (see Staying awake), so the gate holds off idle
+  system sleep for its whole life, yielding waits included, and does nothing
+  when it already runs. The server log is `<data dir>/server.log`. To stop it
+  for good, remove the two `dotfiles postgres` crontab lines, then stop the
+  gate and the caffeinate above it: `pkill -f 'postgres-gate.sh <data dir>'`
+  as well as the pid file's process; the gate stops the server fast on `TERM`.
 - **Yielding.** `postgres-gate.sh` starts the server only when
   `runner-gate.sh`'s `mac_is_free` holds: input idle for
   `osx_runner_idle_seconds` and the one-minute load under
