@@ -34,10 +34,11 @@
 #   PostgreSQL   -- the distribution's own configuration is left alone: no
 #                   task, template or file in this repo manages `pg_hba.conf`,
 #                   `postgresql.conf` or `listen_addresses` (D-4, Task 3
-#                   Done-when), bar the one runner script that passes
-#                   `listen_addresses` as a command-line option. The access harness is present, and refuses
-#                   visibly rather than passing vacuously when it cannot
-#                   actually prove anything (REQ-A1.4).
+#                   Done-when), bar `roles/osx/files/runner/postgres-gate.sh`,
+#                   which may pass `listen_addresses=localhost` as a
+#                   command-line option. The access harness is present, and
+#                   refuses visibly rather than passing vacuously when it
+#                   cannot actually prove anything (REQ-A1.4).
 #
 # The guard cases are behavioural: they run the role's task files under a
 # stubbed `os_family` and assert nothing executed. That is the same guard the
@@ -616,10 +617,17 @@ root, listing = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 pattern = re.compile(r"pg_hba|postgresql\.conf|listen_addresses")
 hits = []
 
-# The runner's gate starts the server with listen_addresses as a command-line
-# option, which writes no configuration file, so it alone may name that setting;
-# the files themselves stay forbidden to it.
-text_pattern = {"roles/osx/files/runner/postgres-gate.sh": re.compile(r"pg_hba|postgresql\.conf")}
+# The runner's gate starts the server with listen_addresses=localhost as a
+# command-line option, which writes no configuration file, so it alone may name
+# that setting, and only with that value; any other way of changing the
+# configuration stays forbidden to it.
+pattern_for = {
+    "roles/osx/files/runner/postgres-gate.sh": re.compile(
+        r"pg_hba|postgresql\.(?:auto\.)?conf|alter\s+system|hba_file|config_file"
+        r"|listen_addresses(?!=localhost\b)",
+        re.IGNORECASE,
+    )
+}
 
 # splitlines(), not split(): git prints one path per line, and a path
 # containing a space would otherwise arrive as two nonexistent ones -- both of
@@ -650,7 +658,7 @@ for rel in filter(None, listing.read_text().splitlines()):
             text = yaml.safe_dump(yaml.safe_load(text) or [])
         except yaml.YAMLError:
             pass
-    if text_pattern.get(rel, pattern).search(text):
+    if pattern_for.get(rel, pattern).search(text):
         hits.append(f"{rel} -- names it in a task")
 
 if hits:
