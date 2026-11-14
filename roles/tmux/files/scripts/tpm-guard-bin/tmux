@@ -1,0 +1,4 @@
+#!/bin/sh
+# tpm-guard.sh puts this first on tpm's PATH, so a tpm child outliving its
+# server gets "no server running" instead of starting a new one.
+exec "${TPM_GUARD_REAL_TMUX:?tpm-guard.sh sets this}" -N "$@"

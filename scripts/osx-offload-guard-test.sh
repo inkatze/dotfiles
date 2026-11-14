@@ -6,18 +6,24 @@
 #   `always`, read the login and groups from the process, refuse another or an
 #   administrator account, and set osx_brew_writable false on the offload
 #   hosts: a tagged run must still meet the account checks and find it defined.
+# - An administrator account is refused only after a read-only, sudo-free check
+#   of its SSH access, whose refusal names the group to join before demoting.
 # - The offload host's own task files never use become.
 # - Every Homebrew or App Store task in homebrew.yml and upgrade.yml carries
 #   osx_brew_writable, and nothing else does: the planwright updates have to
 #   keep running on the offload host, which never writes Homebrew. The includes
 #   themselves stay unguarded, for the same reason.
-# - The GitHub MCP sync is skipped on the offload host.
+# - The GitHub MCP sync and the desktop defaults (osx.yml) are skipped on the
+#   offload host, and the screensaver delay is declared float.
+# - Git auto-gc is turned off in the work account by offload-git.yml, which is
+#   included only on the offload hosts and never writes through a symlink.
 
 set -eu
 
 repo="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 
 python3 - "$repo/roles/osx/tasks" <<'PY'
+import re
 import sys
 import yaml
 
@@ -106,6 +112,27 @@ for label, present in (
     ("the not-an-administrator check is among them", asserts("'admin' not in osx_offload_groups.stdout.split()")),
 ):
     ok(label) if present else ko(f"{label}: not found ahead of the imports")
+print("1a. an administrator work account is refused after a read-only SSH access check")
+refusal = next((i for i, t in enumerate(head) if arg(t, "ansible.builtin.assert", "that") == "'admin' not in osx_offload_groups.stdout.split()"), None)
+probe = next((i for i, t in enumerate(head) if t.get("register") == "osx_offload_ssh_access"), None)
+ok("the SSH access check exists") if probe is not None else ko("no head task registers osx_offload_ssh_access")
+if probe is not None and refusal is not None:
+    ptask = head[probe]
+    cmd = command_text(ptask)
+    ok("it runs before the refusal") if probe < refusal else ko("it runs after the refusal")
+    ok("it uses no become") if not ptask.get("become") else ko("it uses become")
+    ok("it reads com.apple.access_ssh") if "com.apple.access_ssh" in cmd else ko("it does not read com.apple.access_ssh")
+    ok("it changes nothing and runs in check mode") if ptask.get("changed_when") is False and ptask.get("check_mode") is False else ko("it can report a change or is skipped in check mode")
+    writes = [w for w in ("sudo", "-o edit", "-o create", "-o delete", "-create", "-merge", "-append", "-delete", "-change") if w in cmd]
+    writes += re.findall(r">+\s*(?!(?:/dev/null|&1)(?![\w/.]))\S+", cmd)
+    ok("its command writes nothing") if not writes else ko(f"its command holds {writes}")
+    msg = str(head[refusal]["ansible.builtin.assert"].get("fail_msg", ""))
+    ok("the refusal names com.apple.access_ssh") if "com.apple.access_ssh" in msg else ko("the refusal does not name com.apple.access_ssh")
+    ok("the refusal's hint is keyed on the missing result") if "== 'missing'" in msg else ko("the refusal's hint is not keyed on 'missing'")
+    ok("the refusal reads the check's result") if "osx_offload_ssh_access" in msg else ko("the refusal does not read osx_offload_ssh_access")
+    ok("the refusal does not use become") if not head[refusal].get("become") else ko("the refusal uses become")
+else:
+    ko("the refusal task was not found")
 writable = [arg(t, "ansible.builtin.set_fact", "osx_brew_writable") for t in head if arg(t, "ansible.builtin.set_fact", "osx_brew_writable") is not None]
 if writable == ["{{ inventory_hostname not in osx_offload_hosts }}"]:
     ok("osx_brew_writable is false exactly on the offload hosts")
@@ -113,7 +140,7 @@ else:
     ko(f"osx_brew_writable is set ahead of the imports as {writable}")
 
 print("1b. the offload host's own tasks never ask for sudo")
-for fname in ("offload-host.yml", "offload-tools.yml", "offload-runner.yml", "offload-redis.yml", "offload-postgres.yml"):
+for fname in ("offload-host.yml", "offload-tools.yml", "offload-runner.yml", "offload-redis.yml", "offload-postgres.yml", "offload-git.yml"):
     becomes = [
         sub["name"]
         for t in load(fname)
@@ -143,6 +170,19 @@ for t in main:
         ko(f"include {inc}: guarded as a whole") if any("osx_brew_writable" in w for w in whens(t)) else ok(f"include {inc}: unguarded")
 for inc in sorted({"homebrew.yml", "upgrade.yml"} - found):
     ko(f"include {inc}: not found as an include_tasks entry in main.yml")
+
+print("3b. the desktop defaults never run on the offload host")
+osx_inc = [t for t in main if t.get("ansible.builtin.include_tasks") == "osx.yml"]
+if len(osx_inc) == 1 and any(w.strip() == "inventory_hostname not in osx_offload_hosts" for w in whens(osx_inc[0])):
+    ok("include osx.yml: skipped there")
+else:
+    ko("include osx.yml: not skipped on the offload host")
+with open(f"{tasks_dir}/../defaults/main.yml") as f:
+    declared = {(e["domain"], e["key"]): e["type"] for e in yaml.safe_load(f)["osx_defaults"]}
+if declared.get(("com.apple.screensaver", "askForPasswordDelay")) == "float":
+    ok("askForPasswordDelay is declared float, as macOS stores it")
+else:
+    ko("askForPasswordDelay is not declared float")
 
 print("4. the GitHub MCP sync never runs on the offload host")
 for name in ("homebrew.yml", "upgrade.yml"):
@@ -276,6 +316,25 @@ code = open(f"{tasks_dir}/offload-postgres.yml").read()
 code = "\n".join(l for l in code.splitlines() if not l.lstrip().startswith("#"))
 for word in ("launchctl", "LaunchAgents", "brew", "become"):
     ko(f"offload-postgres.yml mentions {word}") if word in code else ok(f"offload-postgres.yml never mentions {word}")
+
+print("7. git auto-gc is off in the work account, on the offload host only")
+git_tasks = load("offload-git.yml")
+gc = [t["community.general.git_config"] for t in git_tasks if "community.general.git_config" in t]
+ok("git_config writes the global scope") if gc and all(g.get("scope") == "global" for g in gc) else ko("a git_config task is not global scope")
+pairs = {(i["name"], i["value"]) for t in git_tasks if "community.general.git_config" in t for i in t.get("loop", [])}
+for want in (("gc.auto", "0"), ("maintenance.auto", "false")):
+    ok(f"{want[0]}={want[1]} is set") if want in pairs else ko(f"{want[0]} is not set to {want[1]}")
+gct = next((t for t in git_tasks if "community.general.git_config" in t), None)
+if gct is None:
+    ko("offload-git.yml has no git_config task")
+else:
+    cfg = gct["community.general.git_config"]
+    ok("each key and value comes from the loop item") if cfg.get("name") == "{{ item.name }}" and cfg.get("value") == "{{ item.value }}" else ko("git_config does not write the loop item")
+    ok("a symlinked ~/.gitconfig is never written through") if "not (osx_offload_gitconfig.stat.islnk | default(false))" in whens(gct) else ko("git_config is not skipped for a symlinked ~/.gitconfig")
+    st = next((t for t in git_tasks if "ansible.builtin.stat" in t), None)
+    ok("the symlink check stats ~/.gitconfig without following it") if st and st["ansible.builtin.stat"].get("follow") is False and st["ansible.builtin.stat"].get("path", "").endswith("/.gitconfig") and st.get("register") == "osx_offload_gitconfig" else ko("the symlink check does not stat ~/.gitconfig with follow: false into osx_offload_gitconfig")
+inc = [t for t in load("main.yml") if t.get("ansible.builtin.include_tasks") == "offload-git.yml"]
+ok("offload-git.yml is included only on the offload hosts") if inc and "inventory_hostname in osx_offload_hosts" in whens(inc[0]) else ko("offload-git.yml is not guarded to the offload hosts")
 
 print(f"\nosx-offload-guard: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

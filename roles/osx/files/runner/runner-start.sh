@@ -43,7 +43,16 @@ running && exit 0
 low_io=()
 command -v taskpolicy >/dev/null 2>&1 && low_io=(taskpolicy -b)
 
+# Idle system sleep resets the runner's long poll to GitHub, which then shows it
+# offline. caffeinate -i blocks only idle sleep, holds for the gate's whole
+# life (its waits included), and needs no privilege. Without it (a non-macOS
+# test host) the gate runs bare.
+awake=()
+caffeinate="${RUNNER_CAFFEINATE:-/usr/bin/caffeinate}"
+[ -x "$caffeinate" ] && awake=("$caffeinate" -i)
+
 # The expansion form keeps an empty array legal under set -u on macOS bash 3.2.
-nohup ${low_io[@]+"${low_io[@]}"} nice -n "$nice_level" "$gate" "$dir" \
+nohup ${low_io[@]+"${low_io[@]}"} nice -n "$nice_level" \
+    ${awake[@]+"${awake[@]}"} "$gate" "$dir" \
     >>"$cache/$prefix-$slug.out" 2>>"$cache/$prefix-$slug.err" </dev/null &
 echo $! >"$pidfile"

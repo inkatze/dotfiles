@@ -29,10 +29,14 @@ jobs:
     # request must never wait on that. Nothing here triggers on
     # pull_request_target or workflow_run, and neither may ever select this
     # label. A main push that queues waits for the Mac, which gates no merge;
-    # timeout-minutes bounds only the run, not that wait.
+    # timeout-minutes bounds only the run, not that wait. The Mac route is also
+    # gated on the repository variable MAC_FLEET_ONLINE being exactly 'true':
+    # the operator sets it once the fleet runners show online in the repository
+    # settings; unset or any other value keeps main's lint on macos-latest.
     runs-on: >-
       ${{ github.repository == 'inkatze/dotfiles'
       && github.event_name == 'push'
+      && vars.MAC_FLEET_ONLINE == 'true'
       && fromJSON('["self-hosted","macOS","mac-fleet"]') || 'macos-latest' }}
     # Each step carries a timeout-minutes a few times its normal runtime, so a
     # hung suite fails fast and names itself instead of holding the job until GitHub's six-hour limit.
@@ -95,6 +99,10 @@ jobs:
       - name: Run the runner start suite
         timeout-minutes: 5
         run: scripts/runner-start-test.sh
+
+      - name: Run the runner hook suite
+        timeout-minutes: 5
+        run: scripts/runner-hook-test.sh
 
       - name: Run the Redis gate suite
         timeout-minutes: 5
@@ -283,6 +291,10 @@ jobs:
       - name: Run the reviewer backend suite
         run: roles/claude/files/scripts/reviewer-backend-test.sh
 
+      # Runs the gemini backend script against a stub CLI and gitleaks.
+      - name: Run the review backend script suite
+        run: roles/claude/files/scripts/review-backend-run-test.sh
+
       # Fetches the pinned cubic package from the npm registry and reads its
       # install scripts and license; curl, openssl, tar and jq are all it needs.
       - name: Run the cubic postinstall opt-out suite
@@ -409,6 +421,12 @@ jobs:
       - name: Run ${{ matrix.role }} tasks
         timeout-minutes: 20
         run: mise run ${{ matrix.role }}
+
+      # Runs after the role: its last case needs the tpm the role installs.
+      - name: Run the tpm guard suite
+        if: matrix.role == 'tmux'
+        timeout-minutes: 10
+        run: scripts/tmux-tpm-guard-test.sh
 
       - name: Idempotency check
         timeout-minutes: 20
