@@ -140,7 +140,7 @@ else:
     ko(f"osx_brew_writable is set ahead of the imports as {writable}")
 
 print("1b. the offload host's own tasks never ask for sudo")
-for fname in ("offload-host.yml", "offload-tools.yml", "offload-runner.yml", "offload-redis.yml", "offload-git.yml"):
+for fname in ("offload-host.yml", "offload-tools.yml", "offload-runner.yml", "offload-redis.yml", "offload-postgres.yml", "offload-git.yml"):
     becomes = [
         sub["name"]
         for t in load(fname)
@@ -224,6 +224,98 @@ for needle in ("runner-start.sh", "RUNNER_GATE=", "redis-gate.sh", "RUNNER_PID_P
     ok(f"the job carries {needle}") if needle in job else ko(f"the job lacks {needle}")
 ok("the job has no %, which ends a cron command") if "%" not in job else ko("the job holds a %")
 ok("the job has no RUNNER_LOAD_MAX: load never stops the server") if "RUNNER_LOAD_MAX" not in job else ko("the job sets RUNNER_LOAD_MAX")
+
+print("6. postgres runs from the fleet account's mise and crontab, with no Homebrew")
+pg = load("offload-postgres.yml")
+defaults = load("../defaults/main.yml")
+with open(f"{tasks_dir}/../files/mise-offload/offload.toml") as f:
+    toml_lines = [l.split("#")[0].strip() for l in f]
+ok("offload.toml pins postgres 16") if any(l.startswith('postgres = "16.') for l in toml_lines) else ko("offload.toml does not pin postgres 16")
+opts = next((l for l in toml_lines if l.startswith("POSTGRES_CONFIGURE_OPTIONS")), "")
+if all(w in opts for w in ("--without-icu", "--without-readline", "--without-openssl")):
+    ok("the build drops the libraries the owner's Homebrew would supply")
+else:
+    ko("offload.toml does not drop icu, readline and openssl from the postgres build")
+ok("postgres is among the mise tools installed") if "postgres" in defaults["osx_offload_mise_tools"] else ko("postgres is not in osx_offload_mise_tools")
+initdb = [t for t in pg if "initdb" in command_text(t)]
+if initdb and all(arg(t, "ansible.builtin.command", "creates") == "{{ osx_postgres_data }}/PG_VERSION" for t in initdb):
+    ok("initdb runs only when the data directory is absent")
+else:
+    ko("initdb is missing or not guarded by creates on PG_VERSION")
+args = [str(a) for t in initdb for a in arg(t, "ansible.builtin.command", "argv")]
+for want in ("--auth-local=peer", "--auth-host=scram-sha-256"):
+    ok(f"initdb passes {want}") if want in args else ko(f"initdb lacks {want}")
+ko("initdb allows trust") if any("trust" in a for a in args) else ok("initdb allows no trust login")
+starts = [t for t in pg if "runner-start.sh" in command_text(t)]
+if starts and all(arg(t, "ansible.builtin.command", "chdir") == "{{ ansible_facts.env.HOME }}" for t in starts):
+    ok("the gate is started from the account's home, where a mise shim finds its config")
+else:
+    ko("the postgres start task does not run from the account's home")
+socket = [t for t in pg if arg(t, "ansible.builtin.file", "path") == "{{ osx_postgres_socket_dir }}"]
+if socket and all(arg(t, "ansible.builtin.file", "mode") == "0700" for t in socket):
+    ok("the socket directory is mode 0700")
+else:
+    ko("the socket directory is not created with mode 0700")
+pgpass = [t for t in pg if arg(t, "ansible.builtin.lineinfile", "path") == "{{ osx_postgres_pgpass }}"]
+if pgpass and all(arg(t, "ansible.builtin.lineinfile", "mode") == "0600" and t.get("no_log") for t in pgpass):
+    ok("the password lands in a 0600 file, from a no_log task")
+else:
+    ko("the .pgpass line is not written 0600 from a no_log task")
+if pgpass and all(whens(t) and "regex_search" in whens(t)[0] for t in pgpass):
+    ok("an existing .pgpass line is kept: the write runs only when it is absent")
+else:
+    ko("the .pgpass write is not conditional on the line being absent")
+checks = [t for t in pg if "ansible.builtin.assert" in t]
+good = [t for t in checks if "{32,}" in str(t["ansible.builtin.assert"]["that"]) and t.get("no_log") and "ansible_check_mode" in str(t.get("when")) and "Remove that line and re-run" in " ".join(str(t["ansible.builtin.assert"]["fail_msg"]).split())]
+ok("a stored password shorter than 32 characters fails the play, quietly, outside check mode") if good else ko("no no_log, non-check-mode assert that the stored password has 32 characters")
+keep = [t for t in pg if arg(t, "ansible.builtin.file", "path") == "{{ osx_postgres_pgpass }}"]
+if keep and all(arg(t, "ansible.builtin.file", "mode") == "0600" and arg(t, "ansible.builtin.file", "state") == "file" and t.get("no_log") and "ansible_check_mode" in str(t.get("when")) for t in keep):
+    ok("the .pgpass is held to 0600 on every run, quietly, outside check mode")
+else:
+    ko("no no_log task holds an existing .pgpass to 0600 (state file, skipped in check mode)")
+first_write = next(i for i, t in enumerate(pg) if "ansible.builtin.lineinfile" in t)
+ok("the mode is enforced after the write") if keep and pg.index(keep[0]) > first_write else ko("the mode task does not follow the .pgpass write")
+order = [next(i for i, t in enumerate(pg) if x in t) for x in ("ansible.builtin.lineinfile", "ansible.builtin.assert")]
+ok("the length check runs after the line is written") if order[0] < order[1] else ko("the length check runs before the line is written")
+# The two .pgpass expressions are run, not only read, through jinja2 with the
+# regex_search and b64decode filters ansible supplies.
+try:
+    import base64, re, jinja2
+    jenv = jinja2.Environment()
+    jenv.filters["regex_search"] = lambda s, p: (re.search(p, s).group(0) if re.search(p, s) else None)
+    jenv.filters["b64decode"] = lambda s: base64.b64decode(s).decode()
+    def run_expr(expr, var, text):
+        b64 = base64.b64encode(text.encode()).decode()
+        src = expr if "{{" in expr else "{{ " + expr + " }}"
+        return jenv.from_string(src).render(**{var: {"content": b64}}, osx_postgres_port=5432, osx_postgres_role="fleet") == "True"
+    write = [t for t in pg if "ansible.builtin.lineinfile" in t][0]["when"]
+    final = [t for t in checks][0]["ansible.builtin.assert"]["that"]
+    long_line = "localhost:5432:*:fleet:" + "a" * 32 + "\n"
+    for label, got, want in (
+        ("a missing file gets a password written", run_expr(write, "osx_postgres_pgpass_read", ""), True),
+        ("another host's line does not stop it", run_expr(write, "osx_postgres_pgpass_read", "other:1:*:x:y\n"), True),
+        ("an existing line is kept", run_expr(write, "osx_postgres_pgpass_read", long_line), False),
+        ("a short stored password fails the length check", run_expr(final, "osx_postgres_pgpass_final", "localhost:5432:*:fleet:abc\n"), False),
+        ("an empty stored password fails the length check", run_expr(final, "osx_postgres_pgpass_final", "localhost:5432:*:fleet:\n"), False),
+        ("a full-length stored password passes the length check", run_expr(final, "osx_postgres_pgpass_final", long_line), True),
+    ):
+        ok(label) if got == want else ko(label)
+except ImportError:
+    ok("jinja2 not installed here: the .pgpass expressions are only read, not run")
+cron = [t["ansible.builtin.cron"] for t in pg if "ansible.builtin.cron" in t]
+ok("an @reboot job") if any(c.get("special_time") == "reboot" for c in cron) else ko("no @reboot cron job")
+ok("a periodic re-check job") if any(str(c.get("minute", "")).startswith("*/") for c in cron) else ko("no periodic re-check cron job")
+for c in cron:
+    ok(f"{c['name']}: the shared start job") if c["job"] == "{{ osx_postgres_start_job }}" else ko(f"{c['name']}: job is not the shared start job")
+job = defaults["osx_postgres_start_job"]
+for needle in ("PATH=", "RUNNER_IDLE_SECONDS=", "RUNNER_LOAD_MAX=", "RUNNER_NICE=", "RUNNER_GATE=", "RUNNER_PID_PREFIX=", "POSTGRES_SOCKET_DIR=", "POSTGRES_MAX_CONNECTIONS=", "runner-start.sh"):
+    ok(f"start job carries {needle}") if needle in job else ko(f"start job lacks {needle}")
+ok("start job holds no %") if "%" not in job else ko("start job holds a % (it ends a cron command)")
+ok("start job carries no password") if "PASSWORD" not in job.upper() else ko("start job names a password")
+code = open(f"{tasks_dir}/offload-postgres.yml").read()
+code = "\n".join(l for l in code.splitlines() if not l.lstrip().startswith("#"))
+for word in ("launchctl", "LaunchAgents", "brew", "become"):
+    ko(f"offload-postgres.yml mentions {word}") if word in code else ok(f"offload-postgres.yml never mentions {word}")
 
 print("7. git auto-gc is off in the work account, on the offload host only")
 git_tasks = load("offload-git.yml")

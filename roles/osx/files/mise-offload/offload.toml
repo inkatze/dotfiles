@@ -10,6 +10,12 @@
 # `fish`, which the fish and environments roles resolve through `brew
 # --prefix`, and `op`, whose mise route is a third-party plugin rather than a
 # release download.
+
+# Read by the mise postgres plugin when it builds the server (see postgres
+# below); mise applies it to every command it runs for this account.
+[env]
+POSTGRES_CONFIGURE_OPTIONS = "--without-icu --without-readline --without-openssl"
+
 [tools]
 
 # Before the pipx: entry: mise's pipx backend runs `uv tool install`.
@@ -24,6 +30,12 @@ gh = "2.96.0"
 jq = "1.8.2"
 tmux = "3.7c"
 gitleaks = "8.30.0"
+
+# Built from source by the mise postgres plugin. POSTGRES_CONFIGURE_OPTIONS
+# (in [env] above) replaces the plugin's defaults, which reach for the owner's Homebrew
+# (openssl and its library paths): a localhost-only test server needs none of
+# openssl, icu, readline or uuid, so it builds with the Command Line Tools alone.
+postgres = "16.15"
 
 # The /panel-review and /code-review backend, which the owner's Homebrew need
 # not carry; mise bootstraps the node its npm backend runs on.
