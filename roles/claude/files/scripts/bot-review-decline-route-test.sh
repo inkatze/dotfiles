@@ -9,6 +9,8 @@ failures=0
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 cd "$work"
+work="$(pwd -P)"
+cd "$work"
 printf 'one\ntwo\nthree\n' > x.sh
 printf '#!/bin/sh\n' > a_test.sh
 printf 'one\ntwo' > nonl.sh
@@ -56,6 +58,8 @@ expect cite-symlink-out operator mission-control cite link.sh:1
 expect cite-symlink-inside mission-control mission-control cite sub/up.sh:1
 expect test-symlink-out operator mission-control test link.sh "case one"
 expect cite-equals-name mission-control mission-control cite a=b.sh:1
+expect cite-directory operator mission-control cite sub:1
+expect test-directory operator mission-control test sub "case one"
 expect repro-blank operator mission-control repro " " " "
 expect test-missing-file operator mission-control test nope_test.sh "case one"
 expect test-blank-case operator mission-control test a_test.sh " "
@@ -75,5 +79,14 @@ expect cite-prose operator mission-control cite "see the code"
 expect judgment operator mission-control none
 expect unknown-kind operator mission-control hunch "I think so"
 
+
+# A checkout reached through a symlinked parent still resolves its own files.
+links="$(mktemp -d)"
+ln -s "$work" "$links/l"
+if ! (cd "$links/l" && [ "$(BOT_REVIEW_PROVEN_DECLINES=mission-control "$R" cite x.sh:1)" = mission-control ]); then
+  echo "FAIL symlinked-cwd"
+  failures=$((failures + 1))
+fi
+rm -rf "$links"
 [ "$failures" -eq 0 ] || { echo "$failures failure(s)"; exit 1; }
 echo "bot-review-decline-route-test: ok"

@@ -17,9 +17,10 @@ kind="${1:-none}"
 shift || true
 
 inside() {
-  local real
-  real="$(realpath -e -- "$1" 2> /dev/null)" || return 1
-  [[ "$real" == "$PWD"/* && -f "$real" ]]
+  local real root
+  root="$(pwd -P)"
+  real="$(realpath -- "$1" 2> /dev/null)" || return 1
+  [[ "$root" != / && "$real" == "$root"/* && -f "$real" ]]
 }
 
 proven=false
