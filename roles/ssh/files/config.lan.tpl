@@ -19,7 +19,8 @@
 # here under review; keep only the values in 1Password.
 #
 # Required fields on the 1Password item (see roles/ssh/README.md):
-#   server_alias, server_host, server_ip, server_user
+#   server_alias, server_host, server_ip, server_user,
+#   offload_alias, offload_host, offload_user
 
 Host {{ op://__OP_VAULT__/__OP_ITEM__/server_alias }} {{ op://__OP_VAULT__/__OP_ITEM__/server_ip }}
     User {{ op://__OP_VAULT__/__OP_ITEM__/server_user }}
@@ -28,3 +29,25 @@ Host {{ op://__OP_VAULT__/__OP_ITEM__/server_alias }} {{ op://__OP_VAULT__/__OP_
 
 Host {{ op://__OP_VAULT__/__OP_ITEM__/server_alias }}
     Hostname {{ op://__OP_VAULT__/__OP_ITEM__/server_host }}
+
+# A fixed name, since the global Claude allow rule for mission control's relay
+# names it literally. No agent forwarding and no extra SendEnv, since that rule
+# runs without a prompt; the system-wide `Host *` locale SendEnv still applies.
+Host planwright-relay
+    Hostname {{ op://__OP_VAULT__/__OP_ITEM__/server_host }}
+    User {{ op://__OP_VAULT__/__OP_ITEM__/server_user }}
+    ForwardAgent no
+    BatchMode yes
+
+# The offload host (docs/offload-host.md). It trusts the offload key only from
+# server's IPv4 address (server_ip), so the connection must not go out over IPv6, which
+# an mDNS name often resolves to first. IdentityAgent none keeps a locked
+# 1Password agent out of an unattended connection.
+Host {{ op://__OP_VAULT__/__OP_ITEM__/offload_alias }}
+    Hostname {{ op://__OP_VAULT__/__OP_ITEM__/offload_host }}
+    User {{ op://__OP_VAULT__/__OP_ITEM__/offload_user }}
+    AddressFamily inet
+    IdentityFile ~/.ssh/id_offload
+    IdentitiesOnly yes
+    IdentityAgent none
+    ForwardAgent no

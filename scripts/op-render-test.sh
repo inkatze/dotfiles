@@ -14,6 +14,7 @@ review_tpl="$repo/roles/claude/files/skills/bot-review/bot-review.json.tpl"
 sibling_tpl="$repo/roles/claude/files/skills/review-shared/sibling-repos.json.tpl"
 overlay_tpl="$repo/roles/claude/files/planwright/planwright.yml.tpl"
 orgs_tpl="$repo/roles/git/files/git-work-orgs.tpl"
+offload_tpl="$repo/roles/osx/files/offload/authorized_keys.offload.tpl"
 
 pass=0
 fail=0
@@ -327,6 +328,8 @@ run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 [ "$rc" -eq 0 ] && grep -q '^CHANGED:' <<<"$log" && ok "renders, creating the directory" || ko "renders ($log)"
 grep -qx 'flight_pr_hosts: \[github.com/acme\]' "$ov" 2>/dev/null && ok "value substituted raw" || ko "value substituted raw"
 grep -qx 'ready_guard_behind_base: conflict-only' "$ov" 2>/dev/null && ok "literal line kept verbatim" || ko "literal line kept verbatim"
+grep -qx 'fleet_host_max_live_workers: 8' "$ov" 2>/dev/null && ok "host-wide live-worker bound rendered" || ko "host-wide live-worker bound rendered"
+grep -qx 'worker_hook_exclude: skill-contracts-suite claude-skills-link copilot-retirement claude-steps-catalog syntax-check git-unattended-auth cubic-instructions credential-path-guard planwright-marketplace' "$ov" 2>/dev/null && ok "worker hook-exclude list rendered" || ko "worker hook-exclude list rendered"
 [ -f "$ov" ] && [ "$(mode_of "$ov")" = 600 ] && ok "mode 0600" || ko "mode 0600"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 grep -q '^OK:' <<<"$log" && ok "second run prints OK" || ko "second run prints OK ($log)"
@@ -396,6 +399,52 @@ run "$orgs_tpl" dotfiles-git-work-orgs "$HOME/.config/dotfiles/git-work-orgs"
 item_from 'orgs=AcmeCo bad"name'
 run "$orgs_tpl" dotfiles-git-work-orgs "$sandbox/orgs"
 expect_failed "a non-owner name" "is not a GitHub owner name"
+
+echo "14c. offload authorized key: one from-restricted ed25519 key, nothing else"
+new_sandbox
+ssh-keygen -q -t ed25519 -N '' -C 'dotfiles offload client' -f "$sandbox/k"
+ssh-keygen -q -t ed25519 -N '' -f "$sandbox/k2"
+pub="$(cat "$sandbox/k.pub")"
+ak="$HOME/.ssh/authorized_keys.offload"
+item_from 'server_ip=192.0.2.10' "offload_client_pubkey=$pub"
+run "$offload_tpl" dotfiles-lan-ssh "$ak"
+[ "$rc" -eq 0 ] && grep -qxF "from=\"192.0.2.10\",restrict,pty $pub" "$ak" \
+  && ok "the key renders restricted to the address" || ko "the key renders restricted to the address ($log)"
+item_from 'server_ip=192.0.2.10' 'offload_client_pubkey='
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "an empty key field" "is not one from-restricted ed25519 key"
+item_from 'server_ip=' "offload_client_pubkey=$pub"
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "an empty address field" "is not one from-restricted ed25519 key"
+item_from 'server_ip=192.0.2.10",command="sh' "offload_client_pubkey=$pub"
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "options smuggled in through the address field" "is not one from-restricted ed25519 key"
+item_from 'server_ip=192.0.2.256' "offload_client_pubkey=$pub"
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "an address octet above 255" "is not one from-restricted ed25519 key"
+item_from 'server_ip=203.0.113.255' "offload_client_pubkey=$pub"
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak-edge"
+[ "$rc" -eq 0 ] && ok "an octet of 255 is accepted" || ko "an octet of 255 is accepted ($log)"
+item_from 'server_ip=192.0.2.10' 'offload_client_pubkey=ssh-ed25519 AAAAnotakey'
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "a key ssh-keygen cannot read" "ssh-keygen does not read the key"
+# Readable by ssh-keygen, so only the shape's key type refuses it.
+ssh-keygen -q -t ecdsa -N '' -f "$sandbox/k3"
+item_from 'server_ip=192.0.2.10' "offload_client_pubkey=$(cat "$sandbox/k3.pub")"
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "a key of another type" "is not one from-restricted ed25519 key"
+item_from 'server_ip=192.0.2.10' "offload_client_pubkey=$pub"
+jq --arg two "$pub"$'\n'"$(cat "$sandbox/k2.pub")" '.fields[1].value = $two' "$OP_STUB_ITEM" >"$sandbox/i" && mv "$sandbox/i" "$OP_STUB_ITEM"
+run "$offload_tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "a second key pasted into the field" "offload_client_pubkey holds a line break"
+[ -e "$sandbox/ak" ] && ko "a refused key reached the output" || ok "a refused key never reaches the output"
+item_from 'server_ip=192.0.2.10' "offload_client_pubkey=$pub"
+{ cat "$offload_tpl"; grep -v '^#' "$offload_tpl"; } >"$sandbox/tpl/authorized_keys.offload.tpl"
+run "$sandbox/tpl/authorized_keys.offload.tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "a template carrying a second key line" "holds 2 keys; exactly one is expected"
+grep '^#' "$offload_tpl" >"$sandbox/tpl/authorized_keys.offload.tpl"
+run "$sandbox/tpl/authorized_keys.offload.tpl" dotfiles-lan-ssh "$sandbox/ak"
+expect_failed "a template carrying no key line" "holds 0 keys; exactly one is expected"
 
 echo "15. preconditions"
 new_sandbox
@@ -795,6 +844,186 @@ got="$(jq -n -r -L "$schema_dir" 'include "config-schema"; {reviewed_head_check:
 grep -qx 'p.reviewed_head_check: not a string' <<<"$got" && ok "a non-string check name is named, not a jq error" || ko "a non-string check name ($got)"
 got="$(jq -r -L "$schema_dir" 'include "config-schema"; .reviewers["work-review"].cli = {binary: "{{ op://__OP_VAULT__/__OP_ITEM__/x }}"} | review_template_errors' "$review_tpl")"
 [ -z "$got" ] && ok "a cli block is outside the one-item rule" || ko "a cli block is outside the one-item rule ($got)"
+
+echo "28. overlay: mission control's own writes survive the render, nothing else does"
+new_sandbox
+ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
+sup="$HOME/.config/dotfiles/planwright-overlay.supplement.yml"
+snap="$HOME/.config/dotfiles/planwright-overlay.rendered"
+block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a]\nprogram_alpha_home: /h'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && cmp -s "$ov" "$snap" && ok "the first render records its snapshot" || ko "the first render records its snapshot ($log)"
+[ "$(mode_of "$snap")" = 600 ] && ok "snapshot at 0600" || ko "snapshot at 0600"
+[ -e "$sup" ] && ko "a supplement appeared with nothing to keep" || ok "no supplement while nothing differs"
+# The header test planwright's mc-config.sh applies: its leading comment block
+# must not say another tool renders the file, or every write is refused.
+header="$(awk '/^[[:space:]]*$/ { next } !/^[[:space:]]*#/ { exit } { sub(/^[[:space:]]*#+[[:space:]]*/, ""); s = s " " $0 } END { print s }' "$ov")"
+if grep -Eiq 'do not edit|generated (by|from)|rendered (by|from)|managed by|ansible managed|overwritten' <<<"$header"; then
+  ko "the overlay header reads as managed elsewhere to mission control ($header)"
+else
+  ok "the overlay header lets mission control write"
+fi
+# What mc-config.sh does: rewrite a key in place, add a knob, drop a key.
+sed -i.bak -e 's/^program_alpha_duties: .*/program_alpha_duties: [a, b]/' -e '/^program_alpha_home:/d' \
+  -e 's/^ready_guard_behind_base: .*/ready_guard_behind_base: never/' "$ov" && rm -f "$ov.bak"
+echo 'mission_control_tick_cadence: 5m' >>"$ov"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && grep -qF "kept mission control's writes in $sup" <<<"$log" && ok "reports the kept writes" || ko "reports the kept writes ($log)"
+grep -qx 'program_alpha_duties: \[a, b\]' "$ov" && ok "a rewritten program key survives" || ko "a rewritten program key survives"
+grep -qx 'mission_control_tick_cadence: 5m' "$ov" && ok "an added knob survives" || ko "an added knob survives"
+grep -q '^program_alpha_home:' "$ov" && ko "a removed key came back" || ok "a removed key stays removed"
+grep -qx 'ready_guard_behind_base: conflict-only' "$ov" && ok "any other hand edit is replaced from the item" || ko "any other hand edit is replaced"
+if [ "$(grep -v '^#' "$sup")" = $'program_alpha_duties: [a, b]\nmission_control_tick_cadence: 5m\nremove program_alpha_home' ]; then
+  ok "the supplement holds exactly mission control's changes, in order"
+else
+  ko "the supplement holds mission control's changes ($(cat "$sup"))"
+fi
+[ "$(mode_of "$sup")" = 600 ] && ok "supplement at 0600" || ko "supplement at 0600"
+grep -q 'ready_guard' "$sup" && ko "a non-mission-control key was harvested" || ok "no other key is harvested"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+grep -q '^OK:' <<<"$log" && ok "a settled render prints OK" || ko "a settled render prints OK ($log)"
+# The item gains a program key mission control never saw: not a removal.
+block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a]\nprogram_alpha_home: /h\nprogram_alpha_spec_root: /s'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+grep -qx 'program_alpha_spec_root: /s' "$ov" && ok "a key new in the item lands" || ko "a key new in the item lands ($log)"
+grep -qx 'program_alpha_duties: \[a, b\]' "$ov" && ok "the kept write still wins over the item" || ko "the kept write still wins over the item"
+# The operator copies the changes into the item: each entry drops, then the file.
+block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a, b]\nprogram_alpha_home: /h\nprogram_alpha_spec_root: /s'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+grep -qx 'program_alpha_duties: \[a, b\]' "$sup" && ko "an entry the item matches stayed" || ok "an entry the item matches drops out"
+grep -qx 'remove program_alpha_home' "$sup" && ok "a removal the item still contradicts stays" || ko "a removal the item still contradicts stays ($(cat "$sup"))"
+block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a, b]\nprogram_alpha_spec_root: /s\nmission_control_tick_cadence: 5m'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && [ ! -e "$sup" ] && grep -qF "removed $sup" <<<"$log" && ok "a supplement the item fully matches is removed" || ko "a fully matched supplement is removed ($log)"
+cmp -s "$ov" "$snap" && ok "the snapshot follows the output" || ko "the snapshot follows the output"
+# An older backup of the overlay put back after a render must not turn the
+# writes the supplement keeps into removals.
+new_sandbox
+ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
+sup="$HOME/.config/dotfiles/planwright-overlay.supplement.yml"
+snap="$HOME/.config/dotfiles/planwright-overlay.rendered"
+block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a]'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+cp "$ov" "$sandbox/backup"
+echo 'mission_control_tick_cadence: 5m' >>"$ov"
+sed -i.bak 's/^program_alpha_duties: .*/program_alpha_duties: [a, b]/' "$ov" && rm -f "$ov.bak"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+cp "$sup" "$sandbox/sup.before"
+cp "$snap" "$sandbox/snap.before"
+cp "$sandbox/backup" "$ov"
+cp "$ov" "$sandbox/ov.before"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -ne 0 ] && grep -qF 'mission_control_tick_cadence' <<<"$log" && grep -qF 'OP_RENDER_ACCEPT_REMOVALS' <<<"$log" \
+  && ok "a restored overlay is refused, naming the key and the way out" || ko "a restored overlay is refused ($rc $log)"
+cmp -s "$sup" "$sandbox/sup.before" && cmp -s "$snap" "$sandbox/snap.before" && cmp -s "$ov" "$sandbox/ov.before" \
+  && ok "a refused restore writes nothing" || ko "a refused restore writes nothing"
+grep -q '^remove ' "$sup" && ko "the restore became a remove entry" || ok "the restore recorded no remove entry"
+cp "$snap" "$ov"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && grep -qx 'mission_control_tick_cadence: 5m' "$ov" && grep -qx 'program_alpha_duties: \[a, b\]' "$ov" \
+  && ok "putting the snapshot back recovers every kept write" || ko "recovery from the snapshot ($log)"
+# Only the value 1 accepts removals.
+cp "$ov" "$sandbox/ov.before"
+sed -i.bak '/^mission_control_tick_cadence:/d' "$ov" && rm -f "$ov.bak"
+OP_RENDER_ACCEPT_REMOVALS=false run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -ne 0 ] && ok "a value other than 1 does not accept removals" || ko "a value other than 1 does not accept removals ($log)"
+# A removal the operator really made after a clean render is still honoured.
+sed -i.bak '/^mission_control_tick_cadence:/d' "$ov" && rm -f "$ov.bak"
+OP_RENDER_ACCEPT_REMOVALS=1 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && ! grep -q '^mission_control_tick_cadence:' "$ov" && ! grep -q 'mission_control_tick_cadence' "$sup" \
+  && ok "an accepted removal is honoured" || ko "an accepted removal is honoured ($log)"
+new_sandbox
+ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
+sup="$HOME/.config/dotfiles/planwright-overlay.supplement.yml"
+snap="$HOME/.config/dotfiles/planwright-overlay.rendered"
+block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a]\nprogram_alpha_home: /h'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+sed -i.bak '/^program_alpha_home:/d' "$ov" && rm -f "$ov.bak"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && grep -qx 'remove program_alpha_home' "$sup" \
+  && ok "a removal after a clean render, of an item key, is still recorded" || ko "removal of an item key ($log)"
+# A supplement line for any other key would let a local file override the item.
+printf 'ready_guard_behind_base: never\n' >"$sup"
+cp "$ov" "$sandbox/before"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "a supplement setting another key" "is not a \`key: value\` or \`remove <key>\` line"
+cmp -s "$ov" "$sandbox/before" && ok "a refused supplement writes nothing" || ko "a refused supplement writes nothing"
+# An unreadable supplement must not read as an empty one.
+printf 'mission_control_guidance: expert\n' >"$sup"
+chmod 000 "$sup"
+if [ -r "$sup" ]; then
+  echo "  skip: an unreadable supplement (this user reads mode 000)"
+else
+  run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+  expect_failed "an unreadable supplement" "could not read $sup"
+fi
+chmod 600 "$sup"
+rm -f "$sup"
+ln -s "$sandbox/before" "$sup"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "a symlinked supplement" "it is a symlink"
+rm -f "$sup"
+# Without a snapshot nothing tells a write from an old value, so none is kept.
+rm -f "$snap"
+echo 'mission_control_guidance: expert' >>"$ov"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && ! grep -qx 'mission_control_guidance: expert' "$ov" && [ ! -e "$sup" ] && [ -f "$snap" ] \
+  && ok "no snapshot: nothing harvested, the snapshot written" || ko "no snapshot: nothing harvested ($log)"
+# A write landing between the harvest and the rename must not be overwritten.
+# The shim makes every cksum call differ, as a write in between would.
+printf '#!/bin/sh\necho "$$"\n' >"$sandbox/bin/cksum" && chmod +x "$sandbox/bin/cksum"
+# A hand edit to another key makes the render replace the output.
+sed -i.bak 's/^ready_guard_behind_base: .*/ready_guard_behind_base: never/' "$ov" && rm -f "$ov.bak"
+echo 'mission_control_guidance: guided' >>"$ov"
+cp "$ov" "$sandbox/before"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "the overlay changing during the render" "changed while it was rendered"
+cmp -s "$ov" "$sandbox/before" && ok "a concurrent write is left in place" || ko "a concurrent write is left in place"
+[ -e "$sup" ] && ko "a refused render still wrote the supplement" || ok "a refused render writes no supplement"
+rm -f "$sandbox/bin/cksum"
+# A text template other than the overlay never touches either file.
+item_from 'orgs=AcmeCo'
+run "$orgs_tpl" dotfiles-git-work-orgs "$sandbox/orgs"
+rm -f "$snap"
+run "$orgs_tpl" dotfiles-git-work-orgs "$sandbox/orgs2"
+[ "$rc" -eq 0 ] && [ -f "$sandbox/orgs2" ] && [ ! -e "$snap" ] && [ ! -e "$sup" ] \
+  && ok "another template writes neither file" || ko "another template writes neither file ($log)"
+
+echo "29. --work-account: the main item from the work account, never a personal fallback"
+new_sandbox
+ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
+item_from 'flight_pr_hosts=[personal]' 'mission_control=mission_control_programs: [personal-only]'
+export OP_STUB_WORK_ITEM="$sandbox/work-item.json"
+printf '%s\n' 'flight_pr_hosts=[work]' 'mission_control=mission_control_programs: [work-only]' | to_item "$OP_STUB_WORK_ITEM"
+export DOTFILES_OP_WORK_ACCOUNT=work.example.com DOTFILES_OP_WORK_VAULT="Work Vault" DOTFILES_OP_WORK_ITEM=work-item
+export OP_SERVICE_ACCOUNT_TOKEN="ops_teststubtoken123"
+run --work-account "$overlay_tpl" dotfiles-planwright-overlay-work "$ov"
+unset OP_SERVICE_ACCOUNT_TOKEN
+[ "$rc" -eq 0 ] && ok "renders from the work item" || ko "renders from the work item ($log)"
+grep -qx 'mission_control_programs: \[work-only\]' "$ov" 2>/dev/null && grep -qx 'flight_pr_hosts: \[work\]' "$ov" \
+  && ok "the work item's values land" || ko "the work item's values land ($(cat "$ov" 2>/dev/null))"
+grep -q 'personal' "$ov" 2>/dev/null && ko "a personal value reached the work render" || ok "no personal value in the work render"
+[ "$(cat "$OP_STUB_ARGV")" = 'item get dotfiles-planwright-overlay-work --vault Work Vault --account work.example.com --format json --reveal' ] \
+  && ok "one read, of the named item, in the work account and vault" || ko "the reads ($(cat "$OP_STUB_ARGV"))"
+awk -F '\t' '$1 != "" { bad = 1 } END { exit bad }' "$OP_STUB_ARGV.calls" \
+  && ok "no token on the work read" || ko "the token reached the work read"
+unset DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM
+rm -f "$ov"
+: >"$OP_STUB_ARGV"
+run --work-account "$overlay_tpl" dotfiles-planwright-overlay-work "$ov"
+expect_failed "--work-account with no work source" "--work-account needs DOTFILES_OP_WORK_ACCOUNT"
+[ -s "$OP_STUB_ARGV" ] && ko "no work source: op was still called" || ok "no work source: refused before any op call"
+[ -e "$ov" ] && ko "no work source: a file was written" || ok "no work source: nothing written"
+export DOTFILES_OP_WORK_ACCOUNT=work.example.com DOTFILES_OP_WORK_VAULT="Work Vault"
+run --work-account "$overlay_tpl" dotfiles-planwright-overlay-work "$ov"
+expect_failed "--work-account with a partial work source" "must be set together or not at all"
+export DOTFILES_OP_WORK_ITEM=work-item OP_STUB_FAIL_WORK=1
+run --work-account "$overlay_tpl" dotfiles-planwright-overlay-work "$ov"
+unset OP_STUB_FAIL_WORK
+expect_failed "a failing work read" "reading the item argument from the work account"
+grep -c -- '--account' "$OP_STUB_ARGV" | grep -qx 1 && ! grep -qv -- '--account' "$OP_STUB_ARGV" \
+  && ok "a failing work read never falls back to the personal vault" || ko "a failing work read fell back ($(cat "$OP_STUB_ARGV"))"
+unset DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM
 
 echo
 echo "op-render: $pass passed, $fail failed"

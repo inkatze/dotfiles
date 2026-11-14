@@ -93,19 +93,44 @@ delete by hand.
 A global allow rule naming a path under the home directory opens its pattern
 with `$HOME/`, which `scripts/claude-settings-merge.sh` expands per machine,
 since Claude Code matches a Bash rule against the literal command. A rule
-naming a script inside the planwright plugin cache pins its version directory,
-so a planwright update needs every such rule bumped;
-`scripts/claude-planwright-pin-check.sh roles/claude/files/settings.json
-~/.claude/plugins/installed_plugins.json` fails while one is stale.
+naming a script inside the planwright plugin cache writes its version
+directory as `*`, since a concrete version matches nothing after the next
+planwright update; `scripts/claude-planwright-pin-check.sh
+roles/claude/files/settings.json` fails on any concrete version. CI runs its
+suite; lefthook does not, deliberately. Because `*` also spans spaces and
+`/..` segments, each such rule pre-approves any command that merely contains
+its script path and verb (`<cache>/<v>/../../../../../../bin/rm ... /scripts/fleet-streamjson.sh
+answer x` included), an exposure accepted for these rules. Add a new
+plugin-cache rule only with that exposure in mind.
 
-The plugin-cache rules serve mission control: `fleet-streamjson.sh pending`
-and `answer` let it list and answer a stream-json worker's permission
-prompts, and `mc-reclaim.sh reclaim` lets it remove a finished worktree,
-which the auto-mode classifier otherwise refuses as destructive. The reclaim
+The plugin-cache rules serve the attended mission-control hub, which is
+started by hand and so gets none of planwright's `--settings` profiles or
+their command guards: `fleet-streamjson.sh pending` and `answer` let it list
+and answer a stream-json worker's permission prompts, and
+`mc-reclaim.sh reclaim` lets it remove a finished worktree, which the
+auto-mode classifier otherwise refuses as destructive. The reclaim
 removes only a worktree its own checks clear (no live user, nothing
 uncommitted or unpushed, the PR merged or closed; `mc-reclaim.sh --help`
 holds the full predicate) and backs its audit files up first. To revert,
 drop the rule and run the role.
+
+The hub also drives every tmux pane and posts PR reviews. A global allow
+reaches every session, dispatched workers included, so the broad
+`tmux send-keys`, `tmux kill-window` and `gh pr review` rules are not global.
+Where the hub needs them durably, their layer is this repo's per-repo
+`.claude/settings.json`, tracked once it is un-ignored beside
+`.claude/planwright.yml` (below), never an untracked local file. The global
+`tmux kill-pane -t %<id>` allow is held to one pane by its `ask` twins: a
+flag after the pane id (`-a` kills every other pane) or a `;` (tmux's own
+command separator) prompts instead.
+
+The hub relays planwright reports to a session on another host with one exact
+`ssh ... planwright-relay '<tmux paste>'` rule, no wildcard, since any extra
+word would run on the remote side. `planwright-relay` is an alias from the
+1Password-rendered LAN ssh config (`roles/ssh/files/config.lan.tpl`), so the
+public rule names no host. The alias exists only after that config renders.
+The read-only rules stay global for the same reason the hub rules exist:
+planwright's profiles cover only the sessions it launches with `--settings`.
 
 This repo gitignores the contents of every `.claude/` directory rather than
 the directory itself, since git never re-includes a file under an excluded

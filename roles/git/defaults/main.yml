@@ -81,6 +81,7 @@ git_tracked_config_suffix: /roles/git/files/gitconfig
 # machine nobody asked about. Adding either later is one line here plus the two
 # registration steps described below.
 git_unattended_signing_hosts:
+  - offload
   - server
   - work
 
@@ -135,6 +136,7 @@ git_unattended_signing_key: "{{ ansible_facts.env.HOME }}/.ssh/id_signing"
 # way an unattended boot does. Adding a host is one line plus the registration
 # step below.
 git_unattended_auth_hosts:
+  - offload
   - server
   - work
 

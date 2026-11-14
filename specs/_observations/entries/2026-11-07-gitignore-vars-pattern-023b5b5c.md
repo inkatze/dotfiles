@@ -1,0 +1,1 @@
+- 2026-11-07 [dotfiles] The root .gitignore line `vars` ignores every directory named vars, role vars/ included, so a new roles/<role>/vars/main.yml stays untracked silently while the local play still finds it; it surfaced when the offload hardening moved a variable into roles/osx/vars/main.yml.

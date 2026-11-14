@@ -1,7 +1,7 @@
 # Claude Instructions Audit — Design
 
 **Status:** Ready
-**Last reviewed:** 2026-10-05
+**Last reviewed:** 2026-11-09
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -169,6 +169,8 @@ untrusted-comment rule.
 **Chosen because:** planwright's safety floor (gating law is never deferred)
 applies to this file the same way it applies to a skill body.
 
+**Superseded-by: D-19** (2026-11-09)
+
 ### D-7: The repo-root file keeps rules; rationale moves to docs notes  (N)
 
 **Decision:** Every narrative section of the root `CLAUDE.md` collapses to its
@@ -274,6 +276,8 @@ naming that as the single exception.
 *(Amended at extension 2026-10-05: in a solo repository the agent also
 flips under D-17; the kickoff flip is the single configured flip kept in a
 work or collaborative repository.)*
+*(Amended at delta re-walkthrough 2026-11-09: D-18 supersedes D-17; the
+kickoff flip stays the one configured flip kept in every repository.)*
 
 **Alternatives considered:**
 - Set the knob to false on every host. Rejected because: it re-introduces a
@@ -380,6 +384,9 @@ outbound rule's bot exception, the same-PR lock and each loop's
 confirmation-gated or forbidden ready flip bound an unasked run. Early
 signal: a review skill in a transcript with no typed invocation and no
 parent call.
+*(Amended at delta re-walkthrough 2026-11-09: a command the operator's hub
+types into a session at the operator's direction counts as a typed
+invocation, D-20.)*
 
 ### D-17: The ready flip follows repository ownership, like a history rewrite  (N)
 
@@ -424,26 +431,117 @@ reading the same facts. The conditions do not change, only who evaluates
 them, and they are re-checked at the head immediately before the flip
 exactly as before.
 
+**Superseded-by: D-18** (2026-11-09)
+
+### D-18: The ready flip follows ownership and authorship  (N, supersedes D-17)
+
+**Decision:** The cadence flip REQ-A1.7 defines covers every pull request in
+a solo repository, and in a work or collaborative repository a pull request
+the operator authored once the operator has asked for its change or a
+session the operator's hub dispatched opened it. Any other flip there,
+another person's pull request included, is the operator's to request.
+planwright's `ready_flip_policy: human` becomes optional there; where a
+config sets it, its configured flips and a planwright worker's cadence flip
+stay reserved behind a one-line offer, the operator's yes being the request.
+The kickoff spec pull request exception (D-12), the operator-confirmed
+clause and the nested loop's confirmation gate stay.
+
+**Alternatives considered:**
+- Keep D-17 (the operator's request for every flip outside a solo
+  repository). Rejected because: the flip is reversible apart from the
+  review requests and ready-for-review workflows it can trigger, which
+  REQ-D1.5 already does not count as messages, so the request only adds a
+  hop to the operator's own work.
+- Flip any pull request in any repository. Rejected because: a teammate's
+  draft is their signal to their own reviewers.
+- Require `ready_flip_policy: human` in work and collaborative
+  repositories. Rejected because: it blocks the very flip the rule now
+  allows.
+
+**Chosen because:** The readiness conditions do not change and are still
+re-checked on the current head; only who may act moves, and only on the
+operator's own work. The one effect that cannot be recalled, a review
+request reaching the repository's reviewers, is one the operator's own pull
+request is meant to make.
+
+### D-19: The outbound-message rule is always-loaded gating law, with a hub exception  (N, supersedes D-6)
+
+**Decision:** "No message to another human without the operator approving
+the exact text and recipient" lives in the user-global file, with exactly
+three exceptions (REQ-D1.6): an explicit go-ahead for a message or for a
+run's named scope; replies to automated reviewers, defined mechanically; and
+a go-ahead the operator gives in their hub session, either for an exact
+message the hub relays or a standing go-ahead the hub records as a program
+rule, read live before each send and named on it. A run with no operator
+present drafts any other such message into its handoff instead of sending
+it, and a recipient is never guessed. The Slack recipient-resolution and
+confirmation mechanics live in the shared directory, with no fixed-template
+exemption. Replies to bots are publicly visible and follow the
+untrusted-comment rule. planwright's mission control does not yet treat a
+program rule as a go-ahead or give a dispatched session a live read of it
+(obs:84269f31, obs:0707265b); until it does, a session that cannot read the
+live rule sends nothing under it.
+
+**Alternatives considered:**
+- Per-session go-aheads only. Rejected because: it re-asks the operator for
+  messages already approved as a class.
+- A standing go-ahead with no record. Rejected because: nothing could show
+  or withdraw it.
+- A launch-time copy of the rule counting as the read. Rejected because: a
+  withdrawal would never reach a session already running.
+- D-6's rejected alternatives (the whole Slack section moved out; a
+  Slack-only rule). Still rejected, for D-6's reasons.
+
+**Chosen because:** planwright's safety floor (gating law is never deferred)
+still applies; the hub exception covers only what the operator named,
+through a record they can see and withdraw, and fails closed where it cannot
+be read.
+
+### D-20: An unattended or hub-dispatched review of the operator's branch applies without a walk choice  (N)
+
+**Decision:** A review the operator runs attended that stops for findings
+keeps the numbered summary and the operator's choice of walk. A review that
+applies findings to the operator's own branch and runs unattended, or that
+the operator's hub dispatched, applies what planwright's
+finding-categorization applies without a pause and hands off the rest
+through the shared review handoff. A command the hub types into a session
+at the operator's direction counts as the operator typing it (REQ-C1.12).
+
+**Alternatives considered:**
+- Wait for a walk choice in every run. Rejected because: no one is present
+  to make it, so the run stalls on a choice that never comes.
+- A third caller in REQ-C1.12's description sentence. Rejected because: the
+  hub already acts by typing the command, so the sentence holds as written
+  and every skill's description pin would move for nothing.
+
+**Chosen because:** The fixes land as revertible commits on the operator's
+own branch, and hard-disqualifier zones and Needs-human-judgment findings
+still reach the operator.
+
 ## Cross-cutting concerns
 
 ### Decision-domains walk
 
 Domains the bundle touches and where each is decided: secrets and
 configuration (machine-local inventory, identifier file and the outbound
-rule: D-6, D-8, D-13); LLM output quality and evaluation gates (D-5, D-6,
+rule: D-19, D-8, D-13); LLM output quality and evaluation gates (D-5, D-19,
 D-14); human comprehension and information UX (the every-turn load and the
 repo-root ceiling: D-2, D-7); existing-seam reuse (planwright's resolution
 script, its budget doctrine, the existing identifier file: D-2, D-5, D-8);
-API surface (names and flags kept, model invocation scoped by caller:
-D-4, D-16); organization design (who owns the ready flip, by repository
-ownership: D-17, with the kickoff exception D-12); secrets and configuration
-and intellectual-property posture (what a model-started review run may
-upload, and the consent that gates it: D-16); observability (an unasked run
-or an unstated flip: the stated flip of REQ-A1.6 and the risk register);
-deploy and migration (the per-host link cutover and its rollback: D-4, and
-the kickoff brief's risk register); observability (halt on an unresolved
-doctrine document, visible budget warnings: D-2, D-5); dependency adoption
-(none new). Authentication and data modeling do not apply.
+API surface (names and flags kept, model invocation scoped by caller: D-4,
+D-16); organization design (who owns the ready flip, by repository ownership
+and authorship: D-18, with the kickoff exception D-12; who acts unattended
+on the operator's branch: D-20); secrets and configuration and
+intellectual-property posture (what a model-started review run may upload,
+and the consent that gates it: D-16); observability (an unasked run or an
+unstated flip: the stated flip of REQ-A1.7, the covering rule REQ-D1.6 names
+on a send, and the risk register); deploy and migration (the per-host link
+cutover and its rollback: D-4, and the kickoff brief's risk register);
+observability (halt on an unresolved doctrine document, visible budget
+warnings: D-2, D-5); dependency adoption (planwright mission control's
+program rules, which the outbound rule now reads: D-19, accepted in the risk
+register); authentication (only the hub may write a go-ahead rule, carried
+to planwright: D-19, obs:84269f31). Data modeling does not apply.
 
 ### The cluster ledger
 
@@ -459,13 +557,14 @@ decisions rather than with the files.
 | Command boilerplate and per-run ceremony | Skills with a shared directory; Maintenance dropped; lens table once in nested loops; compact empty rows | REQ-C |
 | Every-turn load of the global file | Slack mechanics and workflow descriptions out; outbound rule in | REQ-B1.4, REQ-D |
 | Repo-root narrative and size | Rules stay, rationale to docs, ceiling kept | REQ-F |
-| Incident-reactive rules and contradictions | Rule not story; shell reality; lifecycle vocabulary; kickoff exception | REQ-E, REQ-A1.6 |
+| Incident-reactive rules and contradictions | Rule not story; shell reality; lifecycle vocabulary; kickoff exception | REQ-E, REQ-A1.7 |
 | Stale references | Sweep applied whole | REQ-C1.7, REQ-E1.4, REQ-F1.3, REQ-F1.5 |
 | The project repo | Contradicting skills fixed, stale state removed, routing guidance trimmed | REQ-H |
 | planwright-owned rules | Seed note | REQ-I |
 | Regrowth | Word-budget guard; re-check new instruction sources | REQ-G, REQ-K |
 | Safety gates through the conversion | Safety mechanics and checker pins kept; model invocation scoped by caller (slash-only without a `--nested` mode) | REQ-C1.2, REQ-C1.10, REQ-C1.12 |
-| Ready-flip ownership | The last session of the review cadence flips in a solo repository, once the cadence has run, CI is green and the head is mergeable; operator-requested in a work or collaborative repository | REQ-A1.6 |
+| Ready-flip ownership | The cadence flip covers every pull request in a solo repository and the operator's own asked-for or hub-carried pull requests in a work or collaborative repository; any other flip there only on request | REQ-A1.7 |
+| Review walk | Attended runs keep the walk choice; an unattended or hub-dispatched review of the operator's branch applies what doctrine allows | REQ-B1.7 |
 | Name hygiene | Neutral labels; review-time check against the existing identifier file | REQ-C1.8, REQ-J1.2 |
 | The work repos | Same method, run on the work host | REQ-J |
 | Hooks (path-guard, worker-guard, bootstrap) | Keep as they are | no REQ; recorded here |

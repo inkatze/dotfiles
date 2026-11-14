@@ -60,9 +60,9 @@
   "permissions": {
     "defaultMode": "auto",
     "allow": [
-      "Bash($HOME/.claude/plugins/cache/planwright/planwright/0.66.0/scripts/fleet-streamjson.sh answer:*)",
-      "Bash($HOME/.claude/plugins/cache/planwright/planwright/0.66.0/scripts/fleet-streamjson.sh pending:*)",
-      "Bash($HOME/.claude/plugins/cache/planwright/planwright/0.66.0/scripts/mc-reclaim.sh reclaim:*)",
+      "Bash($HOME/.claude/plugins/cache/planwright/planwright/*/scripts/fleet-streamjson.sh answer *)",
+      "Bash($HOME/.claude/plugins/cache/planwright/planwright/*/scripts/fleet-streamjson.sh pending *)",
+      "Bash($HOME/.claude/plugins/cache/planwright/planwright/*/scripts/mc-reclaim.sh reclaim *)",
       "Bash(cat:*)",
       "Bash(cd:*)",
       "Bash(cut:*)",
@@ -75,9 +75,15 @@
       "Bash(head:*)",
       "Bash(jq:*)",
       "Bash(ls:*)",
+      "Bash(ssh -o BatchMode=yes -o ConnectTimeout=10 planwright-relay 'tmux load-buffer - && tmux paste-buffer -t %570 && sleep 1 && tmux send-keys -t %570 Enter')",
       "Bash(stat:*)",
       "Bash(tail:*)",
+      "Bash(tmux kill-pane -t %*)",
       "Bash(wc:*)"
+    ],
+    "ask": [
+      "Bash(tmux kill-pane -t %* -*)",
+      "Bash(tmux kill-pane *;*)"
     ]
   }
 }

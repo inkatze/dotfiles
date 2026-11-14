@@ -41,6 +41,61 @@
     - known_hosts.local
   tags: [ssh]
 
+# `creates` keeps this idempotent: a new key on every run would lock this host
+# out of the offload host until its public half was stored in 1Password again.
+# -N '' because a passphrase brings back the prompt an unattended session
+# cannot answer.
+- name: Generate the offload-host key
+  ansible.builtin.command:
+    cmd: >-
+      ssh-keygen -t ed25519 -N '' -C 'dotfiles offload client'
+      -f {{ ssh_offload_key | quote }}
+    creates: "{{ ssh_offload_key }}"
+  when: inventory_hostname in ssh_offload_client_hosts
+  tags: [ssh, offload]
+
+# Stat'd after generation, so the run that mints the key also restricts it.
+- name: Check whether the offload-host key exists
+  ansible.builtin.stat:
+    path: "{{ ssh_offload_key }}"
+  register: ssh_offload_key_stat
+  check_mode: false
+  when: inventory_hostname in ssh_offload_client_hosts
+  tags: [ssh, offload]
+
+- name: Restrict the offload-host key
+  ansible.builtin.file:
+    path: "{{ ssh_offload_key }}"
+    mode: "0600"
+  when:
+    - inventory_hostname in ssh_offload_client_hosts
+    - ssh_offload_key_stat.stat.exists
+  tags: [ssh, offload]
+
+- name: Read the offload-host public key
+  ansible.builtin.command:
+    cmd: cat {{ (ssh_offload_key ~ '.pub') | quote }}
+  register: ssh_offload_pubkey
+  changed_when: false
+  # Only a dry run may lack it, since the generate task above wrote nothing.
+  failed_when: ssh_offload_pubkey.rc != 0 and not ansible_check_mode
+  check_mode: false
+  when: inventory_hostname in ssh_offload_client_hosts
+  tags: [ssh, offload]
+
+# Nothing here can write it to 1Password: this host's service account reads
+# only. The offload host renders its authorized key from that field.
+- name: Explain where the offload-host public key goes
+  ansible.builtin.debug:
+    msg: >-
+      Store this public key in the offload_client_pubkey field of the 1Password
+      LAN item (see docs/offload-host.md); the offload host trusts it only from
+      this host's address. Key: {{ ssh_offload_pubkey.stdout | default('') }}
+  when:
+    - inventory_hostname in ssh_offload_client_hosts
+    - ssh_offload_pubkey.rc | default(1) == 0
+  tags: [ssh, offload]
+
 # The LAN aliases live in 1Password, not in this public repo (REQ-F1.1), and
 # are rendered by `op inject` from the committed template. Detection is split
 # from the sync deliberately: a host without the 1Password CLI genuinely cannot

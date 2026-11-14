@@ -45,6 +45,31 @@ key in the overlay since a step list is a per-repository decision, and
 overwrites a hand-written file at its output: carry anything worth keeping
 into the item before the first run.
 
+The overlay is the one exception, for mission control's own keys
+(`mission_control_*` and `program_*`, every key planwright's
+`mc-config.sh` writes). Its header deliberately avoids the phrases
+planwright's `docs/overlays.md` lists as marking a file managed elsewhere,
+since mission control refuses every write to a file whose header has one.
+Each render compares the live file with `planwright-overlay.rendered`, its
+snapshot of what the last render wrote, keeps each of those keys mission
+control changed, added or removed since in `planwright-overlay.supplement.yml`
+(`key: value` lines, and `remove <key>` for a removal), and applies that
+supplement over the item. An entry the item comes to match drops out, and
+the file goes once it is empty, so copying a change into the item's
+`mission_control` field retires it; deleting a line lets the item win
+instead. Any other key in the supplement fails the render, and with no
+snapshot (a first run) nothing is kept. Both files are 0600 and must be
+regular files. A key the supplement keeps that has gone from the live
+file since the last render is ambiguous: mission control may have removed
+it, or an older backup of the overlay may have been restored. The render
+refuses, writes nothing and names the keys; copy the snapshot over the
+live overlay to undo a restore, or run again with
+`OP_RENDER_ACCEPT_REMOVALS=1` to record the removal. Deleting the
+snapshot loses mission control's writes since the last render. A render and a mission-control write are not fully
+serialized: the render refuses to replace an overlay that changed since it
+read it, but a write landing in the instant between that check and the
+rename is lost.
+
 `git-work-orgs` is rendered the same way from the item
 `dotfiles-git-work-orgs` (field `orgs`, owner names separated by whitespace),
 by a task in the git role rather than the claude role, because the git role
@@ -80,6 +105,16 @@ The renderer then reads that item with `op --account`, through the desktop
 app rather than the service-account token, which cannot reach another
 account; with neither the file nor the three variables exported, every such
 reference resolves empty and the entry drops out. The file names an employer's account, so it stays untracked.
+
+A host listed in `claude_planwright_overlay_work_hosts`
+(`roles/claude/defaults/main.yml`) renders the overlay from its own item,
+`dotfiles-planwright-overlay-<alias>`, which `op-render.sh --work-account`
+reads from the account and vault `op-work-item` names (the item it names is
+for the review template and plays no part here). Its program settings
+therefore never sit in the shared item the other hosts render, and a listed
+host with no `op-work-item` fails the play rather than render the shared
+item's programs. Create that item, with the same `flight_pr_hosts` and
+`mission_control` fields, before the host's first run after joining the list.
 
 `cubic-api-key` is synced by `scripts/op-key-sync.sh` from the `credential`
 field of the `dotfiles-cubic-api-key` item (category API Credential), through a
@@ -130,3 +165,10 @@ terminal (it is shown exactly once), then move it into place. Replace
 
 Re-run the syncs that use it; once they pass, revoke the old service account
 on 1Password.com, since the CLI cannot delete one.
+
+## `runner-repos`
+
+Optional, read by `roles/osx/tasks/offload-runner.yml` on the offload host:
+extra `owner/repo` names (one per line, `#` comments) to register a runner
+for, beyond `osx_runner_repos` in the role defaults. It exists so private
+repository names stay out of this public repo. Written by hand.

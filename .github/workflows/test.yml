@@ -23,7 +23,21 @@ env:
 
 jobs:
   lint:
-    runs-on: macos-latest
+    # The offload Mac only for pushes to main of this repository. Pull
+    # requests, forks' included, stay on a hosted runner: a queued job cannot
+    # fall back when the Mac is yielding to its owner or offline, and a pull
+    # request must never wait on that. Nothing here triggers on
+    # pull_request_target or workflow_run, and neither may ever select this
+    # label. A main push that queues waits for the Mac, which gates no merge;
+    # timeout-minutes bounds only the run, not that wait.
+    runs-on: >-
+      ${{ github.repository == 'inkatze/dotfiles'
+      && github.event_name == 'push'
+      && fromJSON('["self-hosted","macOS","mac-fleet"]') || 'macos-latest' }}
+    # Each step carries a timeout-minutes a few times its normal runtime, so a
+    # hung suite fails fast and names itself instead of holding the job until GitHub's six-hour limit.
+    # The job's own limit backstops a step added without one.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -33,15 +47,19 @@ jobs:
           python-version: "3.11"
 
       - name: Install linting tools
+        timeout-minutes: 10
         run: pip3 install ansible ansible-lint yamllint
 
       - name: Run yamllint
+        timeout-minutes: 5
         run: yamllint .
 
       - name: Run ansible-lint
+        timeout-minutes: 10
         run: ansible-lint
 
       - name: Run syntax check
+        timeout-minutes: 5
         run: ansible-playbook main.yml --syntax-check
 
       # specs/dev-services REQ-B1.5 is pinned `[test]` in test-spec.md, which
@@ -55,87 +73,142 @@ jobs:
       # from setup-python, and PyYAML transitively from the ansible install
       # above.
       - name: Check for stale service declarations
+        timeout-minutes: 5
         run: scripts/stale-declarations-test.sh
 
       # Belongs in this job rather than skill-contracts: it drives
       # ansible-playbook, and that job is deliberately a bare ubuntu runner
       # with nothing but bash, grep, perl and jq.
       - name: Run the credential-path guard suite
+        timeout-minutes: 10
         run: scripts/credential-path-guard-test.sh
+
+      # PyYAML comes with the ansible install above.
+      - name: Run the osx offload-guard suite
+        timeout-minutes: 5
+        run: scripts/osx-offload-guard-test.sh
+
+      - name: Run the runner gate suite
+        timeout-minutes: 5
+        run: scripts/runner-gate-test.sh
+
+      - name: Run the runner start suite
+        timeout-minutes: 5
+        run: scripts/runner-start-test.sh
+
+      - name: Run the Redis gate suite
+        timeout-minutes: 5
+        run: scripts/redis-gate-test.sh
+
+      # BSD sed and mktemp are what this leg adds; the script runs on macOS.
+      - name: Run the offload sshd hardening suite
+        timeout-minutes: 5
+        run: scripts/offload-sshd-harden-test.sh
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the git unattended-auth suite
+        timeout-minutes: 10
         run: scripts/git-unattended-auth-test.sh
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the mise global config suite
+        timeout-minutes: 10
         run: scripts/mise-global-config-test.sh
+
+      # Needs ansible-playbook, which this job installs, and jq; stubs op.
+      - name: Run the planwright overlay render suite
+        timeout-minutes: 10
+        run: scripts/claude-overlay-render-test.sh
 
       # macOS ships no timeout; without gtimeout the suite skips its FIFO case,
       # which bounds a play that would hang on a FIFO.
+      #
+      # Hosted runners only: the offload account installs nothing with
+      # Homebrew, so there the suite takes its documented skip.
       - name: Install GNU coreutils for gtimeout
+        if: runner.environment == 'github-hosted'
+        timeout-minutes: 10
         run: brew install coreutils
 
       # Needs ansible-playbook, which this job installs, jq, and gtimeout.
       - name: Run the cubic instruction-file suite
+        timeout-minutes: 10
         run: scripts/cubic-instructions-test.sh
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the planwright marketplace suite
+        timeout-minutes: 10
         run: scripts/planwright-marketplace-test.sh
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the Copilot retirement suite
+        timeout-minutes: 5
         run: scripts/copilot-retirement-test.sh
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the Claude skills link suite
+        timeout-minutes: 10
         run: scripts/claude-skills-link-test.sh
 
       # Needs ansible-playbook, which this job installs.
       - name: Run the planwright steps catalog suite
+        timeout-minutes: 10
         run: scripts/claude-steps-catalog-test.sh
 
       # Was asserted by nothing until now, so its Ubuntu-job assertion had gone
       # stale unnoticed once a second job started running there.
       - name: Run the services declaration suite
+        timeout-minutes: 5
         run: scripts/services-declaration-test.sh
 
+      # Needs ansible-playbook, which this job installs.
+      - name: Run the unattended user-config selection suite
+        timeout-minutes: 5
+        run: scripts/user-config-selection-test.sh
+
       # The matrix only ever reads Brewfile and Brewfile.work, so nothing in CI
-      # parses these two or the App Store entries they now hold. `list` reads
-      # the file without installing from it.
+      # parses the other per-host files or the App Store entries they hold.
+      # `list` reads the file without installing from it.
       - name: Parse the per-host Brewfiles
+        timeout-minutes: 10
         run: |
           brew bundle list --all --file=Brewfile.personal
           brew bundle list --all --file=Brewfile.alt
+          brew bundle list --all --file=Brewfile.offload
 
       # Also runs on Ubuntu below; macOS's BSD tr, libc locales and bash 3.2
       # behave differently, and an NBSP case once passed there and failed here.
       - name: Run the playbook alias suite (macOS)
+        timeout-minutes: 5
         run: scripts/playbook-alias-test.sh
 
       # Also runs on Ubuntu below, for the same reason: BSD stat, chmod -h on a
       # symlink and bash 3.2 are what this leg adds.
       - name: Run the service-account token suite (macOS)
+        timeout-minutes: 5
         run: scripts/op-token-test.sh
 
       # Also runs on Ubuntu below: BSD stat, mktemp and paste are what this leg
       # adds.
       - name: Run the 1Password renderer suite (macOS)
+        timeout-minutes: 5
         run: scripts/op-render-test.sh
 
       # Also runs on Ubuntu below: BSD stat and mktemp are what this leg adds.
       - name: Run the API key sync suite (macOS)
+        timeout-minutes: 5
         run: scripts/op-key-sync-test.sh
 
       # Also runs on Ubuntu below: the word count must match under BSD tr/grep.
       - name: Run the instruction word-budget fixture suite (macOS)
+        timeout-minutes: 5
         run: roles/claude/files/scripts/instruction-budget-test.sh
 
       # Also runs on Ubuntu below: the ledger lock's re-entry check once
       # passed there and deadlocked on macOS, whose /dev/fd/N reports another
       # device than the file.
       - name: Run the review-state helper suite (macOS)
+        timeout-minutes: 5
         run: roles/claude/files/scripts/review-state-test.sh
 
   # The review-command contract checker's fixture suite. lefthook runs both
@@ -149,6 +222,7 @@ jobs:
   # nothing.
   skill-contracts:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -158,10 +232,19 @@ jobs:
       - name: Run the settings-merge fixture suite
         run: scripts/claude-settings-merge-test.sh
 
+      # Its last case runs the check against the tracked settings.json.
+      - name: Run the planwright pin-check suite
+        run: scripts/claude-planwright-pin-check-test.sh
+
       # It stubs ansible-playbook, so bash, coreutils, grep and awk are all it
       # needs; lint runs it on macOS as well.
       - name: Run the playbook alias suite
         run: scripts/playbook-alias-test.sh
+
+      # Stubs the playbook; needs only bash and git.
+      - name: Run the unattended apply suite
+        timeout-minutes: 5
+        run: scripts/apply-user-config-test.sh
 
       # bash, git, jq, perl and procps are all it needs; it stands in for a Claude
       # Code session with a renamed bash. lint runs it on macOS as well.
@@ -215,47 +298,63 @@ jobs:
       - name: Run the instruction word-budget fixture suite
         run: roles/claude/files/scripts/instruction-budget-test.sh
 
+  # Picks the role jobs below: on a pull request, those whose role or
+  # shared files it changes (scripts/ci-role-matrix.sh holds the table); on a
+  # push to main, all of them. On Ubuntu and without `needs:`, so it costs no
+  # macOS runner and finishes while lint still runs.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      include: ${{ steps.select.outputs.include }}
+    steps:
+      # Depth 2 reaches both parents of the pull request's merge commit, whose
+      # diff is exactly what merging would change on main.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Run the role matrix fixture suite
+        run: scripts/ci-role-matrix-test.sh
+
+      # Anything short of a clean two-parent diff selects every job, so a
+      # selection failure costs runners rather than coverage.
+      - name: Select the role jobs
+        id: select
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = pull_request ] && git rev-parse -q --verify HEAD^2 >/dev/null &&
+            git diff --no-renames --name-only HEAD^1 HEAD >changed.txt; then
+            echo "changed paths:"
+            cat changed.txt
+            include=$(scripts/ci-role-matrix.sh --changed changed.txt)
+          else
+            include=$(scripts/ci-role-matrix.sh --all)
+          fi
+          echo "include=$include" | tee -a "$GITHUB_OUTPUT"
+
+  # A pull request that selects no role skips this job, which GitHub reports
+  # as a skipped check, not a pending one, so it never blocks a merge.
+  #
+  # Each entry names its runner (scripts/ci-role-matrix.sh says why): macOS
+  # for what touches Homebrew or macOS behaviour, Ubuntu for roles that are
+  # plain files and commands. The Homebrew steps below run on macOS entries
+  # only.
   test:
-    needs: lint
-    runs-on: macos-latest
+    needs: [lint, changes]
+    if: needs.changes.outputs.include != '[]'
+    # Hosted runners only, deliberately: this job runs the roles for real
+    # against $HOME (symlinks, defaults, Homebrew, sudo), which the offload
+    # account must never take. Every matrix runner is a GitHub-hosted label.
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - role: ssh
-            brew_deps: ""
-            strict_idempotency: true
-          - role: git
-            brew_deps: ""
-            strict_idempotency: true
-          - role: kitty
-            brew_deps: ""
-            strict_idempotency: true
-          - role: tmux
-            brew_deps: tmux
-            strict_idempotency: false
-          - role: fish
-            brew_deps: fish
-            strict_idempotency: false
-          - role: osx
-            brew_deps: mas
-            strict_idempotency: false
-          - role: environments
-            brew_deps: "fish gpg"
-            strict_idempotency: false
-          # The `services` role's first CI coverage on either platform. It runs
-          # here to prove the negative: a macOS host provisions none of the
-          # declared Linux services, so a missing or wrong os_family guard
-          # surfaces as an attempt to install apt packages on a Mac
-          # (specs/dev-services REQ-B1.4). Strict, so the role is held to the
-          # same convergence bar as everything else (REQ-C1.1).
-          - role: services
-            brew_deps: ""
-            strict_idempotency: true
-          - role: upgrade
-            brew_deps: "mas fish tmux"
-            strict_idempotency: false
+        include: ${{ fromJSON(needs.changes.outputs.include) }}
     name: test (${{ matrix.role }})
+    # Roles run one to thirteen minutes; each step's own limit names a hang,
+    # and this one only backstops the sum of them.
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -266,14 +365,17 @@ jobs:
           python-version: "3.11"
 
       - name: Install Ansible
+        timeout-minutes: 10
         run: pip3 install ansible
 
       - name: Install mise
+        timeout-minutes: 5
         run: |
           curl https://mise.run | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Cache Homebrew downloads
+        if: runner.os == 'macOS'
         uses: actions/cache@v4
         with:
           path: ~/Library/Caches/Homebrew
@@ -282,7 +384,8 @@ jobs:
             ${{ runner.os }}-brew-
 
       - name: Install brew dependencies
-        if: matrix.brew_deps != ''
+        if: runner.os == 'macOS' && matrix.brew_deps != ''
+        timeout-minutes: 15
         run: brew install ${{ matrix.brew_deps }}
 
       - name: Ensure /usr/local/bin exists
@@ -300,6 +403,7 @@ jobs:
           echo "HOMEBREW_BUNDLE_MAS_SKIP=$ids" >> "$GITHUB_ENV"
 
       - name: Run ${{ matrix.role }} tasks
+        timeout-minutes: 20
         run: mise run ${{ matrix.role }}
 
       # The leg that installs tmux; the suite needs nothing the role provides.
@@ -308,6 +412,7 @@ jobs:
         run: scripts/tmux-tpm-guard-test.sh
 
       - name: Idempotency check
+        timeout-minutes: 20
         run: |
           OUTPUT=$(mise run ${{ matrix.role }} 2>&1)
           echo "$OUTPUT"

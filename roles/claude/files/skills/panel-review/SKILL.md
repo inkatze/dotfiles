@@ -130,7 +130,7 @@ Take the writer lock immediately before the first fix and hold it through (d)'s 
 
 #### d. Commit
 
-`git add` only the changed files (never `git add -A`). Commit `chore(panel): iter N, <short summary>`, with each Needs-sign-off fix in its own `[pending-sign-off]` commit. Keep every iteration's commits separate, so any one stays inspectable and revertible. **Do not push.** Write the end marker, then release the writer lock after the last commit.
+`git add` only the changed files (never `git add -A`). Commit each fix group under a conventional `type: description` title that says what the fix changes (for example `fix(osx): refuse unsafe gate settings`), with no iteration number and no review-history words, and with each Needs-sign-off fix in its own `[pending-sign-off]` commit. Keep every iteration's commits separate, so any one stays inspectable and revertible. **Do not push.** Write the end marker, then release the writer lock after the last commit.
 
 #### e. Iteration summary
 

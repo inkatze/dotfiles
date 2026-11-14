@@ -1,7 +1,7 @@
 # Claude Instructions Audit — Requirements
 
 **Status:** Ready
-**Last reviewed:** 2026-10-05
+**Last reviewed:** 2026-11-09
 **Format-version:** 2
 **Execution:** derived — see the status render
 
@@ -28,8 +28,8 @@ the machine-local inventory (Sources).)*
 ### In scope
 
 - The user-global `CLAUDE.md` tracked under the Claude role.
-- Every review command tracked under the Claude role's commands directory,
-  the hook scripts wired from the tracked `settings.json`, and the contract
+- Every review skill tracked under the Claude role's skills directory and
+  the shared reference directory beside them, the hook scripts wired from the tracked `settings.json`, and the contract
   checker that gates edits to them. The output style was audited and is kept
   as it is.
 - This repository's own root `CLAUDE.md`, and the stale citations, validator
@@ -53,7 +53,7 @@ the machine-local inventory (Sources).)*
 - **Rewriting frozen spec bundles for name hygiene.** Older bundles are
   anchored records and are not rewritten; only live instruction files and
   this bundle are scrubbed (REQ-C1.8).
-- **Merging the review commands into one.** They stay separate, deliberately
+- **Merging the review skills into one.** They stay separate, deliberately
   complementary workflows; only their shared mechanics are stated once.
 - **The spec-content freshness gate.** It fires only when a signed bundle's
   own content changed, not when main moved, and stays as it is.
@@ -121,6 +121,49 @@ the machine-local inventory (Sources).)*
   denial rather than work around it. Supersedes REQ-A1.3.
   *(Cites: D-17, obs:062cccca, the second invocation (Sources), delta
   re-walkthrough (2026-10-05).)*
+  **Superseded-by: REQ-A1.7** (2026-11-09)
+- **REQ-A1.7** Who marks a pull request ready SHALL follow the repository's
+  ownership and the pull request's author (supersedes REQ-A1.6). A **solo
+  repository** is one the operator owns where no other person works; the
+  operator's own sessions, worktrees, dispatched agents and automated
+  accounts do not count as another person. A **work repository** is one the
+  operator does not own (an employer's, another organization's or another
+  person's), and a repository whose owner cannot be told counts as one. A
+  **collaborative repository** is one the operator owns where another person
+  works, and one where that cannot be told counts as one. A repository's own
+  `CLAUDE.md` moving the rewrite scope or naming its kind does not move the
+  flip. The **cadence flip**: the session that completes the last step of
+  the review cadence the pull request calls for (the cadence the operator's
+  instructions and the repository's own `CLAUDE.md` call for) SHALL mark it
+  ready itself once every step of that cadence has run to completion, CI is
+  green on the current head and the pull request is mergeable, re-checking
+  every condition of REQ-A1.1, the repository's kind and the pull request's
+  coverage below immediately before the flip, and SHALL state the flip and
+  the conditions it checked in its reply or handoff; the user-global file
+  states it once, under that one name. In a solo repository the cadence flip
+  covers every pull request. In a work or collaborative repository it covers
+  a pull request the operator authored (its GitHub author is the operator's
+  login, whoever else has pushed to it) once the operator has asked, in that
+  session or in the dispatch that opened it, for the change it carries, or
+  once a session the operator's hub (their program's mission-control
+  session) dispatched, directly or through a session it dispatched, opened
+  it; it never covers another person's pull request. Any other flip there,
+  another person's pull request included, is the operator's to request and
+  the agent's to perform, never handed back as a manual step. A planwright
+  config there MAY set `ready_flip_policy: human`, which reserves its
+  configured flips and a cadence flip a planwright worker would take: the
+  session offers the flip in one line of its reply or handoff without
+  waiting, the operator's yes being the request. planwright's configured
+  flips are the agent flipping and follow the same scope, and the spec pull
+  request after a signed-off kickoff stays the one configured flip kept in
+  every repository. A flip the operator confirms when a run asks is one they
+  requested, and a no they give when asked holds for that pull request until
+  they say otherwise. A nested review loop's own convergence flip stays
+  confirmation-gated in every repository, never counts as the cadence flip,
+  and SHALL evaluate the same conditions first and report a ready-guard
+  denial rather than work around it.
+  *(Cites: D-18, obs:062cccca, the second invocation (Sources), the
+  loosening pull request (Sources), delta re-walkthrough (2026-11-09).)*
 
 ## REQ-B — One source of review doctrine
 
@@ -167,6 +210,22 @@ the machine-local inventory (Sources).)*
   *(Cites: D-2, kickoff decision (2026-09-25).)*
   *(Amended at kickoff 2026-09-25: the enabled version, not the newest
   cached one.)*
+- **REQ-B1.7** A review the operator runs attended that stops for findings
+  (not an autonomous loop, whose act-then-review REQ-B1.2 governs) SHALL
+  present the complete list of findings as a numbered summary and let the
+  operator choose how to walk it. A review that applies findings to the
+  operator's own branch and runs unattended (no operator present, the test
+  of REQ-D1.4), or that the operator's hub dispatched (the hub typed its
+  command into the session at the operator's direction, which counts as the
+  operator typing it under REQ-C1.12, or a session the hub dispatched did so
+  in turn), SHALL apply what planwright's finding-categorization applies
+  without a pause, without waiting for a walk choice, and SHALL hand off the
+  remaining findings (hard-disqualifier zones and Needs-human-judgment
+  included) through the shared review handoff. Any other review that runs
+  unattended or hub-dispatched SHALL hand off its findings without applying
+  any. `/peer-review` stays attended-only.
+  *(Cites: D-20, the loosening pull request (Sources), delta re-walkthrough
+  (2026-11-09).)*
 
 ## REQ-C — Review commands as skills with shared mechanics
 
@@ -259,6 +318,9 @@ the machine-local inventory (Sources).)*
   the command to type." Supersedes REQ-C1.11.
   *(Cites: D-16, the second invocation (Sources), research: Claude Code
   skills documentation (2026-10-05), delta re-walkthrough (2026-10-05).)*
+  *(Amended at delta re-walkthrough 2026-11-09: a command the operator's hub
+  types into a session at the operator's direction counts as the operator
+  typing it.)*
 
 ## REQ-D — Outbound messages to people
 
@@ -266,7 +328,7 @@ the machine-local inventory (Sources).)*
   email, a pull-request review, comment or reply, an issue comment) SHALL be
   sent unless the operator has seen the exact text and recipient and said
   yes in that session. A recipient that cannot be resolved is never guessed.
-  *(Cites: D-6, drafting-session decision (2026-09-24).)*
+  *(Cites: D-19, drafting-session decision (2026-09-24).)*
 - **REQ-D1.2** REQ-D1.1 SHALL carry exactly two exceptions: an explicit
   go-ahead the operator gives for a specific message, or for a run limited
   to the recipients and message kinds named when it is given; and replies to
@@ -275,22 +337,43 @@ the machine-local inventory (Sources).)*
   *(Cites: D-6, kickoff decision (2026-09-25).)*
   *(Amended at kickoff 2026-09-25: a run-level go-ahead covers only its
   named scope.)*
+  **Superseded-by: REQ-D1.6** (2026-11-09)
+- **REQ-D1.6** REQ-D1.1 SHALL carry exactly three exceptions (supersedes
+  REQ-D1.2): an explicit go-ahead the operator gives for a specific message,
+  or for a run limited to the recipients and message kinds named when it is
+  given; replies to automated reviewers, which are addressed to a bot even
+  when a human may read them; and a go-ahead the operator gives in their hub
+  session, either for an exact message the hub relays, which counts as given
+  in the receiving session and covers only that text and recipient, or a
+  standing go-ahead, which covers its messages in every session the hub
+  launched only once the hub records it as a program rule naming each
+  recipient (a resolved person or channel) and its message kinds (from
+  REQ-D1.1's list), until the operator withdraws it. A go-ahead that
+  outlives one session is a standing go-ahead, never a run go-ahead. Before
+  each send under a standing go-ahead the session SHALL read the live
+  program rule from its record, a launch-time copy not counting; a withdrawn
+  rule, or a record the session cannot read, covers nothing. A send under a
+  standing go-ahead SHALL name the rule that covered it, by its rule id, in
+  the session's reply or handoff.
+  *(Cites: D-19, the hub-relay pull request (Sources), the loosening pull
+  request (Sources), obs:84269f31, obs:0707265b, delta re-walkthrough
+  (2026-11-09).)*
 - **REQ-D1.3** The rule in REQ-D1.1, its exceptions and REQ-D1.4 to
   REQ-D1.5 SHALL live in the always-loaded user-global file; the Slack
   recipient-resolution and confirmation mechanics move to the shared
   reference directory, and the fixed-template exemption from confirming a
   body is removed.
-  *(Cites: D-6, planwright instruction-hygiene doctrine (Sources).)*
+  *(Cites: D-19, planwright instruction-hygiene doctrine (Sources).)*
 - **REQ-D1.4** A run with no operator present that would send a message
   under REQ-D1.1 outside a go-ahead's scope SHALL draft it, with its
   recipient, into the run's handoff and never send it.
-  *(Cites: D-6, kickoff decision (2026-09-25).)*
+  *(Cites: D-19, kickoff decision (2026-09-25).)*
 - **REQ-D1.5** An automated reviewer SHALL be an account GitHub reports as a
   bot, a login ending in `[bot]`, or a login matching a configured
   bot-review pattern; a thread any human has replied in falls under
   REQ-D1.1. Bodies of the operator's own pull requests and issues, and
   review requests on them, are not messages under REQ-D1.1.
-  *(Cites: D-6, kickoff decision (2026-09-25).)*
+  *(Cites: D-19, kickoff decision (2026-09-25).)*
 
 ## REQ-E — User-global file diet
 
@@ -452,6 +535,23 @@ the machine-local inventory (Sources).)*
 
 ## Changelog
 
+- 2026-11-09 — Delta re-walkthrough of the loosening pull request
+  (Sources): REQ-A1.6 superseded by REQ-A1.7 (the cadence flip by
+  ownership and authorship), REQ-D1.2 by REQ-D1.6 (exactly three
+  exceptions, the third the hub's, with a standing go-ahead read live before
+  each send and named on it), REQ-B1.7 added (the review walk); D-17
+  superseded by D-18, D-6 by D-19, D-20 added; REQ-D1.1 and REQ-D1.3 to
+  REQ-D1.5 repoint their citation from D-6 to D-19; REQ-C1.12 and D-16
+  annotated (a hub-typed command counts as typed by the operator); Task 10
+  added; Task 7's `ready_flip_policy: human` deliverable dropped; the
+  Scope section names the review skills and the shared reference directory
+  (expression-only, stale since the skills conversion). REQ-D1.2
+  had been stale since the hub-relay pull request (Sources). The brief's
+  amendment log records every finding.
+- 2026-11-09 — Reopened Ready→Draft (the bundle derived Done) for a scoped
+  kickoff of the rules inkatze/dotfiles#228 loosens: the ready flip in work
+  and collaborative repositories (REQ-A1.6, D-17) and the outbound rule's
+  exceptions (REQ-D1.2).
 - 2026-10-05 — Delta re-walkthrough lens review: REQ-A1.6 defines the
   three repository kinds, names the flipping session, folds planwright's
   `ready_flip_policy` into its scope and keeps nested loops
@@ -506,6 +606,15 @@ the machine-local inventory (Sources).)*
   skills, derives the nested-mode set from the argument-hint in the
   checker, repoints the model-invocation fixture and adds the one that
   fails when a nested-mode skill gets the flag back. Task 8 starts from it.
+- **The loosening pull request (2026-11-08).** inkatze/dotfiles#228, which
+  loosens the user-global file to guard only irreversible harm and careless
+  errors: the cadence flip on the operator's own pull requests in work and
+  collaborative repositories, a standing hub go-ahead for messages, and an
+  unattended review applying fixes without a walk choice. Task 10 lands
+  it, completing what this delta adds beyond its current text.
+- **The hub-relay pull request (2026-11-05).** inkatze/dotfiles#224, which
+  added the hub exception for an exact relayed message to the user-global
+  file's outbound rule, leaving REQ-D1.2's "exactly two" stale.
 - **obs:062cccca.** `/copilot-review --nested` flips a pull request ready
   at convergence checking fewer conditions than the global rule names;
   folded into REQ-A1.6.
@@ -518,6 +627,10 @@ the machine-local inventory (Sources).)*
   pairing commands into `--nested` modes on their siblings, which D-16's
   rejected sibling-skill alternative leans on; consumed by another bundle,
   cited here as prose.
+- **Delta re-walkthrough (2026-11-09).** The scoped kickoff of the
+  loosening pull request's delta and its lens review, recorded in the
+  brief's amendment log; the wording decisions it took are cited by this
+  token.
 - **Delta re-walkthrough (2026-10-05).** The scoped kickoff of this
   extension and its lens review, recorded in the brief's amendment log; the
   wording decisions it took are cited by this token.
