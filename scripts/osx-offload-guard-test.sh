@@ -206,6 +206,8 @@ ok("git_config writes the global scope") if gc and all(g.get("scope") == "global
 pairs = {(i["name"], i["value"]) for t in git_tasks if "community.general.git_config" in t for i in t.get("loop", [])}
 for want in (("gc.auto", "0"), ("maintenance.auto", "false")):
     ok(f"{want[0]}={want[1]} is set") if want in pairs else ko(f"{want[0]} is not set to {want[1]}")
+gct = next(t for t in git_tasks if "community.general.git_config" in t)
+ok("a symlinked ~/.gitconfig is never written through") if "not (osx_offload_gitconfig.stat.islnk | default(false))" in whens(gct) else ko("git_config is not skipped for a symlinked ~/.gitconfig")
 inc = [t for t in load("main.yml") if t.get("ansible.builtin.include_tasks") == "offload-git.yml"]
 ok("offload-git.yml is included only on the offload hosts") if inc and "inventory_hostname in osx_offload_hosts" in whens(inc[0]) else ko("offload-git.yml is not guarded to the offload hosts")
 
