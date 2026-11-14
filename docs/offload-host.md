@@ -96,18 +96,34 @@ In order; each step needs a person, except the playbook run on `server`.
    sudo sysadminctl -addUser fleet -fullName Fleet -password - -adminUser <owner-account> -adminPassword -
    ```
 
+   If Remote Login allows only listed users, add the account to the SSH
+   access group **before** any demotion, from an administrator's session at
+   the Mac's console (not over SSH), then check that `fleet` is in the
+   printed list (`checkmember` is no check for an administrator, who is a
+   member through the nested admin group). When Remote Login allows all
+   users the group does not exist (`dscl . -read /Groups/com.apple.access_ssh`
+   fails with `eDSRecordNotFound`): skip this, and never create the group,
+   which would restrict Remote Login to it.
+
+   ```zsh
+   sudo dseditgroup -o edit -a fleet -t user com.apple.access_ssh
+   dscl . -read /Groups/com.apple.access_ssh GroupMembership
+   ```
+
+   The order matters: that mode admits only administrators and the group's
+   members, so demoting first can close the account's only way in. Steps 4, 5
+   and 7 reach the account over SSH, so Remote Login must also be on (System
+   Settings, General, Sharing). The playbook refuses an administrator account,
+   and says so when the account is not in the group.
+
    An account created as an administrator earlier is made standard the same
-   way, then checked (the second line prints nothing once it is standard):
+   way once it is in the group, then checked (the second line prints nothing
+   once it is standard):
 
    ```zsh
    sudo dseditgroup -o edit -d fleet -t user admin
    id -Gn fleet | tr ' ' '\n' | grep -x admin
    ```
-
-   Steps 4, 5 and 7 reach the account over SSH, so Remote Login must be on
-   (System Settings, General, Sharing). If it allows only listed users, add
-   the account too:
-   `sudo dseditgroup -o edit -a fleet -t user com.apple.access_ssh`.
 
 3. **Run the playbook on `server`**, which mints `~/.ssh/id_offload`, then
    store its public half:

@@ -6,6 +6,8 @@
 #   `always`, read the login and groups from the process, refuse another or an
 #   administrator account, and set osx_brew_writable false on the offload
 #   hosts: a tagged run must still meet the account checks and find it defined.
+# - An administrator account is refused only after a read-only, sudo-free check
+#   of its SSH access, whose refusal names the group to join before demoting.
 # - The offload host's own task files never use become.
 # - Every Homebrew or App Store task in homebrew.yml and upgrade.yml carries
 #   osx_brew_writable, and nothing else does: the planwright updates have to
@@ -21,6 +23,7 @@ set -eu
 repo="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 
 python3 - "$repo/roles/osx/tasks" <<'PY'
+import re
 import sys
 import yaml
 
@@ -109,6 +112,27 @@ for label, present in (
     ("the not-an-administrator check is among them", asserts("'admin' not in osx_offload_groups.stdout.split()")),
 ):
     ok(label) if present else ko(f"{label}: not found ahead of the imports")
+print("1a. an administrator work account is refused after a read-only SSH access check")
+refusal = next((i for i, t in enumerate(head) if arg(t, "ansible.builtin.assert", "that") == "'admin' not in osx_offload_groups.stdout.split()"), None)
+probe = next((i for i, t in enumerate(head) if t.get("register") == "osx_offload_ssh_access"), None)
+ok("the SSH access check exists") if probe is not None else ko("no head task registers osx_offload_ssh_access")
+if probe is not None and refusal is not None:
+    ptask = head[probe]
+    cmd = command_text(ptask)
+    ok("it runs before the refusal") if probe < refusal else ko("it runs after the refusal")
+    ok("it uses no become") if not ptask.get("become") else ko("it uses become")
+    ok("it reads com.apple.access_ssh") if "com.apple.access_ssh" in cmd else ko("it does not read com.apple.access_ssh")
+    ok("it changes nothing and runs in check mode") if ptask.get("changed_when") is False and ptask.get("check_mode") is False else ko("it can report a change or is skipped in check mode")
+    writes = [w for w in ("sudo", "-o edit", "-o create", "-o delete", "-create", "-merge", "-append", "-delete", "-change") if w in cmd]
+    writes += re.findall(r">+\s*(?!(?:/dev/null|&1)(?![\w/.]))\S+", cmd)
+    ok("its command writes nothing") if not writes else ko(f"its command holds {writes}")
+    msg = str(head[refusal]["ansible.builtin.assert"].get("fail_msg", ""))
+    ok("the refusal names com.apple.access_ssh") if "com.apple.access_ssh" in msg else ko("the refusal does not name com.apple.access_ssh")
+    ok("the refusal's hint is keyed on the missing result") if "== 'missing'" in msg else ko("the refusal's hint is not keyed on 'missing'")
+    ok("the refusal reads the check's result") if "osx_offload_ssh_access" in msg else ko("the refusal does not read osx_offload_ssh_access")
+    ok("the refusal does not use become") if not head[refusal].get("become") else ko("the refusal uses become")
+else:
+    ko("the refusal task was not found")
 writable = [arg(t, "ansible.builtin.set_fact", "osx_brew_writable") for t in head if arg(t, "ansible.builtin.set_fact", "osx_brew_writable") is not None]
 if writable == ["{{ inventory_hostname not in osx_offload_hosts }}"]:
     ok("osx_brew_writable is false exactly on the offload hosts")
