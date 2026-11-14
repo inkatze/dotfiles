@@ -116,8 +116,8 @@ cmd_gemini() {
     [ -n "$f" ] && [ -s "$f" ] || die "gemini: a required input file is missing or empty: ${f:-unset}"
   done
   [ -n "$base" ] || die "gemini: --base is required"
-  case "$bound" in ''|*[!0-9]*|???????*) die "gemini: --timeout must be 1 to 999999 whole seconds, without leading zeros" ;; esac
-  [ "$((10#$bound))" -ge 1 ] || die "gemini: --timeout must be 1 to 999999 whole seconds, without leading zeros"
+  case "$bound" in ''|*[!0-9]*|???????*) die "gemini: --timeout must be 1 to 999999 whole seconds" ;; esac
+  [ "$((10#$bound))" -ge 1 ] || die "gemini: --timeout must be 1 to 999999 whole seconds"
   case "$base" in -*) die "gemini: --base must be a revision, not an option" ;; esac
   git rev-parse --verify --quiet --end-of-options "$base^{commit}" > /dev/null || die "gemini: --base is not a revision in this repository: $base"
   command -v timeout > /dev/null 2>&1 || command -v gtimeout > /dev/null 2>&1 \
