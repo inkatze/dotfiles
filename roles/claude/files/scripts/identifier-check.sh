@@ -4,10 +4,16 @@
 # machine-local identifier file (the one scripts/gitleaks-identifier-rules.sh
 # reads), so this public repo never carries the names it checks for.
 #
+# Usage: identifier-check.sh [<file>...]
+# With no arguments it scans the fixed scope below, from the repo root. With
+# file arguments it scans exactly those files instead, from anywhere: this is
+# the form that gates publishing a PR body (identifier-check.sh <body file>).
+#
 # Reports file and line only, never the matched name. A missing identifier
-# file is a warning, not a pass. Run from the repo root, by hand at task
-# review and from skill-contracts-test.sh; it is never a commit gate.
-# Exit 1 means hits; exit 2 means the check could not run as asked.
+# file is a warning, not a pass. Run by hand at task review and from
+# skill-contracts-test.sh; it is never a commit gate.
+# Exit 1 means hits; exit 2 means the check could not run as asked, a named
+# file or (with named files) the identifier file missing or unreadable included.
 set -euo pipefail
 
 idfile="${IDENTIFIER_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/private-identifiers}"
@@ -25,7 +31,11 @@ scope=(
   specs/review-skills
 )
 
+# With named files a body gate must never pass unscanned, so the missing or
+# empty identifier file is an error there; the no-argument review report only
+# warns.
 if [ ! -e "$idfile" ]; then
+  if [ "$#" -gt 0 ]; then echo "ERROR: no identifier file at $idfile; the named files were not scanned" >&2; exit 2; fi
   echo "WARN: no identifier file at $idfile; the identifier check could not run here" >&2
   exit 0
 fi
@@ -51,21 +61,29 @@ while IFS= read -r line || [ -n "$line" ]; do
   printf '%s\n' "$line" >> "$patterns"
 done < "$idfile"
 if [ ! -s "$patterns" ]; then
+  if [ "$#" -gt 0 ]; then echo "ERROR: $idfile holds no identifiers; the named files were not scanned" >&2; exit 2; fi
   echo "WARN: $idfile holds no identifiers; the identifier check could not run here" >&2
   exit 0
 fi
 
 paths=()
-for p in "${scope[@]}"; do
-  if [ -e "$p" ]; then paths+=("$p"); else echo "WARN: $p is not present; not checked" >&2; fi
-done
-[ "${#paths[@]}" -gt 0 ] || { echo "ERROR: none of the checked paths exist; run from the repo root" >&2; exit 2; }
+if [ "$#" -gt 0 ]; then
+  for p in "$@"; do
+    if [ ! -f "$p" ] || [ ! -r "$p" ]; then echo "ERROR: $p is not a readable file" >&2; exit 2; fi
+    paths+=("$p")
+  done
+else
+  for p in "${scope[@]}"; do
+    if [ -e "$p" ]; then paths+=("$p"); else echo "WARN: $p is not present; not checked" >&2; fi
+  done
+  [ "${#paths[@]}" -gt 0 ] || { echo "ERROR: none of the checked paths exist; run from the repo root" >&2; exit 2; }
+fi
 
 # grep exits 1 on no match and 2 on a read error; only 2 is a failure.
 # -w matches whole words, as the gitleaks rule generator's \b does, so a
 # name inside a longer word is not a hit.
 set +e
-raw="$(grep -rniIw -F -f "$patterns" -- "${paths[@]}")"
+raw="$(grep -rHniIw -F -f "$patterns" -- "${paths[@]}")"
 status=$?
 set -e
 [ "$status" -le 1 ] || { echo "ERROR: grep could not read the checked files (exit $status)" >&2; exit 2; }

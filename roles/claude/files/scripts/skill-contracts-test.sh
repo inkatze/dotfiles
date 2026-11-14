@@ -1397,6 +1397,44 @@ if [ "$rc" -ne 2 ]; then
   echo "FAIL identifier-unreadable-file: an identifier path that is not a readable file did not error (exit $rc): $out"; failures=$((failures + 1))
 fi
 teardown
+# Named files replace the fixed scope.
+id_setup
+printf 'clean line\nSeen in the zqx-synthetic-project repo.\n' > "$tmp/body-hit.md"
+printf 'nothing to see\n' > "$tmp/body-clean.md"
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" body-hit.md 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 1 ] || ! printf '%s\n' "$out" | grep -qxF 'body-hit.md:2'; then
+  echo "FAIL identifier-file-hit: a named file with a hit did not exit 1 with file:line (exit $rc): $out"; failures=$((failures + 1))
+elif printf '%s' "$out" | grep -qF 'zqx-synthetic-project'; then
+  echo "FAIL identifier-file-hit: the report printed the matched name"; failures=$((failures + 1))
+fi
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" body-clean.md 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 0 ]; then
+  echo "FAIL identifier-file-clean: a clean named file did not exit 0 (exit $rc): $out"; failures=$((failures + 1))
+fi
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" body-clean.md body-missing.md 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 2 ]; then
+  echo "FAIL identifier-file-missing: a missing named file did not exit 2 (exit $rc): $out"; failures=$((failures + 1))
+fi
+# A named file replaces the scope: a hit in the scope is not reported.
+printf 'Seen in the zqx-synthetic-project repo.\n' >> "$tmp/CLAUDE.md"
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" body-clean.md 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 0 ]; then
+  echo "FAIL identifier-file-replaces-scope: a named file still scanned the scope (exit $rc): $out"; failures=$((failures + 1))
+fi
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/absent" bash "$IDCHECK" body-clean.md 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 2 ] || ! printf '%s' "$out" | grep -qF "$tmp/absent"; then
+  echo "FAIL identifier-file-no-idfile: named files with no identifier file did not exit 2 naming it (exit $rc): $out"; failures=$((failures + 1))
+fi
+printf '# only comments\n' > "$tmp/empty-ids"
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/empty-ids" bash "$IDCHECK" body-clean.md 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 2 ]; then
+  echo "FAIL identifier-file-empty-idfile: named files with an empty identifier file did not exit 2 (exit $rc): $out"; failures=$((failures + 1))
+fi
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 1 ] || ! printf '%s\n' "$out" | grep -qxF "CLAUDE.md:$(grep -c '' "$tmp/CLAUDE.md")"; then
+  echo "FAIL identifier-no-args: no arguments did not scan the fixed scope (exit $rc): $out"; failures=$((failures + 1))
+fi
+teardown
 setup
 if ! out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/absent" bash "$IDCHECK" 2>&1)"; then
   echo "FAIL identifier-missing-file: a missing identifier file failed instead of warning: $out"; failures=$((failures + 1))

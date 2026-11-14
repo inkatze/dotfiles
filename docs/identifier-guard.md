@@ -21,3 +21,9 @@ and `specs/review-skills` bundles. It runs by hand at task
 review and from the contract checker's fixture suite, prints file and line
 but never the matched name, warns when the identifier file is absent, and
 never blocks a commit.
+
+Given file arguments (`identifier-check.sh <file>...`) it scans exactly those
+files instead of that scope, and exits 2 for a named file that is missing or
+unreadable. That is the form to gate publishing a PR body with
+(`identifier-check.sh <body file> && gh pr create ...`); with no arguments
+it keeps the fixed scope and only warns when the identifier file is absent. With file arguments an absent or empty identifier file exits 2 instead, so a body is never published unscanned. Neither form is a commit gate.
