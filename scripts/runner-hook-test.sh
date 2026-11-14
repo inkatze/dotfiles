@@ -16,6 +16,8 @@ echo "o/r" >"$scratch/runner-hook-o-r.repo"
 jq_bin=/usr/bin/jq
 [ -x "$jq_bin" ] || jq_bin="$(command -v jq)"
 export RUNNER_HOOK_JQ="$jq_bin"
+# Cases that do not exercise the hold must not start a real one.
+export RUNNER_HOOK_CAFFEINATE="$scratch/no-caffeinate"
 
 echo '{"pull_request":{"head":{"repo":{"full_name":"o/r"}}}}' >"$scratch/same.json"
 echo '{"pull_request":{"head":{"repo":{"full_name":"evil/r"}}}}' >"$scratch/fork.json"
@@ -58,6 +60,27 @@ check "a missing repository file is refused" refuses q/s push "" "$scratch/lone/
 : >"$scratch/lone/runner-hook-q-s.repo"
 check "an empty repository file is refused" refuses q/s push "" "$scratch/lone/runner-hook-q-s.sh"
 
+# A pid that answers kill -0 but is a zombie is not running.
+live() {
+    kill -0 "$1" 2>/dev/null || return 1
+    case "$(/bin/ps -p "$1" -o stat= 2>/dev/null)" in Z*) return 1 ;; esac
+}
+not_live() { ! live "$1"; }
+# On the fleet the suite itself runs under the real runner worker, which the
+# hook's walk would find above every case below; the cases that need no worker
+# above the hook cannot hold there.
+under_worker() {
+    local p=$$ prog
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        prog="$(/bin/ps -ww -p "$p" -o comm= 2>/dev/null)"
+        case "$prog" in Runner.Worker | */Runner.Worker) return 0 ;; esac
+        p="$(/bin/ps -ww -p "$p" -o ppid= 2>/dev/null | /usr/bin/tr -d ' ')"
+        [ -n "$p" ] && [ "$p" -gt 1 ] 2>/dev/null || return 1
+    done
+    return 1
+}
+skip() { echo "  skip: $1 (the suite runs under a real Runner.Worker)"; }
+
 # An accepted job holds caffeinate -s on the worker, which ends with the job;
 # a refused job holds nothing.
 cat >"$scratch/caffeinate" <<'STUB'
@@ -82,9 +105,9 @@ check "an accepted job holds caffeinate -s on the runner's worker" \
     grep -qx -- "-s -w $worker" "$scratch/awake"
 wait "$worker"
 check "the hold's pid was recorded" test -s "$scratch/awake.pid"
-for _ in $(seq 50); do kill -0 "$(tail -n 1 "$scratch/awake.pid")" 2>/dev/null || break; sleep 0.1; done
+for _ in $(seq 50); do live "$(tail -n 1 "$scratch/awake.pid")" || break; sleep 0.1; done
 check "the hold ends with the job and leaves no caffeinate behind" \
-    sh -c '! kill -0 "$(tail -n 1 "$1")" 2>/dev/null' _ "$scratch/awake.pid"
+    not_live "$(tail -n 1 "$scratch/awake.pid")"
 rm -f "$scratch/awake" "$scratch/awake.pid"
 # A runner directory with a space in its path still matches.
 GITHUB_REPOSITORY=o/r GITHUB_EVENT_NAME=push RUNNER_HOOK_CAFFEINATE="$scratch/caffeinate" \
@@ -99,7 +122,9 @@ rm -f "$scratch/awake" "$scratch/awake.pid"
 GITHUB_REPOSITORY=o/r GITHUB_EVENT_NAME=push RUNNER_HOOK_CAFFEINATE="$scratch/caffeinate" \
     sh -c '"$1"; sleep 0.5' Runner.Worker "$hook"
 sleep 0.5
-check "a process only mentioning Runner.Worker gets no hold" test ! -e "$scratch/awake"
+if under_worker; then skip "a process only mentioning Runner.Worker gets no hold"; else
+    check "a process only mentioning Runner.Worker gets no hold" test ! -e "$scratch/awake"
+fi
 GITHUB_REPOSITORY=x/y GITHUB_EVENT_NAME=push RUNNER_HOOK_CAFFEINATE="$scratch/caffeinate" \
     "$hook" >/dev/null 2>&1 || true
 sleep 0.5
@@ -116,7 +141,9 @@ rm -f "$scratch/awake" "$scratch/awake.pid"
 check "run by hand, with no worker above it, the hook holds nothing and still passes" \
     env GITHUB_REPOSITORY=o/r GITHUB_EVENT_NAME=push RUNNER_HOOK_CAFFEINATE="$scratch/caffeinate" "$hook"
 sleep 0.5
-check "no hold is started without a worker" test ! -e "$scratch/awake"
+if under_worker; then skip "no hold is started without a worker"; else
+    check "no hold is started without a worker" test ! -e "$scratch/awake"
+fi
 
 echo "runner-hook: $passed passed, $failed failed"
 [ "$failed" -eq 0 ]

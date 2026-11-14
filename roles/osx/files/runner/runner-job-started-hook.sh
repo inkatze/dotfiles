@@ -51,7 +51,7 @@ if [ -x "$caffeinate" ]; then
         # runner directory with a space in it still matches and an argument that
         # merely names the worker does not (macOS prints the full path, Linux the
         # bare name).
-        prog="$(/bin/ps -ww -p "$p" -o comm= 2>/dev/null)"
+        prog="$(/bin/ps -ww -p "$p" -o comm= 2>/dev/null)" || prog=""
         case "$prog" in
         Runner.Worker | */Runner.Worker)
             holder=$p
