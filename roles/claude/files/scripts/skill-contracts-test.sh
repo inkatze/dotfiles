@@ -1450,9 +1450,15 @@ out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" body-clea
 if [ "$rc" -ne 2 ] || printf '%s' "$out" | grep -qF 'zqx-synthetic-project'; then
   echo "FAIL identifier-file-name-in-error: the error for an unreadable file printed the name (exit $rc): $out"; failures=$((failures + 1))
 fi
+printf 'Seen in the zqx-synthetic-project repo.\n' > "$tmp/"$'nl\nx.md'
+printf 'Seen in the zqx-synthetic-project repo.\n' > "$tmp/ZQX-Synthetic-Project-upper.md"
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" ZQX-Synthetic-Project-upper.md 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 1 ] || printf '%s' "$out" | grep -qiF 'zqx-synthetic-project-upper'; then
+  echo "FAIL identifier-file-upper-path: a mixed-case name in a path was echoed (exit $rc): $out"; failures=$((failures + 1))
+fi
 out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" $'nl\nx.md' 2>&1)" && rc=0 || rc=$?
 if [ "$rc" -ne 2 ]; then
-  echo "FAIL identifier-file-newline-path: a path with a newline did not exit 2 (exit $rc): $out"; failures=$((failures + 1))
+  echo "FAIL identifier-file-newline-path: an existing path with a newline did not exit 2 (exit $rc): $out"; failures=$((failures + 1))
 fi
 printf 'Seen in the ZQX-Synthetic-Project repo.\nzqx-synthetic-projectfoo\n' > "$tmp/body-case.md"
 out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" body-case.md 2>&1)" && rc=0 || rc=$?

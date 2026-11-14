@@ -13,8 +13,8 @@
 # file is a warning, not a pass. Run by hand at task review and from
 # skill-contracts-test.sh; it is never a commit gate.
 # Exit 1 means hits; exit 2 means the check could not run as asked: an
-# unreadable identifier file, a named file that is not readable or, with named
-# files, an absent or empty identifier file.
+# unreadable identifier file, a named file that is not readable or whose path
+# holds a newline, or, with named files, an absent or empty identifier file.
 set -euo pipefail
 
 idfile="${IDENTIFIER_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/private-identifiers}"
