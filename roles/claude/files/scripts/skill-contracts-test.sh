@@ -1424,7 +1424,7 @@ done
 # A body the scan cannot read as text is still scanned, never reported clean.
 printf 'x\0\nSeen in the zqx-synthetic-project repo.\n' > "$tmp/body-binary.md"
 out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" body-binary.md 2>&1)" && rc=0 || rc=$?
-if [ "$rc" -ne 1 ] || ! printf '%s\n' "$out" | grep -qxF 'body-binary.md:2'; then
+if [ "$rc" -ne 1 ] || [ "$out" != "$(printf '%s\n%s' 'body-binary.md:2' "identifier-check: 1 line(s) name an identifier from $tmp/identifiers")" ]; then
   echo "FAIL identifier-file-binary: a named file with a NUL byte was not scanned (exit $rc): $out"; failures=$((failures + 1))
 fi
 # The report keeps a path with a colon intact and never echoes a name that is in the path.

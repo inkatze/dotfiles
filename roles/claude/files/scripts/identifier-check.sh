@@ -98,19 +98,20 @@ if [ "$#" -gt 0 ]; then
   # Named files are scanned one by one as text (-a): -I would skip a binary or
   # invalid-encoding body and report it clean. The report is built in bash so
   # a path is never interpreted, and one that itself holds an identifier is
-  # shown by position, never echoed.
+  # shown by position, never echoed. Only line numbers leave the pipe, so a NUL
+  # byte in the body cannot reach the command substitution.
   hits=""
   i=0
   for p in "${paths[@]}"; do
     i=$((i + 1))
     set +e
-    lines="$(grep -naiw -F -f "$patterns" -- "$p")"
+    lines="$(grep -naiw -F -f "$patterns" -- "$p" | cut -d: -f1)"
     status=$?
     set -e
     [ "$status" -le 1 ] || { echo "ERROR: grep could not read $(shown "$p" "$i") (exit $status)" >&2; exit 2; }
     [ -n "$lines" ] || continue
     label="$(shown "$p" "$i")"
-    while IFS=: read -r ln _; do hits+="$label:$ln"$'\n'; done <<< "$lines"
+    while read -r ln; do hits+="$label:$ln"$'\n'; done <<< "$lines"
   done
   hits="$(printf '%s' "$hits" | grep . || true)"
 else
