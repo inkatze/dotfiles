@@ -22,7 +22,9 @@
 # wall time as "backend_elapsed=<n>s backend_status=<n>" on stderr. Exit is the
 # backend's own status (124 on the bound), 1 on a refused send, 4 when gemini
 # exits 0 with no output. The bound defaults to 540 seconds, inside a foreground
-# tool call, and needs timeout or gtimeout.
+# tool call, and needs timeout or gtimeout; without either the script refuses
+# with exit 1. A prompt carrying a gitleaks:allow marker is refused too, since
+# the marker would let the scanner skip that line.
 #
 # Tests set PANEL_BACKEND_TEST=1 and point PANEL_GEMINI_BIN, PANEL_NODE_DIR,
 # PANEL_GITLEAKS_BIN, PANEL_EGRESS_FILE at stubs. Without the marker those are
@@ -38,7 +40,7 @@ resolve_profile() {
   if   [ -n "${PANEL_REVIEW_PROFILE:-}" ]; then profile="$PANEL_REVIEW_PROFILE"
   elif [ -n "${DOTFILES_HOST:-}" ];       then profile="$DOTFILES_HOST"
   elif [ -n "$from_file" ];               then profile="$from_file"
-  elif hostname | grep -q panela;         then profile=alt
+  elif case "$(hostname)" in *panela*) true ;; *) false ;; esac; then profile=alt
   else profile=work
   fi
 }
@@ -113,7 +115,8 @@ cmd_gemini() {
     [ -n "$f" ] && [ -s "$f" ] || die "gemini: a required input file is missing or empty: ${f:-unset}"
   done
   [ -n "$base" ] || die "gemini: --base is required"
-  case "$bound" in ''|*[!0-9]*|0) die "gemini: --timeout must be whole seconds, at least 1" ;; esac
+  case "$bound" in ''|*[!0-9]*) die "gemini: --timeout must be whole seconds, at least 1" ;; esac
+  [ "$((10#$bound))" -ge 1 ] || die "gemini: --timeout must be whole seconds, at least 1"
   case "$base" in -*) die "gemini: --base must be a revision, not an option" ;; esac
   git rev-parse --verify --quiet --end-of-options "$base^{commit}" > /dev/null || die "gemini: --base is not a revision in this repository: $base"
   command -v timeout > /dev/null 2>&1 || command -v gtimeout > /dev/null 2>&1 \
@@ -142,12 +145,13 @@ cmd_gemini() {
   git diff --no-ext-diff --no-textconv --no-color "$base"...HEAD >> "$prompt_file" || exit 1
   [ "$(wc -c < "$prompt_file")" -gt "$before" ] || die "diff append produced nothing; refusing to send an empty payload"
   printf 'END UNTRUSTED %s\n' "$nonce" >> "$prompt_file" || exit 1
-  "$glk" dir "$scratch" --no-banner --redact > /dev/null \
+  ! grep -qF 'gitleaks:allow' "$prompt_file" || die "the prompt carries a gitleaks:allow marker; refusing to send, the scanner would skip that line"
+  ( cd "$scratch" && env -u GITLEAKS_CONFIG -u GITLEAKS_CONFIG_TOML "$glk" dir "$scratch" --no-banner --redact > /dev/null ) \
     || die "gitleaks flagged the outbound prompt; stopping before egress"
 
   local gbin ndir
   gbin="$(gemini_bin)" && [ -x "$gbin" ] || die "gemini binary not found; mise run osx or mise run linux installs it"
-  ndir="$(node_dir)" && [ -n "$ndir" ] || die "node not found for the gemini CLI"
+  ndir="$(node_dir)" && case "$ndir" in /*) true ;; *) false ;; esac || die "node not found for the gemini CLI"
   if [ -z "${GEMINI_API_KEY:-}" ]; then
     local k="$HOME/.gemini/.api-key"
     case "$(key_mode "$k")" in
@@ -159,14 +163,14 @@ cmd_gemini() {
   fi
 
   local t0 t1 status=0 tmo out="$scratch/out.txt"
-  if command -v timeout > /dev/null 2>&1; then tmo=timeout; else tmo=gtimeout; fi
+  tmo="$(command -v timeout || command -v gtimeout)"
   t0=$(date +%s)
-  ( cd "$scratch" && env PATH="$ndir:$PATH" "$tmo" "$bound" "$gbin" -o text --skip-trust --approval-mode plan < "$prompt_file" > "$out" ) || status=$?
+  ( cd "$scratch" && env PATH="$ndir:$PATH" "$tmo" -k 10 "$bound" "$gbin" -o text --skip-trust --approval-mode plan < "$prompt_file" > "$out" ) || status=$?
   t1=$(date +%s)
   cat "$out"
   printf 'backend_elapsed=%ss backend_status=%s\n' "$((t1 - t0))" "$status" >&2
   [ "$status" -eq 0 ] || printf 'backend exited %s; backend failure, not zero findings\n' "$status" >&2
-  if [ "$status" -eq 0 ] && [ ! -s "$out" ]; then
+  if [ "$status" -eq 0 ] && ! grep -q '[^[:space:]]' "$out"; then
     echo "backend exited 0 with no output; backend failure, not zero findings" >&2
     status=4
   fi

@@ -30,6 +30,7 @@ printf '%s\n' "$GEMINI_API_KEY" > "$REC/key"
 cat > "$REC/stdin"
 [ -z "${STUB_SLEEP:-}" ] || exec sleep "$STUB_SLEEP"
 [ -z "${STUB_EMPTY:-}" ] || exit 0
+[ -z "${STUB_BLANK:-}" ] || { printf ' \n\n'; exit 0; }
 echo "| Lens | File:Line | Finding | Rule cited | Severity |"
 exit "${STUB_EXIT:-0}"
 STUB
@@ -91,15 +92,24 @@ run "$tool" gemini "${args[@]}" --base --output=x > /dev/null 2> "$w/err"
 check "an option-shaped base is refused" "$?:$([ -e "$w/repo/x" ] && echo wrote || echo clean)" "1:clean"
 run "$tool" gemini "${args[@]}" --base nosuchrev > /dev/null 2> "$w/err"
 check "an unknown base is refused" "$?" "1"
-run "$tool" gemini "${args[@]}" --timeout 0 > /dev/null 2> "$w/err"
-check "a zero bound is refused" "$?" "1"
+run "$tool" gemini "${args[@]}" --timeout 00 > /dev/null 2> "$w/err"
+check "a zero bound, however spelled, is refused" "$?" "1"
+printf 'x // gitleaks:allow\n' > "$w/tool2"
+run "$tool" gemini --lens-doc "$w/lens.md" --instruction-file "$w/instr" --format-file "$w/fmt" --tooling-file "$w/tool2" --base main~1 > /dev/null 2> "$w/err"
+check "a gitleaks:allow marker is refused" "$?" "1"
+grep -q 'gitleaks:allow' "$w/err" && ok "the refusal names the marker" || ko "refusal not named"
+STUB_BLANK=1 run "$tool" gemini "${args[@]}" > /dev/null 2> "$w/err"
+check "whitespace-only output is a failure (4)" "$?" "4"
 run "$tool" gemini --lens-doc "$w/lens.md" --instruction-file "$w/nope" --format-file "$w/fmt" --tooling-file "$w/tool" --base main~1 > /dev/null 2> "$w/err"
 check "a missing input file is refused" "$?" "1"
 STUB_EMPTY=1 run "$tool" gemini "${args[@]}" > /dev/null 2> "$w/err"
 check "exit 0 with no output is a failure (4)" "$?" "4"
-env -u GEMINI_API_KEY HOME="$w/home" REC="$w/rec" PANEL_GEMINI_BIN="$w/bin/gemini" PANEL_GITLEAKS_BIN=/bin/true \
+mkdir -p "$w/nofish"
+printf '#!/bin/sh\nexit 1\n' > "$w/nofish/fish"
+chmod +x "$w/nofish/fish"
+env -u GEMINI_API_KEY PATH="$w/nofish:$PATH" PANEL_REVIEW_PROFILE=server HOME="$w/home" REC="$w/rec" PANEL_GEMINI_BIN="$w/bin/gemini" \
   bash -c 'cd "$1" && shift && "$@"' _ "$w/repo" "$tool" preflight > "$w/pre" 2>&1
-grep -q '^gitleaks=ok$' "$w/pre" && ! grep -q '^gemini=ok$' "$w/pre" && ok "overrides are ignored without the test marker" || ko "an override took effect without the marker"
+grep -q '^gemini=missing' "$w/pre" && ok "overrides are ignored without the test marker" || ko "an override took effect without the marker"
 
 chmod 644 "$w/home/.gemini/.api-key"
 run "$tool" gemini "${args[@]}" > /dev/null 2> "$w/err"
