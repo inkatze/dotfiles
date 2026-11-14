@@ -163,11 +163,19 @@ if [ "$after" -eq "$before" ]; then pass 5 "tpm's children did not re-spawn the 
 expect_no_leftovers 5 "killed server"
 sweep
 
-# 6. The real tpm, run through the guard and its -N shim, still sources a
+# 6. A session that appears only after the config has loaded still gets tpm.
+late="$scratch/sock/default"
+tm -S "$late" -f "$conf" start-server \; run-shell 'sleep 1' \; new-session -d -s late 'sleep 600'
+if wait_runs "$late" 1; then pass 6 "tpm ran for a session created after the config loaded"; else fail 6 "tpm did not run for a session created after the config loaded"; fi
+tm -N -S "$late" kill-server 2>/dev/null
+settle
+sweep
+
+# 7. The real tpm, run through the guard and its -N shim, still sources a
 # listed plugin, whose own tmux call reaches the live server.
 real_tpm="$real_home/.tmux/plugins/tpm"
 if [ ! -x "$real_tpm/tpm" ]; then
-    fail 6 "no tpm at $real_tpm (the tmux role installs it)"
+    fail 7 "no tpm at $real_tpm (the tmux role installs it)"
 else
     home="$scratch/home-real"
     mkdir -p "$home/.tmux/plugins/tmux-sensible"
@@ -178,24 +186,24 @@ else
     chmod +x "$home/.tmux/plugins/tmux-sensible/sensible.tmux"
     real="$scratch/sock/default"
     tm -S "$real" -f "$conf" new-session -d -s real 'sleep 600'
-    tm -N -S "$real" list-sessions >/dev/null 2>&1 || fail 6 "the server did not start"
+    tm -N -S "$real" list-sessions >/dev/null 2>&1 || fail 7 "the server did not start"
     got=""
     for _ in $(seq 50); do
         got="$(tm -N -S "$real" show -gqv @tpm_guard_test)"
         [ "$got" = loaded ] && break
         sleep 0.1
     done
-    if [ "$got" = loaded ]; then pass 6 "the real tpm sourced a plugin through the guard"; else fail 6 "the real tpm did not source the plugin (got '${got}')"; fi
+    if [ "$got" = loaded ]; then pass 7 "the real tpm sourced a plugin through the guard"; else fail 7 "the real tpm did not source the plugin (got '${got}')"; fi
     tm -N -S "$real" kill-server 2>/dev/null
 fi
 
-# 7. The shim alone: against a dead socket it must not start a server.
+# 8. The shim alone: against a dead socket it must not start a server.
 dead="$scratch/sock/shim-dead"
 shim="$repo/roles/tmux/files/scripts/tpm-guard-bin/tmux"
 shim_out="$(env -u TMUX HOME="$home" TMUX_TMPDIR="$scratch/sock" TPM_GUARD_REAL_TMUX="$(command -v tmux)" "$shim" -S "$dead" list-keys 2>&1)"
 shim_rc=$?
 sleep 0.3
-if [ "$shim_rc" -ne 0 ] && [ ! -S "$dead" ]; then pass 7 "the shim started no server on a dead socket"; else fail 7 "the shim started a server on a dead socket (exit $shim_rc: $shim_out)"; fi
+if [ "$shim_rc" -ne 0 ] && [ ! -S "$dead" ]; then pass 8 "the shim started no server on a dead socket"; else fail 8 "the shim started a server on a dead socket (exit $shim_rc: $shim_out)"; fi
 
 if [ "$fails" -gt 0 ]; then
     echo "tmux-tpm-guard-test: $fails failure(s)" >&2
