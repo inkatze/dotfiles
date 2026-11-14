@@ -120,8 +120,8 @@ if probe is not None and refusal is not None:
     ok("it uses no become") if not ptask.get("become") else ko("it uses become")
     ok("it reads com.apple.access_ssh") if "com.apple.access_ssh" in cmd else ko("it does not read com.apple.access_ssh")
     ok("it changes nothing and runs in check mode") if ptask.get("changed_when") is False and ptask.get("check_mode") is False else ko("it can report a change or is skipped in check mode")
-    writes = [w for w in ("sudo", "-o edit", "-o create", "-o delete", "-create", "-append", "-delete", "-change") if w in cmd]
-    writes += re.findall(r">+\s*(?!/dev/null|&1)\S+", cmd)
+    writes = [w for w in ("sudo", "-o edit", "-o create", "-o delete", "-create", "-merge", "-append", "-delete", "-change") if w in cmd]
+    writes += re.findall(r">+\s*(?!(?:/dev/null|&1)(?![\w/.]))\S+", cmd)
     ok("its command writes nothing") if not writes else ko(f"its command holds {writes}")
     msg = str(head[refusal]["ansible.builtin.assert"].get("fail_msg", ""))
     ok("the refusal names com.apple.access_ssh") if "com.apple.access_ssh" in msg else ko("the refusal does not name com.apple.access_ssh")

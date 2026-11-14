@@ -49,7 +49,11 @@
         exit 0
       fi
       members=$(/usr/bin/dscl . -read "/Groups/$group" GroupMembership 2>/dev/null)
-      groups=$(/usr/bin/id -Gn "$OFFLOAD_USER" 2>/dev/null)
+      case "$members" in
+        "GroupMembership:"*) ;;
+        *) members="" ;;
+      esac
+      groups=$(/usr/bin/id -Gn -- "$OFFLOAD_USER" 2>/dev/null)
       case " $members " in
         *" $OFFLOAD_USER "*) echo member; exit 0 ;;
       esac
