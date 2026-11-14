@@ -79,7 +79,8 @@ check growth-past-declared 1 "$peer: $((n + 1)) words, declared n=$n: re-derive 
 
 # A row left behind by a commit that grew the surface, thresholds still by rule.
 setup
-set_row "$peer" $((n - 1)) "$w" "$e"
+behind_w=$(((n - 1 + 249) / 250 * 250 + 250))
+set_row "$peer" $((n - 1)) "$behind_w" $((behind_w + 500))
 check row-behind-count 1 "$peer: $n words, declared n=$((n - 1))" "do not match the rule"
 
 setup
