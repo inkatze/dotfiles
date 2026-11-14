@@ -68,13 +68,23 @@ read -r _ n w e < <(grep "^$peer " "$tmp/$SCRIPT")
 append_words "$peer" $((e + 1 - n))
 check overage 1 "exceeds the error threshold" ""
 
+# Past the warn threshold is growth past n as well, so the row check also fires.
 setup
 append_words "$peer" $((w + 1 - n))
-check warn-range 0 "exceeds the warn threshold" "ERROR"
+check warn-range 1 "exceeds the warn threshold" "exceeds the error threshold"
 
 setup
 append_words "$peer" 1
-check under-warn 0 "all surfaces within budget" "WARN"
+check growth-past-declared 1 "$peer: $((n + 1)) words, declared n=$n" ""
+
+setup
+append_words "$peer" 1
+check growth-names-command 1 "instruction-budget.sh --count $peer" ""
+
+# Shrinking below n stays allowed: only growth has to re-derive the row.
+setup
+perl -0pi -e 's/\S+\s*\z//' "$tmp/$peer"
+check shrink-below-declared 0 "all surfaces within budget" "ERROR"
 
 setup
 rm "$tmp/$peer"

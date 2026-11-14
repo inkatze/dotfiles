@@ -22,12 +22,13 @@ COVERED=(
 #   warn  = 250 * ceil(n / 250) + 250
 #   error = warn + 500
 # A change that grows or adds a surface re-derives its row in the same commit;
-# `--count <file>` gives n.
+# `--count <file>` gives n. A surface that grows past its n fails the check;
+# one that shrinks stays allowed.
 #
 # path                                                     n      warn   error
 SURFACES="
 roles/claude/files/CLAUDE.md                               1951   2250   2750
-CLAUDE.md                                                  1703   2000   2500
+CLAUDE.md                                                  1717   2000   2500
 roles/claude/files/skills/bot-review/SKILL.md              7200   7500   8000
 roles/claude/files/skills/code-review/SKILL.md             4512   5000   5500
 roles/claude/files/skills/panel-review/reviewer-backend.md 7423   7750   8250
@@ -67,6 +68,7 @@ esac
 
 errors=0
 warnings=0
+SELF="instruction-budget.sh"
 
 # GitHub workflow-command escaping: data needs % CR LF; a property also : and ,.
 esc_data() {
@@ -115,6 +117,10 @@ while read -r path n w e; do
   if ! count="$(count_words "$path" 2>/dev/null)"; then
     err "$path" "surface is declared but cannot be read"
     continue
+  fi
+  # Growth past n means the row was not re-derived; shrinking needs no edit.
+  if [ "$count" -gt "$((10#$n))" ]; then
+    err "$path" "$count words, declared n=$n: re-derive the row from $SELF --count $path"
   fi
   if [ "$count" -gt "$e" ]; then
     err "$path" "$count words exceeds the error threshold $e"
