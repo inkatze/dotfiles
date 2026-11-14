@@ -68,7 +68,6 @@ esac
 
 errors=0
 warnings=0
-SELF="instruction-budget.sh"
 
 # GitHub workflow-command escaping: data needs % CR LF; a property also : and ,.
 esc_data() {
@@ -120,7 +119,7 @@ while read -r path n w e; do
   fi
   # Growth past n means the row was not re-derived; shrinking needs no edit.
   if [ "$count" -gt "$((10#$n))" ]; then
-    err "$path" "$count words, declared n=$n: re-derive the row from $SELF --count $path"
+    err "$path" "$count words, declared n=$n: re-derive the row with: $0 --count $path"
   fi
   if [ "$count" -gt "$e" ]; then
     err "$path" "$count words exceeds the error threshold $e"

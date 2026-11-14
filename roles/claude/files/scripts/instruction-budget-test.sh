@@ -75,15 +75,22 @@ check warn-range 1 "exceeds the warn threshold" "exceeds the error threshold"
 
 setup
 append_words "$peer" 1
-check growth-past-declared 1 "$peer: $((n + 1)) words, declared n=$n" ""
+check growth-past-declared 1 "$peer: $((n + 1)) words, declared n=$n: re-derive the row with: $SCRIPT --count $peer" ""
+
+# A row left behind by a commit that grew the surface, thresholds still by rule.
+setup
+set_row "$peer" $((n - 1)) "$w" "$e"
+check row-behind-count 1 "$peer: $n words, declared n=$((n - 1))" "do not match the rule"
 
 setup
-append_words "$peer" 1
-check growth-names-command 1 "instruction-budget.sh --count $peer" ""
+set_row "$peer" "0$n" "$w" "$e"
+check leading-zero-count 0 "all surfaces within budget" "ERROR"
 
 # Shrinking below n stays allowed: only growth has to re-derive the row.
 setup
 perl -0pi -e 's/\S+\s*\z//' "$tmp/$peer"
+shrunk="$(cd "$tmp" && bash "$SCRIPT" --count "$peer")"
+[ "$shrunk" -lt "$n" ] || fail shrink-fixture "count $shrunk is not below n=$n"
 check shrink-below-declared 0 "all surfaces within budget" "ERROR"
 
 setup
