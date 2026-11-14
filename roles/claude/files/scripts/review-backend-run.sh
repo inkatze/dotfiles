@@ -10,17 +10,24 @@
 #       --format-file <file> --tooling-file <file> --base <rev>
 #       [--extra-lens-file <file>] [--timeout <seconds>]
 #
-# preflight prints profile=, backend=, then gitleaks=, gemini= and key= as ok or
-# a reason, then egress= (the backend recorded for --repo, or none). Exit 0 when
-# the default backend's probes pass, 1 otherwise.
+# preflight prints profile=, backend=, then gitleaks= as ok or a reason, gemini=
+# and key= as ok or a reason when the default backend is gemini (n/a otherwise:
+# codex keeps its inline probes), then egress= (the backend recorded for --repo,
+# or none; the caller still owns the consent decision). Exit 0 when the probes
+# that apply pass, 1 otherwise.
 #
 # gemini builds the outbound prompt in a fresh scratch directory, scans it with
 # gitleaks, runs gemini contained (empty scratch directory, plan mode, prompt on
-# stdin) under a bound, prints the model's output on stdout and the backend's
+# stdin; its working directory holds only the prompt) under a bound, prints the model's output on stdout and the backend's
 # wall time as "backend_elapsed=<n>s backend_status=<n>" on stderr. Exit is the
-# backend's own status (124 on the bound), 1 on a refused send.
+# backend's own status (124 on the bound), 1 on a refused send, 4 when gemini
+# exits 0 with no output. The bound defaults to 540 seconds, inside a foreground
+# tool call, and needs timeout or gtimeout.
 #
-# Tests point PANEL_GEMINI_BIN, PANEL_NODE_DIR and PANEL_GITLEAKS_BIN at stubs.
+# Tests set PANEL_BACKEND_TEST=1 and point PANEL_GEMINI_BIN, PANEL_NODE_DIR,
+# PANEL_GITLEAKS_BIN, PANEL_EGRESS_FILE at stubs. Without the marker those are
+# ignored, so a reviewed repository's environment cannot swap the scanner or the
+# backend binary for its own.
 set -euo pipefail
 
 die() { printf '%s\n' "$*" >&2; exit 1; }
@@ -37,17 +44,17 @@ resolve_profile() {
 }
 
 gemini_bin() {
-  if [ -n "${PANEL_GEMINI_BIN:-}" ]; then printf '%s\n' "$PANEL_GEMINI_BIN"; return; fi
+  if [ -n "${PANEL_BACKEND_TEST:-}" ] && [ -n "${PANEL_GEMINI_BIN:-}" ]; then printf '%s\n' "$PANEL_GEMINI_BIN"; return; fi
   fish -c 'cd ~; mise which gemini'
 }
 
 node_dir() {
-  if [ -n "${PANEL_NODE_DIR:-}" ]; then printf '%s\n' "$PANEL_NODE_DIR"; return; fi
+  if [ -n "${PANEL_BACKEND_TEST:-}" ] && [ -n "${PANEL_NODE_DIR:-}" ]; then printf '%s\n' "$PANEL_NODE_DIR"; return; fi
   fish -c 'cd ~; dirname (mise which node 2>/dev/null; or command -v node)'
 }
 
 gitleaks_bin() {
-  if [ -n "${PANEL_GITLEAKS_BIN:-}" ]; then printf '%s\n' "$PANEL_GITLEAKS_BIN"; return; fi
+  if [ -n "${PANEL_BACKEND_TEST:-}" ] && [ -n "${PANEL_GITLEAKS_BIN:-}" ]; then printf '%s\n' "$PANEL_GITLEAKS_BIN"; return; fi
   command -v gitleaks
 }
 
@@ -66,26 +73,29 @@ cmd_preflight() {
   printf 'profile=%s\nbackend=%s\n' "$profile" "$backend"
   if gitleaks_bin > /dev/null 2>&1; then echo "gitleaks=ok"
   else echo "gitleaks=missing: the outbound-prompt guard cannot scan the prompt"; rc=1; fi
-  if g="$(gemini_bin 2> /dev/null)" && [ -n "$g" ]; then echo "gemini=ok"
-  else echo "gemini=missing: Gemini CLI not installed"; rc=1; fi
-  if [ -n "${GEMINI_API_KEY:-}" ]; then echo "key=env"
-  else
-    local k="$HOME/.gemini/.api-key"
-    case "$(key_mode "$k")" in
-      600|400) if [ -s "$k" ]; then echo "key=ok"; else echo "key=empty file"; rc=1; fi ;;
-      *) echo "key=file missing or not mode 600/400"; rc=1 ;;
-    esac
-  fi
-  local egress_file="${PANEL_EGRESS_FILE:-$HOME/.config/dotfiles/code-review-egress.json}" val=none
-  if [ -n "$repo" ] && [ -f "$egress_file" ]; then
-    val="$(jq -r --arg r "$repo" '.[$r] // "none" | if type == "string" then . else "none" end' "$egress_file" 2> /dev/null)" || val=none
+  if [ "$backend" = gemini ]; then
+    if g="$(gemini_bin 2> /dev/null)" && [ -n "$g" ] && [ -x "$g" ]; then echo "gemini=ok"
+    else echo "gemini=missing: Gemini CLI not installed; mise run osx or mise run linux installs it"; rc=1; fi
+    if [ -n "${GEMINI_API_KEY:-}" ]; then echo "key=env"
+    else
+      local k="$HOME/.gemini/.api-key"
+      case "$(key_mode "$k")" in
+        600|400) if [ -s "$k" ]; then echo "key=ok"; else echo "key=empty file"; rc=1; fi ;;
+        *) echo "key=file missing or not mode 600/400; mise run osx or mise run linux syncs it"; rc=1 ;;
+      esac
+    fi
+  else echo "gemini=n/a"; echo "key=n/a"; fi
+  local egress_file="$HOME/.config/dotfiles/code-review-egress.json" val=none
+  [ -z "${PANEL_BACKEND_TEST:-}" ] || egress_file="${PANEL_EGRESS_FILE:-$egress_file}"
+  if [ -n "$repo" ] && [ -f "$egress_file" ] && [ ! -L "$egress_file" ]; then
+    val="$(jq -r --arg r "$repo" '.[$r] // "none" | if type == "string" and test("^[a-z:_-]+$") then . else "none" end' "$egress_file" 2> /dev/null)" || val=none
   fi
   printf 'egress=%s\n' "$val"
   return "$rc"
 }
 
 cmd_gemini() {
-  local lens_doc="" instr="" fmt="" tooling="" base="" extra="" bound=1500
+  local lens_doc="" instr="" fmt="" tooling="" base="" extra="" bound=540
   while [ $# -gt 0 ]; do
     case "$1" in
       --lens-doc) lens_doc="${2:?}"; shift 2 ;;
@@ -103,7 +113,11 @@ cmd_gemini() {
     [ -n "$f" ] && [ -s "$f" ] || die "gemini: a required input file is missing or empty: ${f:-unset}"
   done
   [ -n "$base" ] || die "gemini: --base is required"
-  case "$bound" in ''|*[!0-9]*) die "gemini: --timeout must be whole seconds" ;; esac
+  case "$bound" in ''|*[!0-9]*|0) die "gemini: --timeout must be whole seconds, at least 1" ;; esac
+  case "$base" in -*) die "gemini: --base must be a revision, not an option" ;; esac
+  git rev-parse --verify --quiet --end-of-options "$base^{commit}" > /dev/null || die "gemini: --base is not a revision in this repository: $base"
+  command -v timeout > /dev/null 2>&1 || command -v gtimeout > /dev/null 2>&1 \
+    || die "gemini: neither timeout nor gtimeout is installed; refusing to run unbounded"
 
   local glk
   glk="$(gitleaks_bin)" || die "gitleaks is not installed; refusing to send an unscanned prompt"
@@ -125,33 +139,37 @@ cmd_gemini() {
   printf 'BEGIN UNTRUSTED %s\n' "$nonce" >> "$prompt_file" || exit 1
   cat "$tooling" >> "$prompt_file" || exit 1
   before=$(wc -c < "$prompt_file")
-  git diff "$base"...HEAD >> "$prompt_file" || exit 1
+  git diff --no-ext-diff --no-textconv --no-color "$base"...HEAD >> "$prompt_file" || exit 1
   [ "$(wc -c < "$prompt_file")" -gt "$before" ] || die "diff append produced nothing; refusing to send an empty payload"
   printf 'END UNTRUSTED %s\n' "$nonce" >> "$prompt_file" || exit 1
   "$glk" dir "$scratch" --no-banner --redact > /dev/null \
     || die "gitleaks flagged the outbound prompt; stopping before egress"
 
   local gbin ndir
-  gbin="$(gemini_bin)" || exit 1
-  ndir="$(node_dir)" || exit 1
+  gbin="$(gemini_bin)" && [ -x "$gbin" ] || die "gemini binary not found; mise run osx or mise run linux installs it"
+  ndir="$(node_dir)" && [ -n "$ndir" ] || die "node not found for the gemini CLI"
   if [ -z "${GEMINI_API_KEY:-}" ]; then
     local k="$HOME/.gemini/.api-key"
     case "$(key_mode "$k")" in
       600|400) ;;
       *) die "gemini key file missing or not mode 600/400" ;;
     esac
-    GEMINI_API_KEY="$(cat "$k")" && [ -n "$GEMINI_API_KEY" ] || exit 1
+    GEMINI_API_KEY="$(cat "$k")" && [ -n "$GEMINI_API_KEY" ] || die "gemini key file is empty or unreadable"
     export GEMINI_API_KEY
   fi
 
-  local t0 t1 status=0 tmo=()
-  if command -v timeout > /dev/null 2>&1; then tmo=(timeout "$bound")
-  elif command -v gtimeout > /dev/null 2>&1; then tmo=(gtimeout "$bound"); fi
+  local t0 t1 status=0 tmo out="$scratch/out.txt"
+  if command -v timeout > /dev/null 2>&1; then tmo=timeout; else tmo=gtimeout; fi
   t0=$(date +%s)
-  ( cd "$scratch" && env PATH="$ndir:$PATH" ${tmo[@]+"${tmo[@]}"} "$gbin" -o text --skip-trust --approval-mode plan < "$prompt_file" ) || status=$?
+  ( cd "$scratch" && env PATH="$ndir:$PATH" "$tmo" "$bound" "$gbin" -o text --skip-trust --approval-mode plan < "$prompt_file" > "$out" ) || status=$?
   t1=$(date +%s)
+  cat "$out"
   printf 'backend_elapsed=%ss backend_status=%s\n' "$((t1 - t0))" "$status" >&2
   [ "$status" -eq 0 ] || printf 'backend exited %s; backend failure, not zero findings\n' "$status" >&2
+  if [ "$status" -eq 0 ] && [ ! -s "$out" ]; then
+    echo "backend exited 0 with no output; backend failure, not zero findings" >&2
+    status=4
+  fi
   exit "$status"
 }
 

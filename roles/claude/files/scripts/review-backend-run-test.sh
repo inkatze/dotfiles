@@ -28,7 +28,8 @@ pwd > "$REC/cwd"
 printf '%s\n' "$@" > "$REC/argv"
 printf '%s\n' "$GEMINI_API_KEY" > "$REC/key"
 cat > "$REC/stdin"
-[ -z "${STUB_SLEEP:-}" ] || sleep "$STUB_SLEEP"
+[ -z "${STUB_SLEEP:-}" ] || exec sleep "$STUB_SLEEP"
+[ -z "${STUB_EMPTY:-}" ] || exit 0
 echo "| Lens | File:Line | Finding | Rule cited | Severity |"
 exit "${STUB_EXIT:-0}"
 STUB
@@ -53,7 +54,7 @@ printf '## Lens checklist\n\n1. Correctness\n\n2. Security\n\n## Next\n' > "$w/l
 mkdir -p "$w/rec"
 
 run() {
-  (cd "$w/repo" && env -u GEMINI_API_KEY HOME="$w/home" REC="$w/rec" PANEL_GEMINI_BIN="$w/bin/gemini" PANEL_NODE_DIR="$w/bin" \
+  (cd "$w/repo" && env -u GEMINI_API_KEY PANEL_BACKEND_TEST=1 HOME="$w/home" REC="$w/rec" PANEL_GEMINI_BIN="$w/bin/gemini" PANEL_NODE_DIR="$w/bin" \
     PANEL_GITLEAKS_BIN="$w/bin/gitleaks" "$@")
 }
 args=(--lens-doc "$w/lens.md" --instruction-file "$w/instr" --format-file "$w/fmt" --tooling-file "$w/tool" --base main~1)
@@ -86,16 +87,33 @@ grep -q 'backend failure, not zero findings' "$w/err" && ok "failure is labelled
 STUB_SLEEP=5 run "$tool" gemini "${args[@]}" --timeout 1 > /dev/null 2> "$w/err"
 check "the bound stops a stuck backend (124)" "$?" "124"
 
+run "$tool" gemini "${args[@]}" --base --output=x > /dev/null 2> "$w/err"
+check "an option-shaped base is refused" "$?:$([ -e "$w/repo/x" ] && echo wrote || echo clean)" "1:clean"
+run "$tool" gemini "${args[@]}" --base nosuchrev > /dev/null 2> "$w/err"
+check "an unknown base is refused" "$?" "1"
+run "$tool" gemini "${args[@]}" --timeout 0 > /dev/null 2> "$w/err"
+check "a zero bound is refused" "$?" "1"
+run "$tool" gemini --lens-doc "$w/lens.md" --instruction-file "$w/nope" --format-file "$w/fmt" --tooling-file "$w/tool" --base main~1 > /dev/null 2> "$w/err"
+check "a missing input file is refused" "$?" "1"
+STUB_EMPTY=1 run "$tool" gemini "${args[@]}" > /dev/null 2> "$w/err"
+check "exit 0 with no output is a failure (4)" "$?" "4"
+env -u GEMINI_API_KEY HOME="$w/home" REC="$w/rec" PANEL_GEMINI_BIN="$w/bin/gemini" PANEL_GITLEAKS_BIN=/bin/true \
+  bash -c 'cd "$1" && shift && "$@"' _ "$w/repo" "$tool" preflight > "$w/pre" 2>&1
+grep -q '^gitleaks=ok$' "$w/pre" && ! grep -q '^gemini=ok$' "$w/pre" && ok "overrides are ignored without the test marker" || ko "an override took effect without the marker"
+
 chmod 644 "$w/home/.gemini/.api-key"
 run "$tool" gemini "${args[@]}" > /dev/null 2> "$w/err"
 check "a loose key mode refuses" "$?" "1"
+run env PANEL_REVIEW_PROFILE=server "$tool" preflight > "$w/pre" 2>&1
+check "preflight exits 1 on a loose key" "$?" "1"
 chmod 600 "$w/home/.gemini/.api-key"
 
 printf '{"o/r":"gemini"}' > "$w/egress.json"
 pre="$(run env PANEL_REVIEW_PROFILE=server PANEL_EGRESS_FILE="$w/egress.json" "$tool" preflight --repo o/r)"
 check "preflight passes with stubs" "$?" "0"
 case "$pre" in *$'backend=gemini'*$'key=ok'*$'egress=gemini'*) ok "preflight reports backend, key and egress" ;; *) ko "preflight output: $pre" ;; esac
-pre="$(run env PANEL_REVIEW_PROFILE=work PANEL_EGRESS_FILE="$w/egress.json" "$tool" preflight --repo x/y)"
+pre="$(run env PANEL_REVIEW_PROFILE=work PANEL_EGRESS_FILE="$w/egress.json" PANEL_GEMINI_BIN=/nonexistent "$tool" preflight --repo x/y)"
+check "work profile does not need gemini" "$?" "0"
 case "$pre" in *$'backend=codex'*$'egress=none'*) ok "work profile resolves codex; unknown repo has no consent" ;; *) ko "work preflight: $pre" ;; esac
 
 echo "review-backend-run-test: $pass passed, $fail failed"

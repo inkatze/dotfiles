@@ -189,23 +189,25 @@ cwd between calls.
 
 ## Running gemini as two fixed commands
 
-Each inline snippet above is a command shape the harness cannot verify
-(`$(...)`, a `trap`, a heredoc, `~` in an assignment), and each one waits on an
-approval that a plain script call does not. For gemini, run
-`~/.claude/scripts/review-backend-run.sh` instead, as its own simple command:
+An inline snippet above is a command shape the harness cannot verify (`$(...)`,
+a `trap`, a heredoc), and each one waits on an approval. `/panel-review` runs
+gemini through `~/.claude/scripts/review-backend-run.sh` instead, each call its
+own simple command (`/code-review` still runs the blocks above):
 
-- `review-backend-run.sh preflight --repo <owner>/<repo>` resolves the profile,
-  probes gitleaks, the gemini binary and the key, and reads the egress consent,
-  printing `key=value` lines; a failed probe exits 1 with its reason.
-- `review-backend-run.sh gemini --lens-doc <discovery-rigor path>
-  --instruction-file <f> --format-file <f> --tooling-file <f> --base <rev>
-  [--extra-lens-file <f>]` builds the guarded prompt, scans it, runs gemini
-  contained and bounded, and prints the output, with `backend_elapsed` and
-  `backend_status` on stderr. Write the three input files with the Write tool
-  into a scratch directory beforehand, not with a shell heredoc.
+- `preflight --repo <owner>/<repo>` resolves the profile, probes gitleaks and,
+  for gemini, the binary and key, and prints `key=value` lines including the
+  `egress=` value on record. It never decides consent: the skill asks per
+  [egress.md](egress.md). A failed probe exits 1; codex keeps its inline probes.
+- `gemini --lens-doc <discovery-rigor path> --instruction-file <f>
+  --format-file <f> --tooling-file <f> --base <rev> [--extra-lens-file <f>]
+  [--timeout <seconds>]` builds the guarded prompt, scans it, runs gemini
+  contained and bounded (540 seconds by default), and prints the output, with
+  `backend_elapsed` and `backend_status` on stderr. Exit 124 is the bound (retry
+  once with a longer `--timeout`), 4 a backend that exited 0 with no output.
+  Write the input files (instruction, output format, tooling output, the
+  skill's own lens) with the Write tool into the run's own scratch directory.
 
-The script is the same guards and the same contained form as the blocks above;
-codex still runs from them.
+The guards and the contained form are those of the blocks above.
 
 ## Judging the result
 
