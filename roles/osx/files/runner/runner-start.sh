@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Starts runner-gate.sh for one runner directory unless it already runs, and
-# returns at once. Usage: runner-start.sh <runner-dir>
+# Starts a gate (runner-gate.sh, or RUNNER_GATE) for one directory unless it
+# already runs, and returns at once. Usage: runner-start.sh <dir>
+# RUNNER_PID_PREFIX names its pid, lock and log files in the cache directory.
 #
 # The fleet account only ever logs in over ssh, so it has no launchd user
 # domain and no sudo: its crontab calls this at boot and every few minutes, and
-# whatever it started outlives the cron job and any ssh session. The gate's
-# pid file names the one running copy, checked against the process's own
-# command line so a recycled pid is not mistaken for it.
+# whatever it started outlives the cron job and any ssh session. The pid file
+# names the process launched (caffeinate when it is present, else the gate),
+# checked against that process's own command line, which holds the gate and
+# its directory, so a recycled pid is not mistaken for it.
 set -u
 
 dir="${1:?usage: runner-start.sh <runner-dir>}"
@@ -14,8 +16,9 @@ here="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 gate="${RUNNER_GATE:-$here/runner-gate.sh}"
 cache="${RUNNER_CACHE_DIR:-$HOME/.cache}"
 nice_level="${RUNNER_NICE:-10}"
-slug="$(basename -- "$dir")"
 prefix="${RUNNER_PID_PREFIX:-dotfiles-runner}"
+case "$prefix" in '' | *[!A-Za-z0-9_.-]*) echo "runner-start: RUNNER_PID_PREFIX must be a plain name" >&2; exit 1 ;; esac
+slug="$(basename -- "$dir")"
 pidfile="$cache/$prefix-$slug.pid"
 lock="$cache/$prefix-$slug.lock"
 

@@ -149,6 +149,16 @@ rm -f "$scratch/f/bin/pkills"
 PATH="$scratch/f/bin:$PATH" STUB_WORKER=1 "$refresh" /r/x
 check "a listener serving a job is left alone" test ! -e "$scratch/f/bin/pkills"
 
+# RUNNER_PID_PREFIX gives another gate its own pid, lock and log names, so the
+# postgres gate and a runner never share a pid file.
+mkdir -p "$scratch/p"
+RUNNER_PID_PREFIX=dotfiles-postgres "$start" "$scratch/p"
+settle 6
+check "a prefixed gate keeps its pid under the prefix" test -s "$scratch/cache/dotfiles-postgres-p.pid"
+check "a prefixed gate leaves the runner names alone" test ! -e "$scratch/cache/dotfiles-runner-p.pid"
+kill "$(cat "$scratch/cache/dotfiles-postgres-p.pid")" 2>/dev/null || true
+check "a prefix naming a path is refused" test "$(RUNNER_PID_PREFIX=../x "$start" "$scratch/p" 2>/dev/null; echo $?)" = 1
+
 # The role: crontab jobs, no launchd.
 contract() { python3 - "$repo" <<'PY'; }
 import re, sys, yaml
