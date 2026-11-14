@@ -47,11 +47,13 @@ if [ -x "$caffeinate" ]; then
     holder=""
     p=$PPID
     for _ in 1 2 3 4 5 6 7 8; do
-        # Only the process's own program counts, not an argument that mentions it.
-        # shellcheck disable=SC2046
-        set -- $(/bin/ps -ww -p "$p" -o command= 2>/dev/null)
-        case "${1:-}" in
-        */Runner.Worker)
+        # comm is the program alone, one line and never split or globbed, so a
+        # runner directory with a space in it still matches and an argument that
+        # merely names the worker does not (macOS prints the full path, Linux the
+        # bare name).
+        prog="$(/bin/ps -ww -p "$p" -o comm= 2>/dev/null)"
+        case "$prog" in
+        Runner.Worker | */Runner.Worker)
             holder=$p
             break
             ;;

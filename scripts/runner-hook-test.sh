@@ -69,14 +69,13 @@ while [ "$1" != -w ]; do shift; done
 while kill -0 "$2" 2>/dev/null; do sleep 0.1; done
 STUB
 chmod +x "$scratch/caffeinate"
-cat >"$scratch/Runner.Worker" <<'STUB'
-#!/bin/bash
-# The runner's worker shows its own path as argv0; so does this stand-in.
-exec -a "$(dirname "$0")/bin/Runner.Worker" sh -c '"$1"; sleep 1' _ "$1"
-STUB
-chmod +x "$scratch/Runner.Worker"
+# The runner's worker is a program named Runner.Worker; a copy of a shell under
+# that name, in a path with and without a space, stands in for it.
+mkdir -p "$scratch/bin" "$scratch/dir with space/bin"
+cp "$(command -v bash)" "$scratch/bin/Runner.Worker"
+cp "$(command -v bash)" "$scratch/dir with space/bin/Runner.Worker"
 GITHUB_REPOSITORY=o/r GITHUB_EVENT_NAME=push RUNNER_HOOK_CAFFEINATE="$scratch/caffeinate" \
-    "$scratch/Runner.Worker" "$hook" &
+    "$scratch/bin/Runner.Worker" -c 'sh -c "\"\$1\"; sleep 1" _ "$1"; :' _ "$hook" &
 worker=$!
 for _ in $(seq 50); do [ -s "$scratch/awake.pid" ] && break; sleep 0.1; done
 check "an accepted job holds caffeinate -s on the runner's worker" \
@@ -87,6 +86,20 @@ for _ in $(seq 50); do kill -0 "$(tail -n 1 "$scratch/awake.pid")" 2>/dev/null |
 check "the hold ends with the job and leaves no caffeinate behind" \
     sh -c '! kill -0 "$(tail -n 1 "$1")" 2>/dev/null' _ "$scratch/awake.pid"
 rm -f "$scratch/awake" "$scratch/awake.pid"
+# A runner directory with a space in its path still matches.
+GITHUB_REPOSITORY=o/r GITHUB_EVENT_NAME=push RUNNER_HOOK_CAFFEINATE="$scratch/caffeinate" \
+    "$scratch/dir with space/bin/Runner.Worker" -c 'sh -c "\"\$1\"; sleep 1" _ "$1"; :' _ "$hook" &
+worker=$!
+for _ in $(seq 50); do [ -s "$scratch/awake.pid" ] && break; sleep 0.1; done
+check "a worker under a path with a space still gets the hold" \
+    grep -qx -- "-s -w $worker" "$scratch/awake"
+wait "$worker"
+rm -f "$scratch/awake" "$scratch/awake.pid"
+# An argument that merely names the worker is not the worker.
+GITHUB_REPOSITORY=o/r GITHUB_EVENT_NAME=push RUNNER_HOOK_CAFFEINATE="$scratch/caffeinate" \
+    sh -c '"$1"; sleep 0.5' Runner.Worker "$hook"
+sleep 0.5
+check "a process only mentioning Runner.Worker gets no hold" test ! -e "$scratch/awake"
 GITHUB_REPOSITORY=x/y GITHUB_EVENT_NAME=push RUNNER_HOOK_CAFFEINATE="$scratch/caffeinate" \
     "$hook" >/dev/null 2>&1 || true
 sleep 0.5
