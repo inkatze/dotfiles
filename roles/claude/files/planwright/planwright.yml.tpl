@@ -20,7 +20,8 @@ worker_hook_exclude: skill-contracts-suite claude-skills-link copilot-retirement
 # when it is busy, in use or unreachable.
 fleet_compute_host: mac
 
-# Host-wide, so it lives in this user-level layer.
+# Host-wide, so it lives in this user-level layer. This is the shared default; a
+# machine that runs more sets its own in ~/.config/dotfiles/fleet-max-live-workers.
 fleet_host_max_live_workers: 8
 
 # Bookkeeping, drain and offload are mechanical, so they run on the cheaper
