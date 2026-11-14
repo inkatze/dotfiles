@@ -35,20 +35,28 @@
   when: inventory_hostname in osx_offload_hosts
   tags: [always]
 
-# An administrator can write the admin-group Homebrew prefix and /Applications
-# without sudo, so whoever holds the dispatching host's key could replace
-# programs the owner runs. A standard account cannot.
 # Remote Login can allow only the members of com.apple.access_ssh, and an
-# administrator gets in through the admin group instead. A demoted account
-# outside the group would then lose every SSH connection, this run's included.
-# Read-only and sudo-free: the group is absent when Remote Login allows all
-# users, and checkmember reads it without privileges.
-- name: Check that the work account can still reach SSH once it is not an administrator
+# administrator gets in through the admin group nested in it, so checkmember
+# says "member" for any administrator. A demoted account outside the group
+# would lose every SSH connection, this run's included. The group is absent
+# when Remote Login allows all users. Read-only and sudo-free.
+- name: Read whether the work account is in the SSH access group
   ansible.builtin.shell:
     cmd: |
-      if ! /usr/bin/dscl . -read /Groups/com.apple.access_ssh >/dev/null 2>&1; then
+      group=com.apple.access_ssh
+      if ! /usr/bin/dscl . -read "/Groups/$group" >/dev/null 2>&1; then
         echo all
-      elif /usr/sbin/dseditgroup -o checkmember -m "$OFFLOAD_USER" com.apple.access_ssh >/dev/null 2>&1; then
+        exit 0
+      fi
+      members=$(/usr/bin/dscl . -read "/Groups/$group" GroupMembership 2>/dev/null)
+      groups=$(/usr/bin/id -Gn "$OFFLOAD_USER" 2>/dev/null)
+      case " $members " in
+        *" $OFFLOAD_USER "*) echo member; exit 0 ;;
+      esac
+      case " $groups " in
+        *" admin "*) echo missing; exit 0 ;;
+      esac
+      if /usr/sbin/dseditgroup -o checkmember -m "$OFFLOAD_USER" "$group" >/dev/null 2>&1; then
         echo member
       else
         echo missing
@@ -71,7 +79,7 @@
       {{ osx_offload_user }} is an administrator. Make it a standard account
       first, from an administrator account on the Mac
       (docs/offload-host.md), then re-run.
-      {% if osx_offload_ssh_access.stdout | trim == 'missing' %}
+      {% if (osx_offload_ssh_access.stdout | default('')) | trim == 'missing' %}
       Before demoting it, add it to com.apple.access_ssh, from an
       administrator's session at the Mac's console: Remote Login allows only
       listed users and administrators, so a demoted account outside that
