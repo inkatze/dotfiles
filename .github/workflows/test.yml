@@ -287,6 +287,10 @@ jobs:
       - name: Run the reviewer backend suite
         run: roles/claude/files/scripts/reviewer-backend-test.sh
 
+      # Runs the gemini backend script against a stub CLI and gitleaks.
+      - name: Run the review backend script suite
+        run: roles/claude/files/scripts/review-backend-run-test.sh
+
       # Fetches the pinned cubic package from the npm registry and reads its
       # install scripts and license; curl, openssl, tar and jq are all it needs.
       - name: Run the cubic postinstall opt-out suite
