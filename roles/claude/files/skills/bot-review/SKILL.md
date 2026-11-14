@@ -179,7 +179,7 @@ Read the referenced code first. Apply validation-rigor's three passes to the bot
 
 **Suppression is a ledger disposition**: a finding the bot itself collapsed into its summary rather than posting as a thread (a suppressed or low-confidence block) gets the same three passes, and one not worth acting on is recorded `suppressed` with its reason, so a re-emitted one is answered from the ledger instead of re-validated. A suppressed finding has no thread, so `--reply` names the summary it came from.
 
-Record the results in finding-categorization's four tables, in fixed order, in the artifact. A **rejection** routes to Needs sign-off: dismissing a finding is a decision the operator makes before the bot is told. Columns: `# | Source (description-level / inline) | Anchor | Ledger route | Bot's finding | What we found | Validation passes | Disposition | Draft reply`.
+Record the results in finding-categorization's four tables, in fixed order, in the artifact. A **rejection** routes to Needs sign-off: dismissing a finding is a decision the operator makes before the bot is told. **Proven declines:** with `BOT_REVIEW_PROVEN_DECLINES=mission-control` set, a rejection carrying proof (a reproduction command and output, a passing test by file and case, or a cited `file:line`) goes to the supervising mission control with its draft reply, posted on its go-ahead; `~/.claude/scripts/bot-review-decline-route.sh` prints the route; unset or unproven, the operator decides. Columns: `# | Source (description-level / inline) | Anchor | Ledger route | Bot's finding | What we found | Validation passes | Disposition | Draft reply`.
 
 ### 8. Address items (standalone; `--nested` replaces this)
 
