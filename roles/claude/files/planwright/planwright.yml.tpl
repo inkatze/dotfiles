@@ -23,8 +23,16 @@ fleet_compute_host: mac
 # Host-wide, so it lives in this user-level layer.
 fleet_host_max_live_workers: 8
 
+# Bookkeeping, drain and offload are mechanical, so they run on the cheaper
+# model; planwright's default leaves them unset or inheriting.
+allocation_model_bookkeeping: sonnet
+allocation_model_drain: sonnet
 allocation_model_offload: sonnet
 allocation_effort_offload: medium
+
+# Attention items reach the operator's phone through the tower session, where
+# the default is pull-only.
+notification_channel: push
 
 # The fleet default; a `mc-config.sh knob` write overrides it on one machine,
 # kept as the header describes.
