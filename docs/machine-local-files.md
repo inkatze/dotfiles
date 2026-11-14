@@ -72,15 +72,16 @@ rename is lost.
 
 `fleet-max-live-workers` sets the host-wide live-worker bound
 (`fleet_host_max_live_workers`) for one machine. The overlay template carries
-the shared default of 8; when this file holds a whole number from 1 to 99 (one
-line, surrounding whitespace ignored) the renderer substitutes it for that
-line's value, and an empty, blank or absent file keeps 8. Anything else, a symlink or
-a non-regular file fails the render. It needs no 1Password item and is applied
-before the supplement, which only carries `mission_control_*` and `program_*`
-keys. On a machine that runs more workers, write it once with
-`echo 10 > ~/.config/dotfiles/fleet-max-live-workers`; the next playbook run
-renders it. It has no row in the repo-root table, which sits at its line
-ceiling; this section is its record.
+the shared default; when this file holds a single line with a whole number from
+1 to 99, written without leading zeros (surrounding whitespace ignored), the
+renderer substitutes it for that line's value, and an empty, blank or absent
+file keeps the template's. Any other content, a symlink or a non-regular file
+fails the render. It needs no 1Password item of its own and is applied before
+the supplement, which only carries `mission_control_*` and `program_*` keys.
+On a machine that runs more workers, write it once with
+`mkdir -p ~/.config/dotfiles; echo 10 > ~/.config/dotfiles/fleet-max-live-workers`;
+the next playbook run that renders the overlay applies it. It has no row in the
+repo-root table; this section is its record.
 
 `git-work-orgs` is rendered the same way from the item
 `dotfiles-git-work-orgs` (field `orgs`, owner names separated by whitespace),

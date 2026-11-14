@@ -1045,6 +1045,11 @@ for bad in 0 007 100 ten 8.5 -3 '1 0'; do
   run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
   expect_failed "malformed bound '$bad'" "must hold one whole number from 1 to 99"
 done
+for good in 1 99; do
+  printf '%s\n' "$good" >"$bound"
+  run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+  grep -qx "fleet_host_max_live_workers: $good" "$ov" 2>/dev/null && ok "boundary bound $good is accepted" || ko "boundary bound $good ($log)"
+done
 printf '  12 \n' >"$bound"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 grep -qx 'fleet_host_max_live_workers: 12' "$ov" 2>/dev/null && ok "surrounding whitespace is ignored" || ko "surrounding whitespace ($log)"

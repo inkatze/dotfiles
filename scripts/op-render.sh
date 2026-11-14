@@ -48,8 +48,10 @@
 # is ambiguous (mission control removed it, or an older backup of the overlay
 # was restored), so the render refuses, writing nothing, until
 # OP_RENDER_ACCEPT_REMOVALS=1 says the removal was real.
-# It also takes its live-worker bound from ~/.config/dotfiles/fleet-max-live-workers
-# when that file holds a number, so one machine can differ from the template.
+#
+# The overlay's live-worker bound can also come from a one-line file,
+# ~/.config/dotfiles/fleet-max-live-workers, so one machine can differ from the
+# template; a file that is not a plain number from 1 to 99 refuses the render.
 
 set -eu
 # Every file this writes holds private values, and a caller's umask that drops
@@ -301,7 +303,8 @@ fi
 # mc-config.sh), which refuses a file whose header says another tool renders
 # it. So its own keys survive the render instead: any it changed since the
 # last render (the snapshot) are kept in the supplement, and the supplement is
-# applied over the item. Every other key still comes from the item alone.
+# applied over the item. Every other key comes from the item alone, except the
+# live-worker bound, which the machine-local file above can set.
 supplement=""
 snapshot=""
 live_sum=""

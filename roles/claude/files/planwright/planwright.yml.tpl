@@ -20,8 +20,8 @@ worker_hook_exclude: skill-contracts-suite claude-skills-link copilot-retirement
 # when it is busy, in use or unreachable.
 fleet_compute_host: mac
 
-# Host-wide, so it lives in this user-level layer. 8 is the default; a machine
-# that runs more sets its own in ~/.config/dotfiles/fleet-max-live-workers.
+# Host-wide, so it lives in this user-level layer. This is the shared default; a
+# machine that runs more sets its own in ~/.config/dotfiles/fleet-max-live-workers.
 fleet_host_max_live_workers: 8
 
 allocation_model_offload: sonnet
