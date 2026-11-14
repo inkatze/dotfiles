@@ -6,6 +6,12 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 R="$HERE/bot-review-decline-route.sh"
 failures=0
 
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+cd "$work"
+printf 'one\ntwo\nthree\n' > x.sh
+printf '#!/bin/sh\n' > a_test.sh
+
 # expect <name> <want> <env value, or - for unset> <args...>
 expect() {
   local name="$1" want="$2" cfg="$3" got
@@ -21,22 +27,33 @@ expect() {
 # Default: nothing configured, every decline goes to the operator.
 expect default-repro operator - repro "make t" "exit 0"
 expect default-test operator - test a_test.sh "case one"
-expect default-cite operator - cite roles/x.sh:12
+expect default-cite operator - cite x.sh:2
 expect default-none operator - none
-expect empty-config operator "" cite roles/x.sh:12
-expect other-config operator operator cite roles/x.sh:12
+expect empty-config operator "" cite x.sh:2
+expect other-config operator operator cite x.sh:2
 
 # Configured: proven declines settle at mission control.
 expect repro mission-control mission-control repro "make t" "exit 0"
 expect test mission-control mission-control test a_test.sh "case one"
-expect cite mission-control mission-control cite roles/x.sh:12
-expect cite-range mission-control mission-control cite roles/x.sh:12-20
+expect cite mission-control mission-control cite x.sh:2
+expect cite-range mission-control mission-control cite x.sh:1-3
 
 # Configured: incomplete proof or a judgment call stays with the operator.
+expect repro-blank operator mission-control repro " " " "
+expect test-missing-file operator mission-control test nope_test.sh "case one"
+expect test-blank-case operator mission-control test a_test.sh " "
+expect cite-missing-file operator mission-control cite nope.sh:1
+expect cite-past-end operator mission-control cite x.sh:4
+expect cite-zero operator mission-control cite x.sh:0
+expect cite-reversed operator mission-control cite x.sh:3-1
+expect cite-bad-range operator mission-control cite x.sh:1-
+expect var-case operator Mission-Control cite x.sh:1
+expect var-space operator "mission-control " cite x.sh:1
+expect no-args operator mission-control
 expect repro-no-output operator mission-control repro "make t" ""
 expect repro-no-command operator mission-control repro "" "exit 0"
 expect test-no-case operator mission-control test a_test.sh
-expect cite-no-line operator mission-control cite roles/x.sh
+expect cite-no-line operator mission-control cite x.sh
 expect cite-prose operator mission-control cite "see the code"
 expect judgment operator mission-control none
 expect unknown-kind operator mission-control hunch "I think so"

@@ -263,6 +263,10 @@ jobs:
       - name: Run the bot-review surfaces suite
         run: roles/claude/files/scripts/bot-review-surfaces-test.sh
 
+      # Plain bash and coreutils.
+      - name: Run the bot-review decline-route suite
+        run: roles/claude/files/scripts/bot-review-decline-route-test.sh
+
       # Here rather than in lint: bash, jq and git are all it needs.
       - name: Run the status line fixture suite
         run: scripts/claude-statusline-test.sh
