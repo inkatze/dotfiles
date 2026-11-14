@@ -69,6 +69,7 @@ fi
 paths=()
 if [ "$#" -gt 0 ]; then
   for p in "$@"; do
+    case "$p" in *$'\n'*) echo "ERROR: a named path contains a newline" >&2; exit 2 ;; esac
     if [ ! -f "$p" ] || [ ! -r "$p" ]; then echo "ERROR: $p is not a readable file" >&2; exit 2; fi
     paths+=("$p")
   done
@@ -82,12 +83,33 @@ fi
 # grep exits 1 on no match and 2 on a read error; only 2 is a failure.
 # -w matches whole words, as the gitleaks rule generator's \b does, so a
 # name inside a longer word is not a hit.
-set +e
-raw="$(grep -rHniIw -F -f "$patterns" -- "${paths[@]}")"
-status=$?
-set -e
-[ "$status" -le 1 ] || { echo "ERROR: grep could not read the checked files (exit $status)" >&2; exit 2; }
-hits="$(printf '%s\n' "$raw" | cut -d: -f1,2 | grep . || true)"
+if [ "$#" -gt 0 ]; then
+  # Named files are scanned one by one as text (-a): -I would skip a binary or
+  # invalid-encoding body and report it clean, and the report is built here so
+  # a path holding a colon stays intact. A path that itself names an
+  # identifier is reported by position instead, never echoing the name.
+  hits=""
+  i=0
+  for p in "${paths[@]}"; do
+    i=$((i + 1))
+    set +e
+    lines="$(grep -naiw -F -f "$patterns" -- "$p")"
+    status=$?
+    set -e
+    [ "$status" -le 1 ] || { echo "ERROR: grep could not read $p (exit $status)" >&2; exit 2; }
+    label="$p"
+    if printf '%s\n' "$p" | grep -qiwF -f "$patterns"; then label="argument $i"; fi
+    [ -z "$lines" ] || hits+="$(printf '%s\n' "$lines" | cut -d: -f1 | sed "s|^|$label:|")"$'\n'
+  done
+  hits="$(printf '%s' "$hits" | grep . || true)"
+else
+  set +e
+  raw="$(grep -rHniIw -F -f "$patterns" -- "${paths[@]}")"
+  status=$?
+  set -e
+  [ "$status" -le 1 ] || { echo "ERROR: grep could not read the checked files (exit $status)" >&2; exit 2; }
+  hits="$(printf '%s\n' "$raw" | cut -d: -f1,2 | grep . || true)"
+fi
 if [ -n "$hits" ]; then
   printf '%s\n' "$hits"
   echo "identifier-check: $(printf '%s\n' "$hits" | grep -c .) line(s) name an identifier from $idfile" >&2

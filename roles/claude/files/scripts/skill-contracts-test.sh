@@ -1415,6 +1415,29 @@ out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" body-clea
 if [ "$rc" -ne 2 ]; then
   echo "FAIL identifier-file-missing: a missing named file did not exit 2 (exit $rc): $out"; failures=$((failures + 1))
 fi
+for bad in body-missing.md .; do
+  out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" "$bad" 2>&1)" && rc=0 || rc=$?
+  if [ "$rc" -ne 2 ] || ! printf '%s' "$out" | grep -qF 'is not a readable file'; then
+    echo "FAIL identifier-file-unreadable ($bad): a named path that is not a readable file did not exit 2 with the file error (exit $rc): $out"; failures=$((failures + 1))
+  fi
+done
+# A body the scan cannot read as text is still scanned, never reported clean.
+printf 'x\0\nSeen in the zqx-synthetic-project repo.\n' > "$tmp/body-binary.md"
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" body-binary.md 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 1 ] || ! printf '%s\n' "$out" | grep -qxF 'body-binary.md:2'; then
+  echo "FAIL identifier-file-binary: a named file with a NUL byte was not scanned (exit $rc): $out"; failures=$((failures + 1))
+fi
+# The report keeps a path with a colon intact and never echoes a name that is in the path.
+printf 'Seen in the zqx-synthetic-project repo.\n' > "$tmp/a:b.md"
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" a:b.md 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 1 ] || ! printf '%s\n' "$out" | grep -qxF 'a:b.md:1'; then
+  echo "FAIL identifier-file-colon-path: a path with a colon lost its line number (exit $rc): $out"; failures=$((failures + 1))
+fi
+printf 'Seen in the zqx-synthetic-project repo.\n' > "$tmp/zqx-synthetic-project.md"
+out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" zqx-synthetic-project.md 2>&1)" && rc=0 || rc=$?
+if [ "$rc" -ne 1 ] || printf '%s' "$out" | grep -qF 'zqx-synthetic-project'; then
+  echo "FAIL identifier-file-name-in-path: the report printed the matched name from the path (exit $rc): $out"; failures=$((failures + 1))
+fi
 # A named file replaces the scope: a hit in the scope is not reported.
 printf 'Seen in the zqx-synthetic-project repo.\n' >> "$tmp/CLAUDE.md"
 out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" body-clean.md 2>&1)" && rc=0 || rc=$?
@@ -1427,9 +1450,10 @@ if [ "$rc" -ne 2 ] || ! printf '%s' "$out" | grep -qF "$tmp/absent"; then
 fi
 printf '# only comments\n' > "$tmp/empty-ids"
 out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/empty-ids" bash "$IDCHECK" body-clean.md 2>&1)" && rc=0 || rc=$?
-if [ "$rc" -ne 2 ]; then
+if [ "$rc" -ne 2 ] || ! printf '%s' "$out" | grep -qF "$tmp/empty-ids"; then
   echo "FAIL identifier-file-empty-idfile: named files with an empty identifier file did not exit 2 (exit $rc): $out"; failures=$((failures + 1))
 fi
+printf 'Seen in the zqx-synthetic-project repo.\n' >> "$tmp/CLAUDE.md"
 out="$(cd "$tmp" && IDENTIFIER_FILE="$tmp/identifiers" bash "$IDCHECK" 2>&1)" && rc=0 || rc=$?
 if [ "$rc" -ne 1 ] || ! printf '%s\n' "$out" | grep -qxF "CLAUDE.md:$(grep -c '' "$tmp/CLAUDE.md")"; then
   echo "FAIL identifier-no-args: no arguments did not scan the fixed scope (exit $rc): $out"; failures=$((failures + 1))

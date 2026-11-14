@@ -19,11 +19,15 @@ file for a review-time report over the live instruction files, the templates
 rendered beside them, these `docs/` notes and the `specs/claude-instructions`
 and `specs/review-skills` bundles. It runs by hand at task
 review and from the contract checker's fixture suite, prints file and line
-but never the matched name, warns when the identifier file is absent, and
-never blocks a commit.
+but never the matched name, warns when the identifier file is absent (with no
+arguments), and never blocks a commit.
 
 Given file arguments (`identifier-check.sh <file>...`) it scans exactly those
-files instead of that scope, and exits 2 for a named file that is missing or
-unreadable. That is the form to gate publishing a PR body with
-(`identifier-check.sh <body file> && gh pr create ...`); with no arguments
-it keeps the fixed scope and only warns when the identifier file is absent. With file arguments an absent or empty identifier file exits 2 instead, so a body is never published unscanned. Neither form is a commit gate.
+files instead of that scope, as text even when they hold a NUL byte or
+invalid encoding, and exits 2 for a named file that is missing or unreadable.
+That is the form to gate publishing a PR body with
+(`identifier-check.sh <body file> && gh pr create ...`). With file arguments
+an absent or empty identifier file exits 2 too, so a body is never published
+unscanned; with no arguments it keeps the fixed scope and only warns. A named
+path that itself holds an identifier is reported as `argument <n>` rather
+than echoed. Neither form is a commit gate.
