@@ -592,8 +592,8 @@ fi
 # two filenames because it is the specific setting that would widen the bind
 # past loopback (REQ-A1.3), and it would arrive by way of managing
 # `postgresql.conf`. The one exception is the runner's gate, which passes
-# `listen_addresses` to the server as a command-line option and so writes no
-# file; it stays subject to the two filenames.
+# `listen_addresses=localhost` to the server as a command-line option and so
+# writes no file; it stays subject to every other configuration route.
 # ---------------------------------------------------------------------------
 
 # `--others --exclude-standard` alongside the tracked listing, and not
