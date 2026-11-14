@@ -192,9 +192,10 @@ fi
 # 7. The shim alone: against a dead socket it must not start a server.
 dead="$scratch/sock/shim-dead"
 shim="$repo/roles/tmux/files/scripts/tpm-guard-bin/tmux"
-env -u TMUX TMUX_TMPDIR="$scratch/sock" TPM_GUARD_REAL_TMUX="$(command -v tmux)" "$shim" -S "$dead" list-keys >/dev/null 2>&1
+shim_out="$(env -u TMUX HOME="$home" TMUX_TMPDIR="$scratch/sock" TPM_GUARD_REAL_TMUX="$(command -v tmux)" "$shim" -S "$dead" list-keys 2>&1)"
+shim_rc=$?
 sleep 0.3
-if [ -S "$dead" ]; then fail 7 "the shim started a server on a dead socket"; else pass 7 "the shim started no server on a dead socket"; fi
+if [ "$shim_rc" -ne 0 ] && [ ! -S "$dead" ]; then pass 7 "the shim started no server on a dead socket"; else fail 7 "the shim started a server on a dead socket (exit $shim_rc: $shim_out)"; fi
 
 if [ "$fails" -gt 0 ]; then
     echo "tmux-tpm-guard-test: $fails failure(s)" >&2
