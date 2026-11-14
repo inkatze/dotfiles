@@ -86,25 +86,33 @@ owner test but applied to the whole repository, not one branch; a repo's own
 - A **collaborative repo** is one I own where another person works; one where
   you cannot tell whether another person works counts as one.
 
-In a solo repo, the session that completes the last step of the review cadence
-the PR calls for marks it ready itself once every step of that cadence has run
-to completion, CI is green on the current head and the PR is mergeable,
-re-checking each condition and the repo's kind immediately before the flip,
-and states the flip and the conditions it checked in its reply or handoff.
+The cadence flip: the session that completes the last step of the review
+cadence the PR calls for (the cadence my instructions and the repo's own
+`CLAUDE.md` call for) marks it ready itself once every step of that cadence has
+run to completion, CI is green on the current head and the PR is mergeable,
+re-checking each condition, the repo's kind and the PR's coverage below
+immediately before the flip, and states the flip and the conditions it checked
+in its reply or handoff.
 
-In a work or collaborative repo, marking a PR ready is mine to request and
-yours to perform, and a planwright config there sets
-`ready_flip_policy: human`; where a config exists without it, say so, keep
-configured flips from marking a PR ready and report any that already did. Once
-I have asked, do not hand the flip back to me as a manual step.
+In a solo repo the cadence flip covers every PR. In a work or collaborative
+repo it covers a PR I authored (its GitHub author is my login, whoever else has
+pushed to it) once I have asked, in that session or in the dispatch that opened
+it, for the change it carries, or once a session my hub (my program's
+mission-control session) dispatched, directly or through a session it
+dispatched, opened it; it never covers another person's PR. Any other flip
+there, another person's PR included, is mine to request and yours to perform;
+once I have asked, do not hand it back to me as a manual step. A planwright
+config there may set `ready_flip_policy: human`, which reserves its configured
+flips and a cadence flip a planwright worker would take: offer the flip to me
+in one line of your reply or handoff without waiting, my yes being the request.
 
 planwright's configured flips count as you flipping and follow the same scope,
 except one kept in every repository: the spec PR after a signed-off kickoff,
 which planwright marks ready by configuration. A flip I confirm when a run asks
-me is one I requested, and a no I give when asked holds: do not then flip that
-PR as the solo flip. A nested review loop's own convergence flip stays
-confirmation-gated in every repository, never counts as the solo flip, and
-evaluates these same conditions first.
+me is one I requested, and a no I give when asked holds for that PR until I say
+otherwise: do not then flip it as the cadence flip. A nested review loop's own
+convergence flip stays confirmation-gated in every repository, never counts as
+the cadence flip, and evaluates these same conditions first.
 
 If planwright's ready-guard hook denies a flip on a branch that meets these
 conditions, report the denial to me and never work around it: no sync to
@@ -145,7 +153,13 @@ When reviewing code or addressing review feedback:
 - Present the complete list first, as a numbered summary, then let me choose
   how to walk it rather than assuming all at once. The walk modes, option sets,
   progress tracker and the post-loop handoff that picks the mode itself are in
-  `~/.claude/skills/review-shared/workflow.md`.
+  `~/.claude/skills/review-shared/workflow.md`. I keep that choice for a review
+  I run attended that stops for findings. A review that applies findings to my
+  own branch and either runs unattended (no operator present) or was dispatched
+  by my hub (a chain of hub dispatches included) applies what its doctrine
+  allows without waiting for a walk choice and hands off the rest as that list.
+  Any other review that runs unattended or hub-dispatched hands off its
+  findings and applies none.
 - **Review doctrine is planwright's.** Issue and solution validation,
   discovery (its lens list included), refactor flags and, for reviews that
   apply findings to my own branch, finding categorization follow planwright's
@@ -177,9 +191,18 @@ The rule has exactly three exceptions:
 - Replies to automated reviewers, which are addressed to a bot even when a
   human may read them.
 - A go-ahead I give in my hub session (my program's mission-control session;
-  formerly central-command) for an exact message, relayed by the hub (typed
-  into the receiving session or sent with SendMessage), counts as given in the
-  receiving session. It covers only that exact text and recipient.
+  formerly central-command), either for an exact message, relayed by the hub
+  (typed into the receiving session or sent with SendMessage), which counts as
+  given in the receiving session and covers only that exact text and recipient,
+  or a standing go-ahead, which covers its messages in every session the hub
+  launched only once the hub records it as a program rule naming each recipient
+  (a resolved person or channel) and its message kinds (from the list above),
+  until I withdraw it. A go-ahead that outlives one session is a standing
+  go-ahead, never a run go-ahead. Before each send under a standing go-ahead,
+  read the live rule from the program's record, a launch-time copy not
+  counting; a withdrawn rule, or a record you cannot read, covers nothing. A
+  send under a standing go-ahead names the rule that covered it, by its rule id,
+  in your reply or handoff.
 
 An automated reviewer is an account GitHub reports as a bot, a login ending in
 `[bot]`, or a login that a configured bot-review pattern matches in full; a thread any
