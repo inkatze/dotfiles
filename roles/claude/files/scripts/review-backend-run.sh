@@ -17,13 +17,15 @@
 # that apply pass, 1 otherwise.
 #
 # gemini builds the outbound prompt in a fresh scratch directory, scans it with
-# gitleaks, runs gemini contained (empty scratch directory, plan mode, prompt on
-# stdin; its working directory holds only the prompt) under a bound, prints the model's output on stdout and the backend's
-# wall time as "backend_elapsed=<n>s backend_status=<n>" on stderr. Exit is the
-# backend's own status (124 on the bound, 137 if gemini ignored the TERM), 1 on a refused send, 4 when gemini
-# exits 0 with no output. The bound defaults to 540 seconds, inside a foreground
-# tool call, takes 1 to 999999 seconds, and needs timeout or gtimeout; without
-# either the script refuses with exit 1. The scan ignores inline allow markers, which a diff could carry.
+# gitleaks (inline allow markers ignored, since a diff could carry them), runs
+# gemini contained (plan mode, prompt on stdin, working directory holding only
+# the prompt) under a bound, prints the model's output on stdout and the
+# backend's wall time as "backend_elapsed=<n>s backend_status=<n>" on stderr.
+# Exit is the backend's own status (124 on the bound, 137 if gemini ignored the
+# TERM), 1 on a refused send, 4 when gemini exits 0 with no output. The bound
+# defaults to 540 seconds, inside a foreground tool call, takes 1 to 999999
+# seconds, and needs timeout or gtimeout; without either the script refuses with
+# exit 1.
 #
 # Tests set PANEL_BACKEND_TEST=1 and point PANEL_GEMINI_BIN, PANEL_NODE_DIR,
 # PANEL_GITLEAKS_BIN, PANEL_EGRESS_FILE at stubs. Without the marker those are
@@ -114,8 +116,8 @@ cmd_gemini() {
     [ -n "$f" ] && [ -s "$f" ] || die "gemini: a required input file is missing or empty: ${f:-unset}"
   done
   [ -n "$base" ] || die "gemini: --base is required"
-  case "$bound" in ''|*[!0-9]*|???????*) die "gemini: --timeout must be 1 to 999999 whole seconds, no longer spelling" ;; esac
-  [ "$((10#$bound))" -ge 1 ] || die "gemini: --timeout must be whole seconds, at least 1"
+  case "$bound" in ''|*[!0-9]*|???????*) die "gemini: --timeout must be 1 to 999999 whole seconds, without leading zeros" ;; esac
+  [ "$((10#$bound))" -ge 1 ] || die "gemini: --timeout must be 1 to 999999 whole seconds, without leading zeros"
   case "$base" in -*) die "gemini: --base must be a revision, not an option" ;; esac
   git rev-parse --verify --quiet --end-of-options "$base^{commit}" > /dev/null || die "gemini: --base is not a revision in this repository: $base"
   command -v timeout > /dev/null 2>&1 || command -v gtimeout > /dev/null 2>&1 \
