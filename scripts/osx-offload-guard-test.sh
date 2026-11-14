@@ -13,6 +13,8 @@
 #   themselves stay unguarded, for the same reason.
 # - The GitHub MCP sync and the desktop defaults (osx.yml) are skipped on the
 #   offload host, and the screensaver delay is declared float.
+# - Git auto-gc is turned off in the work account by offload-git.yml, which is
+#   included only on the offload hosts and never writes through a symlink.
 
 set -eu
 
@@ -206,8 +208,15 @@ ok("git_config writes the global scope") if gc and all(g.get("scope") == "global
 pairs = {(i["name"], i["value"]) for t in git_tasks if "community.general.git_config" in t for i in t.get("loop", [])}
 for want in (("gc.auto", "0"), ("maintenance.auto", "false")):
     ok(f"{want[0]}={want[1]} is set") if want in pairs else ko(f"{want[0]} is not set to {want[1]}")
-gct = next(t for t in git_tasks if "community.general.git_config" in t)
-ok("a symlinked ~/.gitconfig is never written through") if "not (osx_offload_gitconfig.stat.islnk | default(false))" in whens(gct) else ko("git_config is not skipped for a symlinked ~/.gitconfig")
+gct = next((t for t in git_tasks if "community.general.git_config" in t), None)
+if gct is None:
+    ko("offload-git.yml has no git_config task")
+else:
+    cfg = gct["community.general.git_config"]
+    ok("each key and value comes from the loop item") if cfg.get("name") == "{{ item.name }}" and cfg.get("value") == "{{ item.value }}" else ko("git_config does not write the loop item")
+    ok("a symlinked ~/.gitconfig is never written through") if "not (osx_offload_gitconfig.stat.islnk | default(false))" in whens(gct) else ko("git_config is not skipped for a symlinked ~/.gitconfig")
+    st = next((t for t in git_tasks if "ansible.builtin.stat" in t), None)
+    ok("the symlink check stats ~/.gitconfig without following it") if st and st["ansible.builtin.stat"].get("follow") is False and st["ansible.builtin.stat"].get("path", "").endswith("/.gitconfig") and st.get("register") == "osx_offload_gitconfig" else ko("the symlink check does not stat ~/.gitconfig with follow: false into osx_offload_gitconfig")
 inc = [t for t in load("main.yml") if t.get("ansible.builtin.include_tasks") == "offload-git.yml"]
 ok("offload-git.yml is included only on the offload hosts") if inc and "inventory_hostname in osx_offload_hosts" in whens(inc[0]) else ko("offload-git.yml is not guarded to the offload hosts")
 

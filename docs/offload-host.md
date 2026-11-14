@@ -201,7 +201,8 @@ The play (`roles/osx/tasks/offload-git.yml`) sets `gc.auto=0` and
 `maintenance.auto=false` in the work account's global git config: background
 auto-gc removed loose-object directories in the middle of runner jobs and
 broke mise-action. The keys land below the git role's include block, and only
-on this host.
+on this host. A `~/.gitconfig` still symlinked at a checkout is skipped
+until the git role replaces it, so the keys land on the next run.
 
 ## GitHub Actions runners
 
