@@ -38,6 +38,7 @@ cat > "$w/bin/gitleaks" <<'STUB'
 #!/usr/bin/env bash
 [ -z "${STUB_LEAK:-}" ] || { echo leak >&2; exit 1; }
 cat "$2"/prompt.txt > "$REC/scanned"
+printf '%s\n' "$@" > "$REC/gitleaks-args"
 STUB
 chmod +x "$w/bin/gemini" "$w/bin/gitleaks"
 
@@ -94,10 +95,10 @@ run "$tool" gemini "${args[@]}" --base nosuchrev > /dev/null 2> "$w/err"
 check "an unknown base is refused" "$?" "1"
 run "$tool" gemini "${args[@]}" --timeout 00 > /dev/null 2> "$w/err"
 check "a zero bound, however spelled, is refused" "$?" "1"
-printf 'x // gitleaks:allow\n' > "$w/tool2"
-run "$tool" gemini --lens-doc "$w/lens.md" --instruction-file "$w/instr" --format-file "$w/fmt" --tooling-file "$w/tool2" --base main~1 > /dev/null 2> "$w/err"
-check "a gitleaks:allow marker is refused" "$?" "1"
-grep -q 'gitleaks:allow' "$w/err" && ok "the refusal names the marker" || ko "refusal not named"
+run "$tool" gemini "${args[@]}" --timeout 99999999999999999999 > /dev/null 2> "$w/err"
+check "an absurd bound is refused" "$?" "1"
+run "$tool" gemini "${args[@]}" > /dev/null 2> "$w/err"
+grep -qx -e '--ignore-gitleaks-allow' "$w/rec/gitleaks-args" && ok "the scan ignores inline allow markers" || ko "inline allow markers could skip the scan"
 STUB_BLANK=1 run "$tool" gemini "${args[@]}" > /dev/null 2> "$w/err"
 check "whitespace-only output is a failure (4)" "$?" "4"
 run "$tool" gemini --lens-doc "$w/lens.md" --instruction-file "$w/nope" --format-file "$w/fmt" --tooling-file "$w/tool" --base main~1 > /dev/null 2> "$w/err"
