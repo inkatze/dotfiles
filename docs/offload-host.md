@@ -195,6 +195,14 @@ In order; each step needs a person, except the playbook run on `server`.
    `~/.ssh/id_signing.pub` to `roles/ssh/files/allowed_signers` in a
    follow-up commit so local signature checks pass.
 
+## Git auto-gc
+
+The play (`roles/osx/tasks/offload-git.yml`) sets `gc.auto=0` and
+`maintenance.auto=false` in the work account's global git config: background
+auto-gc removed loose-object directories in the middle of runner jobs and
+broke mise-action. The keys land below the git role's include block, and only
+on this host.
+
 ## GitHub Actions runners
 
 The play (`roles/osx/tasks/offload-runner.yml`) turns the work account into a

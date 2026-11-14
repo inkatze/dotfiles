@@ -1,0 +1,15 @@
+---
+
+# Background git gc in the work account has removed loose-object directories
+# in the middle of runner jobs. Set in the account's own global config, below
+# the git role's include block: no sudo, nothing of the owner's.
+
+- name: Turn off git auto-gc and auto-maintenance in the work account
+  community.general.git_config:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    scope: global
+  loop:
+    - { name: gc.auto, value: "0" }
+    - { name: maintenance.auto, value: "false" }
+  tags: [osx, offload, git]

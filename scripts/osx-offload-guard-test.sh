@@ -114,7 +114,7 @@ else:
     ko(f"osx_brew_writable is set ahead of the imports as {writable}")
 
 print("1b. the offload host's own tasks never ask for sudo")
-for fname in ("offload-host.yml", "offload-tools.yml", "offload-runner.yml", "offload-redis.yml"):
+for fname in ("offload-host.yml", "offload-tools.yml", "offload-runner.yml", "offload-redis.yml", "offload-git.yml"):
     becomes = [
         sub["name"]
         for t in load(fname)
@@ -198,6 +198,16 @@ for needle in ("runner-start.sh", "RUNNER_GATE=", "redis-gate.sh", "RUNNER_PID_P
     ok(f"the job carries {needle}") if needle in job else ko(f"the job lacks {needle}")
 ok("the job has no %, which ends a cron command") if "%" not in job else ko("the job holds a %")
 ok("the job has no RUNNER_LOAD_MAX: load never stops the server") if "RUNNER_LOAD_MAX" not in job else ko("the job sets RUNNER_LOAD_MAX")
+
+print("7. git auto-gc is off in the work account, on the offload host only")
+git_tasks = load("offload-git.yml")
+gc = [t["community.general.git_config"] for t in git_tasks if "community.general.git_config" in t]
+ok("git_config writes the global scope") if gc and all(g.get("scope") == "global" for g in gc) else ko("a git_config task is not global scope")
+pairs = {(i["name"], i["value"]) for t in git_tasks if "community.general.git_config" in t for i in t.get("loop", [])}
+for want in (("gc.auto", "0"), ("maintenance.auto", "false")):
+    ok(f"{want[0]}={want[1]} is set") if want in pairs else ko(f"{want[0]} is not set to {want[1]}")
+inc = [t for t in load("main.yml") if t.get("ansible.builtin.include_tasks") == "offload-git.yml"]
+ok("offload-git.yml is included only on the offload hosts") if inc and "inventory_hostname in osx_offload_hosts" in whens(inc[0]) else ko("offload-git.yml is not guarded to the offload hosts")
 
 print(f"\nosx-offload-guard: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
