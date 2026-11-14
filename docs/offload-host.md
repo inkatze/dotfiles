@@ -271,6 +271,14 @@ defaults; bump both together.
   stay niced and the gate still stops the listener while someone uses the Mac.
   Stopping a runner now means stopping its gate and the caffeinate above it:
   `pkill -f 'runner-gate.sh <runner-dir>'` as well as the pid file's process.
+  `-i` does not stop the maintenance sleep that froze all four runners and
+  failed a running job, so each runner's job-started hook also starts
+  `/usr/bin/caffeinate -s -w <worker pid>` once it accepts a job: the system stays
+  awake (on AC power only) for exactly the job's lifetime, the assertion ends
+  when the worker does, and nothing is left running between jobs. No `pmset` or
+  system setting is touched. The start path uses neither `nohup` nor any other
+  wrapper that ignores SIGHUP (jobs inherit it, which fails signal tests): it
+  starts the gate under job control, so SIGHUP and SIGINT stay at their defaults.
 - **Job environment.** Each runner's `.env` sets `PLANWRIGHT_TEST_JOBS` to half the
   Mac's core count (from Ansible's facts), at least 1: one suite alone stays
   inside its job time cap and two at once still fit, where every suite fanning

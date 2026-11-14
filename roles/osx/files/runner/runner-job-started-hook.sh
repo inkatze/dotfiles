@@ -7,6 +7,11 @@
 # repository it serves, as owner/repo, in the sibling runner-hook-<slug>.repo.
 # Fails closed: an unreadable repository file, an unreadable or missing payload,
 # or any event but push and pull_request refuses.
+#
+# A job that passes also keeps the Mac out of system sleep: caffeinate -s (held
+# only on AC power) waits on the runner's worker process, so it ends with the
+# job and never outlives it. Idle sleep alone is blocked by the gate's own
+# caffeinate -i; the maintenance sleep that froze a running job is not.
 set -eu
 
 refuse() {
@@ -30,3 +35,23 @@ pull_request)
     ;;
 *) refuse "event '${GITHUB_EVENT_NAME:-}' is not push or pull_request" ;;
 esac
+
+# The worker runs this hook, directly or through a shell; hold on the nearest
+# ancestor that is the worker, falling back to the parent. Best effort: a Mac
+# without caffeinate still runs the job.
+caffeinate="${RUNNER_HOOK_CAFFEINATE:-/usr/bin/caffeinate}"
+if [ -x "$caffeinate" ]; then
+    holder=$PPID
+    p=$PPID
+    for _ in 1 2 3 4; do
+        case "$(ps -p "$p" -o command= 2>/dev/null)" in
+        *Runner.Worker*)
+            holder=$p
+            break
+            ;;
+        esac
+        p="$(ps -p "$p" -o ppid= 2>/dev/null | tr -d ' ')"
+        [ -n "$p" ] && [ "$p" -gt 1 ] 2>/dev/null || break
+    done
+    "$caffeinate" -s -w "$holder" </dev/null >/dev/null 2>&1 &
+fi

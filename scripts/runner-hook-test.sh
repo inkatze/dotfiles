@@ -58,5 +58,41 @@ check "a missing repository file is refused" refuses q/s push "" "$scratch/lone/
 : >"$scratch/lone/runner-hook-q-s.repo"
 check "an empty repository file is refused" refuses q/s push "" "$scratch/lone/runner-hook-q-s.sh"
 
+# An accepted job holds caffeinate -s on the worker, which ends with the job;
+# a refused job holds nothing.
+cat >"$scratch/caffeinate" <<'STUB'
+#!/bin/sh
+d="$(dirname "$0")"
+echo "$*" >>"$d/awake"
+echo $$ >>"$d/awake.pid"
+while [ "$1" != -w ]; do shift; done
+while kill -0 "$2" 2>/dev/null; do sleep 0.1; done
+STUB
+chmod +x "$scratch/caffeinate"
+cat >"$scratch/Runner.Worker" <<'STUB'
+#!/bin/sh
+"$1"
+sleep 1
+STUB
+chmod +x "$scratch/Runner.Worker"
+GITHUB_REPOSITORY=o/r GITHUB_EVENT_NAME=push RUNNER_HOOK_CAFFEINATE="$scratch/caffeinate" \
+    "$scratch/Runner.Worker" "$hook" &
+worker=$!
+for _ in $(seq 50); do [ -s "$scratch/awake.pid" ] && break; sleep 0.1; done
+check "an accepted job holds caffeinate -s on the runner's worker" \
+    grep -qx -- "-s -w $worker" "$scratch/awake"
+wait "$worker"
+for _ in $(seq 50); do kill -0 "$(tail -n 1 "$scratch/awake.pid")" 2>/dev/null || break; sleep 0.1; done
+check "the hold ends with the job and leaves no caffeinate behind" \
+    sh -c '! kill -0 "$(tail -n 1 "$1")" 2>/dev/null' _ "$scratch/awake.pid"
+rm -f "$scratch/awake" "$scratch/awake.pid"
+GITHUB_REPOSITORY=x/y GITHUB_EVENT_NAME=push RUNNER_HOOK_CAFFEINATE="$scratch/caffeinate" \
+    "$hook" >/dev/null 2>&1 || true
+check "a refused job holds nothing" test ! -e "$scratch/awake"
+check "a missing caffeinate does not fail an accepted job" \
+    env GITHUB_REPOSITORY=o/r GITHUB_EVENT_NAME=push RUNNER_HOOK_CAFFEINATE="$scratch/none" "$hook"
+check "the hook takes the assertion with -s via /usr/bin/caffeinate" \
+    grep -q -- '/usr/bin/caffeinate' "$repo/roles/osx/files/runner/runner-job-started-hook.sh"
+
 echo "runner-hook: $passed passed, $failed failed"
 [ "$failed" -eq 0 ]

@@ -49,8 +49,14 @@ awake=()
 caffeinate="${RUNNER_CAFFEINATE:-/usr/bin/caffeinate}"
 [ -x "$caffeinate" ] && awake=("$caffeinate" -i)
 
-# The expansion form keeps an empty array legal under set -u on macOS bash 3.2.
-nohup ${low_io[@]+"${low_io[@]}"} nice -n "$nice_level" \
+# No nohup, and no other wrapper that ignores SIGHUP: every job would inherit
+# the ignored disposition, which breaks the signal handling jobs test. Job
+# control (set -m) is what keeps the background start from ignoring SIGINT, as a
+# bare `&` in a script does, and puts the gate in its own process group so a
+# hangup aimed at the starter's cannot reach it. The expansion form keeps an
+# empty array legal under set -u on macOS bash 3.2.
+set -m
+${low_io[@]+"${low_io[@]}"} nice -n "$nice_level" \
     ${awake[@]+"${awake[@]}"} "$gate" "$dir" \
     >>"$cache/$prefix-$slug.out" 2>>"$cache/$prefix-$slug.err" </dev/null &
 echo $! >"$pidfile"
