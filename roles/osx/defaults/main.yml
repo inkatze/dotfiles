@@ -284,7 +284,7 @@ osx_offload_required_tools: [brew, op, jq, mise, fish, tmux, gh, git]
 
 # Installed by mise from roles/osx/files/mise-offload/offload.toml, in this
 # order (uv before the pipx: entry).
-osx_offload_mise_tools: [uv, "pipx:ansible-core", gh, jq, tmux, gitleaks, gemini]
+osx_offload_mise_tools: [uv, "pipx:ansible-core", gh, jq, tmux, gitleaks, gemini, postgres]
 osx_offload_mise_bin: "{{ ansible_facts.env.HOME }}/.local/bin/mise"
 osx_offload_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
 # The owner's Homebrew binaries, used read-only (Apple silicon's prefix).
@@ -375,3 +375,33 @@ osx_redis_start_job: >-
   RUNNER_NICE={{ osx_runner_nice }}
   {{ ansible_facts.env.HOME }}/.local/bin/runner-start.sh
   {{ osx_redis_dir }}
+
+# PostgreSQL for the offload account, from mise (osx_offload_mise_tools). The
+# server runs only while the Mac is idle, started from the account's crontab by
+# the same starter as the runners, under runner-gate.sh's idle rule
+# (osx_runner_idle_seconds, osx_runner_load_max).
+osx_postgres_data: "{{ ansible_facts.env.HOME }}/postgresql-16"
+# Mode 0700, so only the account itself reaches the server over its socket.
+osx_postgres_socket_dir: "{{ ansible_facts.env.HOME }}/postgresql-16-run"
+osx_postgres_port: 5432
+osx_postgres_role: fleet
+osx_postgres_pgpass: "{{ ansible_facts.env.HOME }}/.pgpass"
+# A test suite's pool is two connections per scheduler per partition; sized
+# for this many partitions on this Mac's cores, plus headroom, never below
+# PostgreSQL's own default of 100. Raise the partitions for a wider run.
+osx_postgres_partitions: 4
+osx_postgres_max_connections: >-
+  {{ [100, (ansible_facts.processor_vcpus | default(8) | int) * 2 * osx_postgres_partitions + 50] | max }}
+osx_postgres_start_job: >-
+  /usr/bin/env PATH={{ osx_runner_path }}
+  RUNNER_IDLE_SECONDS={{ osx_runner_idle_seconds }}
+  RUNNER_LOAD_MAX={{ osx_runner_load_max }}
+  RUNNER_NICE={{ osx_runner_nice }}
+  RUNNER_GATE={{ ansible_facts.env.HOME }}/.local/bin/postgres-gate.sh
+  RUNNER_PID_PREFIX=dotfiles-postgres
+  POSTGRES_PORT={{ osx_postgres_port }}
+  POSTGRES_SOCKET_DIR={{ osx_postgres_socket_dir }}
+  POSTGRES_MAX_CONNECTIONS={{ osx_postgres_max_connections }}
+  POSTGRES_ROLE={{ osx_postgres_role }}
+  {{ ansible_facts.env.HOME }}/.local/bin/runner-start.sh
+  {{ osx_postgres_data }}
