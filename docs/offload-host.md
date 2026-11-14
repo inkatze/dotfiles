@@ -216,8 +216,8 @@ defaults; bump both together.
   running copy) and does nothing when it already runs, so a re-check never
   disturbs a job. The gate outlives the cron job and any ssh session. The
   crontab lines carry no `%`, which cron reads as a newline. To stop a runner,
-  kill the pid in `~/.cache/dotfiles-runner-<owner>-<repo>.pid` and remove its
-  two `dotfiles runner` lines from `crontab -e`.
+  remove its two `dotfiles runner` lines from `crontab -e`, then kill the pid in
+  `~/.cache/dotfiles-runner-<slug>.pid` and its gate (see Staying awake).
 - **Yielding.** `runner-gate.sh` starts the runner in `--once` mode, only while
   the keyboard and mouse have been still for `osx_runner_idle_seconds` and the
   one-minute load average is under `osx_runner_load_max` (default 6). Whichever

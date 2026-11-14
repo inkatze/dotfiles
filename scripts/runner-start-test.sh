@@ -272,6 +272,9 @@ else:
     for reg in ("osx_runner_hook_env", "osx_runner_npm_env", "osx_runner_job_path"):
         if reg not in cond:
             bad.append(f"listener restart ignores {reg}")
+if not any(t["name"] == "Require the system jq the job-started hook reads payloads with"
+           and at(t["name"]) < at("Install each runner's job-started hook") for t in tasks):
+    bad.append("the play does not require /usr/bin/jq before installing the hook")
 if bad:
     print("\n".join("    " + b for b in bad)); sys.exit(1)
 PY

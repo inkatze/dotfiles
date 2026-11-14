@@ -101,6 +101,15 @@
   loop: "{{ osx_runner_units }}"
   tags: [osx, offload, runner]
 
+# The hook reads a pull request's head repository with the system jq (macOS 15
+# and later); without it the hook would refuse every job, so stop here instead.
+- name: Require the system jq the job-started hook reads payloads with
+  ansible.builtin.stat:
+    path: /usr/bin/jq
+  register: osx_runner_system_jq
+  failed_when: not osx_runner_system_jq.stat.exists
+  tags: [osx, offload, runner]
+
 # The hook refuses every job that is not the runner's own repository's, push or
 # same-repository pull request. A copy per runner sits outside its directory
 # (a runner update replaces that), beside a file naming its repository; a
