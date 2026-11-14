@@ -304,7 +304,10 @@ osx_runner_sha256: 25a065af409ffa317ab4d5a3b614dd15fc9c40f2172bc1b35a1b1258e919a
 osx_runner_asset: "actions-runner-osx-{{ osx_runner_arch }}-{{ osx_runner_version }}.tar.gz"
 osx_runner_url: "https://github.com/actions/runner/releases/download/v{{ osx_runner_version }}/{{ osx_runner_asset }}"
 osx_runner_root: "{{ ansible_facts.env.HOME }}/actions-runners"
-osx_runner_labels: mac-fleet
+# Every instance carries both: `mac-fleet` is what this repository's workflow
+# targets, `offload-mac-ci` what planwright's does.
+osx_runner_labels: mac-fleet,offload-mac-ci
+osx_runner_name: offload-mac-ci
 osx_runner_nice: 10
 # Minutes between the crontab's checks that each gate still runs.
 osx_runner_recheck_minutes: 5
@@ -321,12 +324,25 @@ osx_runner_system_path: /usr/bin:/bin:/usr/sbin:/sbin
 osx_runner_path: >-
   {{ osx_offload_mise_bin | dirname }}:{{ osx_runner_shims }}:{{ osx_offload_brew_bin }}:{{ osx_runner_system_path }}
 osx_runner_shims: "{{ ansible_facts.env.HOME }}/.local/share/mise/shims"
+# A job's `npm install -g` must land in the work account's own prefix, never the
+# owner's Homebrew one, which the work account cannot write.
+osx_runner_npm_prefix: "{{ ansible_facts.env.HOME }}/.npm-global"
+# A job's `npm` must not resolve to a mise shim with no version set (planwright's
+# mise.toml pins no node), so the runners' PATH carries this node's own bin,
+# installed in the work account by the play.
+osx_runner_node_version: 22.21.1
+osx_runner_node_bin: "{{ ansible_facts.env.HOME }}/.local/share/mise/installs/node/{{ osx_runner_node_version }}/bin"
+osx_runner_job_path_prefix: "{{ osx_runner_npm_prefix }}/bin:{{ osx_runner_node_bin }}"
 
 # Repositories whose names this repo already carries. Private ones come from
 # the machine-local file below, one owner/repo per line (# comments allowed).
 osx_runner_repos:
   - inkatze/planwright
   - inkatze/dotfiles
+# How many runner instances a repository gets; absent means one. An instance
+# beyond the first is its own directory `<owner>-<repo>-<n>` and registration.
+osx_runner_instances:
+  inkatze/planwright: 4
 osx_runner_repos_file: "{{ ansible_facts.env.HOME }}/.config/dotfiles/runner-repos"
 
 # No new job starts until the keyboard and mouse have been idle this long,

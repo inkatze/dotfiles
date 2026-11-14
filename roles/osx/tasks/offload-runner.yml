@@ -28,6 +28,25 @@
   loop: "{{ osx_runner_all_repos }}"
   tags: [osx, offload, runner]
 
+# One unit per runner instance: a repository's first is `<owner>-<repo>`, the
+# next `<owner>-<repo>-2` and so on, each its own directory and registration,
+# named as the planwright stopgap's live runners are (`offload-mac-ci`, `-2`, ...)
+# so an adopted directory and a fresh one agree.
+- name: Fix the runner instances
+  ansible.builtin.set_fact:
+    osx_runner_units: >-
+      {%- set out = [] -%}
+      {%- for repo in osx_runner_all_repos -%}
+      {%- set base = repo | replace('/', '-') -%}
+      {%- for n in range(1, (osx_runner_instances[repo] | default(1) | int) + 1) -%}
+      {%- set slug = base if n == 1 else base ~ '-' ~ n -%}
+      {%- set _ = out.append({'repo': repo, 'n': n, 'slug': slug,
+          'dir': osx_runner_root ~ '/' ~ slug, 'name': osx_runner_name ~ ('' if n == 1 else '-' ~ n)}) -%}
+      {%- endfor -%}
+      {%- endfor -%}
+      {{ out }}
+  tags: [osx, offload, runner]
+
 - name: Create the runner directories
   ansible.builtin.file:
     path: "{{ item }}"
@@ -38,6 +57,8 @@
     - "{{ osx_runner_root }}/_download"
     - "{{ ansible_facts.env.HOME }}/.cache"
     - "{{ ansible_facts.env.HOME }}/.local/bin"
+    - "{{ osx_runner_npm_prefix }}"
+    - "{{ osx_runner_npm_prefix }}/bin"
   tags: [osx, offload, runner]
 
 # get_url verifies the pinned sha256 and re-downloads only when it differs.
@@ -57,14 +78,16 @@
   loop:
     - runner-gate.sh
     - runner-start.sh
+    - runner-workdir.sh
+    - runner-refresh.sh
   tags: [osx, offload, runner]
 
 - name: Create a runner directory per repository
   ansible.builtin.file:
-    path: "{{ osx_runner_root }}/{{ item | replace('/', '-') }}"
+    path: "{{ item.dir }}"
     state: directory
     mode: "0755"
-  loop: "{{ osx_runner_all_repos }}"
+  loop: "{{ osx_runner_units }}"
   tags: [osx, offload, runner]
 
 # An unpacked directory is left alone, so a version bump reaches only a runner
@@ -72,17 +95,37 @@
 - name: Unpack the runner into each directory
   ansible.builtin.unarchive:
     src: "{{ osx_runner_root }}/_download/runner-{{ osx_runner_version }}.tar.gz"
-    dest: "{{ osx_runner_root }}/{{ item | replace('/', '-') }}"
+    dest: "{{ item.dir }}"
     remote_src: true
-    creates: "{{ osx_runner_root }}/{{ item | replace('/', '-') }}/config.sh"
-  loop: "{{ osx_runner_all_repos }}"
+    creates: "{{ item.dir }}/config.sh"
+  loop: "{{ osx_runner_units }}"
+  tags: [osx, offload, runner]
+
+# The hook refuses every job that is not the runner's own repository's, push or
+# same-repository pull request. A copy per runner sits outside its directory
+# (a runner update replaces that), beside a file naming its repository; a
+# failure here stops the play before any gate is scheduled.
+- name: Install each runner's job-started hook
+  ansible.builtin.copy:
+    src: runner/runner-job-started-hook.sh
+    dest: "{{ ansible_facts.env.HOME }}/.local/bin/runner-hook-{{ item.slug }}.sh"
+    mode: "0755"
+  loop: "{{ osx_runner_units }}"
+  tags: [osx, offload, runner]
+
+- name: Name each hook's repository
+  ansible.builtin.copy:
+    content: "{{ item.repo }}\n"
+    dest: "{{ ansible_facts.env.HOME }}/.local/bin/runner-hook-{{ item.slug }}.repo"
+    mode: "0644"
+  loop: "{{ osx_runner_units }}"
   tags: [osx, offload, runner]
 
 - name: Check which runners are already registered
   ansible.builtin.stat:
-    path: "{{ osx_runner_root }}/{{ item | replace('/', '-') }}/.runner"
+    path: "{{ item.dir }}/.runner"
   register: osx_runner_registered
-  loop: "{{ osx_runner_all_repos }}"
+  loop: "{{ osx_runner_units }}"
   tags: [osx, offload, runner]
 
 # The token comes from the gh login of the account running the play, lives
@@ -91,14 +134,14 @@
 # which could echo a token.
 - name: Fetch a registration token for each unregistered repository
   ansible.builtin.command:
-    argv: [gh, api, --method, POST, "repos/{{ item.item }}/actions/runners/registration-token", --jq, .token]
+    argv: [gh, api, --method, POST, "repos/{{ item.item.repo }}/actions/runners/registration-token", --jq, .token]
   register: osx_runner_tokens
   changed_when: false
   failed_when: false
   no_log: true
   loop: "{{ osx_runner_registered.results }}"
   loop_control:
-    label: "{{ item.item }}"
+    label: "{{ item.item.slug }}"
   when: not item.stat.exists
   tags: [osx, offload, runner]
 
@@ -106,13 +149,13 @@
   ansible.builtin.assert:
     that: item.rc == 0 and item.stdout | length > 0
     fail_msg: >-
-      Could not get a runner registration token for {{ item.item.item }}; the
+      Could not get a runner registration token for {{ item.item.item.repo }}; the
       gh login of {{ osx_offload_user }} needs admin on it
       (gh auth status, then re-run).
     quiet: true
   loop: "{{ osx_runner_tokens.results | selectattr('rc', 'defined') | list }}"
   loop_control:
-    label: "{{ item.item.item }}"
+    label: "{{ item.item.item.slug }}"
   tags: [osx, offload, runner]
 
 - name: Register each unregistered runner
@@ -121,20 +164,120 @@
       - ./config.sh
       - --unattended
       - --url
-      - "https://github.com/{{ item.item.item }}"
+      - "https://github.com/{{ item.item.item.repo }}"
       - --name
-      - "mac-fleet-{{ item.item.item | replace('/', '-') }}"
+      - "{{ item.item.item.name }}"
       - --labels
       - "{{ osx_runner_labels }}"
+      - --work
+      - _work.noindex
       - --replace
-    chdir: "{{ osx_runner_root }}/{{ item.item.item | replace('/', '-') }}"
-    creates: "{{ osx_runner_root }}/{{ item.item.item | replace('/', '-') }}/.runner"
+    chdir: "{{ item.item.item.dir }}"
+    creates: "{{ item.item.item.dir }}/.runner"
   environment:
     ACTIONS_RUNNER_INPUT_TOKEN: "{{ item.stdout }}"
   no_log: true
   loop: "{{ osx_runner_tokens.results | selectattr('rc', 'defined') | list }}"
   loop_control:
-    label: "{{ item.item.item }}"
+    label: "{{ item.item.item.slug }}"
+  tags: [osx, offload, runner]
+
+# Chosen over a global `mise use -g node`: the pin stays in the role, visible
+# beside the runners it serves, and the account's own mise config is untouched.
+- name: Install the runners' node
+  ansible.builtin.command:
+    argv: ["{{ osx_offload_mise_bin }}", install, "node@{{ osx_runner_node_version }}"]
+    creates: "{{ osx_runner_node_bin }}/node"
+  environment:
+    PATH: "{{ osx_offload_mise_bin | dirname }}:{{ osx_runner_system_path }}"
+  tags: [osx, offload, runner]
+
+# Spotlight indexed the runners' checkouts and loaded the Mac while its owner
+# used it. A fresh runner registers with `--work _work.noindex`; an existing
+# one, whose work folder config.sh cannot change, gets it moved behind a symlink
+# (skipped while a job runs).
+- name: Keep each runner's work directory out of Spotlight
+  ansible.builtin.command:
+    argv: ["{{ ansible_facts.env.HOME }}/.local/bin/runner-workdir.sh", "{{ item.dir }}"]
+  register: osx_runner_workdir
+  changed_when: "'moved' in osx_runner_workdir.stdout"
+  loop: "{{ osx_runner_units }}"
+  loop_control:
+    label: "{{ item.slug }}"
+  tags: [osx, offload, runner]
+
+# config.sh rewrites .path (and may rewrite .env) when it registers, so both are
+# written only after registration. No runner starts before them: the gates are
+# scheduled last, and the hook is installed above.
+- name: Point each runner at its hook
+  ansible.builtin.lineinfile:
+    path: "{{ item.dir }}/.env"
+    regexp: "^ACTIONS_RUNNER_HOOK_JOB_STARTED="
+    line: >-
+      ACTIONS_RUNNER_HOOK_JOB_STARTED={{ ansible_facts.env.HOME }}/.local/bin/runner-hook-{{ item.slug }}.sh
+    create: true
+    mode: "0644"
+  loop: "{{ osx_runner_units }}"
+  register: osx_runner_hook_env
+  tags: [osx, offload, runner]
+
+- name: Give each runner its own npm prefix
+  ansible.builtin.lineinfile:
+    path: "{{ item.dir }}/.env"
+    regexp: "^NPM_CONFIG_PREFIX="
+    line: "NPM_CONFIG_PREFIX={{ osx_runner_npm_prefix }}"
+    create: true
+    mode: "0644"
+  loop: "{{ osx_runner_units }}"
+  register: osx_runner_npm_env
+  tags: [osx, offload, runner]
+
+# The pattern skips a .path already prefixed.
+- name: Put each runner's npm prefix and node first on its job PATH
+  ansible.builtin.lineinfile:
+    path: "{{ item.dir }}/.path"
+    regexp: "^(?!{{ osx_runner_job_path_prefix | regex_escape }}:)(.*)$"
+    line: '{{ osx_runner_job_path_prefix }}:\1'
+    backrefs: true
+  loop: "{{ osx_runner_units }}"
+  register: osx_runner_job_path
+  tags: [osx, offload, runner]
+
+# A listener started before those writes holds the old environment, and --once
+# means a job-serving one exits after its job and the gate starts the next from
+# the new files; so only an idle listener of a changed runner is stopped, and
+# its gate starts a fresh one.
+- name: Restart each changed runner's idle listener
+  ansible.builtin.command:
+    argv: ["{{ ansible_facts.env.HOME }}/.local/bin/runner-refresh.sh", "{{ item.dir }}"]
+  loop: "{{ osx_runner_units }}"
+  loop_control:
+    index_var: idx
+    label: "{{ item.slug }}"
+  when: >-
+    osx_runner_hook_env.results[idx].changed
+    or osx_runner_npm_env.results[idx].changed
+    or osx_runner_job_path.results[idx].changed
+  changed_when: false
+  tags: [osx, offload, runner]
+
+# Hand-set @reboot lines (tagged `# offload-mac-ci-<repo>-runner[-<n>]`) start
+# run.sh bare, bypassing the gate, the hook and the yield rule, and cron's name
+# matching cannot adopt them (it keys on its own marker line). Remove them; a
+# listener they already started keeps running until stopped (docs/offload-host.md).
+- name: Retire the hand-set runner crontab lines
+  ansible.builtin.shell: |
+    set -euo pipefail
+    cur="$(/usr/bin/crontab -l 2>/dev/null || true)"
+    new="$(printf '%s\n' "$cur" | /usr/bin/grep -Ev '# offload-mac-ci-[a-z0-9-]+-runner(-[0-9]+)?$' || true)"
+    if [ "$new" != "$cur" ]; then
+      printf '%s\n' "$new" | /usr/bin/crontab -
+      echo retired
+    fi
+  args:
+    executable: /bin/bash
+  register: osx_runner_legacy_cron
+  changed_when: "'retired' in osx_runner_legacy_cron.stdout"
   tags: [osx, offload, runner]
 
 # The fleet account only ever logs in over ssh, so it has no launchd user domain
@@ -144,34 +287,34 @@
 # leaves the running gate, and any job it is serving, alone.
 - name: Start each runner's gate at boot
   ansible.builtin.cron:
-    name: "dotfiles runner {{ item }} at boot"
+    name: "dotfiles runner {{ item.slug }} at boot"
     special_time: reboot
     job: "{{ osx_runner_start_job }}"
   vars:
-    slug: "{{ item | replace('/', '-') }}"
-  loop: "{{ osx_runner_all_repos }}"
+    slug: "{{ item.slug }}"
+  loop: "{{ osx_runner_units }}"
   tags: [osx, offload, runner]
 
 - name: Re-check each runner's gate periodically
   ansible.builtin.cron:
-    name: "dotfiles runner {{ item }} re-check"
+    name: "dotfiles runner {{ item.slug }} re-check"
     minute: "*/{{ osx_runner_recheck_minutes }}"
     job: "{{ osx_runner_start_job }}"
   vars:
-    slug: "{{ item | replace('/', '-') }}"
-  loop: "{{ osx_runner_all_repos }}"
+    slug: "{{ item.slug }}"
+  loop: "{{ osx_runner_units }}"
   tags: [osx, offload, runner]
 
 - name: Start each runner's gate now
   ansible.builtin.command:
     argv:
       - "{{ ansible_facts.env.HOME }}/.local/bin/runner-start.sh"
-      - "{{ osx_runner_root }}/{{ item | replace('/', '-') }}"
+      - "{{ item.dir }}"
   environment:
     PATH: "{{ osx_runner_path }}"
     RUNNER_IDLE_SECONDS: "{{ osx_runner_idle_seconds }}"
     RUNNER_LOAD_MAX: "{{ osx_runner_load_max }}"
     RUNNER_NICE: "{{ osx_runner_nice }}"
   changed_when: false
-  loop: "{{ osx_runner_all_repos }}"
+  loop: "{{ osx_runner_units }}"
   tags: [osx, offload, runner]
