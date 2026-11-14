@@ -117,7 +117,7 @@ osx_defaults:
     value: 1
   - domain: com.apple.screensaver
     key: askForPasswordDelay
-    type: int
+    type: float
     value: 0
 
   # Section: Finder ->>2

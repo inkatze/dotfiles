@@ -88,8 +88,11 @@
   when: not (osx_brew_writable | bool)
   tags: [always]
 
+# The owner's cosmetic defaults (Finder, Dock, screensaver, ~/Library); the
+# offload host's work account is not a desktop, so it skips them.
 - name: Import macOS tasks
   ansible.builtin.include_tasks: osx.yml
+  when: inventory_hostname not in osx_offload_hosts
   tags: [osx]
 
 - name: Import homebrew tasks

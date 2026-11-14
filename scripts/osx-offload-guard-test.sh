@@ -11,7 +11,8 @@
 #   osx_brew_writable, and nothing else does: the planwright updates have to
 #   keep running on the offload host, which never writes Homebrew. The includes
 #   themselves stay unguarded, for the same reason.
-# - The GitHub MCP sync is skipped on the offload host.
+# - The GitHub MCP sync and the desktop defaults (osx.yml) are skipped on the
+#   offload host, and the screensaver delay is declared float.
 
 set -eu
 
@@ -143,6 +144,19 @@ for t in main:
         ko(f"include {inc}: guarded as a whole") if any("osx_brew_writable" in w for w in whens(t)) else ok(f"include {inc}: unguarded")
 for inc in sorted({"homebrew.yml", "upgrade.yml"} - found):
     ko(f"include {inc}: not found as an include_tasks entry in main.yml")
+
+print("3b. the desktop defaults never run on the offload host")
+osx_inc = [t for t in main if t.get("ansible.builtin.include_tasks") == "osx.yml"]
+if len(osx_inc) == 1 and any(w.strip() == "inventory_hostname not in osx_offload_hosts" for w in whens(osx_inc[0])):
+    ok("include osx.yml: skipped there")
+else:
+    ko("include osx.yml: not skipped on the offload host")
+with open(f"{tasks_dir}/../defaults/main.yml") as f:
+    declared = {(e["domain"], e["key"]): e["type"] for e in yaml.safe_load(f)["osx_defaults"]}
+if declared.get(("com.apple.screensaver", "askForPasswordDelay")) == "float":
+    ok("askForPasswordDelay is declared float, as macOS stores it")
+else:
+    ko("askForPasswordDelay is not declared float")
 
 print("4. the GitHub MCP sync never runs on the offload host")
 for name in ("homebrew.yml", "upgrade.yml"):
