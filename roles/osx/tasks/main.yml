@@ -124,7 +124,7 @@
 - name: Import offload-host git tasks
   ansible.builtin.include_tasks: offload-git.yml
   when: inventory_hostname in osx_offload_hosts
-  tags: [osx, offload, git]
+  tags: [osx, offload]
 
 - name: Import offload-host Redis tasks
   ansible.builtin.include_tasks: offload-redis.yml

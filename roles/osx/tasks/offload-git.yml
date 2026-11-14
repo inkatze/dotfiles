@@ -13,7 +13,7 @@
     follow: false
   register: osx_offload_gitconfig
   check_mode: false
-  tags: [osx, offload, git]
+  tags: [osx, offload]
 
 - name: Turn off git auto-gc and auto-maintenance in the work account
   community.general.git_config:
@@ -24,4 +24,4 @@
     - { name: gc.auto, value: "0" }
     - { name: maintenance.auto, value: "false" }
   when: not (osx_offload_gitconfig.stat.islnk | default(false))
-  tags: [osx, offload, git]
+  tags: [osx, offload]
