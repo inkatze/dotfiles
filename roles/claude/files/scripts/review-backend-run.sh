@@ -97,7 +97,7 @@ cmd_preflight() {
   local egress_file="$HOME/.config/dotfiles/code-review-egress.json" val=none
   [ -z "${PANEL_BACKEND_TEST:-}" ] || egress_file="${PANEL_EGRESS_FILE:-$egress_file}"
   if [ -n "$repo" ] && [ -f "$egress_file" ] && [ ! -L "$egress_file" ]; then
-    val="$(jq -r --arg r "$repo" '.[$r] // "none" | if type == "string" and test("^[a-z:_-]+$") then . else "none" end' "$egress_file" 2> /dev/null)" || val=none
+    val="$(jq -r --arg r "$repo" '.[$r] // "none" | if type == "string" and test("^[a-z0-9:._-]+$") then . else "none" end' "$egress_file" 2> /dev/null)" || val=none
   fi
   printf 'egress=%s\n' "$val"
   return "$rc"
@@ -107,13 +107,13 @@ cmd_gemini() {
   local lens_doc="" instr="" fmt="" tooling="" base="" extra="" bound=540
   while [ $# -gt 0 ]; do
     case "$1" in
-      --lens-doc) lens_doc="${2:?}"; shift 2 ;;
-      --instruction-file) instr="${2:?}"; shift 2 ;;
-      --format-file) fmt="${2:?}"; shift 2 ;;
-      --tooling-file) tooling="${2:?}"; shift 2 ;;
-      --base) base="${2:?}"; shift 2 ;;
-      --extra-lens-file) extra="${2:?}"; shift 2 ;;
-      --timeout) bound="${2:?}"; shift 2 ;;
+      --lens-doc) lens_doc="${2:?the flag needs a value}"; shift 2 ;;
+      --instruction-file) instr="${2:?the flag needs a value}"; shift 2 ;;
+      --format-file) fmt="${2:?the flag needs a value}"; shift 2 ;;
+      --tooling-file) tooling="${2:?the flag needs a value}"; shift 2 ;;
+      --base) base="${2:?the flag needs a value}"; shift 2 ;;
+      --extra-lens-file) extra="${2:?the flag needs a value}"; shift 2 ;;
+      --timeout) bound="${2:?the flag needs a value}"; shift 2 ;;
       *) die "gemini: unknown argument $1" ;;
     esac
   done
