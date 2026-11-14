@@ -1059,6 +1059,13 @@ grep -qx 'fleet_host_max_live_workers: 10' "$ov" 2>/dev/null && ok "a CRLF line 
 printf '10\n20\n' >"$bound"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 expect_failed "a two-line bound file" "must hold one whole number from 1 to 99"
+if [ "$(id -u)" -ne 0 ]; then
+  printf '10\n' >"$bound"
+  chmod 000 "$bound"
+  run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+  expect_failed "an unreadable bound file" "could not read"
+  chmod 600 "$bound"
+fi
 rm -f "$bound"
 mkdir "$bound"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"

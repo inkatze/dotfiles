@@ -72,8 +72,9 @@ rename is lost.
 
 `fleet-max-live-workers` sets the host-wide live-worker bound
 (`fleet_host_max_live_workers`) for one machine. The overlay template carries
-the shared default; when this file holds a single line with a whole number from
-1 to 99, written without leading zeros (surrounding whitespace ignored), the
+the shared default; when this file holds one line with a whole number from
+1 to 99, written without leading zeros (surrounding whitespace and trailing
+blank lines ignored), the
 renderer substitutes it for that line's value, and an empty, blank or absent
 file keeps the template's. Any other content, a symlink or a non-regular file
 fails the render. It needs no 1Password item of its own and is applied before
