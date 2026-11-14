@@ -106,6 +106,18 @@ for label, present in (
     ("the not-an-administrator check is among them", asserts("'admin' not in osx_offload_groups.stdout.split()")),
 ):
     ok(label) if present else ko(f"{label}: not found ahead of the imports")
+print("1a. an administrator work account is refused after a read-only SSH access check")
+names = [t.get("name") for t in head]
+refusal = next((i for i, t in enumerate(head) if arg(t, "ansible.builtin.assert", "that") == "'admin' not in osx_offload_groups.stdout.split()"), None)
+probe = next((i for i, t in enumerate(head) if "com.apple.access_ssh" in command_text(t)), None)
+ok("the SSH access check exists") if probe is not None else ko("no task checks com.apple.access_ssh")
+if probe is not None and refusal is not None:
+    ok("it runs before the refusal") if probe < refusal else ko("it runs after the refusal")
+    ok("it uses no become") if not head[probe].get("become") else ko("it uses become")
+    ok("it is read-only") if head[probe].get("changed_when") is False and "dseditgroup -o edit" not in command_text(head[probe]) else ko("it may change the Mac")
+    msg = str(head[refusal]["ansible.builtin.assert"].get("fail_msg", ""))
+    ok("the refusal names com.apple.access_ssh") if "com.apple.access_ssh" in msg else ko("the refusal does not name com.apple.access_ssh")
+    ok("the refusal does not use become") if not head[refusal].get("become") else ko("the refusal uses become")
 writable = [arg(t, "ansible.builtin.set_fact", "osx_brew_writable") for t in head if arg(t, "ansible.builtin.set_fact", "osx_brew_writable") is not None]
 if writable == ["{{ inventory_hostname not in osx_offload_hosts }}"]:
     ok("osx_brew_writable is false exactly on the offload hosts")
