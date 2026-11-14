@@ -325,20 +325,22 @@ osx_runner_path: >-
   {{ osx_offload_mise_bin | dirname }}:{{ osx_runner_shims }}:{{ osx_offload_brew_bin }}:{{ osx_runner_system_path }}
 osx_runner_shims: "{{ ansible_facts.env.HOME }}/.local/share/mise/shims"
 # A job's `npm install -g` must land in the work account's own prefix, never the
-# owner's Homebrew one, which the work account cannot write.
-osx_runner_npm_prefix: "{{ ansible_facts.env.HOME }}/.npm-global"
+# owner's Homebrew one, which the work account cannot write, and in one of its
+# own per runner instance: concurrent installs into a shared prefix race (npm
+# ENOTEMPTY). `item` is a runner unit; the first instance is `-1`.
+osx_runner_npm_prefix: "{{ ansible_facts.env.HOME }}/.npm-global-{{ item.n }}"
 # A job's `npm` must not resolve to a mise shim with no version set (planwright's
 # mise.toml pins no node), so the runners' PATH carries this node's own bin,
 # installed in the work account by the play.
 osx_runner_node_version: 22.21.1
 osx_runner_node_bin: "{{ ansible_facts.env.HOME }}/.local/share/mise/installs/node/{{ osx_runner_node_version }}/bin"
 osx_runner_job_path_prefix: "{{ osx_runner_npm_prefix }}/bin:{{ osx_runner_node_bin }}"
-# Test suites fan out one worker per core, so the runners of one repository split
-# the Mac's cores between them: four suites at once at full width overloaded it.
-# Cores come from facts; `item` is a runner unit.
+# Test suites fan out one worker per core. Half the Mac's cores keeps one suite
+# alone inside its job time cap, and two suites at once still fit; four at full
+# width overloaded the Mac, and cores divided by the runner count made a lone
+# suite too slow. Cores come from facts.
 osx_runner_test_jobs: >-
-  {{ [1, ((ansible_facts.processor_vcpus | default(ansible_facts.processor_cores | default(1))) | int)
-  // (osx_runner_units | selectattr('repo', 'equalto', item.repo) | list | length)] | max }}
+  {{ [1, ((ansible_facts.processor_vcpus | default(ansible_facts.processor_cores | default(1))) | int) // 2] | max }}
 
 # Repositories whose names this repo already carries. Private ones come from
 # the machine-local file below, one owner/repo per line (# comments allowed).

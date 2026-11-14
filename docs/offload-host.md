@@ -242,13 +242,14 @@ defaults; bump both together.
   stay niced and the gate still stops the listener while someone uses the Mac.
   Stopping a runner now means stopping its gate and the caffeinate above it:
   `pkill -f 'runner-gate.sh <runner-dir>'` as well as the pid file's process.
-- **Job environment.** Each runner's `.env` sets `PLANWRIGHT_TEST_JOBS` to the
-  Mac's core count (from Ansible's facts) divided by that repository's runner
-  count, at least 1, so the suites of several runners at once do not each fan
-  out across every core (four at full width overloaded the Mac), and
-  `NPM_CONFIG_PREFIX` to
-  `~/.npm-global` (a job's `npm install -g` must not reach the owner's Homebrew
-  prefix), and its `.path` starts with that prefix's `bin` and the bin of a node
+- **Job environment.** Each runner's `.env` sets `PLANWRIGHT_TEST_JOBS` to half the
+  Mac's core count (from Ansible's facts), at least 1: one suite alone stays
+  inside its job time cap and two at once still fit, where every suite fanning
+  out across all cores overloaded the Mac, and cores divided by the runner count
+  made a lone suite too slow. The `.env` also sets `NPM_CONFIG_PREFIX` to
+  `~/.npm-global-<n>` (`n` is the instance's number, 1 for the first; a job's
+  `npm install -g` must not reach the owner's Homebrew prefix, and runners
+  sharing one prefix race on concurrent installs), and its `.path` starts with that prefix's `bin` and the bin of a node
   the play installs with mise (`osx_runner_node_version`), so `npm` never
   resolves to a mise shim with no version set. The hook line and both of these
   are written after registration, because `config.sh` rewrites `.path` and may

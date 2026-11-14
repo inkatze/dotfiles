@@ -209,7 +209,7 @@ else:
     n = npm_path[0]
     if not (at("Register each unregistered runner") < at(n["name"]) < at("Start each runner's gate at boot")):
         bad.append(".path prefix is not written after registration and before start")
-    if "osx_runner_npm_prefix" not in defaults_text or "osx_runner_node_bin" not in defaults_text.split("osx_runner_job_path_prefix:")[1].splitlines()[0]:
+    if "osx_runner_npm_prefix" not in defaults_text.split("osx_runner_job_path_prefix:")[1].splitlines()[0] or "osx_runner_node_bin" not in defaults_text.split("osx_runner_job_path_prefix:")[1].splitlines()[0]:
         bad.append("the job PATH prefix lacks the npm prefix or the node bin")
     if not any(t["name"] == "Install the runners' node" and at(t["name"]) < at(n["name"]) for t in tasks):
         bad.append("the node is not installed before the .path prefix")
@@ -282,12 +282,21 @@ elif not (at("Register each unregistered runner") < at(jobs[0]["name"]) < at("St
     bad.append("PLANWRIGHT_TEST_JOBS not written after registration and before the gates")
 import jinja2
 tmpl = jinja2.Environment().from_string(str(defaults["osx_runner_test_jobs"]))
-def jobs_for(cores, count, repo="o/r"):
-    units = [{"repo": repo}] * count + [{"repo": "x/y"}] * 3
-    return int(tmpl.render(ansible_facts={"processor_vcpus": cores}, osx_runner_units=units, item={"repo": repo}).strip())
-for cores, count, want in ((16, 4, 4), (16, 1, 16), (2, 4, 1), (10, 3, 3)):
-    if jobs_for(cores, count) != want:
-        bad.append(f"{cores} cores over {count} runners gives {jobs_for(cores, count)}, not {want}")
+def jobs_for(cores):
+    return int(tmpl.render(ansible_facts={"processor_vcpus": cores}, item={"repo": "o/r"}).strip())
+for cores, want in ((16, 8), (2, 1), (1, 1), (10, 5)):
+    if jobs_for(cores) != want:
+        bad.append(f"{cores} cores gives {jobs_for(cores)} test jobs, not {want}")
+prefix_t = jinja2.Environment().from_string(str(defaults["osx_runner_npm_prefix"]))
+home = {"env": {"HOME": "/h"}}
+prefixes = [prefix_t.render(ansible_facts=home, item={"n": n}) for n in (1, 2, 3, 4)]
+if prefixes != [f"/h/.npm-global-{n}" for n in (1, 2, 3, 4)] or len(set(prefixes)) != 4:
+    bad.append(f"npm prefixes are not one per instance, numbered by n: {prefixes}")
+if "item" not in str(defaults["osx_runner_job_path_prefix"]) + str(defaults["osx_runner_npm_prefix"]):
+    bad.append("the job PATH prefix is not per instance")
+mk = [t for t in tasks if t["name"] == "Create each runner's own npm prefix"]
+if not mk or "osx_runner_units" not in str(mk[0]["loop"]) or "osx_runner_npm_prefix" not in str(mk[0]):
+    bad.append("each instance's npm prefix directory is not created")
 if bad:
     print("\n".join("    " + b for b in bad)); sys.exit(1)
 PY

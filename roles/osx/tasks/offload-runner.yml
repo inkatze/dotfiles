@@ -57,8 +57,16 @@
     - "{{ osx_runner_root }}/_download"
     - "{{ ansible_facts.env.HOME }}/.cache"
     - "{{ ansible_facts.env.HOME }}/.local/bin"
-    - "{{ osx_runner_npm_prefix }}"
-    - "{{ osx_runner_npm_prefix }}/bin"
+  tags: [osx, offload, runner]
+
+- name: Create each runner's own npm prefix
+  ansible.builtin.file:
+    path: "{{ osx_runner_npm_prefix }}/bin"
+    state: directory
+    mode: "0755"
+  loop: "{{ osx_runner_units }}"
+  loop_control:
+    label: "{{ item.slug }}"
   tags: [osx, offload, runner]
 
 # get_url verifies the pinned sha256 and re-downloads only when it differs.
@@ -238,6 +246,8 @@
     create: true
     mode: "0644"
   loop: "{{ osx_runner_units }}"
+  loop_control:
+    label: "{{ item.slug }}"
   register: osx_runner_npm_env
   tags: [osx, offload, runner]
 
