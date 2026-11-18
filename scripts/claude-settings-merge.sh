@@ -19,9 +19,9 @@
 # Claude Code or a person added survives, and a rule dropped from the tracked
 # file or the fragment stays in a live one until deleted there by hand.
 #
-# A missing, empty or whitespace-only fragment adds nothing; one that is
-# anything else but a valid fragment is refused, so remove it and rerun the
-# playbook to render it afresh.
+# A missing, empty or whitespace-only fragment adds nothing; anything else that
+# is not a valid fragment (a dangling symlink included) is refused, so remove it
+# and rerun the playbook to render it afresh.
 #
 # Prints OK, or CHANGED after writing.
 # Usage: claude-settings-merge.sh <live> <tracked> [<fragment>]
