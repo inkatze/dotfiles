@@ -77,6 +77,7 @@ output="$3"
 case "${template##*/}" in
   bot-review.json.tpl) rule=review-config format=json ;;
   sibling-repos.json.tpl) rule=sibling-map format=json ;;
+  claude-settings-work.json.tpl) rule=settings-fragment format=json ;;
   planwright.yml.tpl) rule=planwright-overlay format=text ;;
   git-work-orgs.tpl) rule=work-orgs format=text ;;
   authorized_keys.offload.tpl) rule=offload-key format=text ;;
@@ -427,6 +428,26 @@ case "$rule" in
                | "repos.\($c).\(.key): clone path must be absolute or start with ~/"
              end
          end)' "$work/rendered")" || fail "could not apply the sibling map rule"
+    ;;
+  settings-fragment)
+    # The same shape scripts/claude-settings-merge.sh accepts, checked here too
+    # so a bad item fails at its render rather than at the next merge.
+    errors="$(jq -r '
+      if type != "object" then "is not a JSON object"
+      else
+        ((keys - ["permissions"])[] | "unknown top-level field \(.)"),
+        (if has("permissions") then .permissions else {} end
+         | if type != "object" then "permissions: must be an object"
+           else
+             ((keys - ["allow", "deny"])[] | "permissions.\(.): only allow and deny may be set"),
+             (to_entries[] | .key as $k | .value
+              | if type != "array" then "permissions.\($k): must be a list of rules"
+                else to_entries[]
+                  | select((.value | type) != "string" or (.value | test("\\S") | not))
+                  | "permissions.\($k)[\(.key)]: must be a non-empty string"
+                end)
+           end)
+      end' "$work/rendered")" || fail "could not apply the settings fragment rule"
     ;;
   planwright-overlay)
     # planwright reads this layer as flat `key: value` lines, and a step list is

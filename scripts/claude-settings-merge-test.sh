@@ -163,6 +163,157 @@ else
     fail allow-home-expanded "got $got"
 fi
 
+# 11. permission lists are a union: tracked rules, then the fragment's, then
+#     rules only the live file carries, each once and in a stable order
+printf '%s\n' '{"permissions":{"allow":["Bash(ls:*)","Bash(app-added:*)","mcp__work__read"],"deny":["Bash(live-deny:*)"]}}' >"$work/live.json"
+printf '%s\n' '{"permissions":{"allow":["Bash(ls:*)","Bash(git status:*)"],"deny":["Bash(rm -rf:*)"]}}' >"$work/managed.json"
+printf '%s\n' '{"permissions":{"allow":["mcp__work__read","mcp__work__search"],"deny":["mcp__work__write"]}}' >"$work/fragment.json"
+"$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null
+got=$(jq -c '.permissions' "$work/live.json")
+want='{"allow":["Bash(ls:*)","Bash(git status:*)","mcp__work__read","mcp__work__search","Bash(app-added:*)"],"deny":["Bash(rm -rf:*)","mcp__work__write","Bash(live-deny:*)"]}'
+if [ "$got" = "$want" ]; then
+    ok permission-union "tracked, fragment and live-only rules all kept, deduplicated"
+else
+    fail permission-union "got $got"
+fi
+
+# 12. a rerun with the same fragment is idempotent
+first=$(cat "$work/live.json")
+"$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null
+status=$("$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json")
+if [ "$status" = OK ] && [ "$first" = "$(cat "$work/live.json")" ]; then
+    ok union-idempotent "second run with the fragment reported OK and rewrote nothing"
+else
+    fail union-idempotent "status=$status"
+fi
+
+# 13. a missing fragment is a no-op: the same result as passing none
+printf '%s\n' '{"permissions":{"allow":["Bash(app-added:*)"]}}' >"$work/live.json"
+"$merge" "$work/live.json" "$work/managed.json" >"$work/none.out"
+cp "$work/live.json" "$work/none.json"
+printf '%s\n' '{"permissions":{"allow":["Bash(app-added:*)"]}}' >"$work/live.json"
+"$merge" "$work/live.json" "$work/managed.json" "$work/absent.json" >"$work/absent.out"
+if cmp -s "$work/none.json" "$work/live.json" && cmp -s "$work/none.out" "$work/absent.out" \
+    && [ "$(jq -c '.permissions.allow' "$work/live.json")" = '["Bash(ls:*)","Bash(git status:*)","Bash(app-added:*)"]' ]; then
+    ok missing-fragment-noop "an absent fragment merges exactly as no fragment"
+else
+    fail missing-fragment-noop "got $(jq -c '.permissions' "$work/live.json")"
+fi
+
+# 14. a fragment carrying anything but the two rule lists is refused, live untouched
+printf '%s\n' '{"permissions":{"allow":["x"],"defaultMode":"bypassPermissions"}}' >"$work/fragment.json"
+before=$(cat "$work/live.json")
+if out=$("$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" 2>&1); then
+    fail refuses-bad-fragment "exited 0 on a fragment setting defaultMode"
+elif [ "$before" = "$(cat "$work/live.json")" ] && [[ "$out" == *"settings fragment must hold only"* ]]; then
+    ok refuses-bad-fragment "refused, live file untouched"
+else
+    fail refuses-bad-fragment "wrong outcome: $out"
+fi
+
+# 15. an empty or whitespace-only fragment, and an empty rule list, add nothing
+#     and are not refused
+printf '%s\n' '{"permissions":{"allow":["Bash(app-added:*)"]}}' >"$work/live.json"
+"$merge" "$work/live.json" "$work/managed.json" >/dev/null
+cp "$work/live.json" "$work/baseline.json"
+okc=1
+for body in '' '   ' '{}' '{"permissions":{}}' '{"permissions":{"allow":[]}}'; do
+    printf '%s' "$body" >"$work/fragment.json"
+    if ! "$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null 2>&1 \
+        || ! cmp -s "$work/baseline.json" "$work/live.json"; then
+        okc=0
+        echo "  not a no-op: '$body'"
+    fi
+done
+if [ "$okc" -eq 1 ]; then
+    ok empty-fragment-noop "empty, blank, {} and empty-list fragments change nothing"
+else
+    fail empty-fragment-noop "an empty fragment was refused or changed the live file"
+fi
+
+# 16. each invalid fragment shape is refused with exit 4, live untouched
+before=$(cat "$work/live.json")
+okc=1
+for body in 'not json' '[]' '{"hooks":{}}' '{"permissions":"x"}' '{"permissions":{"allow":"x"}}' '{"permissions":{"deny":"x"}}' '{"permissions":{"deny":[1]}}' \
+    '{"permissions":{"allow":[1]}}' '{"permissions":{"allow":[""]}}' '{"permissions":{"allow":["  "]}}' \
+    '{"permissions":null}' '{"permissions":false}' '{"permissions":{"allow":["a"],"defaultMode":"x"}}' \
+    '{} {}' 'null' '"x"' '{"permissions":{"allow":["a"]}}{"permissions":{"deny":["b"]}}'; do
+    printf '%s\n' "$body" >"$work/fragment.json"
+    rc=0
+    "$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null 2>&1 || rc=$?
+    if [ "$rc" -ne 4 ] || [ "$before" != "$(cat "$work/live.json")" ]; then
+        okc=0
+        echo "  wrong outcome (rc=$rc) for: $body"
+    fi
+done
+if [ "$okc" -eq 1 ]; then
+    ok refuses-each-bad-shape "every invalid shape exits 4 and leaves the live file alone"
+else
+    fail refuses-each-bad-shape "an invalid fragment was accepted or exited with the wrong status"
+fi
+
+# 17. $HOME/ is expanded in deny and in fragment rules too
+printf '%s\n' '{}' >"$work/live.json"
+printf '%s\n' '{"permissions":{"deny":["Bash($HOME/blocked:*)"]}}' >"$work/managed.json"
+printf '%s\n' '{"permissions":{"allow":["Bash($HOME/tool:*)"]}}' >"$work/fragment.json"
+HOME=/fake/home "$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null
+got=$(jq -c '.permissions' "$work/live.json")
+again=$(HOME=/fake/home "$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json")
+if [ "$again" = OK ] && [ "$(jq -cS . <<<"$got")" = '{"allow":["Bash(/fake/home/tool:*)"],"deny":["Bash(/fake/home/blocked:*)"]}' ]; then
+    ok home-expanded-everywhere "deny and fragment rules are written expanded"
+else
+    fail home-expanded-everywhere "got $got"
+fi
+
+# 18. a dangling symlink or a directory at the fragment path is refused (exit 4)
+printf '%s\n' '{}' >"$work/live.json"
+ln -s "$work/does-not-exist" "$work/dangling.json"
+mkdir "$work/fragment-dir"
+okc=1
+for path in "$work/dangling.json" "$work/fragment-dir"; do
+    rc=0
+    "$merge" "$work/live.json" "$work/managed.json" "$path" >/dev/null 2>&1 || rc=$?
+    [ "$rc" -eq 4 ] && [ "$(cat "$work/live.json")" = '{}' ] || { okc=0; echo "  rc=$rc for $path"; }
+done
+if [ "$okc" -eq 1 ]; then
+    ok unreadable-fragment-refused "a dangling symlink and a directory both exit 4"
+else
+    fail unreadable-fragment-refused "an unreadable fragment was not refused with status 4"
+fi
+
+# 19. with no rule anywhere, permissions is not created
+printf '%s\n' '{}' >"$work/live.json"
+printf '%s\n' '{}' >"$work/managed.json"
+printf '%s\n' '{"permissions":{"allow":[]}}' >"$work/fragment.json"
+"$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null
+status=$("$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json")
+if [ "$status" = OK ] && [ "$(jq -c 'has("permissions")' "$work/live.json")" = false ]; then
+    ok no-rules-no-permissions "an all-empty union leaves permissions absent"
+else
+    fail no-rules-no-permissions "got $(jq -c . "$work/live.json")"
+fi
+
+# 20. a live or tracked file that is valid JSON but not a single object is refused
+okc=1
+printf '%s\n' '{}' >"$work/managed.json"
+for body in '[]' 'null' '"x"' '{} {}'; do
+    printf '%s\n' "$body" >"$work/live.json"
+    rc=0
+    "$merge" "$work/live.json" "$work/managed.json" >/dev/null 2>&1 || rc=$?
+    [ "$rc" -eq 2 ] && [ "$(cat "$work/live.json")" = "$body" ] || { okc=0; echo "  live '$body': rc=$rc"; }
+    printf '%s\n' '{}' >"$work/live.json"
+    printf '%s\n' "$body" >"$work/managed.json"
+    rc=0
+    "$merge" "$work/live.json" "$work/managed.json" >/dev/null 2>&1 || rc=$?
+    [ "$rc" -eq 3 ] && [ "$(cat "$work/live.json")" = '{}' ] || { okc=0; echo "  tracked '$body': rc=$rc"; }
+    printf '%s\n' '{}' >"$work/managed.json"
+done
+if [ "$okc" -eq 1 ]; then
+    ok refuses-non-object "non-object live and tracked files exit 2 and 3, nothing written"
+else
+    fail refuses-non-object "a non-object settings file was accepted or misreported"
+fi
+
 if [ "$fails" -ne 0 ]; then
     printf 'claude-settings-merge-test: %d assertion(s) failed\n' "$fails"
     exit 1

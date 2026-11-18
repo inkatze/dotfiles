@@ -1087,6 +1087,33 @@ printf '10\n' >"$bound"
 run "$sandbox/tpl/planwright.yml.tpl" dotfiles-planwright-overlay "$sandbox/ov.yml"
 expect_failed "a template with no bound line" "no fleet_host_max_live_workers line"
 
+echo "31. the Claude settings fragment: allow rules from the work item, nothing else"
+new_sandbox
+frag_tpl="$repo/roles/claude/files/claude-settings-work.json.tpl"
+frag="$HOME/.config/dotfiles/claude-settings-work.json"
+export OP_STUB_WORK_ITEM="$sandbox/work-item.json"
+export DOTFILES_OP_WORK_ACCOUNT=work.example.com DOTFILES_OP_WORK_VAULT="Work Vault" DOTFILES_OP_WORK_ITEM=work-item
+printf '%s\n' 'claude_permissions_allow=["mcp__work__read","Bash(ls:*)"]' | to_item "$OP_STUB_WORK_ITEM"
+run --work-account "$frag_tpl" work-item "$frag"
+[ "$rc" -eq 0 ] && [ "$(jq -c . "$frag" 2>/dev/null)" = '{"permissions":{"allow":["mcp__work__read","Bash(ls:*)"]}}' ] \
+  && ok "renders the allow list typed" || ko "renders the allow list typed ($log)"
+[ "$(mode_of "$frag")" = 600 ] && ok "fragment written at 0600" || ko "fragment mode $(mode_of "$frag")"
+printf '%s\n' 'claude_permissions_allow=' | to_item "$OP_STUB_WORK_ITEM"
+run --work-account "$frag_tpl" work-item "$frag"
+[ "$rc" -eq 0 ] && [ "$(jq -c . "$frag")" = '{}' ] && ok "an empty field renders an empty fragment" || ko "an empty field ($log)"
+for bad in '"mcp__work__read"|must be a list of rules' '{"allow":[]}|must be a list of rules' \
+  '[""]|must be a non-empty string' '["  "]|must be a non-empty string' '[1]|must be a non-empty string'; do
+  printf 'claude_permissions_allow=%s\n' "${bad%%|*}" | to_item "$OP_STUB_WORK_ITEM"
+  run --work-account "$frag_tpl" work-item "$frag"
+  expect_failed "an allow value of ${bad%%|*}" "${bad#*|}"
+done
+[ "$(jq -c . "$frag")" = '{}' ] && [ "$(mode_of "$frag")" = 600 ] \
+  && ok "refused renders left the previous fragment alone" || ko "a refused render touched the fragment"
+printf '%s\n' 'other=x' | to_item "$OP_STUB_WORK_ITEM"
+run --work-account "$frag_tpl" work-item "$frag"
+expect_failed "a work item without the field" "the item has no field claude_permissions_allow"
+unset DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM
+
 echo
 echo "op-render: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

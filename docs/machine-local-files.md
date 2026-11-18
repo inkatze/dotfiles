@@ -43,7 +43,9 @@ renderer validates each file before it lands (the review config against
 `roles/claude/files/skills/bot-review/config-schema.jq`), refuses a `steps_`
 key in the overlay since a step list is a per-repository decision, and
 overwrites a hand-written file at its output: carry anything worth keeping
-into the item before the first run.
+into the item before the first run. The Claude work settings fragment is
+rendered by the same tasks but only on a host with an `op-work-item` file
+(described below).
 
 The overlay is the one exception, for mission control's own keys
 (`mission_control_*` and `program_*`, every key planwright's
@@ -129,6 +131,20 @@ therefore never sit in the shared item the other hosts render, and a listed
 host with no `op-work-item` fails the play rather than render the shared
 item's programs. Create that item, with the same `flight_pr_hosts` and
 `mission_control` fields, before the host's first run after joining the list.
+
+`claude-settings-work.json` holds permission rules only work machines carry
+(read-only work MCP tools, say), which must not reach the tracked
+`settings.json`. `op-render.sh --work-account` renders it from the
+`claude_permissions_allow` field (a JSON list of rules) of the item
+`op-work-item` names. A host with no `op-work-item` file skips the render; the
+field may be empty, but an item without it fails the play, so add it to the
+item before the host's next run. `scripts/claude-settings-merge.sh` unions the
+fragment's `permissions.allow` and `permissions.deny` into the live settings
+and refuses a fragment carrying any other key. The union only adds: a rule
+removed from the field (or from the tracked file) stays in each live
+`~/.claude/settings.json` until deleted there by hand, which is how a revoked
+rule is withdrawn. A rule added by hand on a work machine is kept by the merge
+there, but belongs in the field too, or a fresh machine never gets it.
 
 `cubic-api-key` is synced by `scripts/op-key-sync.sh` from the `credential`
 field of the `dotfiles-cubic-api-key` item (category API Credential), through a

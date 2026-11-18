@@ -49,7 +49,11 @@ so removing the status line means editing each live
 `scripts/claude-settings-merge.sh` asserts the keys this repo declares and
 leaves everything else alone, so Claude Code keeps ownership of what it writes
 itself (theme, onboarding state, per-project trust). Its header documents the
-hook-array semantics.
+hook-array semantics. `permissions.allow` and `permissions.deny` are a union
+of the tracked rules, the machine-local work fragment
+([machine-local-files.md](machine-local-files.md)) and the live file's own, so
+a rule removed from the tracked file stays in each live
+`~/.claude/settings.json` until you delete it there by hand.
 
 The cost is that a key set by hand on one machine, or persisted there by the
 app when you toggle something, works on that machine and is invisible to
@@ -87,6 +91,7 @@ delete by hand.
 | Layer | File | Scope | Persistence |
 |---|---|---|---|
 | Global tracked | `~/.claude/settings.json` (via this repo) | Cross-project allows + deny list | Durable, committed |
+| Global work-only | `~/.config/dotfiles/claude-settings-work.json` | Work-machine permission rules, unioned into the global file | Durable, rendered from 1Password |
 | Per-repo tracked | `<repo>/.claude/settings.json` | Project-specific durable allows | Durable, committed |
 | Per-repo local | `<repo>/.claude/settings.local.json` | Ephemeral, short rules | Nukeable, gitignored |
 
