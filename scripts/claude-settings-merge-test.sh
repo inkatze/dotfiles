@@ -235,6 +235,7 @@ before=$(cat "$work/live.json")
 okc=1
 for body in 'not json' '[]' '{"hooks":{}}' '{"permissions":"x"}' '{"permissions":{"allow":"x"}}' \
     '{"permissions":{"allow":[1]}}' '{"permissions":{"allow":[""]}}' '{"permissions":{"allow":["  "]}}' \
+    '{"permissions":null}' '{"permissions":false}' '{"permissions":{"allow":["a"],"defaultMode":"x"}}' \
     '{"env":{"X":"1"}} {}' '{"permissions":{"allow":["a"]}}{"permissions":{"deny":["b"]}}'; do
     printf '%s\n' "$body" >"$work/fragment.json"
     rc=0
@@ -256,11 +257,37 @@ printf '%s\n' '{"permissions":{"deny":["Bash($HOME/blocked:*)"]}}' >"$work/manag
 printf '%s\n' '{"permissions":{"allow":["Bash($HOME/tool:*)"]}}' >"$work/fragment.json"
 HOME=/fake/home "$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null
 got=$(jq -c '.permissions' "$work/live.json")
-if [ "$got" = '{"deny":["Bash(/fake/home/blocked:*)"],"allow":["Bash(/fake/home/tool:*)"]}' ] \
-    || [ "$got" = '{"allow":["Bash(/fake/home/tool:*)"],"deny":["Bash(/fake/home/blocked:*)"]}' ]; then
+if [ "$(jq -cS . <<<"$got")" = '{"allow":["Bash(/fake/home/tool:*)"],"deny":["Bash(/fake/home/blocked:*)"]}' ]; then
     ok home-expanded-everywhere "deny and fragment rules are written expanded"
 else
     fail home-expanded-everywhere "got $got"
+fi
+
+# 18. a dangling symlink or a directory at the fragment path is refused (exit 4)
+printf '%s\n' '{}' >"$work/live.json"
+ln -s "$work/does-not-exist" "$work/dangling.json"
+mkdir "$work/fragment-dir"
+okc=1
+for path in "$work/dangling.json" "$work/fragment-dir"; do
+    rc=0
+    "$merge" "$work/live.json" "$work/managed.json" "$path" >/dev/null 2>&1 || rc=$?
+    [ "$rc" -eq 4 ] || { okc=0; echo "  rc=$rc for $path"; }
+done
+if [ "$okc" -eq 1 ]; then
+    ok unreadable-fragment-refused "a dangling symlink and a directory both exit 4"
+else
+    fail unreadable-fragment-refused "an unreadable fragment was not refused with status 4"
+fi
+
+# 19. with no rule anywhere, permissions is not created
+printf '%s\n' '{}' >"$work/live.json"
+printf '%s\n' '{}' >"$work/managed.json"
+printf '%s\n' '{"permissions":{"allow":[]}}' >"$work/fragment.json"
+"$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null
+if [ "$(jq -c 'has("permissions")' "$work/live.json")" = false ]; then
+    ok no-rules-no-permissions "an all-empty union leaves permissions absent"
+else
+    fail no-rules-no-permissions "got $(jq -c . "$work/live.json")"
 fi
 
 if [ "$fails" -ne 0 ]; then

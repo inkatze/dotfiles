@@ -107,8 +107,8 @@ that an empty list or map in one drops like any other.
 
 A JSON template can also reference a second item, as
 `{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/<field> }}`: the review
-template's `work-review` entry, a reviewer only work machines run, draws on it,
-as does the Claude work settings fragment below. `op-work-item` holds
+template's `work-review` entry, a reviewer only work machines run, draws on it
+alone. `op-work-item` holds
 `KEY=value` lines for `DOTFILES_OP_WORK_ACCOUNT`, `DOTFILES_OP_WORK_VAULT`
 and `DOTFILES_OP_WORK_ITEM`, which `scripts/playbook.sh` exports unless all three
 are already exported (export them yourself for a direct `op-render.sh` run,

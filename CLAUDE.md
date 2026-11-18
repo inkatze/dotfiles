@@ -36,8 +36,8 @@ See [docs/claude-config.md](docs/claude-config.md).
 ## Permissions
 
 Three valid layers, chosen by scope: global tracked
-`roles/claude/files/settings.json` for cross-project allows and the deny list;
-per-repo tracked `<repo>/.claude/settings.json` for project-specific durable
+`roles/claude/files/settings.json` for cross-project allows and the deny list
+(work-only rules join it from a machine-local fragment); per-repo tracked `<repo>/.claude/settings.json` for project-specific durable
 rules; per-repo local `<repo>/.claude/settings.local.json` for ephemeral
 rules, kept near-empty. See [docs/claude-config.md](docs/claude-config.md).
 

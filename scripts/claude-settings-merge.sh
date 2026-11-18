@@ -47,7 +47,7 @@ if [ -n "$fragment" ] && { [ -e "$fragment" ] || [ -L "$fragment" ]; }; then
         # it would otherwise override a tracked or app-owned setting unseen.
         printf '%s' "$frag_raw" | jq -e -s '
           length == 1 and (.[0] | type == "object" and (keys - ["permissions"] == [])
-          and ((.permissions // {}) | type == "object" and (keys - ["allow", "deny"] == [])
+          and ((if has("permissions") then .permissions else {} end) | type == "object" and (keys - ["allow", "deny"] == [])
                and all(.[]; type == "array" and all(.[]; type == "string" and test("\\S")))))
         ' >/dev/null 2>&1 \
             || { echo "FAILED: settings fragment must hold only permissions.allow and permissions.deny string lists: $fragment" >&2; exit 4; }
@@ -58,7 +58,7 @@ fi
 # $HOME is passed in because a hook command may be recorded either as the
 # literal "$HOME/..." the tracked file uses or already expanded; missing the
 # expanded form would treat our own entry as foreign and then duplicate it.
-updated=$(jq -n --slurpfile l "$live" --slurpfile m "$managed" --argjson f "$frag_json" --arg home "$HOME" '
+updated=$(jq -n --slurpfile l "$live" --slurpfile m "$managed" --slurpfile f <(printf '%s' "$frag_json") --arg home "$HOME" '
   def owned:
     (.command // "") as $c
     | ($c | startswith("$HOME/.claude/scripts/"))
@@ -89,7 +89,7 @@ updated=$(jq -n --slurpfile l "$live" --slurpfile m "$managed" --argjson f "$fra
       )
     )
   | reduce ("allow", "deny") as $k (.;
-      (rules($mgd; $k) + rules($f; $k) + rules($live; $k) | expand_home) as $all
+      (rules($mgd; $k) + rules($f[0]; $k) + rules($live; $k) | expand_home) as $all
       | if ($all | length) > 0 then .permissions[$k] = ($all | union_rules) else . end)
 ')
 

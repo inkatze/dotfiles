@@ -436,7 +436,7 @@ case "$rule" in
       if type != "object" then "is not a JSON object"
       else
         ((keys - ["permissions"])[] | "unknown top-level field \(.)"),
-        (.permissions // {}
+        (if has("permissions") then .permissions else {} end
          | if type != "object" then "permissions: must be an object"
            else
              ((keys - ["allow", "deny"])[] | "permissions.\(.): only allow and deny may be set"),
