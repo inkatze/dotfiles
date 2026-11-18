@@ -293,6 +293,27 @@ else
     fail no-rules-no-permissions "got $(jq -c . "$work/live.json")"
 fi
 
+# 20. a live or tracked file that is valid JSON but not a single object is refused
+okc=1
+printf '%s\n' '{}' >"$work/managed.json"
+for body in '[]' 'null' '"x"' '{} {}'; do
+    printf '%s\n' "$body" >"$work/live.json"
+    rc=0
+    "$merge" "$work/live.json" "$work/managed.json" >/dev/null 2>&1 || rc=$?
+    [ "$rc" -eq 2 ] && [ "$(cat "$work/live.json")" = "$body" ] || { okc=0; echo "  live '$body': rc=$rc"; }
+    printf '%s\n' '{}' >"$work/live.json"
+    printf '%s\n' "$body" >"$work/managed.json"
+    rc=0
+    "$merge" "$work/live.json" "$work/managed.json" >/dev/null 2>&1 || rc=$?
+    [ "$rc" -eq 3 ] && [ "$(cat "$work/live.json")" = '{}' ] || { okc=0; echo "  tracked '$body': rc=$rc"; }
+    printf '%s\n' '{}' >"$work/managed.json"
+done
+if [ "$okc" -eq 1 ]; then
+    ok refuses-non-object "non-object live and tracked files exit 2 and 3, nothing written"
+else
+    fail refuses-non-object "a non-object settings file was accepted or misreported"
+fi
+
 if [ "$fails" -ne 0 ]; then
     printf 'claude-settings-merge-test: %d assertion(s) failed\n' "$fails"
     exit 1

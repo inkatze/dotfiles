@@ -36,8 +36,8 @@ if [ ! -e "$live" ]; then
     mkdir -p "$(dirname "$live")"
     printf '{}\n' >"$live"
 fi
-jq -e . "$live" >/dev/null 2>&1 || { echo "FAILED: live settings is not valid JSON: $live" >&2; exit 2; }
-jq -e . "$managed" >/dev/null 2>&1 || { echo "FAILED: tracked settings is not valid JSON: $managed" >&2; exit 3; }
+jq -e -s 'length == 1 and (.[0] | type == "object")' "$live" >/dev/null 2>&1 || { echo "FAILED: live settings is not valid JSON (one object is required): $live" >&2; exit 2; }
+jq -e -s 'length == 1 and (.[0] | type == "object")' "$managed" >/dev/null 2>&1 || { echo "FAILED: tracked settings is not valid JSON (one object is required): $managed" >&2; exit 3; }
 frag_json='{}'
 if [ -n "$fragment" ] && { [ -e "$fragment" ] || [ -L "$fragment" ]; }; then
     # Read once, so what is validated is what is used.
