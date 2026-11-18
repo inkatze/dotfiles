@@ -2,12 +2,20 @@ name: pr-agent
 
 # Same-repo PRs only, and never `pull_request_target`: a fork PR must not
 # reach the model secret. Fork PRs are filtered by the job `if:`.
+#
+# Runs once per PR, on its final head, never on a push: applying the
+# `pr-agent` label starts a review of the head at that moment. Remove and
+# re-apply the label for the one extra run a code-changing fix round gets.
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [labeled]
 
+# An unrelated label must not cancel a review in flight, so it gets its own
+# group; only a `pr-agent` label event shares the per-PR one.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: >-
+    ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{
+    github.event.label.name == 'pr-agent' && 'review' || github.run_id }}
   cancel-in-progress: true
 
 permissions:
@@ -17,7 +25,9 @@ jobs:
   # The job name is the check name `/bot-review` gates on; keep it `PR-Agent`.
   pr-agent:
     name: PR-Agent
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      github.event.label.name == 'pr-agent'
+      && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -60,7 +70,7 @@ jobs:
           github_action_config.auto_describe: "false"
           github_action_config.auto_improve: "false"
           github_action_config.pr_actions: >-
-            ["opened", "reopened", "ready_for_review", "review_requested", "synchronize"]
+            ["labeled"]
 
       # PR-Agent embeds no head SHA or status in what it posts, and /bot-review
       # ties a review to a head through this marker; keep the format in step
