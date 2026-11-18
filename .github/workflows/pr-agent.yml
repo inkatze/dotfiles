@@ -42,6 +42,22 @@ jobs:
         if: env.HAS_MODEL_KEY != 'true'
         run: echo "::notice title=PR-Agent skipped::Repository secret OPENROUTER_API_KEY is not set; no review was run."
 
+      # The label event's payload freezes the head at label time, and a push or
+      # a job re-run can move it before the review reads the PR; read it live,
+      # ahead of the review, so the marker names the head the run started on.
+      - name: Resolve the head under review
+        id: head
+        if: env.HAS_MODEL_KEY == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          sha="$(gh api "repos/${REPO}/pulls/${PR}" --jq .head.sha)" || sha=""
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || sha="$EVENT_HEAD_SHA"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
       - name: PR-Agent review
         id: review
         if: env.HAS_MODEL_KEY == 'true'
@@ -81,7 +97,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ steps.head.outputs.sha || github.event.pull_request.head.sha }}
           RUN_ID: ${{ github.run_id }}.${{ github.run_attempt }}
           OUTCOME: ${{ steps.review.outcome }}
         run: |
