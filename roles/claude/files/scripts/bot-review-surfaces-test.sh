@@ -224,18 +224,16 @@ for st in success failure; do
 done
 CFG="$CFG_SAVED"
 
-# PR-Agent runs once per PR, on a `pr-agent` label, never on a push: pin the
-# trigger, the job gate beside the fork filter, the action list the PR-Agent
-# step accepts, and the live head the marker records. The whole-line matches
-# fix the YAML indentation, so a harmless re-indent fails here by design; the
-# job gate sits at a deeper indent than the concurrency expression, which
-# repeats the label test.
+# PR-Agent runs once per PR, on a `pr-agent` label, never on a push. The
+# whole-line matches below are indent-sensitive on purpose: a re-indent fails
+# here and is fixed here.
 wf="$ROOT/.github/workflows/pr-agent.yml"
-grep -qxF '    types: [labeled]' "$wf" \
-  || fail workflow-trigger "pull_request types must be exactly [labeled]"
-if grep -qE '^[[:space:]]*(push|pull_request_target):|synchronize' "$wf"; then
-  fail workflow-no-push "the workflow must not trigger on a push or pull_request_target"
-fi
+[ -f "$wf" ] || fail workflow-file "no $wf"
+# The whole comment-stripped `on:` block, so no other event and no inline
+# spelling such as `on: [push, pull_request]` can sit beside the label trigger.
+on_block="$(awk '/^on:/{s=1} s&&/^[a-z]/&&!/^on:/{exit} s' "$wf" | grep -v '^[[:space:]]*#' || true)"
+[ "$on_block" = "$(printf 'on:\n  pull_request:\n    types: [labeled]')" ] \
+  || fail workflow-trigger "the on: block must be exactly pull_request types [labeled], never a push"
 grep -qxF "      github.event.label.name == 'pr-agent'" "$wf" \
   && grep -qxF '      && github.event.pull_request.head.repo.full_name == github.repository' "$wf" \
   || fail workflow-job-gate "job if must gate on the pr-agent label and keep the same-repo filter"
@@ -244,6 +242,14 @@ grep -qxF '            ["labeled"]' "$wf" \
 grep -qxF '        id: head' "$wf" \
   && grep -qF 'HEAD_SHA: ${{ steps.head.outputs.sha }}' "$wf" \
   || fail workflow-live-head "the marker must record the head the head step resolved"
+# An unrelated label must not cancel a review in flight, and the head must be
+# read before the review starts.
+grep -qF "github.event.label.name == 'pr-agent' && 'review' || github.run_id" "$wf" \
+  || fail workflow-concurrency "only a pr-agent label event may share the per-PR concurrency group"
+head_line="$(grep -nxF '        id: head' "$wf" | cut -d: -f1)"
+review_line="$(grep -nxF '        id: review' "$wf" | cut -d: -f1)"
+[ -n "$head_line" ] && [ -n "$review_line" ] && [ "$head_line" -lt "$review_line" ] \
+  || fail workflow-head-order "the head step must run before the review step"
 
 # A reviewer missing from the config is an error, never an empty PR.
 for entry in null '{"build_id_regex": "x"}'; do
