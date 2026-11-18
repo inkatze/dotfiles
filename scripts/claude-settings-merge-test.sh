@@ -237,7 +237,7 @@ okc=1
 for body in 'not json' '[]' '{"hooks":{}}' '{"permissions":"x"}' '{"permissions":{"allow":"x"}}' '{"permissions":{"deny":"x"}}' '{"permissions":{"deny":[1]}}' \
     '{"permissions":{"allow":[1]}}' '{"permissions":{"allow":[""]}}' '{"permissions":{"allow":["  "]}}' \
     '{"permissions":null}' '{"permissions":false}' '{"permissions":{"allow":["a"],"defaultMode":"x"}}' \
-    '{"env":{"X":"1"}} {}' '{"permissions":{"allow":["a"]}}{"permissions":{"deny":["b"]}}'; do
+    '{} {}' 'null' '"x"' '{"permissions":{"allow":["a"]}}{"permissions":{"deny":["b"]}}'; do
     printf '%s\n' "$body" >"$work/fragment.json"
     rc=0
     "$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null 2>&1 || rc=$?
@@ -273,7 +273,7 @@ okc=1
 for path in "$work/dangling.json" "$work/fragment-dir"; do
     rc=0
     "$merge" "$work/live.json" "$work/managed.json" "$path" >/dev/null 2>&1 || rc=$?
-    [ "$rc" -eq 4 ] || { okc=0; echo "  rc=$rc for $path"; }
+    [ "$rc" -eq 4 ] && [ "$(cat "$work/live.json")" = '{}' ] || { okc=0; echo "  rc=$rc for $path"; }
 done
 if [ "$okc" -eq 1 ]; then
     ok unreadable-fragment-refused "a dangling symlink and a directory both exit 4"

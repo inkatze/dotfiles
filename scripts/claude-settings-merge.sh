@@ -56,14 +56,18 @@ if [ -n "$fragment" ] && { [ -e "$fragment" ] || [ -L "$fragment" ]; }; then
 fi
 
 # Handed to jq as a file, not an argument, so the rules stay out of the process list.
+# One trap covers both temp files: the fragment copy handed to jq and, later,
+# the live file's replacement (tmp stays empty until then).
 tmp=
+frag_file=
+trap '[ -z "$frag_file" ] || rm -f "$frag_file"; [ -z "$tmp" ] || rm -f "$tmp"' EXIT
 frag_file=$(mktemp) || { echo "FAILED: could not create a temporary file" >&2; exit 5; }
-trap 'rm -f "$frag_file" ${tmp:+"$tmp"}' EXIT
 printf '%s\n' "$frag_json" >"$frag_file" || { echo "FAILED: could not write a temporary file: $frag_file" >&2; exit 5; }
 
-# $HOME is passed in because a hook command may be recorded either as the
-# literal "$HOME/..." the tracked file uses or already expanded; missing the
-# expanded form would treat our own entry as foreign and then duplicate it.
+# $HOME is passed in to expand $HOME/ in permission rules, and because a hook
+# command may be recorded either as the literal "$HOME/..." the tracked file
+# uses or already expanded; missing the expanded form would treat our own entry
+# as foreign and then duplicate it.
 updated=$(jq -n --slurpfile l "$live" --slurpfile m "$managed" --slurpfile f "$frag_file" --arg home "$HOME" '
   def owned:
     (.command // "") as $c

@@ -1107,6 +1107,8 @@ for bad in '"mcp__work__read"|must be a list of rules' '{"allow":[]}|must be a l
   run --work-account "$frag_tpl" work-item "$frag"
   expect_failed "an allow value of ${bad%%|*}" "${bad#*|}"
 done
+[ "$(jq -c . "$frag")" = '{}' ] && [ "$(mode_of "$frag")" = 600 ] \
+  && ok "refused renders left the previous fragment alone" || ko "a refused render touched the fragment"
 printf '%s\n' 'other=x' | to_item "$OP_STUB_WORK_ITEM"
 run --work-account "$frag_tpl" work-item "$frag"
 expect_failed "a work item without the field" "the item has no field claude_permissions_allow"
