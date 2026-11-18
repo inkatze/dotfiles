@@ -246,8 +246,8 @@ grep -qxF '        id: head' "$wf" \
 # read before the review starts.
 grep -qF "github.event.label.name == 'pr-agent' && 'review' || github.run_id" "$wf" \
   || fail workflow-concurrency "only a pr-agent label event may share the per-PR concurrency group"
-head_line="$(grep -nxF '        id: head' "$wf" | cut -d: -f1)"
-review_line="$(grep -nxF '        id: review' "$wf" | cut -d: -f1)"
+head_line="$(grep -nxF -m1 '        id: head' "$wf" | cut -d: -f1 || true)"
+review_line="$(grep -nxF -m1 '        id: review' "$wf" | cut -d: -f1 || true)"
 [ -n "$head_line" ] && [ -n "$review_line" ] && [ "$head_line" -lt "$review_line" ] \
   || fail workflow-head-order "the head step must run before the review step"
 
