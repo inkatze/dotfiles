@@ -105,8 +105,9 @@ that an empty list or map in one drops like any other.
 
 A JSON template can also reference a second item, as
 `{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/<field> }}`: the review
-template's `work-review` entry, a reviewer only work machines run, draws on it
-alone. `op-work-item` holds `KEY=value` lines for
+template's `work-review` entry, a reviewer only work machines run, draws on it,
+as does the Claude work settings fragment below. `op-work-item` holds
+`KEY=value` lines for
 `DOTFILES_OP_WORK_ACCOUNT`, `DOTFILES_OP_WORK_VAULT` and
 `DOTFILES_OP_WORK_ITEM`, which `scripts/playbook.sh` exports unless all three
 are already exported (export them yourself for a direct `op-render.sh` run,
@@ -134,12 +135,15 @@ item's programs. Create that item, with the same `flight_pr_hosts` and
 (read-only work MCP tools, say), which must not reach the tracked
 `settings.json`. `op-render.sh --work-account` renders it from the
 `claude_permissions_allow` field (a JSON list of rules) of the item
-`op-work-item` names, so a host with no `op-work-item` file skips the render; left
-empty, the field renders an empty fragment. `scripts/claude-settings-merge.sh`
-unions its `permissions.allow` and `permissions.deny` into the live settings
-and refuses a fragment carrying any other key. A rule added by hand on a work
-machine is kept by the merge there, but belongs in the field too, or a fresh
-machine never gets it.
+`op-work-item` names. A host with no `op-work-item` file skips the render; the
+field may be empty, but an item without it fails the play, so add it to the
+item before the host's next run. `scripts/claude-settings-merge.sh` unions the
+fragment's `permissions.allow` and `permissions.deny` into the live settings
+and refuses a fragment carrying any other key. The union only adds: a rule
+removed from the field (or from the tracked file) stays in each live
+`~/.claude/settings.json` until deleted there by hand, which is how a revoked
+rule is withdrawn. A rule added by hand on a work machine is kept by the merge
+there, but belongs in the field too, or a fresh machine never gets it.
 
 `cubic-api-key` is synced by `scripts/op-key-sync.sh` from the `credential`
 field of the `dotfiles-cubic-api-key` item (category API Credential), through a

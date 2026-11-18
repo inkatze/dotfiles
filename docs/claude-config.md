@@ -91,6 +91,7 @@ delete by hand.
 | Layer | File | Scope | Persistence |
 |---|---|---|---|
 | Global tracked | `~/.claude/settings.json` (via this repo) | Cross-project allows + deny list | Durable, committed |
+| Global work-only | `~/.config/dotfiles/claude-settings-work.json` | Work-machine allow rules, unioned into the global file | Durable, rendered from 1Password |
 | Per-repo tracked | `<repo>/.claude/settings.json` | Project-specific durable allows | Durable, committed |
 | Per-repo local | `<repo>/.claude/settings.local.json` | Ephemeral, short rules | Nukeable, gitignored |
 

@@ -443,7 +443,7 @@ case "$rule" in
              (to_entries[] | .key as $k | .value
               | if type != "array" then "permissions.\($k): must be a list of rules"
                 else to_entries[]
-                  | select((.value | type) != "string" or .value == "")
+                  | select((.value | type) != "string" or (.value | test("\\S") | not))
                   | "permissions.\($k)[\(.key)]: must be a non-empty string"
                 end)
            end)

@@ -59,9 +59,8 @@
     - lookup('ansible.builtin.env', 'CI', default='') == ''
   tags: [claude]
 
-# Read from the op-work-item item itself, so a host without that file has
-# nothing to render and skips; the fragment it leaves behind, if any, still
-# applies.
+# A host without an op-work-item file has nothing to render and skips; a
+# fragment already on disk keeps applying through the merge in main.yml.
 - name: Render the Claude work settings fragment from 1Password
   ansible.builtin.command:
     argv:
@@ -77,8 +76,9 @@
     - claude_op_probe.rc == 0
     - lookup('ansible.builtin.env', 'CI', default='') == ''
     - lookup('ansible.builtin.env', 'DOTFILES_OP_WORK_ITEM', default='') != ''
-  # The merge in main.yml ran before this render; the handler lands a new or
-  # changed fragment this run rather than the next.
+  # The merge in main.yml ran before this render, so the handler applies a new
+  # or changed fragment in the same run, provided the play completes; otherwise
+  # the next run's merge does.
   notify: Apply the Claude work settings fragment
   tags: [claude]
 

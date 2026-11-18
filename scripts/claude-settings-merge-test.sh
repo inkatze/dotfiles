@@ -210,6 +210,58 @@ else
     fail refuses-bad-fragment "wrong outcome: $out"
 fi
 
+# 15. an empty or whitespace-only fragment, and an empty rule list, add nothing
+#     and are not refused
+printf '%s\n' '{"permissions":{"allow":["Bash(app-added:*)"]}}' >"$work/live.json"
+"$merge" "$work/live.json" "$work/managed.json" >/dev/null
+cp "$work/live.json" "$work/baseline.json"
+okc=1
+for body in '' '   ' '{}' '{"permissions":{}}' '{"permissions":{"allow":[]}}'; do
+    printf '%s' "$body" >"$work/fragment.json"
+    if ! "$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null 2>&1 \
+        || ! cmp -s "$work/baseline.json" "$work/live.json"; then
+        okc=0
+        echo "  not a no-op: '$body'"
+    fi
+done
+if [ "$okc" -eq 1 ]; then
+    ok empty-fragment-noop "empty, blank, {} and empty-list fragments change nothing"
+else
+    fail empty-fragment-noop "an empty fragment was refused or changed the live file"
+fi
+
+# 16. each invalid fragment shape is refused with exit 4, live untouched
+before=$(cat "$work/live.json")
+okc=1
+for body in 'not json' '[]' '{"hooks":{}}' '{"permissions":"x"}' '{"permissions":{"allow":"x"}}' \
+    '{"permissions":{"allow":[1]}}' '{"permissions":{"allow":[""]}}' '{"permissions":{"allow":["  "]}}'; do
+    printf '%s\n' "$body" >"$work/fragment.json"
+    rc=0
+    "$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null 2>&1 || rc=$?
+    if [ "$rc" -ne 4 ] || [ "$before" != "$(cat "$work/live.json")" ]; then
+        okc=0
+        echo "  wrong outcome (rc=$rc) for: $body"
+    fi
+done
+if [ "$okc" -eq 1 ]; then
+    ok refuses-each-bad-shape "every invalid shape exits 4 and leaves the live file alone"
+else
+    fail refuses-each-bad-shape "an invalid fragment was accepted or exited with the wrong status"
+fi
+
+# 17. $HOME/ is expanded in deny and in fragment rules too
+printf '%s\n' '{}' >"$work/live.json"
+printf '%s\n' '{"permissions":{"deny":["Bash($HOME/blocked:*)"]}}' >"$work/managed.json"
+printf '%s\n' '{"permissions":{"allow":["Bash($HOME/tool:*)"]}}' >"$work/fragment.json"
+HOME=/fake/home "$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null
+got=$(jq -c '.permissions' "$work/live.json")
+if [ "$got" = '{"deny":["Bash(/fake/home/blocked:*)"],"allow":["Bash(/fake/home/tool:*)"]}' ] \
+    || [ "$got" = '{"allow":["Bash(/fake/home/tool:*)"],"deny":["Bash(/fake/home/blocked:*)"]}' ]; then
+    ok home-expanded-everywhere "deny and fragment rules are written expanded"
+else
+    fail home-expanded-everywhere "got $got"
+fi
+
 if [ "$fails" -ne 0 ]; then
     printf 'claude-settings-merge-test: %d assertion(s) failed\n' "$fails"
     exit 1

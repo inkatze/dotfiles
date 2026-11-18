@@ -1101,7 +1101,7 @@ run --work-account "$frag_tpl" work-item "$frag"
 printf '%s\n' 'claude_permissions_allow=' | to_item "$OP_STUB_WORK_ITEM"
 run --work-account "$frag_tpl" work-item "$frag"
 [ "$rc" -eq 0 ] && [ "$(jq -c . "$frag")" = '{}' ] && ok "an empty field renders an empty fragment" || ko "an empty field ($log)"
-for bad in '"mcp__work__read"' '[""]' '[1]' '{"allow":[]}'; do
+for bad in '"mcp__work__read"' '[""]' '["  "]' '[1]' '{"allow":[]}'; do
   printf 'claude_permissions_allow=%s\n' "$bad" | to_item "$OP_STUB_WORK_ITEM"
   run --work-account "$frag_tpl" work-item "$frag"
   expect_failed "an allow value of $bad" "would not satisfy its rule"

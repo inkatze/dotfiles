@@ -8,20 +8,23 @@
 # $HOME/.claude/scripts/. Declaring an empty array therefore still removes our
 # hooks from that event without touching anyone else's.
 #
-# An allow or deny rule whose pattern opens with $HOME/ is written expanded, because
-# Claude Code matches a Bash rule against the literal command and never
+# An allow or deny rule whose pattern opens with $HOME/ is written expanded,
+# because Claude Code matches a Bash rule against the literal command and never
 # expands it; the tracked file stays free of any one machine's home path.
 #
 # permissions.allow and permissions.deny are a union, not a replacement: the
 # tracked rules first, then the optional fragment's (a machine-local file
 # holding only those two lists, rendered from 1Password for rules that must not
 # be committed), then any the live file alone carries, each rule once. So a rule
-# Claude Code or a person added survives, and dropping a rule from the tracked
-# file no longer removes it from a live one; delete it there by hand too.
+# Claude Code or a person added survives, and a rule dropped from the tracked
+# file or the fragment stays in a live one until deleted there by hand.
+#
+# A missing, empty or whitespace-only fragment adds nothing; one that is
+# anything else but a valid fragment is refused, so remove it and rerun the
+# playbook to render it afresh.
 #
 # Prints OK, or CHANGED after writing.
-# Usage: claude-settings-merge.sh <live> <tracked> [<fragment>]; a missing
-# fragment is the same as an empty one.
+# Usage: claude-settings-merge.sh <live> <tracked> [<fragment>]
 set -euo pipefail
 
 live="${1:?live settings path required}"
@@ -37,15 +40,19 @@ jq -e . "$live" >/dev/null 2>&1 || { echo "FAILED: live settings is not valid JS
 jq -e . "$managed" >/dev/null 2>&1 || { echo "FAILED: tracked settings is not valid JSON: $managed" >&2; exit 3; }
 frag_json='{}'
 if [ -n "$fragment" ] && { [ -e "$fragment" ] || [ -L "$fragment" ]; }; then
-    # Checked here because the fragment may only add rules: any other key in it
-    # would otherwise override a tracked or app-owned setting unseen.
-    jq -e '
-      type == "object" and (keys - ["permissions"] == [])
-      and ((.permissions // {}) | type == "object" and (keys - ["allow", "deny"] == [])
-           and all(.[]; type == "array" and all(.[]; type == "string" and length > 0)))
-    ' "$fragment" >/dev/null 2>&1 \
-        || { echo "FAILED: settings fragment must hold only permissions.allow and permissions.deny string lists: $fragment" >&2; exit 4; }
-    frag_json=$(jq -c . "$fragment")
+    # Read once, so what is validated is what is used.
+    frag_raw=$(cat "$fragment") || { echo "FAILED: settings fragment is unreadable: $fragment" >&2; exit 4; }
+    if [[ "$frag_raw" =~ [^[:space:]] ]]; then
+        # Checked here because the fragment may only add rules: any other key in
+        # it would otherwise override a tracked or app-owned setting unseen.
+        printf '%s' "$frag_raw" | jq -e '
+          type == "object" and (keys - ["permissions"] == [])
+          and ((.permissions // {}) | type == "object" and (keys - ["allow", "deny"] == [])
+               and all(.[]; type == "array" and all(.[]; type == "string" and test("\\S"))))
+        ' >/dev/null 2>&1 \
+            || { echo "FAILED: settings fragment must hold only permissions.allow and permissions.deny string lists: $fragment" >&2; exit 4; }
+        frag_json=$(printf '%s' "$frag_raw" | jq -c .)
+    fi
 fi
 
 # $HOME is passed in because a hook command may be recorded either as the
@@ -62,7 +69,7 @@ updated=$(jq -n --slurpfile l "$live" --slurpfile m "$managed" --argjson f "$fra
         then sub("\\(\\$HOME/"; "(" + $home + "/")
         else . end);
   # First occurrence wins, so the order is stable across runs.
-  def union_rules: reduce .[] as $r ([]; if index([$r]) then . else . + [$r] end);
+  def union_rules: reduce .[] as $r ([]; if any(.[]; . == $r) then . else . + [$r] end);
   def rules($s; $k): ($s.permissions[$k]? // []) | if type == "array" then . else [] end;
   ($l[0]) as $live | ($m[0]) as $mgd
   | ($live.hooks // {}) as $lh
