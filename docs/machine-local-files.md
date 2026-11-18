@@ -108,9 +108,9 @@ that an empty list or map in one drops like any other.
 A JSON template can also reference a second item, as
 `{{ op://__OP_WORK_VAULT__/__OP_WORK_ITEM__/<field> }}`: the review
 template's `work-review` entry, a reviewer only work machines run, draws on it
-alone. `op-work-item` holds
-`KEY=value` lines for `DOTFILES_OP_WORK_ACCOUNT`, `DOTFILES_OP_WORK_VAULT`
-and `DOTFILES_OP_WORK_ITEM`, which `scripts/playbook.sh` exports unless all three
+alone. `op-work-item` holds `KEY=value` lines for
+`DOTFILES_OP_WORK_ACCOUNT`, `DOTFILES_OP_WORK_VAULT` and
+`DOTFILES_OP_WORK_ITEM`, which `scripts/playbook.sh` exports unless all three
 are already exported (export them yourself for a direct `op-render.sh` run,
 or one through `ansible-playbook` alone, which otherwise drops the entry).
 A partial export, a file that is a symlink, not mode 600 or 400, owned by

@@ -179,6 +179,7 @@ fi
 
 # 12. a rerun with the same fragment is idempotent
 first=$(cat "$work/live.json")
+"$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null
 status=$("$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json")
 if [ "$status" = OK ] && [ "$first" = "$(cat "$work/live.json")" ]; then
     ok union-idempotent "second run with the fragment reported OK and rewrote nothing"
@@ -284,7 +285,8 @@ printf '%s\n' '{}' >"$work/live.json"
 printf '%s\n' '{}' >"$work/managed.json"
 printf '%s\n' '{"permissions":{"allow":[]}}' >"$work/fragment.json"
 "$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null
-if [ "$(jq -c 'has("permissions")' "$work/live.json")" = false ]; then
+status=$("$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json")
+if [ "$status" = OK ] && [ "$(jq -c 'has("permissions")' "$work/live.json")" = false ]; then
     ok no-rules-no-permissions "an all-empty union leaves permissions absent"
 else
     fail no-rules-no-permissions "got $(jq -c . "$work/live.json")"

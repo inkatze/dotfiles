@@ -55,10 +55,15 @@ if [ -n "$fragment" ] && { [ -e "$fragment" ] || [ -L "$fragment" ]; }; then
     fi
 fi
 
+# Handed to jq as a file, not an argument, so the rules stay out of the process list.
+frag_file=$(mktemp)
+trap 'rm -f "$frag_file"' EXIT
+printf '%s\n' "$frag_json" >"$frag_file"
+
 # $HOME is passed in because a hook command may be recorded either as the
 # literal "$HOME/..." the tracked file uses or already expanded; missing the
 # expanded form would treat our own entry as foreign and then duplicate it.
-updated=$(jq -n --slurpfile l "$live" --slurpfile m "$managed" --slurpfile f <(printf '%s' "$frag_json") --arg home "$HOME" '
+updated=$(jq -n --slurpfile l "$live" --slurpfile m "$managed" --slurpfile f "$frag_file" --arg home "$HOME" '
   def owned:
     (.command // "") as $c
     | ($c | startswith("$HOME/.claude/scripts/"))

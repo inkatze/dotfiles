@@ -37,8 +37,8 @@ See [docs/claude-config.md](docs/claude-config.md).
 
 Three valid layers, chosen by scope: global tracked
 `roles/claude/files/settings.json` for cross-project allows and the deny list
-(work-only rules join it from a machine-local fragment); per-repo tracked `<repo>/.claude/settings.json` for project-specific durable
-rules; per-repo local `<repo>/.claude/settings.local.json` for ephemeral
+(work-only rules join it from a machine-local fragment); per-repo tracked
+`<repo>/.claude/settings.json` for project-specific durable rules; per-repo local `<repo>/.claude/settings.local.json` for ephemeral
 rules, kept near-empty. See [docs/claude-config.md](docs/claude-config.md).
 
 ## Adding a new Claude skill
