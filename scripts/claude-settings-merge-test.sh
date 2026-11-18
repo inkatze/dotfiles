@@ -234,7 +234,7 @@ fi
 # 16. each invalid fragment shape is refused with exit 4, live untouched
 before=$(cat "$work/live.json")
 okc=1
-for body in 'not json' '[]' '{"hooks":{}}' '{"permissions":"x"}' '{"permissions":{"allow":"x"}}' \
+for body in 'not json' '[]' '{"hooks":{}}' '{"permissions":"x"}' '{"permissions":{"allow":"x"}}' '{"permissions":{"deny":"x"}}' '{"permissions":{"deny":[1]}}' \
     '{"permissions":{"allow":[1]}}' '{"permissions":{"allow":[""]}}' '{"permissions":{"allow":["  "]}}' \
     '{"permissions":null}' '{"permissions":false}' '{"permissions":{"allow":["a"],"defaultMode":"x"}}' \
     '{"env":{"X":"1"}} {}' '{"permissions":{"allow":["a"]}}{"permissions":{"deny":["b"]}}'; do
@@ -258,7 +258,8 @@ printf '%s\n' '{"permissions":{"deny":["Bash($HOME/blocked:*)"]}}' >"$work/manag
 printf '%s\n' '{"permissions":{"allow":["Bash($HOME/tool:*)"]}}' >"$work/fragment.json"
 HOME=/fake/home "$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null
 got=$(jq -c '.permissions' "$work/live.json")
-if [ "$(jq -cS . <<<"$got")" = '{"allow":["Bash(/fake/home/tool:*)"],"deny":["Bash(/fake/home/blocked:*)"]}' ]; then
+again=$(HOME=/fake/home "$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json")
+if [ "$again" = OK ] && [ "$(jq -cS . <<<"$got")" = '{"allow":["Bash(/fake/home/tool:*)"],"deny":["Bash(/fake/home/blocked:*)"]}' ]; then
     ok home-expanded-everywhere "deny and fragment rules are written expanded"
 else
     fail home-expanded-everywhere "got $got"

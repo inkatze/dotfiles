@@ -56,9 +56,10 @@ if [ -n "$fragment" ] && { [ -e "$fragment" ] || [ -L "$fragment" ]; }; then
 fi
 
 # Handed to jq as a file, not an argument, so the rules stay out of the process list.
-frag_file=$(mktemp)
-trap 'rm -f "$frag_file"' EXIT
-printf '%s\n' "$frag_json" >"$frag_file"
+tmp=
+frag_file=$(mktemp) || { echo "FAILED: could not create a temporary file" >&2; exit 5; }
+trap 'rm -f "$frag_file" ${tmp:+"$tmp"}' EXIT
+printf '%s\n' "$frag_json" >"$frag_file" || { echo "FAILED: could not write a temporary file: $frag_file" >&2; exit 5; }
 
 # $HOME is passed in because a hook command may be recorded either as the
 # literal "$HOME/..." the tracked file uses or already expanded; missing the
@@ -101,7 +102,7 @@ updated=$(jq -n --slurpfile l "$live" --slurpfile m "$managed" --slurpfile f "$f
 if [ "$(cat "$live")" = "$updated" ]; then
     echo OK
 else
-    tmp=$(mktemp "${live}.XXXXXX")
+    tmp=$(mktemp "${live}.XXXXXX") || { echo "FAILED: could not create a temporary file beside $live" >&2; exit 5; }
     printf '%s\n' "$updated" >"$tmp"
     # 0600 asserted, not inherited: this file carries an `env` block, and mktemp
     # would hand its own 0600 to the result silently anyway.
