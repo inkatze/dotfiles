@@ -222,19 +222,28 @@ for st in success failure; do
     check "workflow-marker-$st" "$out" '.build_id.value == "12.3" and .reviewed_head == null and .errored == true'
   fi
 done
+CFG="$CFG_SAVED"
 
 # PR-Agent runs once per PR, on a `pr-agent` label, never on a push: pin the
-# trigger, the job gate beside the fork filter, and the action list the
-# PR-Agent step accepts, which must name the same event.
+# trigger, the job gate beside the fork filter, the action list the PR-Agent
+# step accepts, and the live head the marker records. The whole-line matches
+# fix the YAML indentation, so a harmless re-indent fails here by design; the
+# job gate sits at a deeper indent than the concurrency expression, which
+# repeats the label test.
 wf="$ROOT/.github/workflows/pr-agent.yml"
 grep -qxF '    types: [labeled]' "$wf" \
   || fail workflow-trigger "pull_request types must be exactly [labeled]"
-grep -qF "github.event.label.name == 'pr-agent'" "$wf" \
-  && grep -qF 'github.event.pull_request.head.repo.full_name == github.repository' "$wf" \
+if grep -qE '^[[:space:]]*(push|pull_request_target):|synchronize' "$wf"; then
+  fail workflow-no-push "the workflow must not trigger on a push or pull_request_target"
+fi
+grep -qxF "      github.event.label.name == 'pr-agent'" "$wf" \
+  && grep -qxF '      && github.event.pull_request.head.repo.full_name == github.repository' "$wf" \
   || fail workflow-job-gate "job if must gate on the pr-agent label and keep the same-repo filter"
 grep -qxF '            ["labeled"]' "$wf" \
   || fail workflow-pr-actions "the PR-Agent step must accept only the labeled action"
-CFG="$CFG_SAVED"
+grep -qxF '        id: head' "$wf" \
+  && grep -qF 'HEAD_SHA: ${{ steps.head.outputs.sha }}' "$wf" \
+  || fail workflow-live-head "the marker must record the head the head step resolved"
 
 # A reviewer missing from the config is an error, never an empty PR.
 for entry in null '{"build_id_regex": "x"}'; do

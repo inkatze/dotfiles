@@ -3,9 +3,10 @@ name: pr-agent
 # Same-repo PRs only, and never `pull_request_target`: a fork PR must not
 # reach the model secret. Fork PRs are filtered by the job `if:`.
 #
-# Runs once per PR, on its final head, never on a push: applying the
-# `pr-agent` label starts a review of the head at that moment. Remove and
-# re-apply the label for the one extra run a code-changing fix round gets.
+# Runs once per PR, never on a push: applying the `pr-agent` label starts a
+# review of the head at that moment, so apply it on the final head. Remove and
+# re-apply the label for the one extra run a code-changing fix round gets. A
+# label applied with the Actions token starts nothing; apply it as a user.
 on:
   pull_request:
     types: [labeled]
@@ -55,7 +56,10 @@ jobs:
           EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           sha="$(gh api "repos/${REPO}/pulls/${PR}" --jq .head.sha)" || sha=""
-          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || sha="$EVENT_HEAD_SHA"
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::warning title=PR-Agent head lookup failed::Marker uses the label-time head."
+            sha="$EVENT_HEAD_SHA"
+          fi
           echo "sha=${sha}" >> "$GITHUB_OUTPUT"
 
       - name: PR-Agent review
@@ -97,7 +101,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ steps.head.outputs.sha || github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ steps.head.outputs.sha }}
           RUN_ID: ${{ github.run_id }}.${{ github.run_attempt }}
           OUTCOME: ${{ steps.review.outcome }}
         run: |
