@@ -117,7 +117,7 @@ osx_defaults:
     value: 1
   - domain: com.apple.screensaver
     key: askForPasswordDelay
-    type: int
+    type: float
     value: 0
 
   # Section: Finder ->>2
@@ -284,7 +284,7 @@ osx_offload_required_tools: [brew, op, jq, mise, fish, tmux, gh, git]
 
 # Installed by mise from roles/osx/files/mise-offload/offload.toml, in this
 # order (uv before the pipx: entry).
-osx_offload_mise_tools: [uv, "pipx:ansible-core", gh, jq, tmux, gitleaks, gemini]
+osx_offload_mise_tools: [uv, "pipx:ansible-core", gh, jq, tmux, gitleaks, gemini, postgres]
 osx_offload_mise_bin: "{{ ansible_facts.env.HOME }}/.local/bin/mise"
 osx_offload_mise_conf_d: "{{ ansible_facts.env.HOME }}/.config/mise/conf.d"
 # The owner's Homebrew binaries, used read-only (Apple silicon's prefix).
@@ -304,7 +304,10 @@ osx_runner_sha256: 25a065af409ffa317ab4d5a3b614dd15fc9c40f2172bc1b35a1b1258e919a
 osx_runner_asset: "actions-runner-osx-{{ osx_runner_arch }}-{{ osx_runner_version }}.tar.gz"
 osx_runner_url: "https://github.com/actions/runner/releases/download/v{{ osx_runner_version }}/{{ osx_runner_asset }}"
 osx_runner_root: "{{ ansible_facts.env.HOME }}/actions-runners"
-osx_runner_labels: mac-fleet
+# Every instance carries both: `mac-fleet` is what this repository's workflow
+# targets, `offload-mac-ci` what planwright's does.
+osx_runner_labels: mac-fleet,offload-mac-ci
+osx_runner_name: offload-mac-ci
 osx_runner_nice: 10
 # Minutes between the crontab's checks that each gate still runs.
 osx_runner_recheck_minutes: 5
@@ -321,12 +324,33 @@ osx_runner_system_path: /usr/bin:/bin:/usr/sbin:/sbin
 osx_runner_path: >-
   {{ osx_offload_mise_bin | dirname }}:{{ osx_runner_shims }}:{{ osx_offload_brew_bin }}:{{ osx_runner_system_path }}
 osx_runner_shims: "{{ ansible_facts.env.HOME }}/.local/share/mise/shims"
+# A job's `npm install -g` must land in the work account's own prefix, never the
+# owner's Homebrew one, which the work account cannot write, and in one of its
+# own per runner instance: concurrent installs into a shared prefix race (npm
+# ENOTEMPTY). `item` is a runner unit; the first instance is `-1`.
+osx_runner_npm_prefix: "{{ ansible_facts.env.HOME }}/.npm-global-{{ item.n }}"
+# A job's `npm` must not resolve to a mise shim with no version set (planwright's
+# mise.toml pins no node), so the runners' PATH carries this node's own bin,
+# installed in the work account by the play.
+osx_runner_node_version: 22.21.1
+osx_runner_node_bin: "{{ ansible_facts.env.HOME }}/.local/share/mise/installs/node/{{ osx_runner_node_version }}/bin"
+osx_runner_job_path_prefix: "{{ osx_runner_npm_prefix }}/bin:{{ osx_runner_node_bin }}"
+# Test suites fan out one worker per core. Half the Mac's cores keeps one suite
+# alone inside its job time cap, and two suites at once still fit; four at full
+# width overloaded the Mac, and cores divided by the runner count made a lone
+# suite too slow. Cores come from facts.
+osx_runner_test_jobs: >-
+  {{ [1, ((ansible_facts.processor_vcpus | default(ansible_facts.processor_cores | default(1))) | int) // 2] | max }}
 
 # Repositories whose names this repo already carries. Private ones come from
 # the machine-local file below, one owner/repo per line (# comments allowed).
 osx_runner_repos:
   - inkatze/planwright
   - inkatze/dotfiles
+# How many runner instances a repository gets; absent means one. An instance
+# beyond the first is its own directory `<owner>-<repo>-<n>` and registration.
+osx_runner_instances:
+  inkatze/planwright: 4
 osx_runner_repos_file: "{{ ansible_facts.env.HOME }}/.config/dotfiles/runner-repos"
 
 # No new job starts until the keyboard and mouse have been idle this long,
@@ -334,3 +358,50 @@ osx_runner_repos_file: "{{ ansible_facts.env.HOME }}/.config/dotfiles/runner-rep
 # the cap.
 osx_runner_idle_seconds: 300
 osx_runner_load_max: 6
+
+# A localhost Redis in the offload account, for a test suite's CI. Version in
+# roles/osx/files/mise-offload/offload.toml. Started through the runners'
+# starter from the same crontab, and stopped while the owner is at the Mac
+# (docs/offload-host.md).
+osx_redis_port: 6379
+osx_redis_dir: "{{ ansible_facts.env.HOME }}/redis"
+# Generated once by the play, 0600, never rendered anywhere tracked.
+osx_redis_passfile: "{{ osx_redis_dir }}/redis.pass"
+osx_redis_start_job: >-
+  /usr/bin/env PATH={{ osx_runner_path }}
+  RUNNER_GATE={{ ansible_facts.env.HOME }}/.local/bin/redis-gate.sh
+  RUNNER_PID_PREFIX=dotfiles-redis
+  RUNNER_IDLE_SECONDS={{ osx_runner_idle_seconds }}
+  RUNNER_NICE={{ osx_runner_nice }}
+  {{ ansible_facts.env.HOME }}/.local/bin/runner-start.sh
+  {{ osx_redis_dir }}
+
+# PostgreSQL for the offload account, from mise (osx_offload_mise_tools). The
+# server runs only while the Mac is idle, started from the account's crontab by
+# the same starter as the runners, under runner-gate.sh's idle rule
+# (osx_runner_idle_seconds, osx_runner_load_max).
+osx_postgres_data: "{{ ansible_facts.env.HOME }}/postgresql-16"
+# Mode 0700, so only the account itself reaches the server over its socket.
+osx_postgres_socket_dir: "{{ ansible_facts.env.HOME }}/postgresql-16-run"
+osx_postgres_port: 5432
+osx_postgres_role: fleet
+osx_postgres_pgpass: "{{ ansible_facts.env.HOME }}/.pgpass"
+# A test suite's pool is two connections per scheduler per partition; sized
+# for this many partitions on this Mac's cores, plus headroom, never below
+# PostgreSQL's own default of 100. Raise the partitions for a wider run.
+osx_postgres_partitions: 4
+osx_postgres_max_connections: >-
+  {{ [100, (ansible_facts.processor_vcpus | default(8) | int) * 2 * osx_postgres_partitions + 50] | max }}
+osx_postgres_start_job: >-
+  /usr/bin/env PATH={{ osx_runner_path }}
+  RUNNER_IDLE_SECONDS={{ osx_runner_idle_seconds }}
+  RUNNER_LOAD_MAX={{ osx_runner_load_max }}
+  RUNNER_NICE={{ osx_runner_nice }}
+  RUNNER_GATE={{ ansible_facts.env.HOME }}/.local/bin/postgres-gate.sh
+  RUNNER_PID_PREFIX=dotfiles-postgres
+  POSTGRES_PORT={{ osx_postgres_port }}
+  POSTGRES_SOCKET_DIR={{ osx_postgres_socket_dir }}
+  POSTGRES_MAX_CONNECTIONS={{ osx_postgres_max_connections }}
+  POSTGRES_ROLE={{ osx_postgres_role }}
+  {{ ansible_facts.env.HOME }}/.local/bin/runner-start.sh
+  {{ osx_postgres_data }}

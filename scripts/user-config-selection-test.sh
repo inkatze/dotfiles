@@ -67,6 +67,7 @@ cat >"$work/guards" <<'EOF'
 osx : Read the account running this play on the offload host|always
 osx : Read that account's groups|always
 osx : Refuse to configure the offload host from another account|always
+osx : Read whether the work account is in the SSH access group|always
 osx : Refuse an administrator work account|always
 osx : Import the offload host's toolchain tasks|always
 osx : Decide whether this run may install with Homebrew|always

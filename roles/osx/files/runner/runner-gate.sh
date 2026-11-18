@@ -28,10 +28,17 @@ hid_idle_seconds() {
 # counts as busy.
 load_one_minute() { sysctl -n vm.loadavg 2>/dev/null | awk '{ print $2; exit }'; }
 
-mac_is_free() {
-    local idle load
+# The idle-time half of mac_is_free, for a server that must not be stopped by
+# its own load.
+owner_idle() {
+    local idle
     idle="$(hid_idle_seconds)"
-    [ -n "$idle" ] && [ "$idle" -ge "$idle_needed" ] || return 1
+    [ -n "$idle" ] && [ "$idle" -ge "$idle_needed" ]
+}
+
+mac_is_free() {
+    local load
+    owner_idle || return 1
     load="$(load_one_minute)"
     [ -n "$load" ] && awk -v l="$load" -v m="$load_max" 'BEGIN { exit !(l + 0 < m + 0) }'
 }

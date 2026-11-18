@@ -96,18 +96,34 @@ In order; each step needs a person, except the playbook run on `server`.
    sudo sysadminctl -addUser fleet -fullName Fleet -password - -adminUser <owner-account> -adminPassword -
    ```
 
+   If Remote Login allows only listed users, add the account to the SSH
+   access group **before** any demotion, from an administrator's session at
+   the Mac's console (not over SSH), then check that `fleet` is in the
+   printed list (`checkmember` is no check for an administrator, who is a
+   member through the nested admin group). When Remote Login allows all
+   users the group does not exist (`dscl . -read /Groups/com.apple.access_ssh`
+   fails with `eDSRecordNotFound`): skip this, and never create the group,
+   which would restrict Remote Login to it.
+
+   ```zsh
+   sudo dseditgroup -o edit -a fleet -t user com.apple.access_ssh
+   dscl . -read /Groups/com.apple.access_ssh GroupMembership
+   ```
+
+   The order matters: that mode admits only administrators and the group's
+   members, so demoting first can close the account's only way in. Steps 4, 5
+   and 7 reach the account over SSH, so Remote Login must also be on (System
+   Settings, General, Sharing). The playbook refuses an administrator account,
+   and says so when the account is not in the group.
+
    An account created as an administrator earlier is made standard the same
-   way, then checked (the second line prints nothing once it is standard):
+   way once it is in the group, then checked (the second line prints nothing
+   once it is standard):
 
    ```zsh
    sudo dseditgroup -o edit -d fleet -t user admin
    id -Gn fleet | tr ' ' '\n' | grep -x admin
    ```
-
-   Steps 4, 5 and 7 reach the account over SSH, so Remote Login must be on
-   (System Settings, General, Sharing). If it allows only listed users, add
-   the account too:
-   `sudo dseditgroup -o edit -a fleet -t user com.apple.access_ssh`.
 
 3. **Run the playbook on `server`**, which mints `~/.ssh/id_offload`, then
    store its public half:
@@ -152,7 +168,9 @@ In order; each step needs a person, except the playbook run on `server`.
    anything else with mise. The play also refuses, before its Homebrew and
    macOS tasks, while one of `osx_offload_required_tools` is missing. The run
    renders the key the next step needs and keeps the same `PATH` for later
-   sessions in `~/.zshenv`; password login stays on until step 6.
+   sessions in `~/.zshenv`; password login stays on until step 6. The
+   owner's desktop defaults (`osx.yml`: Finder, Dock, screensaver) are skipped
+   on this host.
 
 6. **Close password login**, in an administrator's session on the Mac (zsh),
    once step 5's run has rendered the key. The clone is the administrator's
@@ -193,28 +211,42 @@ In order; each step needs a person, except the playbook run on `server`.
    `~/.ssh/id_signing.pub` to `roles/ssh/files/allowed_signers` in a
    follow-up commit so local signature checks pass.
 
+## Git auto-gc
+
+The play (`roles/osx/tasks/offload-git.yml`) sets `gc.auto=0` and
+`maintenance.auto=false` in the work account's global git config: background
+auto-gc removed loose-object directories in the middle of runner jobs and
+broke mise-action. The keys land below the git role's include block, and only
+on this host. A symlinked `~/.gitconfig` is skipped, silently. The git role
+replaces one that points at a checkout of this repo, so the keys land on the
+next run; any other symlink stays, and the keys stay unset until someone
+replaces it with a real file.
+
 ## GitHub Actions runners
 
 The play (`roles/osx/tasks/offload-runner.yml`) turns the work account into a
 self-hosted runner for the repositories in `osx_runner_repos`, plus any
 `owner/repo` lines in `~/.config/dotfiles/runner-repos` (private names stay
-out of the repo). One runner per repository, each in
-`~/actions-runners/<owner>-<repo>`, labelled `self-hosted`, `macOS`,
-`mac-fleet`, each kept running by the work account's own crontab at `nice 10`.
+out of the repo). One runner per repository by default, `osx_runner_instances`
+giving a repository more (planwright has four): the first in
+`~/actions-runners/<owner>-<repo>`, the rest in `<owner>-<repo>-2` and so on,
+named `offload-mac-ci`, `offload-mac-ci-2`, ..., all labelled `self-hosted`,
+`macOS`, `mac-fleet` and `offload-mac-ci`, each kept running by the work
+account's own crontab at `nice 10`.
 The account only logs in over ssh, so it has no launchd user domain (`gui/` and
 `user/` bootstraps both fail) and no sudo for a LaunchDaemon. Nothing uses
 sudo or Homebrew. The release is pinned with its published sha256 in the role
 defaults; bump both together.
 
-- **Keeping it running.** Per repository the play adds an `@reboot` crontab
+- **Keeping it running.** Per runner instance the play adds an `@reboot` crontab
   line and one every `osx_runner_recheck_minutes` (default 5), both calling
   `runner-start.sh`, and runs it once itself. That script starts
   `runner-gate.sh` detached and niced (a pid file in `~/.cache` names the
   running copy) and does nothing when it already runs, so a re-check never
   disturbs a job. The gate outlives the cron job and any ssh session. The
   crontab lines carry no `%`, which cron reads as a newline. To stop a runner,
-  kill the pid in `~/.cache/dotfiles-runner-<owner>-<repo>.pid` and remove its
-  two `dotfiles runner` lines from `crontab -e`.
+  remove its two `dotfiles runner` lines from `crontab -e`, then kill the pid in
+  `~/.cache/dotfiles-runner-<slug>.pid` and its gate (see Staying awake).
 - **Yielding.** `runner-gate.sh` starts the runner in `--once` mode, only while
   the keyboard and mouse have been still for `osx_runner_idle_seconds` and the
   one-minute load average is under `osx_runner_load_max` (default 6). Whichever
@@ -231,5 +263,217 @@ defaults; bump both together.
   alone. The login needs admin on each repository and the `repo` scope:
   `gh auth refresh --scopes repo` once over `ssh <alias>`, then drop it again
   if you want the narrower token back after the first run.
+- **Staying awake.** `runner-start.sh` starts each gate under
+  `/usr/bin/caffeinate -i`, held for the gate's whole life, waits included.
+  The Mac idles into sleep, which resets the runner's long poll to GitHub
+  (`Socket Error: ConnectionReset`) and shows it offline; `-i` blocks only idle
+  system sleep, with no sudo and no settings change. Yielding is unchanged: runs
+  stay niced and the gate still stops the listener while someone uses the Mac.
+  Stopping a runner now means stopping its gate and the caffeinate above it:
+  `pkill -f 'runner-gate.sh <runner-dir>'` as well as the pid file's process.
+  The same `caffeinate -i` wrapper covers the redis and postgres gates.
+  `-i` does not stop the maintenance sleep that froze all four runners and
+  failed a running job, so each runner's job-started hook also starts
+  `/usr/bin/caffeinate -s -w <worker pid>` once it accepts a job: the system stays
+  awake (on AC power only) for exactly the job's lifetime, the assertion ends
+  when the worker does, and nothing is left running between jobs. The hook finds
+  the worker among its ancestors; run by hand, with none, it holds nothing and says
+  so on stderr. No `pmset` or
+  system setting is touched. The start path uses neither `nohup` nor any other
+  wrapper that ignores SIGHUP (jobs inherit it, which fails signal tests): it
+  starts the gate under job control, so SIGHUP and SIGINT stay at their defaults.
+- **Job environment.** Each runner's `.env` sets `PLANWRIGHT_TEST_JOBS` to half the
+  Mac's core count (from Ansible's facts), at least 1: one suite alone stays
+  inside its job time cap and two at once still fit, where every suite fanning
+  out across all cores overloaded the Mac, and cores divided by the runner count
+  made a lone suite too slow. The `.env` also sets `NPM_CONFIG_PREFIX` to
+  `~/.npm-global-<n>` (`n` is the instance's number, 1 for the first; a job's
+  `npm install -g` must not reach the owner's Homebrew prefix, and runners
+  sharing one prefix race on concurrent installs), and its `.path` starts with that prefix's `bin` and the bin of a node
+  the play installs with mise (`osx_runner_node_version`), so `npm` never
+  resolves to a mise shim with no version set. The hook line and both of these
+  are written after registration, because `config.sh` rewrites `.path` and may
+  rewrite `.env`, and before any gate is scheduled; a listener that started
+  earlier holds the old environment, so the play stops a changed runner's idle
+  one (`runner-refresh.sh`) and its gate starts a fresh one, while one serving
+  a job finishes first (`--once`, then the next start reads the new files). The node goes on the
+  runners' `PATH` rather than into the account's global mise config, which the
+  play leaves alone.
+- **Spotlight.** A fresh runner registers with `--work _work.noindex`, a name
+  macOS never indexes. An existing runner's work folder cannot be changed by
+  `config.sh` again, so `runner-workdir.sh` moves its `_work` to `_work.noindex`
+  and leaves a `_work` symlink the runner follows; it does nothing while a job
+  runs, and the next play run catches up.
+- **Existing runners.** A directory with a `.runner` file is never
+  re-registered, so the stopgap's four planwright runners keep their
+  registrations and names (`offload-mac-ci`, `-2`, `-3`, `-4`); the play only
+  adds the hook, `.env`, `.path`, gate and the Spotlight-skipping work directory. It removes the stopgap's hand-set
+  `@reboot` lines (tagged `# offload-mac-ci-...-runner`), which start `run.sh`
+  bare, then schedules the gates. A listener those lines already started keeps
+  running until stopped: before the first play run, stop each stopgap listener
+  while no job runs (`pkill -f 'actions-runners/inkatze-planwright.*Runner.Listener'`),
+  or the new gate's listener will collide with it.
+- **Job-started hook.** No fork's code may run here. Per runner instance the play
+  installs `~/.local/bin/runner-hook-<slug>.sh` (the instance's directory name) beside a `.repo` file
+  naming the repository, and writes
+  `ACTIONS_RUNNER_HOOK_JOB_STARTED=<that path>` into the runner directory's
+  `.env`, after registration and before any gate starts (the play fails if it cannot).
+  The runner runs it before every job and a non-zero exit fails the job before
+  its first step. It refuses unless `GITHUB_REPOSITORY` is the runner's own
+  repository and the event is `push`, or `pull_request` whose head repository
+  (read with `/usr/bin/jq`, macOS 15 and later) is that same repository; an
+  unreadable payload or any other event refuses; an accepted job also gets its
+  keep-awake hold (see Staying awake). The runner reads
+  `.env` only at start, so the play restarts a changed runner's idle listener.
+
+  Check it once after the play:
+  1. Open a pull request from a branch of the repository whose job lands on the
+     Mac: the job's log shows the hook step and the job runs.
+  2. Run the hook by hand with a fork's event file:
+
+     ```sh
+     echo '{"pull_request":{"head":{"repo":{"full_name":"someone/fork"}}}}' > <dir>/fork.json
+     GITHUB_REPOSITORY=<owner>/<repo> GITHUB_EVENT_NAME=pull_request \
+       GITHUB_EVENT_PATH=<dir>/fork.json \
+       ~/.local/bin/runner-hook-<slug>.sh; echo $?
+     ```
+
+     It prints `offload-mac-ci: refusing this job` and exits 1.
+
+  Also set the repository's fork-approval policy, so no outside contributor's
+  workflow runs until a maintainer approves it. An operator step, from a `gh`
+  login with admin on the repository:
+
+  ```fish
+  gh api -X PUT repos/inkatze/dotfiles/actions/permissions/fork-pr-contributor-approval -f approval_policy=all_external_contributors
+  ```
+
 - **Logs:** `~/.cache/dotfiles-runner-<owner>-<repo>.{out,err}` (cron's own
   mail for the account is empty unless a job line breaks).
+
+## Redis for a test suite
+
+The play (`roles/osx/tasks/offload-redis.yml`) also runs a Redis 7 on
+`localhost:6379` in the work account, for a test suite's full CI on this Mac.
+It is installed with mise, pinned in `roles/osx/files/mise-offload/offload.toml`
+and built from source in the work account with only the system `PATH`, no TLS
+and none of the owner's Homebrew libraries. Nothing uses sudo, Homebrew or the
+owner's account.
+
+- **Config.** The play renders `~/redis/redis.conf` (mode 0600) from
+  `roles/osx/templates/redis.conf.j2`: `bind 127.0.0.1 -::1`,
+  `protected-mode yes`, `port 6379`, `save ""` and `appendonly no` (nothing is
+  persisted), and `requirepass` from `~/redis/redis.pass`. `~/redis` is mode
+  0700 and is the server's working directory. The password is 48 random hex
+  characters generated once with the system `openssl` into that 0600 file; an
+  existing file is kept, never regenerated, and the play never prints or logs
+  it. Changing the config takes effect at the server's next start.
+- **Keeping it running.** The same shape as the runners: an `@reboot` crontab
+  line and one every `osx_runner_recheck_minutes`, calling
+  `runner-start.sh` with `RUNNER_GATE` set to `redis-gate.sh` and
+  `RUNNER_PID_PREFIX=dotfiles-redis`, so its pid, lock and log files are
+  `~/.cache/dotfiles-redis-redis.*` and never collide with a runner's. Like
+  every gate it runs under `caffeinate -i` (see Staying awake). To stop it for
+  good, remove the two `dotfiles redis` lines from `crontab -e`, then kill the
+  pid in `~/.cache/dotfiles-redis-redis.pid` and the gate with
+  `pkill -f 'redis-gate.sh <redis dir>'`.
+- **Yielding.** `redis-gate.sh` runs the server only while the keyboard and
+  mouse have been still for `osx_runner_idle_seconds` (`owner_idle` in
+  `runner-gate.sh`, the idle-time half of the runner's free check). When the
+  owner returns it runs `redis-cli shutdown nosave`, with the password in the
+  `REDISCLI_AUTH` environment variable (never on a command line), and starts
+  the server again once the Mac has been idle long enough. Load is not part of
+  the rule: a server stopped by its own load would never stay up under the
+  suite it serves. Anything using it loses its data at that moment, as with a
+  runner job dropped when the owner returns; re-run it.
+
+### Client settings
+
+A test suite reads these; the defaults need nothing set:
+
+| Variable | Value |
+|---|---|
+| `REDIS_HOST` | `localhost` (the default) |
+| `REDIS_PORT` | `6379` (the default) |
+| `REDIS_PASSWORD` | the contents of `~/redis/redis.pass` in the work account |
+| `REDIS_DATABASE` | `0` (the default) |
+| `REDIS_SSL` | unset or `false`: no TLS |
+
+A job on a runner here exports the password from the file at run time and never
+writes it into a tracked file or a workflow:
+
+```sh
+export REDIS_PASSWORD="$(cat ~/redis/redis.pass)"
+```
+
+## PostgreSQL
+
+The play (`roles/osx/tasks/offload-postgres.yml`) gives the work account a
+PostgreSQL 16 server for test suites run on the Mac. Same posture as the
+runners: nothing uses sudo or the owner's Homebrew, and nothing touches the
+owner's account or settings.
+
+- **Install.** `postgres` is pinned in `roles/osx/files/mise-offload/offload.toml`
+  beside the other tools; mise's postgres plugin compiles it from source, so
+  the Command Line Tools must be present. `POSTGRES_CONFIGURE_OPTIONS` in that
+  file builds without icu, readline and openssl (the plugin's defaults would
+  reach into the owner's Homebrew), and with no uuid support: a localhost test
+  server needs none, `psql` simply has no line editing, and there are no
+  TLS connections. The pinned minor is a reviewed bump.
+- **Data and access.** The cluster is `osx_postgres_data` (default
+  `~/postgresql-16`), initialised by `initdb` only when that directory has no
+  `PG_VERSION`, with `--auth-local=peer --auth-host=scram-sha-256`. The server
+  listens on `localhost` and on a Unix socket in `osx_postgres_socket_dir`
+  (default `~/postgresql-16-run`, mode 0700, socket mode 0700), so another
+  account on the Mac cannot enter the socket directory and, though it can reach
+  the TCP port, cannot log in without the password. `initdb` makes the account's own
+  login the bootstrap superuser, and the gate also creates `osx_postgres_role`
+  (default `fleet`) with `createuser -s` only when it is missing, so it covers
+  any database a suite creates.
+- **Password.** The play appends `localhost:<port>:*:fleet:<password>` to
+  `~/.pgpass` (mode 0600), a random password, only while no such line exists,
+  and never prints it (`no_log`). The gate sets it on the role with `ALTER ROLE`
+  over a peer connection on each start, from the file, feeding the statement
+  on stdin so no process list shows it, and retries until that succeeds. Nothing
+  writes it anywhere shared or tracked. The play fails when the stored password
+  is shorter than the 32 characters it generates (a hand edit, say): remove the
+  line and re-run.
+- **Connecting.** Port 5432 (`osx_postgres_port`). The local mode needs no
+  password: a suite that takes `POSTGRES_SOCKET_DIR` connects over the socket
+  with peer auth, `POSTGRES_SOCKET_DIR=$HOME/postgresql-16-run`. Over TCP,
+  `psql -h localhost` reads `~/.pgpass`; a suite that does not read it needs
+  `POSTGRES_USER` (default `fleet`) and `POSTGRES_PASSWORD`, exported in the
+  session from the file, not stored:
+
+  ```zsh
+  export POSTGRES_PASSWORD="$(awk -F: '$1=="localhost" && $4=="fleet" {print $5; exit}' ~/.pgpass)"
+  ```
+
+  (a password with a `\` or `:` is escaped in the file, but the generated ones
+  hold neither).
+- **Connections.** `max_connections` is `osx_postgres_max_connections`: a test
+  pool is two connections per scheduler per partition, so it is the Mac's
+  cores times two times `osx_postgres_partitions` (default 4) plus 50, and
+  never below PostgreSQL's 100. Raise the partitions for a wider run.
+- **Keeping it running.** Like the runners: an `@reboot` crontab line and one
+  every `osx_runner_recheck_minutes`, both calling `runner-start.sh` (the
+  runners' starter, told by `RUNNER_GATE` and `RUNNER_PID_PREFIX` to run
+  `postgres-gate.sh` and keep its pid, lock and logs as
+  `~/.cache/dotfiles-postgres-<dir>.*`). It starts the gate detached at nice
+  10 and under `caffeinate -i` (see Staying awake), so the gate holds off idle
+  system sleep for its whole life, yielding waits included, and does nothing
+  when it already runs. The server log is `<data dir>/server.log`. To stop it
+  for good, remove the two `dotfiles postgres` crontab lines, then stop the
+  gate and the caffeinate above it: `pkill -f 'postgres-gate.sh <data dir>'`
+  as well as the pid file's process; the gate stops the server fast on `TERM`.
+- **Yielding.** `postgres-gate.sh` starts the server only when
+  `runner-gate.sh`'s `mac_is_free` holds: input idle for
+  `osx_runner_idle_seconds` and the one-minute load under
+  `osx_runner_load_max`. Once input arrives, within that window, it runs
+  `pg_ctl stop -m fast`: sessions are disconnected, their open transactions
+  rolled back, committed data flushed, nothing killed mid-write, so a test run
+  in flight fails and is re-run. It starts again on the next idle check
+  (every ten seconds). Load alone never stops it: a test run loads the Mac
+  through the server it uses, and stopping on that would end every busy run.
+  The runner's rule is the opposite on this point (a running job is left to
+  finish), by the owner's priority over a job that can be rerun.

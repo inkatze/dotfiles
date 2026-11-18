@@ -6,18 +6,24 @@
 #   `always`, read the login and groups from the process, refuse another or an
 #   administrator account, and set osx_brew_writable false on the offload
 #   hosts: a tagged run must still meet the account checks and find it defined.
+# - An administrator account is refused only after a read-only, sudo-free check
+#   of its SSH access, whose refusal names the group to join before demoting.
 # - The offload host's own task files never use become.
 # - Every Homebrew or App Store task in homebrew.yml and upgrade.yml carries
 #   osx_brew_writable, and nothing else does: the planwright updates have to
 #   keep running on the offload host, which never writes Homebrew. The includes
 #   themselves stay unguarded, for the same reason.
-# - The GitHub MCP sync is skipped on the offload host.
+# - The GitHub MCP sync and the desktop defaults (osx.yml) are skipped on the
+#   offload host, and the screensaver delay is declared float.
+# - Git auto-gc is turned off in the work account by offload-git.yml, which is
+#   included only on the offload hosts and never writes through a symlink.
 
 set -eu
 
 repo="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 
 python3 - "$repo/roles/osx/tasks" <<'PY'
+import re
 import sys
 import yaml
 
@@ -106,6 +112,27 @@ for label, present in (
     ("the not-an-administrator check is among them", asserts("'admin' not in osx_offload_groups.stdout.split()")),
 ):
     ok(label) if present else ko(f"{label}: not found ahead of the imports")
+print("1a. an administrator work account is refused after a read-only SSH access check")
+refusal = next((i for i, t in enumerate(head) if arg(t, "ansible.builtin.assert", "that") == "'admin' not in osx_offload_groups.stdout.split()"), None)
+probe = next((i for i, t in enumerate(head) if t.get("register") == "osx_offload_ssh_access"), None)
+ok("the SSH access check exists") if probe is not None else ko("no head task registers osx_offload_ssh_access")
+if probe is not None and refusal is not None:
+    ptask = head[probe]
+    cmd = command_text(ptask)
+    ok("it runs before the refusal") if probe < refusal else ko("it runs after the refusal")
+    ok("it uses no become") if not ptask.get("become") else ko("it uses become")
+    ok("it reads com.apple.access_ssh") if "com.apple.access_ssh" in cmd else ko("it does not read com.apple.access_ssh")
+    ok("it changes nothing and runs in check mode") if ptask.get("changed_when") is False and ptask.get("check_mode") is False else ko("it can report a change or is skipped in check mode")
+    writes = [w for w in ("sudo", "-o edit", "-o create", "-o delete", "-create", "-merge", "-append", "-delete", "-change") if w in cmd]
+    writes += re.findall(r">+\s*(?!(?:/dev/null|&1)(?![\w/.]))\S+", cmd)
+    ok("its command writes nothing") if not writes else ko(f"its command holds {writes}")
+    msg = str(head[refusal]["ansible.builtin.assert"].get("fail_msg", ""))
+    ok("the refusal names com.apple.access_ssh") if "com.apple.access_ssh" in msg else ko("the refusal does not name com.apple.access_ssh")
+    ok("the refusal's hint is keyed on the missing result") if "== 'missing'" in msg else ko("the refusal's hint is not keyed on 'missing'")
+    ok("the refusal reads the check's result") if "osx_offload_ssh_access" in msg else ko("the refusal does not read osx_offload_ssh_access")
+    ok("the refusal does not use become") if not head[refusal].get("become") else ko("the refusal uses become")
+else:
+    ko("the refusal task was not found")
 writable = [arg(t, "ansible.builtin.set_fact", "osx_brew_writable") for t in head if arg(t, "ansible.builtin.set_fact", "osx_brew_writable") is not None]
 if writable == ["{{ inventory_hostname not in osx_offload_hosts }}"]:
     ok("osx_brew_writable is false exactly on the offload hosts")
@@ -113,7 +140,7 @@ else:
     ko(f"osx_brew_writable is set ahead of the imports as {writable}")
 
 print("1b. the offload host's own tasks never ask for sudo")
-for fname in ("offload-host.yml", "offload-tools.yml", "offload-runner.yml"):
+for fname in ("offload-host.yml", "offload-tools.yml", "offload-runner.yml", "offload-redis.yml", "offload-postgres.yml", "offload-git.yml"):
     becomes = [
         sub["name"]
         for t in load(fname)
@@ -144,6 +171,19 @@ for t in main:
 for inc in sorted({"homebrew.yml", "upgrade.yml"} - found):
     ko(f"include {inc}: not found as an include_tasks entry in main.yml")
 
+print("3b. the desktop defaults never run on the offload host")
+osx_inc = [t for t in main if t.get("ansible.builtin.include_tasks") == "osx.yml"]
+if len(osx_inc) == 1 and any(w.strip() == "inventory_hostname not in osx_offload_hosts" for w in whens(osx_inc[0])):
+    ok("include osx.yml: skipped there")
+else:
+    ko("include osx.yml: not skipped on the offload host")
+with open(f"{tasks_dir}/../defaults/main.yml") as f:
+    declared = {(e["domain"], e["key"]): e["type"] for e in yaml.safe_load(f)["osx_defaults"]}
+if declared.get(("com.apple.screensaver", "askForPasswordDelay")) == "float":
+    ok("askForPasswordDelay is declared float, as macOS stores it")
+else:
+    ko("askForPasswordDelay is not declared float")
+
 print("4. the GitHub MCP sync never runs on the offload host")
 for name in ("homebrew.yml", "upgrade.yml"):
     syncs = [t for t in load(name) if "claude-mcp-sync-github.sh" in command_text(t)]
@@ -152,6 +192,149 @@ for name in ("homebrew.yml", "upgrade.yml"):
     for t in syncs:
         skips = any(w.strip() == "inventory_hostname not in osx_offload_hosts" for w in whens(t))
         ok(f"{name}: {t['name']}: skipped there") if skips else ko(f"{name}: {t['name']}: runs on the offload host")
+
+print("5. the Redis tasks stay in the work account, private and off Homebrew")
+redis = load("offload-redis.yml")
+redis_text = open(f"{tasks_dir}/offload-redis.yml").read()
+redis_code = "\n".join(l for l in redis_text.splitlines() if not l.lstrip().startswith("#"))
+ok("no Homebrew write") if not any(writes_homebrew(t) for t in redis) and "brew" not in redis_code.replace("Homebrew", "") else ko("a Redis task touches brew")
+mise_pin = open(f"{tasks_dir}/../files/mise-offload/offload.toml").read()
+ok("redis is pinned in offload.toml") if any(l.startswith('redis = "7.') for l in mise_pin.splitlines()) else ko("redis is not pinned to a 7.x release in offload.toml")
+conf = open(f"{tasks_dir}/../templates/redis.conf.j2").read().splitlines()
+for line in ("bind 127.0.0.1 -::1", "protected-mode yes", "port {{ osx_redis_port }}", 'save ""', "appendonly no", "requirepass {{ osx_redis_password }}"):
+    ok(f"redis.conf has `{line}`") if line in conf else ko(f"redis.conf lacks `{line}`")
+for t in redis:
+    if "ansible.builtin.slurp" in t or "ansible.builtin.template" in t or "ansible.builtin.shell" in t:
+        ok(f"{t['name']}: no_log") if t.get("no_log") is True else ko(f"{t['name']}: handles the password without no_log")
+gen = next(t for t in redis if "ansible.builtin.shell" in t)
+cmd = gen["ansible.builtin.shell"]["cmd"]
+ok("the password file is made once, under umask 077") if gen["ansible.builtin.shell"].get("creates") == "{{ osx_redis_passfile }}" and "umask 077" in cmd else ko("the password is not generated once under umask 077")
+ok("openssl is called by absolute path, never the owner's Homebrew one") if "&& /usr/bin/openssl rand " in cmd else ko("the password generator does not call /usr/bin/openssl")
+modes = {t["ansible.builtin.file"]["path"]: t["ansible.builtin.file"].get("mode") for t in redis if "ansible.builtin.file" in t}
+ok("the working directory is 0700") if modes.get("{{ osx_redis_dir }}") == "0700" else ko("the working directory is not 0700")
+ok("the password file is kept 0600") if modes.get("{{ osx_redis_passfile }}") == "0600" else ko("the password file is not kept 0600")
+rendered = next(t for t in redis if "ansible.builtin.template" in t)["ansible.builtin.template"]
+ok("redis.conf is rendered 0600") if rendered.get("mode") == "0600" else ko("redis.conf is not rendered 0600")
+cron = [t["ansible.builtin.cron"] for t in redis if "ansible.builtin.cron" in t]
+ok("started at boot and re-checked") if any(c.get("special_time") == "reboot" for c in cron) and any(str(c.get("minute", "")).startswith("*/") for c in cron) else ko("no @reboot and periodic cron jobs")
+ok("both jobs are the shared start job") if cron and all(c["job"] == "{{ osx_redis_start_job }}" for c in cron) else ko("a cron job is not the Redis start job")
+with open(f"{tasks_dir}/../defaults/main.yml") as f:
+    job = yaml.safe_load(f)["osx_redis_start_job"]
+for needle in ("runner-start.sh", "RUNNER_GATE=", "redis-gate.sh", "RUNNER_PID_PREFIX=dotfiles-redis", "RUNNER_IDLE_SECONDS="):
+    ok(f"the job carries {needle}") if needle in job else ko(f"the job lacks {needle}")
+ok("the job has no %, which ends a cron command") if "%" not in job else ko("the job holds a %")
+ok("the job has no RUNNER_LOAD_MAX: load never stops the server") if "RUNNER_LOAD_MAX" not in job else ko("the job sets RUNNER_LOAD_MAX")
+
+print("6. postgres runs from the fleet account's mise and crontab, with no Homebrew")
+pg = load("offload-postgres.yml")
+defaults = load("../defaults/main.yml")
+with open(f"{tasks_dir}/../files/mise-offload/offload.toml") as f:
+    toml_lines = [l.split("#")[0].strip() for l in f]
+ok("offload.toml pins postgres 16") if any(l.startswith('postgres = "16.') for l in toml_lines) else ko("offload.toml does not pin postgres 16")
+opts = next((l for l in toml_lines if l.startswith("POSTGRES_CONFIGURE_OPTIONS")), "")
+if all(w in opts for w in ("--without-icu", "--without-readline", "--without-openssl")):
+    ok("the build drops the libraries the owner's Homebrew would supply")
+else:
+    ko("offload.toml does not drop icu, readline and openssl from the postgres build")
+ok("postgres is among the mise tools installed") if "postgres" in defaults["osx_offload_mise_tools"] else ko("postgres is not in osx_offload_mise_tools")
+initdb = [t for t in pg if "initdb" in command_text(t)]
+if initdb and all(arg(t, "ansible.builtin.command", "creates") == "{{ osx_postgres_data }}/PG_VERSION" for t in initdb):
+    ok("initdb runs only when the data directory is absent")
+else:
+    ko("initdb is missing or not guarded by creates on PG_VERSION")
+args = [str(a) for t in initdb for a in arg(t, "ansible.builtin.command", "argv")]
+for want in ("--auth-local=peer", "--auth-host=scram-sha-256"):
+    ok(f"initdb passes {want}") if want in args else ko(f"initdb lacks {want}")
+ko("initdb allows trust") if any("trust" in a for a in args) else ok("initdb allows no trust login")
+starts = [t for t in pg if "runner-start.sh" in command_text(t)]
+if starts and all(arg(t, "ansible.builtin.command", "chdir") == "{{ ansible_facts.env.HOME }}" for t in starts):
+    ok("the gate is started from the account's home, where a mise shim finds its config")
+else:
+    ko("the postgres start task does not run from the account's home")
+socket = [t for t in pg if arg(t, "ansible.builtin.file", "path") == "{{ osx_postgres_socket_dir }}"]
+if socket and all(arg(t, "ansible.builtin.file", "mode") == "0700" for t in socket):
+    ok("the socket directory is mode 0700")
+else:
+    ko("the socket directory is not created with mode 0700")
+pgpass = [t for t in pg if arg(t, "ansible.builtin.lineinfile", "path") == "{{ osx_postgres_pgpass }}"]
+if pgpass and all(arg(t, "ansible.builtin.lineinfile", "mode") == "0600" and t.get("no_log") for t in pgpass):
+    ok("the password lands in a 0600 file, from a no_log task")
+else:
+    ko("the .pgpass line is not written 0600 from a no_log task")
+if pgpass and all(whens(t) and "regex_search" in whens(t)[0] for t in pgpass):
+    ok("an existing .pgpass line is kept: the write runs only when it is absent")
+else:
+    ko("the .pgpass write is not conditional on the line being absent")
+checks = [t for t in pg if "ansible.builtin.assert" in t]
+good = [t for t in checks if "{32,}" in str(t["ansible.builtin.assert"]["that"]) and t.get("no_log") and "ansible_check_mode" in str(t.get("when")) and "Remove that line and re-run" in " ".join(str(t["ansible.builtin.assert"]["fail_msg"]).split())]
+ok("a stored password shorter than 32 characters fails the play, quietly, outside check mode") if good else ko("no no_log, non-check-mode assert that the stored password has 32 characters")
+keep = [t for t in pg if arg(t, "ansible.builtin.file", "path") == "{{ osx_postgres_pgpass }}"]
+if keep and all(arg(t, "ansible.builtin.file", "mode") == "0600" and arg(t, "ansible.builtin.file", "state") == "file" and t.get("no_log") and "ansible_check_mode" in str(t.get("when")) for t in keep):
+    ok("the .pgpass is held to 0600 on every run, quietly, outside check mode")
+else:
+    ko("no no_log task holds an existing .pgpass to 0600 (state file, skipped in check mode)")
+first_write = next(i for i, t in enumerate(pg) if "ansible.builtin.lineinfile" in t)
+ok("the mode is enforced after the write") if keep and pg.index(keep[0]) > first_write else ko("the mode task does not follow the .pgpass write")
+order = [next(i for i, t in enumerate(pg) if x in t) for x in ("ansible.builtin.lineinfile", "ansible.builtin.assert")]
+ok("the length check runs after the line is written") if order[0] < order[1] else ko("the length check runs before the line is written")
+# The two .pgpass expressions are run, not only read, through jinja2 with the
+# regex_search and b64decode filters ansible supplies.
+try:
+    import base64, re, jinja2
+    jenv = jinja2.Environment()
+    jenv.filters["regex_search"] = lambda s, p: (re.search(p, s).group(0) if re.search(p, s) else None)
+    jenv.filters["b64decode"] = lambda s: base64.b64decode(s).decode()
+    def run_expr(expr, var, text):
+        b64 = base64.b64encode(text.encode()).decode()
+        src = expr if "{{" in expr else "{{ " + expr + " }}"
+        return jenv.from_string(src).render(**{var: {"content": b64}}, osx_postgres_port=5432, osx_postgres_role="fleet") == "True"
+    write = [t for t in pg if "ansible.builtin.lineinfile" in t][0]["when"]
+    final = [t for t in checks][0]["ansible.builtin.assert"]["that"]
+    long_line = "localhost:5432:*:fleet:" + "a" * 32 + "\n"
+    for label, got, want in (
+        ("a missing file gets a password written", run_expr(write, "osx_postgres_pgpass_read", ""), True),
+        ("another host's line does not stop it", run_expr(write, "osx_postgres_pgpass_read", "other:1:*:x:y\n"), True),
+        ("an existing line is kept", run_expr(write, "osx_postgres_pgpass_read", long_line), False),
+        ("a short stored password fails the length check", run_expr(final, "osx_postgres_pgpass_final", "localhost:5432:*:fleet:abc\n"), False),
+        ("an empty stored password fails the length check", run_expr(final, "osx_postgres_pgpass_final", "localhost:5432:*:fleet:\n"), False),
+        ("a full-length stored password passes the length check", run_expr(final, "osx_postgres_pgpass_final", long_line), True),
+    ):
+        ok(label) if got == want else ko(label)
+except ImportError:
+    ok("jinja2 not installed here: the .pgpass expressions are only read, not run")
+cron = [t["ansible.builtin.cron"] for t in pg if "ansible.builtin.cron" in t]
+ok("an @reboot job") if any(c.get("special_time") == "reboot" for c in cron) else ko("no @reboot cron job")
+ok("a periodic re-check job") if any(str(c.get("minute", "")).startswith("*/") for c in cron) else ko("no periodic re-check cron job")
+for c in cron:
+    ok(f"{c['name']}: the shared start job") if c["job"] == "{{ osx_postgres_start_job }}" else ko(f"{c['name']}: job is not the shared start job")
+job = defaults["osx_postgres_start_job"]
+for needle in ("PATH=", "RUNNER_IDLE_SECONDS=", "RUNNER_LOAD_MAX=", "RUNNER_NICE=", "RUNNER_GATE=", "RUNNER_PID_PREFIX=", "POSTGRES_SOCKET_DIR=", "POSTGRES_MAX_CONNECTIONS=", "runner-start.sh"):
+    ok(f"start job carries {needle}") if needle in job else ko(f"start job lacks {needle}")
+ok("start job holds no %") if "%" not in job else ko("start job holds a % (it ends a cron command)")
+ok("start job carries no password") if "PASSWORD" not in job.upper() else ko("start job names a password")
+code = open(f"{tasks_dir}/offload-postgres.yml").read()
+code = "\n".join(l for l in code.splitlines() if not l.lstrip().startswith("#"))
+for word in ("launchctl", "LaunchAgents", "brew", "become"):
+    ko(f"offload-postgres.yml mentions {word}") if word in code else ok(f"offload-postgres.yml never mentions {word}")
+
+print("7. git auto-gc is off in the work account, on the offload host only")
+git_tasks = load("offload-git.yml")
+gc = [t["community.general.git_config"] for t in git_tasks if "community.general.git_config" in t]
+ok("git_config writes the global scope") if gc and all(g.get("scope") == "global" for g in gc) else ko("a git_config task is not global scope")
+pairs = {(i["name"], i["value"]) for t in git_tasks if "community.general.git_config" in t for i in t.get("loop", [])}
+for want in (("gc.auto", "0"), ("maintenance.auto", "false")):
+    ok(f"{want[0]}={want[1]} is set") if want in pairs else ko(f"{want[0]} is not set to {want[1]}")
+gct = next((t for t in git_tasks if "community.general.git_config" in t), None)
+if gct is None:
+    ko("offload-git.yml has no git_config task")
+else:
+    cfg = gct["community.general.git_config"]
+    ok("each key and value comes from the loop item") if cfg.get("name") == "{{ item.name }}" and cfg.get("value") == "{{ item.value }}" else ko("git_config does not write the loop item")
+    ok("a symlinked ~/.gitconfig is never written through") if "not (osx_offload_gitconfig.stat.islnk | default(false))" in whens(gct) else ko("git_config is not skipped for a symlinked ~/.gitconfig")
+    st = next((t for t in git_tasks if "ansible.builtin.stat" in t), None)
+    ok("the symlink check stats ~/.gitconfig without following it") if st and st["ansible.builtin.stat"].get("follow") is False and st["ansible.builtin.stat"].get("path", "").endswith("/.gitconfig") and st.get("register") == "osx_offload_gitconfig" else ko("the symlink check does not stat ~/.gitconfig with follow: false into osx_offload_gitconfig")
+inc = [t for t in load("main.yml") if t.get("ansible.builtin.include_tasks") == "offload-git.yml"]
+ok("offload-git.yml is included only on the offload hosts") if inc and "inventory_hostname in osx_offload_hosts" in whens(inc[0]) else ko("offload-git.yml is not guarded to the offload hosts")
 
 print(f"\nosx-offload-guard: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

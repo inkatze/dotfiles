@@ -1,0 +1,28 @@
+---
+
+# Background git gc in the work account has removed loose-object directories
+# in the middle of runner jobs. Set in the account's own global config, below
+# the git role's include block: no sudo, nothing of the owner's.
+
+# This role runs before the git role. A symlinked ~/.gitconfig would take the
+# write into its target, so it is skipped. The git role replaces a link into a
+# checkout of this repo and the next run sets the keys; any other link stays,
+# and so does the skip.
+- name: Inspect the work account's global gitconfig
+  ansible.builtin.stat:
+    path: "{{ ansible_facts.env.HOME }}/.gitconfig"
+    follow: false
+  register: osx_offload_gitconfig
+  check_mode: false
+  tags: [osx, offload]
+
+- name: Turn off git auto-gc and auto-maintenance in the work account
+  community.general.git_config:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    scope: global
+  loop:
+    - { name: gc.auto, value: "0" }
+    - { name: maintenance.auto, value: "false" }
+  when: not (osx_offload_gitconfig.stat.islnk | default(false))
+  tags: [osx, offload]

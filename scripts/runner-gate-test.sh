@@ -42,6 +42,27 @@ expect() {
     fi
 }
 
+# owner_idle is the idle-time half alone: load never enters it.
+owner() { # owner <free|busy> <idle seconds> <load> <label>
+    local got=busy
+    if (
+        export PATH="$stubs:$PATH" STUB_IDLE="$2" STUB_LOAD="$3" RUNNER_GATE_SOURCE_ONLY=1
+        # shellcheck disable=SC1090
+        . "$gate" /nonexistent
+        owner_idle
+    ); then got=free; fi
+    if [ "$got" = "$1" ]; then
+        passed=$((passed + 1)); echo "  ok: $4"
+    else
+        failed=$((failed + 1)); echo "  FAIL: $4 (wanted $1, got $got)"
+    fi
+}
+
+owner free 992 11.2 "owner_idle: idle and heavily loaded"
+owner free 300 '' "owner_idle: idle exactly at the threshold, load unreadable"
+owner busy 299 0.10 "owner_idle: one second under the threshold, no load"
+owner busy '' 0.10 "owner_idle: idle unreadable"
+
 expect free otheraccount 992 3.83 "another account at the console, idle, lightly loaded"
 expect free "$(id -un)" 992 3.83 "own account at the console, idle, lightly loaded"
 expect free root 992 3.83 "root at the console, idle, lightly loaded"
