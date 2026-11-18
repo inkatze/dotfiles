@@ -234,7 +234,8 @@ fi
 before=$(cat "$work/live.json")
 okc=1
 for body in 'not json' '[]' '{"hooks":{}}' '{"permissions":"x"}' '{"permissions":{"allow":"x"}}' \
-    '{"permissions":{"allow":[1]}}' '{"permissions":{"allow":[""]}}' '{"permissions":{"allow":["  "]}}'; do
+    '{"permissions":{"allow":[1]}}' '{"permissions":{"allow":[""]}}' '{"permissions":{"allow":["  "]}}' \
+    '{"env":{"X":"1"}} {}' '{"permissions":{"allow":["a"]}}{"permissions":{"deny":["b"]}}'; do
     printf '%s\n' "$body" >"$work/fragment.json"
     rc=0
     "$merge" "$work/live.json" "$work/managed.json" "$work/fragment.json" >/dev/null 2>&1 || rc=$?

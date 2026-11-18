@@ -41,14 +41,14 @@ jq -e . "$managed" >/dev/null 2>&1 || { echo "FAILED: tracked settings is not va
 frag_json='{}'
 if [ -n "$fragment" ] && { [ -e "$fragment" ] || [ -L "$fragment" ]; }; then
     # Read once, so what is validated is what is used.
-    frag_raw=$(cat "$fragment") || { echo "FAILED: settings fragment is unreadable: $fragment" >&2; exit 4; }
+    frag_raw=$(cat -- "$fragment") || { echo "FAILED: settings fragment is unreadable: $fragment" >&2; exit 4; }
     if [[ "$frag_raw" =~ [^[:space:]] ]]; then
         # Checked here because the fragment may only add rules: any other key in
         # it would otherwise override a tracked or app-owned setting unseen.
-        printf '%s' "$frag_raw" | jq -e '
-          type == "object" and (keys - ["permissions"] == [])
+        printf '%s' "$frag_raw" | jq -e -s '
+          length == 1 and (.[0] | type == "object" and (keys - ["permissions"] == [])
           and ((.permissions // {}) | type == "object" and (keys - ["allow", "deny"] == [])
-               and all(.[]; type == "array" and all(.[]; type == "string" and test("\\S"))))
+               and all(.[]; type == "array" and all(.[]; type == "string" and test("\\S")))))
         ' >/dev/null 2>&1 \
             || { echo "FAILED: settings fragment must hold only permissions.allow and permissions.deny string lists: $fragment" >&2; exit 4; }
         frag_json=$(printf '%s' "$frag_raw" | jq -c .)
