@@ -15,7 +15,7 @@ def optional_hosted:
    "request_notes"];
 # Fields a template references with ` | json`, so they land typed.
 def json_hosted: ["gating_checks", "auto_opt_in"];
-def rerequest_methods: ["request", "comment", "push"];
+def rerequest_methods: ["request", "comment", "push", "label"];
 def draft_policies: ["reviews-drafts", "skips-drafts"];
 # The template reference syntax, for scripts/op-render.sh too: `w` captures
 # the work source's prefix (null for the default item), `f` the item field,
@@ -52,6 +52,8 @@ def _rendered_value_errors($p):
                 then "\($p).rerequest: method request needs login" else empty end ),
               ( if .method == "comment" and ((.command // "") == "")
                 then "\($p).rerequest: method comment needs command" else empty end ),
+              ( if .method == "label" and ((($e.opt_in_label) // "") == "")
+                then "\($p).rerequest: method label needs opt_in_label" else empty end ),
               ( if has("incremental_command") and .method != "comment"
                 then "\($p).rerequest: incremental_command applies only to method comment"
                 else empty end )
