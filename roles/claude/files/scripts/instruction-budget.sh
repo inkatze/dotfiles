@@ -29,7 +29,7 @@ COVERED=(
 SURFACES="
 roles/claude/files/CLAUDE.md                               2247   2500   3000
 CLAUDE.md                                                  1757   2250   2750
-roles/claude/files/skills/bot-review/SKILL.md              7511   8000   8500
+roles/claude/files/skills/bot-review/SKILL.md              7515   8000   8500
 roles/claude/files/skills/code-review/SKILL.md             4512   5000   5500
 roles/claude/files/skills/panel-review/reviewer-backend.md 7423   7750   8250
 roles/claude/files/skills/panel-review/SKILL.md            3318   3750   4250
