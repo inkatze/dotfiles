@@ -2,12 +2,21 @@ name: pr-agent
 
 # Same-repo PRs only, and never `pull_request_target`: a fork PR must not
 # reach the model secret. Fork PRs are filtered by the job `if:`.
+#
+# Runs once per PR, never on a push: applying the `pr-agent` label starts a
+# review of the head at that moment, so apply it on the final head. Remove and
+# re-apply the label for the one extra run a code-changing fix round gets. A
+# label applied with the Actions token starts nothing; apply it as a user.
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [labeled]
 
+# An unrelated label must not cancel a review in flight, so it gets its own
+# group; only a `pr-agent` label event shares the per-PR one.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: >-
+    ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{
+    github.event.label.name == 'pr-agent' && 'review' || github.run_id }}
   cancel-in-progress: true
 
 permissions:
@@ -17,9 +26,11 @@ jobs:
   # The job name is the check name `/bot-review` gates on; keep it `PR-Agent`.
   pr-agent:
     name: PR-Agent
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      github.event.label.name == 'pr-agent'
+      && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
       contents: read
       issues: write
@@ -32,11 +43,35 @@ jobs:
         if: env.HAS_MODEL_KEY != 'true'
         run: echo "::notice title=PR-Agent skipped::Repository secret OPENROUTER_API_KEY is not set; no review was run."
 
+      # The label event's payload freezes the head at label time, and a push or
+      # a job re-run can move it before the review reads the PR; read it live,
+      # ahead of the review, so the marker names the head the run started on.
+      - name: Resolve the head under review
+        id: head
+        if: env.HAS_MODEL_KEY == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          sha="$(gh api "repos/${REPO}/pulls/${PR}" --jq .head.sha)" || sha=""
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::warning title=PR-Agent head lookup failed::Marker uses the label-time head."
+            sha="$EVENT_HEAD_SHA"
+          fi
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
       - name: PR-Agent review
         id: review
         if: env.HAS_MODEL_KEY == 'true'
         # v0.50.0
         uses: the-pr-agent/pr-agent@e673a02076ce09a4726c3d0c3cc85780e59ca52b
+        # A run sat silent for the whole 15 minutes with the default 120 s
+        # ai_timeout, so that setting alone has not bounded the call. This step
+        # limit is the hard bound: it fails the step (the head marker still
+        # posts) instead of letting the job timeout report "cancelled".
+        timeout-minutes: 20
         env:
           OPENROUTER.KEY: ${{ secrets.OPENROUTER_API_KEY }}
           # Override the model through repository variables; litellm does not
@@ -46,12 +81,16 @@ jobs:
             ${{ vars.PR_AGENT_FALLBACK_MODELS
             || '["openrouter/deepseek/deepseek-v4-pro-0813", "openrouter/google/gemini-3.8-flash"]' }}
           CONFIG.CUSTOM_MODEL_MAX_TOKENS: "262144"
+          # Per-call limit, and no replay on the model that just missed it: the
+          # default (120 s, one replay) lets three models spend 12 minutes.
+          CONFIG.AI_TIMEOUT: "90"
+          CONFIG.RETRY_SAME_MODEL_ON_TIMEOUT: "false"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "false"
           github_action_config.auto_improve: "false"
           github_action_config.pr_actions: >-
-            ["opened", "reopened", "ready_for_review", "review_requested", "synchronize"]
+            ["labeled"]
 
       # PR-Agent embeds no head SHA or status in what it posts, and /bot-review
       # ties a review to a head through this marker; keep the format in step
@@ -62,7 +101,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ steps.head.outputs.sha }}
           RUN_ID: ${{ github.run_id }}.${{ github.run_attempt }}
           OUTCOME: ${{ steps.review.outcome }}
         run: |

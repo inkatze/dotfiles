@@ -896,6 +896,52 @@ block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a, b]\npr
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 [ "$rc" -eq 0 ] && [ ! -e "$sup" ] && grep -qF "removed $sup" <<<"$log" && ok "a supplement the item fully matches is removed" || ko "a fully matched supplement is removed ($log)"
 cmp -s "$ov" "$snap" && ok "the snapshot follows the output" || ko "the snapshot follows the output"
+# An older backup of the overlay put back after a render must not turn the
+# writes the supplement keeps into removals.
+new_sandbox
+ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
+sup="$HOME/.config/dotfiles/planwright-overlay.supplement.yml"
+snap="$HOME/.config/dotfiles/planwright-overlay.rendered"
+block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a]'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+cp "$ov" "$sandbox/backup"
+echo 'mission_control_tick_cadence: 5m' >>"$ov"
+sed -i.bak 's/^program_alpha_duties: .*/program_alpha_duties: [a, b]/' "$ov" && rm -f "$ov.bak"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+cp "$sup" "$sandbox/sup.before"
+cp "$snap" "$sandbox/snap.before"
+cp "$sandbox/backup" "$ov"
+cp "$ov" "$sandbox/ov.before"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -ne 0 ] && grep -qF 'mission_control_tick_cadence' <<<"$log" && grep -qF 'OP_RENDER_ACCEPT_REMOVALS' <<<"$log" \
+  && ok "a restored overlay is refused, naming the key and the way out" || ko "a restored overlay is refused ($rc $log)"
+cmp -s "$sup" "$sandbox/sup.before" && cmp -s "$snap" "$sandbox/snap.before" && cmp -s "$ov" "$sandbox/ov.before" \
+  && ok "a refused restore writes nothing" || ko "a refused restore writes nothing"
+grep -q '^remove ' "$sup" && ko "the restore became a remove entry" || ok "the restore recorded no remove entry"
+cp "$snap" "$ov"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && grep -qx 'mission_control_tick_cadence: 5m' "$ov" && grep -qx 'program_alpha_duties: \[a, b\]' "$ov" \
+  && ok "putting the snapshot back recovers every kept write" || ko "recovery from the snapshot ($log)"
+# Only the value 1 accepts removals.
+cp "$ov" "$sandbox/ov.before"
+sed -i.bak '/^mission_control_tick_cadence:/d' "$ov" && rm -f "$ov.bak"
+OP_RENDER_ACCEPT_REMOVALS=false run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -ne 0 ] && ok "a value other than 1 does not accept removals" || ko "a value other than 1 does not accept removals ($log)"
+# A removal the operator really made after a clean render is still honoured.
+sed -i.bak '/^mission_control_tick_cadence:/d' "$ov" && rm -f "$ov.bak"
+OP_RENDER_ACCEPT_REMOVALS=1 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && ! grep -q '^mission_control_tick_cadence:' "$ov" && ! grep -q 'mission_control_tick_cadence' "$sup" \
+  && ok "an accepted removal is honoured" || ko "an accepted removal is honoured ($log)"
+new_sandbox
+ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
+sup="$HOME/.config/dotfiles/planwright-overlay.supplement.yml"
+snap="$HOME/.config/dotfiles/planwright-overlay.rendered"
+block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a]\nprogram_alpha_home: /h'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+sed -i.bak '/^program_alpha_home:/d' "$ov" && rm -f "$ov.bak"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && grep -qx 'remove program_alpha_home' "$sup" \
+  && ok "a removal after a clean render, of an item key, is still recorded" || ko "removal of an item key ($log)"
 # A supplement line for any other key would let a local file override the item.
 printf 'ready_guard_behind_base: never\n' >"$sup"
 cp "$ov" "$sandbox/before"
@@ -977,6 +1023,95 @@ unset OP_STUB_FAIL_WORK
 expect_failed "a failing work read" "reading the item argument from the work account"
 grep -c -- '--account' "$OP_STUB_ARGV" | grep -qx 1 && ! grep -qv -- '--account' "$OP_STUB_ARGV" \
   && ok "a failing work read never falls back to the personal vault" || ko "a failing work read fell back ($(cat "$OP_STUB_ARGV"))"
+unset DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM
+
+echo "30. the live-worker bound is per machine"
+new_sandbox
+ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
+bound="$HOME/.config/dotfiles/fleet-max-live-workers"
+item_from 'flight_pr_hosts=[github.com/acme]' mission_control=
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+grep -qx 'fleet_host_max_live_workers: 8' "$ov" 2>/dev/null && ok "no machine-local file: the shared default of 8" || ko "default bound ($log)"
+printf '10\n' >"$bound"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+grep -qx 'fleet_host_max_live_workers: 10' "$ov" 2>/dev/null && ! grep -qx 'fleet_host_max_live_workers: 8' "$ov" \
+  && ok "machine-local 10 replaces the default" || ko "machine-local 10 ($log)"
+grep -qx 'fleet_compute_host: mac' "$ov" && ok "other lines untouched" || ko "other lines untouched"
+: >"$bound"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+grep -qx 'fleet_host_max_live_workers: 8' "$ov" 2>/dev/null && ok "an empty file counts as absent" || ko "empty file ($log)"
+for bad in 0 007 07 +5 100 ten 8.5 -3 '1 0'; do
+  printf '%s\n' "$bad" >"$bound"
+  run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+  expect_failed "malformed bound '$bad'" "must hold one whole number from 1 to 99"
+done
+for good in 1 99; do
+  printf '%s\n' "$good" >"$bound"
+  run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+  grep -qx "fleet_host_max_live_workers: $good" "$ov" 2>/dev/null && ok "boundary bound $good is accepted" || ko "boundary bound $good ($log)"
+done
+printf '  12 \n' >"$bound"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+grep -qx 'fleet_host_max_live_workers: 12' "$ov" 2>/dev/null && ok "surrounding whitespace is ignored" || ko "surrounding whitespace ($log)"
+printf '10\r\n' >"$bound"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+grep -qx 'fleet_host_max_live_workers: 10' "$ov" 2>/dev/null && ok "a CRLF line ending is ignored" || ko "CRLF bound ($log)"
+printf '10\n20\n' >"$bound"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "a two-line bound file" "must hold one whole number from 1 to 99"
+if [ "$(id -u)" -ne 0 ]; then
+  printf '10\n' >"$bound"
+  chmod 000 "$bound"
+  run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+  expect_failed "an unreadable bound file" "could not read"
+  chmod 600 "$bound"
+fi
+rm -f "$bound"
+mkdir "$bound"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "a directory at the bound path" "not a regular file"
+rmdir "$bound"
+grep -qx 'fleet_host_max_live_workers: 10' "$ov" 2>/dev/null && ok "a refused bound leaves the live file alone" || ko "live file after refusal"
+rm -f "$bound"
+ln -s "$sandbox/missing" "$bound"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "a dangling symlinked bound file" "it is a symlink"
+rm -f "$bound"
+printf '10\n' >"$sandbox/real"
+ln -s "$sandbox/real" "$bound"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "a symlinked bound file" "it is a symlink"
+rm -f "$bound"
+printf 'flight_pr_hosts: {{ op://__OP_VAULT__/__OP_ITEM__/flight_pr_hosts }}\n' >"$sandbox/tpl/planwright.yml.tpl"
+printf '10\n' >"$bound"
+run "$sandbox/tpl/planwright.yml.tpl" dotfiles-planwright-overlay "$sandbox/ov.yml"
+expect_failed "a template with no bound line" "no fleet_host_max_live_workers line"
+
+echo "31. the Claude settings fragment: allow rules from the work item, nothing else"
+new_sandbox
+frag_tpl="$repo/roles/claude/files/claude-settings-work.json.tpl"
+frag="$HOME/.config/dotfiles/claude-settings-work.json"
+export OP_STUB_WORK_ITEM="$sandbox/work-item.json"
+export DOTFILES_OP_WORK_ACCOUNT=work.example.com DOTFILES_OP_WORK_VAULT="Work Vault" DOTFILES_OP_WORK_ITEM=work-item
+printf '%s\n' 'claude_permissions_allow=["mcp__work__read","Bash(ls:*)"]' | to_item "$OP_STUB_WORK_ITEM"
+run --work-account "$frag_tpl" work-item "$frag"
+[ "$rc" -eq 0 ] && [ "$(jq -c . "$frag" 2>/dev/null)" = '{"permissions":{"allow":["mcp__work__read","Bash(ls:*)"]}}' ] \
+  && ok "renders the allow list typed" || ko "renders the allow list typed ($log)"
+[ "$(mode_of "$frag")" = 600 ] && ok "fragment written at 0600" || ko "fragment mode $(mode_of "$frag")"
+printf '%s\n' 'claude_permissions_allow=' | to_item "$OP_STUB_WORK_ITEM"
+run --work-account "$frag_tpl" work-item "$frag"
+[ "$rc" -eq 0 ] && [ "$(jq -c . "$frag")" = '{}' ] && ok "an empty field renders an empty fragment" || ko "an empty field ($log)"
+for bad in '"mcp__work__read"|must be a list of rules' '{"allow":[]}|must be a list of rules' \
+  '[""]|must be a non-empty string' '["  "]|must be a non-empty string' '[1]|must be a non-empty string'; do
+  printf 'claude_permissions_allow=%s\n' "${bad%%|*}" | to_item "$OP_STUB_WORK_ITEM"
+  run --work-account "$frag_tpl" work-item "$frag"
+  expect_failed "an allow value of ${bad%%|*}" "${bad#*|}"
+done
+[ "$(jq -c . "$frag")" = '{}' ] && [ "$(mode_of "$frag")" = 600 ] \
+  && ok "refused renders left the previous fragment alone" || ko "a refused render touched the fragment"
+printf '%s\n' 'other=x' | to_item "$OP_STUB_WORK_ITEM"
+run --work-account "$frag_tpl" work-item "$frag"
+expect_failed "a work item without the field" "the item has no field claude_permissions_allow"
 unset DOTFILES_OP_WORK_ACCOUNT DOTFILES_OP_WORK_VAULT DOTFILES_OP_WORK_ITEM
 
 echo

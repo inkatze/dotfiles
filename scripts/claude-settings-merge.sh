@@ -8,33 +8,79 @@
 # $HOME/.claude/scripts/. Declaring an empty array therefore still removes our
 # hooks from that event without touching anyone else's.
 #
-# An allow rule whose pattern opens with $HOME/ is written expanded, because
-# Claude Code matches a Bash rule against the literal command and never
+# An allow or deny rule whose pattern opens with $HOME/ is written expanded,
+# because Claude Code matches a Bash rule against the literal command and never
 # expands it; the tracked file stays free of any one machine's home path.
 #
-# Prints OK, or CHANGED after writing. Usage: claude-settings-merge.sh <live> <tracked>
+# permissions.allow and permissions.deny are a union, not a replacement: the
+# tracked rules first, then the optional fragment's (a machine-local file
+# holding only those two lists, rendered from 1Password for rules that must not
+# be committed), then any the live file alone carries, each rule once. So a rule
+# Claude Code or a person added survives, and a rule dropped from the tracked
+# file or the fragment stays in a live one until deleted there by hand.
+#
+# A missing, empty or whitespace-only fragment adds nothing; anything else that
+# is not a valid fragment (a dangling symlink included) is refused, so remove it
+# and rerun the playbook to render it afresh.
+#
+# Prints OK, or CHANGED after writing.
+# Usage: claude-settings-merge.sh <live> <tracked> [<fragment>]
 set -euo pipefail
 
 live="${1:?live settings path required}"
 managed="${2:?tracked settings path required}"
+fragment="${3:-}"
 
 [ -f "$managed" ] || { echo "FAILED: tracked settings not found: $managed" >&2; exit 1; }
 if [ ! -e "$live" ]; then
     mkdir -p "$(dirname "$live")"
     printf '{}\n' >"$live"
 fi
-jq -e . "$live" >/dev/null 2>&1 || { echo "FAILED: live settings is not valid JSON: $live" >&2; exit 2; }
-jq -e . "$managed" >/dev/null 2>&1 || { echo "FAILED: tracked settings is not valid JSON: $managed" >&2; exit 3; }
+jq -e -s 'length == 1 and (.[0] | type == "object")' "$live" >/dev/null 2>&1 || { echo "FAILED: live settings is not valid JSON (one object is required): $live" >&2; exit 2; }
+jq -e -s 'length == 1 and (.[0] | type == "object")' "$managed" >/dev/null 2>&1 || { echo "FAILED: tracked settings is not valid JSON (one object is required): $managed" >&2; exit 3; }
+frag_json='{}'
+if [ -n "$fragment" ] && { [ -e "$fragment" ] || [ -L "$fragment" ]; }; then
+    # Read once, so what is validated is what is used.
+    frag_raw=$(cat -- "$fragment") || { echo "FAILED: settings fragment is unreadable: $fragment" >&2; exit 4; }
+    if [[ "$frag_raw" =~ [^[:space:]] ]]; then
+        # Checked here because the fragment may only add rules: any other key in
+        # it would otherwise override a tracked or app-owned setting unseen.
+        printf '%s' "$frag_raw" | jq -e -s '
+          length == 1 and (.[0] | type == "object" and (keys - ["permissions"] == [])
+          and ((if has("permissions") then .permissions else {} end) | type == "object" and (keys - ["allow", "deny"] == [])
+               and all(.[]; type == "array" and all(.[]; type == "string" and test("\\S")))))
+        ' >/dev/null 2>&1 \
+            || { echo "FAILED: settings fragment must hold only permissions.allow and permissions.deny string lists: $fragment" >&2; exit 4; }
+        frag_json=$(printf '%s' "$frag_raw" | jq -c .)
+    fi
+fi
 
-# $HOME is passed in because a hook command may be recorded either as the
-# literal "$HOME/..." the tracked file uses or already expanded; missing the
-# expanded form would treat our own entry as foreign and then duplicate it.
-updated=$(jq -n --slurpfile l "$live" --slurpfile m "$managed" --arg home "$HOME" '
+# Handed to jq as a file, not an argument, so the rules stay out of the process list.
+# One trap covers both temp files: the fragment copy handed to jq and, later,
+# the live file's replacement (tmp stays empty until then).
+tmp=
+frag_file=
+trap '[ -z "$frag_file" ] || rm -f "$frag_file"; [ -z "$tmp" ] || rm -f "$tmp"' EXIT
+frag_file=$(mktemp) || { echo "FAILED: could not create a temporary file" >&2; exit 5; }
+printf '%s\n' "$frag_json" >"$frag_file" || { echo "FAILED: could not write a temporary file: $frag_file" >&2; exit 5; }
+
+# $HOME is passed in to expand $HOME/ in permission rules, and because a hook
+# command may be recorded either as the literal "$HOME/..." the tracked file
+# uses or already expanded; missing the expanded form would treat our own entry
+# as foreign and then duplicate it.
+updated=$(jq -n --slurpfile l "$live" --slurpfile m "$managed" --slurpfile f "$frag_file" --arg home "$HOME" '
   def owned:
     (.command // "") as $c
     | ($c | startswith("$HOME/.claude/scripts/"))
       or ($c | startswith($home + "/.claude/scripts/"));
   def strip_ours: (.hooks // []) | map(select(owned | not));
+  def expand_home:
+    map(if type == "string" and test("^[A-Za-z_]+\\(\\$HOME/")
+        then sub("\\(\\$HOME/"; "(" + $home + "/")
+        else . end);
+  # First occurrence wins, so the order is stable across runs.
+  def union_rules: reduce .[] as $r ([]; if any(.[]; . == $r) then . else . + [$r] end);
+  def rules($s; $k): ($s.permissions[$k]? // []) | if type == "array" then . else [] end;
   ($l[0]) as $live | ($m[0]) as $mgd
   | ($live.hooks // {}) as $lh
   | ($mgd.hooks  // {}) as $mh
@@ -52,18 +98,15 @@ updated=$(jq -n --slurpfile l "$live" --slurpfile m "$managed" --arg home "$HOME
         )
       )
     )
-  | if (.permissions.allow | type) == "array"
-    then .permissions.allow |= map(
-      if type == "string" and test("^[A-Za-z_]+\\(\\$HOME/")
-      then sub("\\(\\$HOME/"; "(" + $home + "/")
-      else . end)
-    else . end
+  | reduce ("allow", "deny") as $k (.;
+      (rules($mgd; $k) + rules($f[0]; $k) + rules($live; $k) | expand_home) as $all
+      | if ($all | length) > 0 then .permissions[$k] = ($all | union_rules) else . end)
 ')
 
 if [ "$(cat "$live")" = "$updated" ]; then
     echo OK
 else
-    tmp=$(mktemp "${live}.XXXXXX")
+    tmp=$(mktemp "${live}.XXXXXX") || { echo "FAILED: could not create a temporary file beside $live" >&2; exit 5; }
     printf '%s\n' "$updated" >"$tmp"
     # 0600 asserted, not inherited: this file carries an `env` block, and mktemp
     # would hand its own 0600 to the result silently anyway.

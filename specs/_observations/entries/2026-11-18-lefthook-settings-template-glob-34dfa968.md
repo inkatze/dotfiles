@@ -1,0 +1,1 @@
+- 2026-11-18 [dotfiles] lefthook's op-render and claude-settings-merge globs do not match roles/claude/files/claude-settings-work.json.tpl, so editing the work settings template runs neither suite before commit; CI still covers it.

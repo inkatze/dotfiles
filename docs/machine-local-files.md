@@ -43,7 +43,9 @@ renderer validates each file before it lands (the review config against
 `roles/claude/files/skills/bot-review/config-schema.jq`), refuses a `steps_`
 key in the overlay since a step list is a per-repository decision, and
 overwrites a hand-written file at its output: carry anything worth keeping
-into the item before the first run.
+into the item before the first run. The Claude work settings fragment is
+rendered by the same tasks but only on a host with an `op-work-item` file
+(described below).
 
 The overlay is the one exception, for mission control's own keys
 (`mission_control_*` and `program_*`, every key planwright's
@@ -59,11 +61,30 @@ the file goes once it is empty, so copying a change into the item's
 `mission_control` field retires it; deleting a line lets the item win
 instead. Any other key in the supplement fails the render, and with no
 snapshot (a first run) nothing is kept. Both files are 0600 and must be
-regular files; deleting the snapshot loses mission control's writes since
-the last render. A render and a mission-control write are not fully
+regular files. A key the supplement keeps that has gone from the live
+file since the last render is ambiguous: mission control may have removed
+it, or an older backup of the overlay may have been restored. The render
+refuses, writes nothing and names the keys; copy the snapshot over the
+live overlay to undo a restore, or run again with
+`OP_RENDER_ACCEPT_REMOVALS=1` to record the removal. Deleting the
+snapshot loses mission control's writes since the last render. A render and a mission-control write are not fully
 serialized: the render refuses to replace an overlay that changed since it
 read it, but a write landing in the instant between that check and the
 rename is lost.
+
+`fleet-max-live-workers` sets the host-wide live-worker bound
+(`fleet_host_max_live_workers`) for one machine. The overlay template carries
+the shared default; when this file holds one line with a whole number from
+1 to 99, written without leading zeros (surrounding whitespace and trailing
+blank lines ignored), the
+renderer substitutes it for that line's value, and an empty, blank or absent
+file keeps the template's. Any other content, a symlink or a non-regular file
+fails the render. It needs no 1Password item of its own and is applied before
+the supplement, which only carries `mission_control_*` and `program_*` keys.
+On a machine that runs more workers, write it once with
+`mkdir -p ~/.config/dotfiles; echo 10 > ~/.config/dotfiles/fleet-max-live-workers`;
+the next playbook run that renders the overlay applies it. It has no row in the
+repo-root table; this section is its record.
 
 `git-work-orgs` is rendered the same way from the item
 `dotfiles-git-work-orgs` (field `orgs`, owner names separated by whitespace),
@@ -110,6 +131,20 @@ therefore never sit in the shared item the other hosts render, and a listed
 host with no `op-work-item` fails the play rather than render the shared
 item's programs. Create that item, with the same `flight_pr_hosts` and
 `mission_control` fields, before the host's first run after joining the list.
+
+`claude-settings-work.json` holds permission rules only work machines carry
+(read-only work MCP tools, say), which must not reach the tracked
+`settings.json`. `op-render.sh --work-account` renders it from the
+`claude_permissions_allow` field (a JSON list of rules) of the item
+`op-work-item` names. A host with no `op-work-item` file skips the render; the
+field may be empty, but an item without it fails the play, so add it to the
+item before the host's next run. `scripts/claude-settings-merge.sh` unions the
+fragment's `permissions.allow` and `permissions.deny` into the live settings
+and refuses a fragment carrying any other key. The union only adds: a rule
+removed from the field (or from the tracked file) stays in each live
+`~/.claude/settings.json` until deleted there by hand, which is how a revoked
+rule is withdrawn. A rule added by hand on a work machine is kept by the merge
+there, but belongs in the field too, or a fresh machine never gets it.
 
 `cubic-api-key` is synced by `scripts/op-key-sync.sh` from the `credential`
 field of the `dotfiles-cubic-api-key` item (category API Credential), through a
@@ -160,3 +195,10 @@ terminal (it is shown exactly once), then move it into place. Replace
 
 Re-run the syncs that use it; once they pass, revoke the old service account
 on 1Password.com, since the CLI cannot delete one.
+
+## `runner-repos`
+
+Optional, read by `roles/osx/tasks/offload-runner.yml` on the offload host:
+extra `owner/repo` names (one per line, `#` comments) to register a runner
+for, beyond `osx_runner_repos` in the role defaults. It exists so private
+repository names stay out of this public repo. Written by hand.

@@ -43,7 +43,15 @@
 # gates changed_when on CHANGED. A plain regular file at the output is
 # overwritten; a symlink or any other kind of path is refused. The planwright
 # overlay alone also keeps mission control's own keys across renders, in two
-# files under ~/.config/dotfiles/ (docs/machine-local-files.md).
+# files under ~/.config/dotfiles/ (docs/machine-local-files.md). A key the
+# supplement keeps that has gone from the live overlay since the last render
+# is ambiguous (mission control removed it, or an older backup of the overlay
+# was restored), so the render refuses, writing nothing, until
+# OP_RENDER_ACCEPT_REMOVALS=1 says the removal was real.
+#
+# The overlay's live-worker bound can also come from a one-line file,
+# ~/.config/dotfiles/fleet-max-live-workers, so one machine can differ from the
+# template; a file that is not a plain number from 1 to 99 refuses the render.
 
 set -eu
 # Every file this writes holds private values, and a caller's umask that drops
@@ -69,6 +77,7 @@ output="$3"
 case "${template##*/}" in
   bot-review.json.tpl) rule=review-config format=json ;;
   sibling-repos.json.tpl) rule=sibling-map format=json ;;
+  claude-settings-work.json.tpl) rule=settings-fragment format=json ;;
   planwright.yml.tpl) rule=planwright-overlay format=text ;;
   git-work-orgs.tpl) rule=work-orgs format=text ;;
   authorized_keys.offload.tpl) rule=offload-key format=text ;;
@@ -269,11 +278,34 @@ else
     "$template" >"$work/rendered"
 fi
 
+# The live-worker bound is per machine: the template carries the shared default
+# and an optional one-line file replaces its value, so no 1Password item changes.
+if [ "$rule" = planwright-overlay ]; then
+  bound_file="$HOME/.config/dotfiles/fleet-max-live-workers"
+  if [ -e "$bound_file" ] || [ -L "$bound_file" ]; then
+    [ ! -L "$bound_file" ] || fail "refusing to read $bound_file: it is a symlink"
+    [ -f "$bound_file" ] || fail "refusing to read $bound_file: not a regular file"
+    bound="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$bound_file")" || fail "could not read $bound_file"
+    if [ -n "$bound" ]; then
+      case "$bound" in
+        [1-9] | [1-9][0-9]) ;;
+        *) fail "$bound_file must hold one whole number from 1 to 99" ;;
+      esac
+      grep -q '^fleet_host_max_live_workers: ' "$work/rendered" \
+        || fail "the template has no fleet_host_max_live_workers line for $bound_file to set"
+      sed -e "s/^fleet_host_max_live_workers: .*/fleet_host_max_live_workers: $bound/" \
+        "$work/rendered" >"$work/bounded" || fail "could not apply $bound_file"
+      mv -f -- "$work/bounded" "$work/rendered"
+    fi
+  fi
+fi
+
 # The overlay is also mission control's write target (planwright's
 # mc-config.sh), which refuses a file whose header says another tool renders
 # it. So its own keys survive the render instead: any it changed since the
 # last render (the snapshot) are kept in the supplement, and the supplement is
-# applied over the item. Every other key still comes from the item alone.
+# applied over the item. Every other key comes from the item alone, except the
+# live-worker bound, which the machine-local file above can set.
 supplement=""
 snapshot=""
 live_sum=""
@@ -296,7 +328,8 @@ if [ "$rule" = planwright-overlay ]; then
   sup_in=/dev/null
   [ ! -f "$supplement" ] || sup_in="$supplement"
   if ! awk -v harvest="$harvest" -v last="$last" -v live="$live" -v sup="$sup_in" \
-    -v base="$work/rendered" -v sup_out="$work/supplement" -v sup_name="$supplement" '
+    -v base="$work/rendered" -v sup_out="$work/supplement" -v sup_name="$supplement" \
+    -v accept="${OP_RENDER_ACCEPT_REMOVALS:-}" -v live_name="$output" -v snap_name="$snapshot" '
     function key_of(l) { return match(l, /^[a-z][a-z0-9_]*:/) ? substr(l, 1, RLENGTH - 1) : "" }
     function mc_key(k) { return k ~ /^mission_control_[a-z0-9_]+$/ || k ~ /^program_[a-z0-9_]+$/ }
     function set(k, l) { if (!(k in s)) order[++n] = k; s[k] = l }
@@ -330,7 +363,20 @@ if [ "$rule" = planwright-overlay ]; then
       if (bad) exit 1
       if (harvest) {
         for (i = 1; i <= ln; i++) { k = lorder[i]; if (!(k in p) || p[k] != v[k]) set(k, v[k]) }
-        for (i = 1; i <= pn; i++) if (!(porder[i] in v)) set(porder[i], "remove " porder[i])
+        for (i = 1; i <= pn; i++) {
+          k = porder[i]
+          if (k in v) continue
+          # A key the supplement still carries, gone from the live file: either
+          # mission control removed it or an older copy of the file was put back.
+          if (accept != "1" && (k in s) && s[k] !~ /^remove /) lost = lost " " k
+          set(k, "remove " k)
+        }
+        if (lost != "") {
+          printf "%s no longer has%s, which %s still keeps and the last render wrote.\n", live_name, lost, sup_name > "/dev/stderr"
+          printf "If an older copy of the overlay was restored, copy %s over it and run again.\n", snap_name > "/dev/stderr"
+          printf "If mission control removed them, run again with OP_RENDER_ACCEPT_REMOVALS=1.\n" > "/dev/stderr"
+          exit 1
+        }
       }
       while ((getline l < base) > 0) {
         k = key_of(l)
@@ -382,6 +428,26 @@ case "$rule" in
                | "repos.\($c).\(.key): clone path must be absolute or start with ~/"
              end
          end)' "$work/rendered")" || fail "could not apply the sibling map rule"
+    ;;
+  settings-fragment)
+    # The same shape scripts/claude-settings-merge.sh accepts, checked here too
+    # so a bad item fails at its render rather than at the next merge.
+    errors="$(jq -r '
+      if type != "object" then "is not a JSON object"
+      else
+        ((keys - ["permissions"])[] | "unknown top-level field \(.)"),
+        (if has("permissions") then .permissions else {} end
+         | if type != "object" then "permissions: must be an object"
+           else
+             ((keys - ["allow", "deny"])[] | "permissions.\(.): only allow and deny may be set"),
+             (to_entries[] | .key as $k | .value
+              | if type != "array" then "permissions.\($k): must be a list of rules"
+                else to_entries[]
+                  | select((.value | type) != "string" or (.value | test("\\S") | not))
+                  | "permissions.\($k)[\(.key)]: must be a non-empty string"
+                end)
+           end)
+      end' "$work/rendered")" || fail "could not apply the settings fragment rule"
     ;;
   planwright-overlay)
     # planwright reads this layer as flat `key: value` lines, and a step list is

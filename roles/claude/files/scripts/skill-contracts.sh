@@ -916,7 +916,11 @@ require_normalized "$(skill_md bot-review)" "generic drain mechanic" \
   "(never before three iterations), stop (**Diminishing returns**) and hand the residue to me with the ledger" \
   "**no review can arrive while it stays a draft.** Say so and name \`draft_setting\`" \
   "**Convergence is no unresolved finding, no pending inbox finding, and the reviewed head equal to the current HEAD, never a check-state read**" \
-  "**A thread a human has replied in is a message to that human**"
+  "**A thread a human has replied in is a message to that human**" \
+  "**Proven declines:** with \`BOT_REVIEW_PROVEN_DECLINES=mission-control\` set" \
+  "a \`new\` rejection of a non-security finding carrying proof" \
+  "/.claude/scripts/bot-review-decline-route.sh\` checks only that the proof is well-formed" \
+  "a failed script, no reachable mission control"
 # The filter call bot-review-surfaces-test.sh runs as the skill's own; a
 # change here must change the suite's copy too.
 require_phrases "$(skill_md bot-review)" "surfaces command" \

@@ -36,9 +36,9 @@ See [docs/claude-config.md](docs/claude-config.md).
 ## Permissions
 
 Three valid layers, chosen by scope: global tracked
-`roles/claude/files/settings.json` for cross-project allows and the deny list;
-per-repo tracked `<repo>/.claude/settings.json` for project-specific durable
-rules; per-repo local `<repo>/.claude/settings.local.json` for ephemeral
+`roles/claude/files/settings.json` for cross-project allows and the deny list
+(work-only rules join it from a machine-local fragment); per-repo tracked
+`<repo>/.claude/settings.json` for project-specific durable rules; per-repo local `<repo>/.claude/settings.local.json` for ephemeral
 rules, kept near-empty. See [docs/claude-config.md](docs/claude-config.md).
 
 ## Adding a new Claude skill
@@ -116,7 +116,7 @@ row names a writer. Keep machine-specific values here, never in tracked files.
 | `host` | `scripts/playbook.sh`, `roles/claude/files/skills/review-shared/backends.md` | This machine's inventory alias; empty or whitespace-only counts as absent |
 | `ssh-host` | the `sshc` function in `roles/fish/files/fish/config.fish` | `kitten ssh` target hostname |
 | `kitty-ssh.conf` | `roles/kitty/files/kitty/ssh.conf` (`globinclude`) | Host-specific kitty `ssh.conf` sections |
-| `op-account`, `op-work-item` | `scripts/playbook.sh` | The 1Password account a playbook run's `op` calls use, exported as `OP_ACCOUNT` (set that yourself for a direct script run), where more than one is signed in; `op-work-item` names the account, vault and item of the second item a work-only reviewer renders from, and the account and vault a work host's own overlay item is read from (0600) |
+| `op-account`, `op-work-item` | `scripts/playbook.sh` | The 1Password account a playbook run's `op` calls use, exported as `OP_ACCOUNT` (set that yourself for a direct script run), where more than one is signed in; `op-work-item` names the account, vault and item of the second item a work-only reviewer renders from, the account and vault a work host's own overlay item is read from, and the item the Claude work settings fragment renders from (0600) |
 | `op-service-account-token` | `scripts/op-token.sh`, for the 1Password syncs | Service-account token, a bearer credential (0600) |
 | `git-work-email`, `git-work-orgs` | `roles/git/defaults/main.yml` | The work identity written to `~/.gitconfig.work`; `git-work-orgs` names the GitHub owners whose repositories also take it, rendered by `scripts/op-render.sh` from `roles/git/files/git-work-orgs.tpl` |
 | `planwright-overlay.supplement.yml`, `planwright-overlay.rendered` | `scripts/op-render.sh` | Mission control's own writes to the planwright adopter overlay, carried over the 1Password item, and the snapshot of the last render that tells them apart (0600), both written by the renderer |
@@ -127,6 +127,7 @@ row names a writer. Keep machine-specific values here, never in tracked files.
 | `cubic-api-key` | `roles/claude/files/skills/panel-review/reviewer-backend.md`, through the cubic entry's `cli.env_files` | The cubic.dev CLI's API key (0600), written by `scripts/op-key-sync.sh` from the `dotfiles-cubic-api-key` item, without which a playbook run where `op` works fails |
 | `code-review-egress.json` | `roles/claude/files/skills/review-shared/egress.md` | Per-repo (and per-reviewer) upload consents (0600), written by the skills |
 | `bot-review.json` | the `/bot-review` skill, `/panel-review`'s `reviewer:<name>` backend, `/peer-review` (its login patterns) | Named third-party reviewers, one schema (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/bot-review/bot-review.json.tpl` |
+| `claude-settings-work.json` | `scripts/claude-settings-merge.sh` | Work-only permission rules unioned into `~/.claude/settings.json` (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/claude-settings-work.json.tpl` and the item `op-work-item` names |
 | `sibling-repos.json` | `roles/claude/files/skills/review-shared/siblings.md`, for `/code-review` and `/panel-review` | Consuming repository to its producers' clone paths (0600), rendered by `scripts/op-render.sh` from `roles/claude/files/skills/review-shared/sibling-repos.json.tpl` |
 | `private-identifiers` | `scripts/gitleaks-identifier-rules.sh`, `roles/claude/files/scripts/identifier-check.sh` | Names that must never reach a committed file |
 | `claude-instructions-inventory/` | the `specs/claude-instructions` tasks, by hand | Dated instruction-surface audit (directory 0700, files 0600) |
@@ -141,8 +142,7 @@ accounts cannot read Personal or Private); moving one there reassigns its id.
 Do not wire `scripts/gitleaks-identifier-rules.sh` into a hook or CI without
 first amending `specs/dev-services`, which retired that guard. The review-time
 check is `roles/claude/files/scripts/identifier-check.sh`, run by hand at task
-review; it never blocks a commit. See
-[docs/identifier-guard.md](docs/identifier-guard.md).
+review; it never blocks a commit. See [docs/identifier-guard.md](docs/identifier-guard.md).
 
 ## Ansible role layout
 

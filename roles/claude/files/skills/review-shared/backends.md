@@ -187,6 +187,27 @@ cwd between calls.
   later runs too. If a future CLI needs `-p`, add a short `-p` instruction
   alongside stdin rather than moving anything into argv.
 
+## Running gemini as two fixed commands
+
+Each inline snippet above waits on an approval, its shape unverifiable. `/panel-review` runs gemini through `~/.claude/scripts/review-backend-run.sh` instead, each call its
+own simple command (`/code-review` still runs the blocks above):
+
+- `preflight --repo <owner>/<repo>` resolves the profile, probes gitleaks and,
+  for gemini, the binary and key, and prints `key=value` lines, `egress=` (the
+  value on record) included; consent stays with the skill, per
+  [egress.md](egress.md). A failed probe exits 1; codex keeps its inline probes.
+- `gemini --lens-doc <discovery-rigor path> --instruction-file <f>
+  --format-file <f> --tooling-file <f> --base <rev> [--extra-lens-file <f>]
+  [--timeout <seconds>]` builds the guarded prompt, scans it, runs gemini
+  contained and bounded (540 seconds default), and prints the output, with
+  `backend_elapsed` and `backend_status` on stderr. Exit 124 is the bound (retry
+  once with a longer `--timeout`, in the background past a foreground limit), 4 a backend that exited 0 with no output, 1 a refused send (flagged
+  prompt, empty diff, bad `--base`, no timeout tool).
+  Write the input files (instruction, format, tooling output, the skill's own
+  lens) with the Write tool into the run's own scratch directory.
+
+The guards and contained form are those above.
+
 ## Judging the result
 
 Check `backend_status` immediately after the subshell, before any pipe (a pipe
