@@ -43,6 +43,7 @@ decisions before acting on them.
 
 ## Handoff after an autonomous loop
 
-A nested loop hands off a small residue, so skip the "how do you want to walk
+A nested loop hands off a small residue, and so does a review the user-global
+review rule exempts from the walk choice, so skip the "how do you want to walk
 these" question and pick the mode from the shape: clusters of three or more
 first in (d), the rest in (c), with the progress tracker throughout.
