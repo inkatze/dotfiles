@@ -280,21 +280,21 @@ else
   # replaces the template's line, at its position, so each key is written once;
   # a key the block repeats is left as is, for the duplicate check to refuse.
   if [ "$blocks" = true ]; then
-  awk '
-    function key_of(l) { return match(l, /^[a-z][a-z0-9_]*:/) ? substr(l, 1, RLENGTH - 1) : "" }
-    FNR == NR {
-      if (substr($0, 1, 1) == "\001") { k = key_of(substr($0, 2)); cnt[k]++; val[k] = substr($0, 2) }
-      else if (key_of($0) != "") lit[key_of($0)] = 1
-      next
-    }
-    substr($0, 1, 1) == "\001" {
-      l = substr($0, 2); k = key_of(l)
-      if (k != "" && cnt[k] == 1 && (k in lit)) next
-      print l; next
-    }
-    { k = key_of($0); if (k != "" && cnt[k] == 1) print val[k]; else print }
-  ' "$work/rendered" "$work/rendered" >"$work/deduped" || fail "could not merge the block lines of $template"
-  mv -f -- "$work/deduped" "$work/rendered" || fail "could not place the merged $template"
+    awk '
+      function key_of(l) { return match(l, /^[a-z][a-z0-9_]*:/) ? substr(l, 1, RLENGTH - 1) : "" }
+      FNR == NR {
+        if (substr($0, 1, 1) == "\001") { k = key_of(substr($0, 2)); cnt[k]++; val[k] = substr($0, 2) }
+        else if (key_of($0) != "") lit[key_of($0)] = 1
+        next
+      }
+      substr($0, 1, 1) == "\001" {
+        l = substr($0, 2); k = key_of(l)
+        if (k != "" && cnt[k] == 1 && (k in lit)) next
+        print l; next
+      }
+      { k = key_of($0); if (k != "" && cnt[k] == 1) print val[k]; else print }
+    ' "$work/rendered" "$work/rendered" >"$work/deduped" || fail "could not merge the block lines of $template"
+    mv -f -- "$work/deduped" "$work/rendered" || fail "could not place the merged $template"
   fi
 fi
 

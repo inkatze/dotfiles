@@ -396,7 +396,8 @@ fi
 block_item $'# note\nmission_control_guidance: guided\nworker_self_approval: scratch'
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 if [ "$rc" -eq 0 ] && [ "$(grep -c '^mission_control_guidance:' "$ov")" = 1 ] && grep -qx 'mission_control_guidance: guided' "$ov" \
-  && grep -q '^# Built by the dotfiles claude role' "$ov"; then
+  && grep -q '^# Built by the dotfiles claude role' "$ov" && grep -qx 'ready_guard_behind_base: conflict-only' "$ov" \
+  && grep -qx 'fleet_compute_host: mac' "$ov" && grep -qx '# note' "$ov"; then
   ok "a block comment line leaves the template alone; the guidance literal is replaced"
 else
   ko "a block comment line leaves the template alone ($log)"
@@ -405,10 +406,10 @@ run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 grep -q '^OK:' <<<"$log" && ok "a render that replaced a literal is stable on re-run" || ko "a replaced-literal render is stable ($log)"
 block_item $'worker_self_approval: a\nworker_self_approval: b'
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
-expect_failed "a key repeated in the block and set by the template" "worker_self_approval"
+expect_failed "a key repeated in the block and set by the template" "sets worker_self_approval more than once"
 block_item $'program_alpha_home: /x\nprogram_alpha_home: /y'
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
-expect_failed "a key repeated inside a block" "program_alpha_home"
+expect_failed "a key repeated inside a block" "sets program_alpha_home more than once"
 block_item $'program_alpha_home: /x\nsteps_convergence: polish'
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 expect_failed "a steps_ key inside a block" "sets steps_convergence"
