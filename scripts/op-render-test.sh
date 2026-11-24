@@ -380,6 +380,22 @@ fi
 grep -q '{{' "$ov" && ko "a reference survived in the output" || ok "no reference survives"
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 grep -q '^OK:' <<<"$log" && ok "a block renders the same twice" || ko "a block renders the same twice ($log)"
+block_item $'worker_self_approval: scratch\nnotification_channel: pull\nmission_control_programs: [alpha]'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && ok "a block key the template also sets renders" || ko "a block key the template also sets renders ($log)"
+if [ "$(grep -c '^worker_self_approval:' "$ov")" = 1 ] && [ "$(grep -c '^notification_channel:' "$ov")" = 1 ] \
+  && grep -qx 'worker_self_approval: scratch' "$ov" && grep -qx 'notification_channel: pull' "$ov"; then
+  ok "a block value replaces the template literal, once"
+else
+  ko "a block value replaces the template literal, once ($(grep -n '^worker_self_approval:\|^notification_channel:' "$ov"))"
+fi
+[ "$(grep -n '^worker_self_approval:' "$ov" | cut -d: -f1)" = "$(grep -n '^worker_self_approval:' "$overlay_tpl" | cut -d: -f1)" ] \
+  && ok "the replaced key keeps the literal's position" || ko "the replaced key keeps the literal's position"
+[ "$(tail -n 1 "$ov")" = 'mission_control_programs: [alpha]' ] \
+  && ok "a block key with no literal stays in the block" || ko "a block key with no literal stays in the block"
+block_item $'program_alpha_home: /x\nprogram_alpha_home: /y'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "a key repeated inside a block" "program_alpha_home"
 block_item $'program_alpha_home: /x\nsteps_convergence: polish'
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 expect_failed "a steps_ key inside a block" "sets steps_convergence"
