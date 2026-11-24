@@ -393,6 +393,19 @@ fi
   && ok "the replaced key keeps the literal's position" || ko "the replaced key keeps the literal's position"
 [ "$(tail -n 1 "$ov")" = 'mission_control_programs: [alpha]' ] \
   && ok "a block key with no literal stays in the block" || ko "a block key with no literal stays in the block"
+block_item $'# note\nmission_control_guidance: guided\nworker_self_approval: scratch'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+if [ "$rc" -eq 0 ] && [ "$(grep -c '^mission_control_guidance:' "$ov")" = 1 ] && grep -qx 'mission_control_guidance: guided' "$ov" \
+  && grep -q '^# Built by the dotfiles claude role' "$ov"; then
+  ok "a block comment line leaves the template alone; the guidance literal is replaced"
+else
+  ko "a block comment line leaves the template alone ($log)"
+fi
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+grep -q '^OK:' <<<"$log" && ok "a render that replaced a literal is stable on re-run" || ko "a replaced-literal render is stable ($log)"
+block_item $'worker_self_approval: a\nworker_self_approval: b'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "a key repeated in the block and set by the template" "worker_self_approval"
 block_item $'program_alpha_home: /x\nprogram_alpha_home: /y'
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 expect_failed "a key repeated inside a block" "program_alpha_home"

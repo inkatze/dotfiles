@@ -279,6 +279,7 @@ else
   # Block lines carry a leading \001. A block key the template also sets
   # replaces the template's line, at its position, so each key is written once;
   # a key the block repeats is left as is, for the duplicate check to refuse.
+  if [ "$blocks" = true ]; then
   awk '
     function key_of(l) { return match(l, /^[a-z][a-z0-9_]*:/) ? substr(l, 1, RLENGTH - 1) : "" }
     FNR == NR {
@@ -293,7 +294,8 @@ else
     }
     { k = key_of($0); if (k != "" && cnt[k] == 1) print val[k]; else print }
   ' "$work/rendered" "$work/rendered" >"$work/deduped" || fail "could not merge the block lines of $template"
-  mv -f -- "$work/deduped" "$work/rendered"
+  mv -f -- "$work/deduped" "$work/rendered" || fail "could not place the merged $template"
+  fi
 fi
 
 # The live-worker bound is per machine: the template carries the shared default
