@@ -410,6 +410,10 @@ expect_failed "a key repeated in the block and set by the template" "sets worker
 block_item $'program_alpha_home: /x\nprogram_alpha_home: /y'
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 expect_failed "a key repeated inside a block" "sets program_alpha_home more than once"
+block_item $'foo bar: x\nbar: y'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+expect_failed "a malformed block line" "not a flat key: value line"
+grep -q 'sets bar more than once' <<<"$log" && ko "a malformed line seeds no duplicate" || ok "a malformed line seeds no duplicate"
 block_item $'program_alpha_home: /x\nsteps_convergence: polish'
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 expect_failed "a steps_ key inside a block" "sets steps_convergence"

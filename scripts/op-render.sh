@@ -487,8 +487,9 @@ case "$rule" in
         errors="${errors}sets ${line%%:*}, a step list this layer must not carry"$'\n'
       elif [[ "$seen" == *" ${line%%:*} "* ]]; then
         errors="${errors}sets ${line%%:*} more than once, which planwright's mc-config.sh refuses"$'\n'
+      else
+        seen="$seen${line%%:*} "
       fi
-      seen="$seen${line%%:*} "
     done <"$work/rendered"
     ;;
   work-orgs)
