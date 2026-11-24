@@ -264,7 +264,7 @@ else
           elif $fields[$f] | test("\r")
           then error("item field \($f) holds a carriage return")
           elif $fields[$f] == "" then empty
-          else $fields[$f] | rtrimstr("\n") | split("\n")[] end
+          else $fields[$f] | rtrimstr("\n") | split("\n")[] | "\u0001" + . end
       elif test("^[a-z][a-z0-9_]*: " + op_reference_inline + "$")
         and $fields[capture(op_reference_inline).f] == ""
       then empty
@@ -276,6 +276,26 @@ else
           else $fields[$f] end)
       end' \
     "$template" >"$work/rendered"
+  # Block lines carry a leading \001. A block key the template also sets
+  # replaces the template's line, at its position, so each key is written once;
+  # a key the block repeats is left as is, for the duplicate check to refuse.
+  if [ "$blocks" = true ]; then
+    awk '
+      function key_of(l) { return match(l, /^[a-z][a-z0-9_]*:/) ? substr(l, 1, RLENGTH - 1) : "" }
+      FNR == NR {
+        if (substr($0, 1, 1) == "\001") { k = key_of(substr($0, 2)); cnt[k]++; val[k] = substr($0, 2) }
+        else if (key_of($0) != "") lit[key_of($0)] = 1
+        next
+      }
+      substr($0, 1, 1) == "\001" {
+        l = substr($0, 2); k = key_of(l)
+        if (k != "" && cnt[k] == 1 && (k in lit)) next
+        print l; next
+      }
+      { k = key_of($0); if (k != "" && cnt[k] == 1) print val[k]; else print }
+    ' "$work/rendered" "$work/rendered" >"$work/deduped" || fail "could not merge the block lines of $template"
+    mv -f -- "$work/deduped" "$work/rendered" || fail "could not place the merged $template"
+  fi
 fi
 
 # The live-worker bound is per machine: the template carries the shared default
@@ -455,6 +475,7 @@ case "$rule" in
     errors=""
     n=0
     flat='^[a-z][a-z0-9_]*:([[:space:]]|$)'
+    seen=" "
     while IFS= read -r line || [ -n "$line" ]; do
       n=$((n + 1))
       case "$line" in
@@ -464,6 +485,10 @@ case "$rule" in
         errors="${errors}line $n is not a flat key: value line"$'\n'
       elif [ "${line#steps_}" != "$line" ]; then
         errors="${errors}sets ${line%%:*}, a step list this layer must not carry"$'\n'
+      elif [[ "$seen" == *" ${line%%:*} "* ]]; then
+        errors="${errors}sets ${line%%:*} more than once, which planwright's mc-config.sh refuses"$'\n'
+      else
+        seen="$seen${line%%:*} "
       fi
     done <"$work/rendered"
     ;;

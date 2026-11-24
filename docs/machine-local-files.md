@@ -100,7 +100,10 @@ value holding a line break, except in the overlay template, where a line
 holding only a reference expands to the field's lines, each still checked as
 a flat key: value line: mission control's program settings arrive this way,
 from the item's `mission_control` field, because their key names would
-otherwise publish private repository names. The review template's `cli`
+otherwise publish private repository names. A key such a field sets that the
+template also sets replaces the template's line, at its position, so the
+overlay carries each key once; a key repeated within the field, or left
+repeated by any other route, fails the render. The review template's `cli`
 blocks are literal, since they describe how to run a local CLI rather than the
 hosted bot's mechanics, so a rendered config carries them as committed, except
 that an empty list or map in one drops like any other.

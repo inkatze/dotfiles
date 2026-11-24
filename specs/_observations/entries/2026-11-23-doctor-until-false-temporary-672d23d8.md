@@ -1,0 +1,1 @@
+- 2026-11-23 [planwright] planwright doctor reads a bare "until" in an overlay comment as a temporary-override marker, so a comment like "is kept locally until it is copied into the field" reports a false temporary finding for the key it sits above (mission_control_programs). Only a dated expiry or an explicit interim/temporary word should count.
