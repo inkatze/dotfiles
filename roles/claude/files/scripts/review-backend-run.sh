@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# The gemini backend's mechanical steps as two fixed-shape commands, so a review
-# run asks for one approval shape per step instead of one per inline snippet.
+# The gemini backend's mechanical steps as two fixed-shape commands, so each step
+# is a shape an allow rule can match, unlike one inline snippet per step.
 # The rules live in skills/review-shared/backends.md and egress.md; this is
 # their executable form for gemini (codex stays inline there).
 #
@@ -23,7 +23,7 @@
 # backend's wall time as "backend_elapsed=<n>s backend_status=<n>" on stderr.
 # gemini sends only when origin is a github.com repository with a gemini yes on
 # record in the egress file, takes its instruction, format, tooling and
-# extra-lens files only from under the temp directory, and its lens document
+# extra-lens files only from a directory under the temp directory, and its lens document
 # only as a discovery-rigor.md under ~/.claude.
 # Exit is the backend's own status (124 on the bound, 137 if gemini ignored the
 # TERM), 1 on a refused send, 4 when gemini exits 0 with no output. The bound

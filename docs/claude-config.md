@@ -146,7 +146,7 @@ socket, so those still prompt. A rule matches only the shape
 `roles/claude/files/skills/review-shared/state.md` prescribes (absolute path, nothing chained or
 expanded). The `gemini` rule approves an upload, so the script itself refuses
 without a recorded consent for `origin`'s repository and takes its
-instruction, format, tooling and extra-lens files only from the temp directory,
+instruction, format, tooling and extra-lens files only from a directory under the temp directory,
 with the lens document held to a `discovery-rigor.md` under `~/.claude`. That guard
 stops a mistake, not a session set on sending: anything the session can copy
 into the temp directory or commit can go, and one that can write the consent

@@ -207,7 +207,8 @@ timeout above its bound.
   `backend_elapsed` and `backend_status` on stderr. Exit 124 is the bound (retry
   once with a longer `--timeout`, in the background past a foreground limit), 4 a backend that exited 0 with no output, 1 a refused send (flagged
   prompt, empty diff, bad `--base`, no timeout tool, no recorded consent,
-  an origin off github.com, an input file outside the temp directory).
+  an origin off github.com, an input file outside the temp directory, a lens
+  document other than a `discovery-rigor.md` under `~/.claude`).
   Write the input files (instruction, format, tooling output, the skill's own
   lens) with the Write tool into the run's own scratch directory.
 
@@ -216,9 +217,11 @@ unless `origin` is a github.com repository with a `gemini` yes on record (so
 record the consent before the first call), and unless the instruction, format,
 tooling and extra-lens files sit in a directory under the temp directory, and
 the lens document is a `discovery-rigor.md` under `~/.claude`. It looks
-consent up by the owner and name spelled in `origin`'s URL, in any case. Where no
-consent can be recorded, or the record is under another name or has since
-taken another backend, run the inline blocks above, which prompt.
+consent up by the owner and name spelled in `origin`'s URL, in any case. A
+refused input file is rewritten in the scratch directory and the call
+repeated. A refused lens document, or consent that cannot be recorded, is
+under another name or has since taken another backend, runs the inline blocks
+above, which prompt.
 
 ## Judging the result
 

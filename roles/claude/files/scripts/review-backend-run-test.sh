@@ -215,16 +215,16 @@ for flag in --instruction-file --format-file --tooling-file --extra-lens-file; d
   refused "$flag through a symlinked directory" 'under the temp directory' "$flag" "$w/dir-out/${tool##*/}"
 done
 
-forged() {
+unmarked_preflight() {
   (cd "$w/repo" && env -u PANEL_BACKEND_TEST PANEL_REVIEW_PROFILE=work HOME="$w/home" PANEL_EGRESS_FILE="$w/egress.json" \
     "$tool" preflight --repo o/r) 2> /dev/null
 }
-case "$(forged)" in *egress=none*) ok "the consent-file override needs the test marker" ;; *) ko "a forged consent file was read without the marker" ;; esac
+case "$(unmarked_preflight)" in *egress=none*) ok "the consent-file override needs the test marker" ;; *) ko "a forged consent file was read without the marker" ;; esac
 mkdir -p "$w/home/.config/dotfiles"
 cp "$w/egress.json" "$w/home/.config/dotfiles/code-review-egress.json"
-case "$(forged)" in *egress=gemini*) ok "consent is read from the egress file under HOME" ;; *) ko "default egress file not read" ;; esac
+case "$(unmarked_preflight)" in *egress=gemini*) ok "consent is read from the egress file under HOME" ;; *) ko "default egress file not read" ;; esac
 : > "$w/home/.config/dotfiles/code-review-egress.json"
-case "$(forged)" in *egress=none*) ok "an empty consent file reads as none" ;; *) ko "empty consent file: $(forged)" ;; esac
+case "$(unmarked_preflight)" in *egress=none*) ok "an empty consent file reads as none" ;; *) ko "empty consent file: $(unmarked_preflight)" ;; esac
 
 settings="$here/../settings.json"
 rules="$(jq -r '.permissions.allow[]' "$settings")"
