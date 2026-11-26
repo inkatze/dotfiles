@@ -219,9 +219,9 @@ tooling and extra-lens files sit in a directory under the temp directory, and
 the lens document is a `discovery-rigor.md` under `~/.claude`. It looks
 consent up by the owner and name spelled in `origin`'s URL, in any case. A
 refused input file is rewritten in the scratch directory and the call
-repeated. A refused lens document, or consent that cannot be recorded, is
-under another name or has since taken another backend, runs the inline blocks
-above, which prompt.
+repeated. The inline blocks above, which prompt, run instead when the lens
+document is refused or the consent cannot be recorded, is on record under
+another name, or has since taken another backend.
 
 ## Judging the result
 
