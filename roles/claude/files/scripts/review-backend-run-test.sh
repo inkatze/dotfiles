@@ -136,6 +136,27 @@ run env PANEL_REVIEW_PROFILE=server "$tool" preflight > "$w/pre" 2>&1
 check "preflight exits 1 on a loose key" "$?" "1"
 chmod 600 "$w/home/.gemini/.api-key"
 
+settings="$here/../settings.json"
+rules="$(jq -r '.permissions.allow[]' "$settings")"
+allowed() {
+  local cmd="$1" rule pat
+  while IFS= read -r rule; do
+    case "$rule" in 'Bash('*':*)') ;; *) continue ;; esac
+    pat="${rule#Bash(}"
+    pat="${pat%:\*)}"
+    case "$cmd" in "$pat"|"$pat "*) return 0 ;; esac
+  done <<< "$rules"
+  return 1
+}
+helper='$HOME/.claude/scripts'
+for cmd in "register --name n" "unregister --session s" "lock acquire" "inbox read" "loop mark" "loop append" "ledger record" "evidence lookup"; do
+  allowed "$helper/review-state.sh $cmd" && ok "allowed: review-state.sh $cmd" || ko "would prompt: review-state.sh $cmd"
+done
+for cmd in "evidence run --command k -- id" "inbox nudge --to t"; do
+  allowed "$helper/review-state.sh $cmd" && ko "must prompt: review-state.sh $cmd" || ok "still prompts: review-state.sh $cmd"
+done
+allowed "$helper/review-backend-run.sh preflight --repo o/r" && ok "allowed: preflight" || ko "would prompt: preflight"
+
 printf '{"o/r":"gemini"}' > "$w/egress.json"
 pre="$(run env PANEL_REVIEW_PROFILE=server PANEL_EGRESS_FILE="$w/egress.json" "$tool" preflight --repo o/r)"
 check "preflight passes with stubs" "$?" "0"

@@ -137,6 +137,15 @@ public rule names no host. The alias exists only after that config renders.
 The read-only rules stay global for the same reason the hub rules exist:
 planwright's profiles cover only the sessions it launches with `--settings`.
 
+The `review-state.sh` and `review-backend-run.sh` rules exist because a review
+skill runs these helpers many times a run, and an unattended worker's prompt
+can wait hours for an answer. They are per verb, never the whole script:
+`evidence run` executes any command it is handed and `inbox nudge` writes into
+another session's socket, so both still prompt. A rule matches only the shape
+`skills/review-shared/state.md` prescribes (absolute path, nothing chained or
+expanded). `scripts/review-backend-run-test.sh` beside the helpers pins which
+verbs the rules cover.
+
 This repo gitignores the contents of every `.claude/` directory rather than
 the directory itself, since git never re-includes a file under an excluded
 directory, and un-ignores one path: `.claude/planwright.yml`, its tracked
