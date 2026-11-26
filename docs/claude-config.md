@@ -143,7 +143,11 @@ can wait hours for an answer. They are per verb, never the whole script:
 `evidence run` executes any command it is handed and `inbox nudge` writes into
 another session's socket, so both still prompt. A rule matches only the shape
 `skills/review-shared/state.md` prescribes (absolute path, nothing chained or
-expanded). `scripts/review-backend-run-test.sh` beside the helpers pins which
+expanded). The `gemini` rule approves an upload, so the script itself refuses
+without a recorded consent for `origin`'s repository and reads its input files
+only from the temp directory. That guard stops a mistake, not a session set on
+sending: one that can write the consent file or repoint `origin` gets past it.
+`scripts/review-backend-run-test.sh` beside the helpers pins which
 verbs the rules cover.
 
 This repo gitignores the contents of every `.claude/` directory rather than

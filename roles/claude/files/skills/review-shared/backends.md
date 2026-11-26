@@ -210,7 +210,11 @@ timeout above its bound.
   Write the input files (instruction, format, tooling output, the skill's own
   lens) with the Write tool into the run's own scratch directory.
 
-The guards and contained form are those above.
+The guards and contained form are those above. `gemini` also refuses to send
+unless `origin` is a github.com repository with a `gemini` yes on record (so
+record the consent before the first call), and unless the instruction, format,
+tooling and extra-lens files sit in a directory under the temp directory. Where
+no consent can be recorded, run the inline blocks above, which prompt.
 
 ## Judging the result
 

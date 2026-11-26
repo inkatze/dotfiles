@@ -21,6 +21,9 @@
 # gemini contained (plan mode, prompt on stdin, working directory holding only
 # the prompt) under a bound, prints the model's output on stdout and the
 # backend's wall time as "backend_elapsed=<n>s backend_status=<n>" on stderr.
+# gemini sends only when origin is a github.com repository with a gemini yes on
+# record in the egress file, and takes its instruction, format, tooling and
+# extra-lens files only from under the temp directory.
 # Exit is the backend's own status (124 on the bound, 137 if gemini ignored the
 # TERM), 1 on a refused send, 4 when gemini exits 0 with no output. The bound
 # defaults to 540 seconds, inside a foreground tool call, takes 1 to 999999
@@ -63,6 +66,43 @@ gitleaks_bin() {
 
 key_mode() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1" 2>/dev/null || true; }
 
+egress_value() {
+  local file="$HOME/.config/dotfiles/code-review-egress.json" val=none
+  [ -z "${PANEL_BACKEND_TEST:-}" ] || file="${PANEL_EGRESS_FILE:-$file}"
+  if [ -n "$1" ] && [ -f "$file" ] && [ ! -L "$file" ]; then
+    val="$(jq -r --arg r "$1" '.[$r] // "none" | if type == "string" and test("^[a-z0-9:._-]+$") then . else "none" end' "$file" 2> /dev/null)" || val=none
+  fi
+  printf '%s\n' "$val"
+}
+
+# Prints owner/repo when origin is on github.com, nothing otherwise.
+origin_repo() {
+  local url path
+  url="$(git config --get remote.origin.url)" || return 0
+  case "$url" in
+    git@github.com:*) path="${url#git@github.com:}" ;;
+    ssh://git@github.com/*) path="${url#ssh://git@github.com/}" ;;
+    https://github.com/*) path="${url#https://github.com/}" ;;
+    *) return 0 ;;
+  esac
+  path="${path%.git}"
+  case "$path" in */*/*|/*|*/|*[!A-Za-z0-9_./-]*) ;; */*) printf '%s\n' "$path" ;; esac
+}
+
+# The gemini rule in settings.json runs this script without a prompt, so an
+# input file may only come from a temp directory: never a symlink, never a
+# path elsewhere that would carry some other file of the user's to the backend.
+require_scratch_file() {
+  local flag="$1" file="$2" dir root
+  [ ! -L "$file" ] && [ -O "$file" ] || die "gemini: $flag must be your own regular file, not a symlink: $file"
+  dir="$(cd "$(dirname "$file")" && pwd -P)" || die "gemini: $flag is unreadable: $file"
+  for root in /tmp "${TMPDIR:-/tmp}"; do
+    root="$(cd "$root" 2> /dev/null && pwd -P)" || continue
+    case "$dir/" in "$root"/?*) return 0 ;; esac
+  done
+  die "gemini: $flag must be a file in a directory under the temp directory: $file"
+}
+
 cmd_preflight() {
   local repo="" profile backend rc=0 g
   while [ $# -gt 0 ]; do
@@ -94,12 +134,7 @@ cmd_preflight() {
       esac
     fi
   else echo "gemini=n/a"; echo "key=n/a"; fi
-  local egress_file="$HOME/.config/dotfiles/code-review-egress.json" val=none
-  [ -z "${PANEL_BACKEND_TEST:-}" ] || egress_file="${PANEL_EGRESS_FILE:-$egress_file}"
-  if [ -n "$repo" ] && [ -f "$egress_file" ] && [ ! -L "$egress_file" ]; then
-    val="$(jq -r --arg r "$repo" '.[$r] // "none" | if type == "string" and test("^[a-z0-9:._-]+$") then . else "none" end' "$egress_file" 2> /dev/null)" || val=none
-  fi
-  printf 'egress=%s\n' "$val"
+  printf 'egress=%s\n' "$(egress_value "$repo")"
   return "$rc"
 }
 
@@ -123,6 +158,13 @@ cmd_gemini() {
       || die "gemini: ${pair%%=*} is unset, missing, or empty: ${pair#*=}"
   done
   [ -z "$extra" ] || { [ -f "$extra" ] && [ -s "$extra" ]; } || die "gemini: --extra-lens-file is missing or empty: $extra"
+  for pair in "--instruction-file=$instr" "--format-file=$fmt" "--tooling-file=$tooling" ${extra:+"--extra-lens-file=$extra"}; do
+    require_scratch_file "${pair%%=*}" "${pair#*=}"
+  done
+  local repo
+  repo="$(origin_repo)"
+  [ -n "$repo" ] || die "gemini: origin is not a github.com repository, so no consent can be on record; use the inline blocks in backends.md"
+  [ "$(egress_value "$repo")" = gemini ] || die "gemini: no recorded gemini consent for $repo; ask and record it per egress.md"
   [ -n "$base" ] || die "gemini: --base is required"
   case "$bound" in ''|*[!0-9]*|???????*) die "gemini: --timeout must be 1 to 999999 whole seconds" ;; esac
   [ "$((10#$bound))" -ge 1 ] || die "gemini: --timeout must be 1 to 999999 whole seconds"

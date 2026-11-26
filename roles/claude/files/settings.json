@@ -80,6 +80,7 @@
       "Bash($HOME/.claude/scripts/review-state.sh evidence lookup:*)",
       "Bash($HOME/.claude/scripts/review-state.sh evidence ci:*)",
       "Bash($HOME/.claude/scripts/review-backend-run.sh preflight:*)",
+      "Bash($HOME/.claude/scripts/review-backend-run.sh gemini:*)",
       "Bash(cat:*)",
       "Bash(cd:*)",
       "Bash(cut:*)",

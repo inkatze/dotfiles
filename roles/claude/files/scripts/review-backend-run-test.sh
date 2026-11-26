@@ -48,6 +48,9 @@ echo hi > "$w/repo/f.txt"
 git -C "$w/repo" add f.txt
 git -C "$w/repo" -c user.email=t@t -c user.name=t commit -q -m change
 
+git -C "$w/repo" remote add origin git@github.com:o/r.git
+printf '{"o/r":"gemini"}' > "$w/egress.json"
+
 printf 'INSTRUCTION\n' > "$w/instr"
 printf 'FORMAT\n' > "$w/fmt"
 printf 'TOOLING\n' > "$w/tool"
@@ -57,7 +60,7 @@ mkdir -p "$w/rec"
 
 run() {
   (cd "$w/repo" && env -u GEMINI_API_KEY PANEL_BACKEND_TEST=1 HOME="$w/home" REC="$w/rec" PANEL_GEMINI_BIN="$w/bin/gemini" PANEL_NODE_DIR="$w/bin" \
-    PANEL_GITLEAKS_BIN="$w/bin/gitleaks" "$@")
+    PANEL_GITLEAKS_BIN="$w/bin/gitleaks" PANEL_EGRESS_FILE="$w/egress.json" "$@")
 }
 args=(--lens-doc "$w/lens.md" --instruction-file "$w/instr" --format-file "$w/fmt" --tooling-file "$w/tool" --base main~1)
 
@@ -136,6 +139,41 @@ run env PANEL_REVIEW_PROFILE=server "$tool" preflight > "$w/pre" 2>&1
 check "preflight exits 1 on a loose key" "$?" "1"
 chmod 600 "$w/home/.gemini/.api-key"
 
+send() {
+  rm -f "$w/rec/stdin"
+  run "$tool" gemini "$@" > /dev/null 2> "$w/err"
+  echo "$?:$([ -e "$w/rec/stdin" ] && echo sent || echo unsent)"
+}
+printf '{}' > "$w/egress.json"
+check "no recorded consent refuses to send" "$(send "${args[@]}")" "1:unsent"
+grep -q 'no recorded gemini consent for o/r' "$w/err" && ok "the refusal names the repo" || ko "consent refusal unexplained"
+printf '{"o/r":"codex"}' > "$w/egress.json"
+check "another backend's consent does not count" "$(send "${args[@]}")" "1:unsent"
+printf '{"o/r":"gemini"}' > "$w/real-egress.json"
+rm -f "$w/egress.json"
+ln -s "$w/real-egress.json" "$w/egress.json"
+check "a symlinked consent file refuses" "$(send "${args[@]}")" "1:unsent"
+rm -f "$w/egress.json"
+check "a missing consent file refuses" "$(send "${args[@]}")" "1:unsent"
+printf '{"o/r":"gemini"}' > "$w/egress.json"
+for url in https://github.com/o/r.git https://github.com/o/r ssh://git@github.com/o/r.git; do
+  git -C "$w/repo" remote set-url origin "$url"
+  check "consent resolves from $url" "$(send "${args[@]}")" "0:sent"
+done
+for url in git@example.com:o/r.git https://github.com.example.com/o/r https://example.com/github.com/o/r "$w/o/r"; do
+  git -C "$w/repo" remote set-url origin "$url"
+  check "an origin off github.com refuses ($url)" "$(send "${args[@]}")" "1:unsent"
+done
+git -C "$w/repo" remote remove origin
+check "no origin refuses" "$(send "${args[@]}")" "1:unsent"
+git -C "$w/repo" remote add origin git@github.com:o/r.git
+
+ln -s "$tool" "$w/link-out"
+for flag in --instruction-file --format-file --tooling-file --extra-lens-file; do
+  check "$flag outside the temp directory refuses" "$(send "${args[@]}" "$flag" "$tool")" "1:unsent"
+  check "$flag through a symlink refuses" "$(send "${args[@]}" "$flag" "$w/link-out")" "1:unsent"
+done
+
 settings="$here/../settings.json"
 rules="$(jq -r '.permissions.allow[]' "$settings")"
 allowed() {
@@ -156,6 +194,7 @@ for cmd in "evidence run --command k -- id" "inbox nudge --to t"; do
   allowed "$helper/review-state.sh $cmd" && ko "must prompt: review-state.sh $cmd" || ok "still prompts: review-state.sh $cmd"
 done
 allowed "$helper/review-backend-run.sh preflight --repo o/r" && ok "allowed: preflight" || ko "would prompt: preflight"
+allowed "$helper/review-backend-run.sh gemini --base x" && ok "allowed: gemini" || ko "would prompt: gemini"
 
 printf '{"o/r":"gemini"}' > "$w/egress.json"
 pre="$(run env PANEL_REVIEW_PROFILE=server PANEL_EGRESS_FILE="$w/egress.json" "$tool" preflight --repo o/r)"
