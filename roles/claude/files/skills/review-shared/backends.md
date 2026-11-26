@@ -214,8 +214,9 @@ timeout above its bound.
 The guards and contained form are those above. `gemini` also refuses to send
 unless `origin` is a github.com repository with a `gemini` yes on record (so
 record the consent before the first call), and unless the instruction, format,
-tooling and extra-lens files sit in a directory under the temp directory. It
-looks consent up by the owner and name spelled in `origin`'s URL. Where no
+tooling and extra-lens files sit in a directory under the temp directory, and
+the lens document is a `discovery-rigor.md` under `~/.claude`. It looks
+consent up by the owner and name spelled in `origin`'s URL, in any case. Where no
 consent can be recorded, or the record is under another name or has since
 taken another backend, run the inline blocks above, which prompt.
 

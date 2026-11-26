@@ -18,7 +18,9 @@ check() { if [ "$2" = "$3" ]; then ok "$1"; else ko "$1 (want '$3', got '$2')"; 
 
 w="$(mktemp -d)" || exit 1
 trap 'rm -rf "$w"' EXIT
-mkdir -p "$w/home/.gemini" "$w/bin" "$w/repo"
+lensdir="$w/home/.claude/doctrine"
+lens="$lensdir/discovery-rigor.md"
+mkdir -p "$w/home/.gemini" "$lensdir" "$w/bin" "$w/repo"
 printf 'k' > "$w/home/.gemini/.api-key"
 chmod 600 "$w/home/.gemini/.api-key"
 
@@ -55,14 +57,14 @@ printf 'INSTRUCTION\n' > "$w/instr"
 printf 'FORMAT\n' > "$w/fmt"
 printf 'TOOLING\n' > "$w/tool"
 printf 'EXTRA LENS\n' > "$w/extra"
-printf '## Lens checklist\n\n1. Correctness\n\n2. Security\n\n## Next\n' > "$w/lens.md"
+printf '## Lens checklist\n\n1. Correctness\n\n2. Security\n\n## Next\n' > "$lens"
 mkdir -p "$w/rec"
 
 run() {
   (cd "$w/repo" && env -u GEMINI_API_KEY PANEL_BACKEND_TEST=1 HOME="$w/home" REC="$w/rec" PANEL_GEMINI_BIN="$w/bin/gemini" PANEL_NODE_DIR="$w/bin" \
     PANEL_GITLEAKS_BIN="$w/bin/gitleaks" PANEL_EGRESS_FILE="$w/egress.json" "$@")
 }
-args=(--lens-doc "$w/lens.md" --instruction-file "$w/instr" --format-file "$w/fmt" --tooling-file "$w/tool" --base main~1)
+args=(--lens-doc "$lens" --instruction-file "$w/instr" --format-file "$w/fmt" --tooling-file "$w/tool" --base main~1)
 
 out="$(run "$tool" gemini "${args[@]}" --extra-lens-file "$w/extra" 2> "$w/err")"
 check "gemini exits 0 and prints the table" "${out%%$'\n'*}" "| Lens | File:Line | Finding | Rule cited | Severity |"
@@ -106,13 +108,14 @@ run "$tool" gemini "${args[@]}" > /dev/null 2> "$w/err"
 grep -qx -e '--ignore-gitleaks-allow' "$w/rec/gitleaks-args" && ok "the scan ignores inline allow markers" || ko "inline allow markers could skip the scan"
 STUB_BLANK=1 run "$tool" gemini "${args[@]}" > /dev/null 2> "$w/err"
 check "whitespace-only output is a failure (4)" "$?" "4"
-run "$tool" gemini --lens-doc "$w/lens.md" --instruction-file "$w/nope" --format-file "$w/fmt" --tooling-file "$w/tool" --base main~1 > /dev/null 2> "$w/err"
+run "$tool" gemini --lens-doc "$lens" --instruction-file "$w/nope" --format-file "$w/fmt" --tooling-file "$w/tool" --base main~1 > /dev/null 2> "$w/err"
 check "a missing input file is refused" "$?" "1"
 run "$tool" gemini "${args[@]}" --extra-lens-file "$w/none-such" > /dev/null 2> "$w/err"
 check "a missing extra lens file is refused up front" "$?" "1"
 grep -q 'extra-lens-file' "$w/err" && ok "the refusal names the flag" || ko "refusal does not name the flag"
-printf 'no lens section here\n' > "$w/nolens.md"
-run "$tool" gemini --lens-doc "$w/nolens.md" --instruction-file "$w/instr" --format-file "$w/fmt" --tooling-file "$w/tool" --base main~1 > /dev/null 2> "$w/err"
+mkdir -p "$w/home/.claude/other"
+printf 'no lens section here\n' > "$w/home/.claude/other/discovery-rigor.md"
+run "$tool" gemini --lens-doc "$w/home/.claude/other/discovery-rigor.md" --instruction-file "$w/instr" --format-file "$w/fmt" --tooling-file "$w/tool" --base main~1 > /dev/null 2> "$w/err"
 check "a lens doc with no lens list is refused" "$?" "1"
 grep -q 'no lens list' "$w/err" && ok "the refusal says why" || ko "no-lens refusal unexplained"
 run "$tool" gemini --lens-doc "$w" --instruction-file "$w/instr" --format-file "$w/fmt" --tooling-file "$w/tool" --base main~1 > /dev/null 2> "$w/err"
@@ -168,39 +171,96 @@ git -C "$w/repo" remote remove origin
 check "no origin refuses" "$(send "${args[@]}")" "1:unsent"
 git -C "$w/repo" remote add origin git@github.com:o/r.git
 
-ln -s "$tool" "$w/link-out"
-for flag in --instruction-file --format-file --tooling-file --extra-lens-file; do
-  check "$flag outside the temp directory refuses" "$(send "${args[@]}" "$flag" "$tool")" "1:unsent"
-  check "$flag through a symlink refuses" "$(send "${args[@]}" "$flag" "$w/link-out")" "1:unsent"
+printf '{"O/R":"gemini"}' > "$w/egress.json"
+check "consent matches the repo in any case" "$(send "${args[@]}")" "0:sent"
+printf '{"o/r":"gemini"}' > "$w/egress.json"
+for url in https://github.com/o/r/ git@github.com:o/r.git/; do
+  git -C "$w/repo" remote set-url origin "$url"
+  check "a trailing slash on origin is accepted ($url)" "$(send "${args[@]}")" "0:sent"
 done
+git -C "$w/repo" remote set-url origin git@github.com:o/r.git
+
+refused() {
+  local label="$1" why="$2"
+  shift 2
+  check "$label refuses" "$(send "${args[@]}" "$@")" "1:unsent"
+  grep -q -e "$why" "$w/err" && ok "$label: the refusal names the cause" || ko "$label: $(cat "$w/err")"
+  grep -q 'inline blocks' "$w/err" && ok "$label: the refusal names the fallback" || ko "$label: no fallback named"
+}
+cp "$lens" "$w/discovery-rigor.md"
+refused "a lens doc outside ~/.claude" '--lens-doc' --lens-doc "$w/discovery-rigor.md"
+cp "$lens" "$w/home/.claude/notes.md"
+refused "a lens doc by another name" '--lens-doc' --lens-doc "$w/home/.claude/notes.md"
+ln -s "$w/home/.claude/notes.md" "$w/home/.claude/discovery-rigor.md"
+refused "a symlinked lens doc" '--lens-doc' --lens-doc "$w/home/.claude/discovery-rigor.md"
+printf '{}' > "$w/egress.json"
+refused "no consent" 'no recorded gemini consent'
+printf '{"o/r":"gemini"}' > "$w/egress.json"
+
+ln -s "$tool" "$w/link-out"
+ln -s "$here" "$w/dir-out"
+at_root="$(mktemp /tmp/rbr-test.XXXXXX)" || exit 1
+trap 'rm -rf "$w"; rm -f "$at_root"' EXIT
+printf 'x\n' > "$at_root"
+outside=1
+for root in /tmp "${TMPDIR:-/tmp}"; do
+  case "$(cd "$here" && pwd -P)/" in "$(cd "$root" && pwd -P)"/*) outside="" ;; esac
+done
+[ -n "$outside" ] || echo "  skip: the checkout is under the temp directory, so it holds no outside file"
+for flag in --instruction-file --format-file --tooling-file --extra-lens-file; do
+  refused "$flag through a symlink" 'not a symlink' "$flag" "$w/link-out"
+  refused "$flag directly in the temp root" 'under the temp directory' "$flag" "$at_root"
+  [ -n "$outside" ] || continue
+  refused "$flag outside the temp directory" 'under the temp directory' "$flag" "$tool"
+  refused "$flag through a symlinked directory" 'under the temp directory' "$flag" "$w/dir-out/${tool##*/}"
+done
+
+forged() {
+  (cd "$w/repo" && env -u PANEL_BACKEND_TEST PANEL_REVIEW_PROFILE=work HOME="$w/home" PANEL_EGRESS_FILE="$w/egress.json" \
+    "$tool" preflight --repo o/r) 2> /dev/null
+}
+case "$(forged)" in *egress=none*) ok "the consent-file override needs the test marker" ;; *) ko "a forged consent file was read without the marker" ;; esac
+mkdir -p "$w/home/.config/dotfiles"
+cp "$w/egress.json" "$w/home/.config/dotfiles/code-review-egress.json"
+case "$(forged)" in *egress=gemini*) ok "consent is read from the egress file under HOME" ;; *) ko "default egress file not read" ;; esac
+: > "$w/home/.config/dotfiles/code-review-egress.json"
+case "$(forged)" in *egress=none*) ok "an empty consent file reads as none" ;; *) ko "empty consent file: $(forged)" ;; esac
 
 settings="$here/../settings.json"
 rules="$(jq -r '.permissions.allow[]' "$settings")"
+# A rule's pattern is a glob, so it is matched unquoted.
+# shellcheck disable=SC2254
 allowed() {
   local cmd="$1" rule pat
   while IFS= read -r rule; do
-    case "$rule" in 'Bash('*':*)') ;; *) continue ;; esac
+    case "$rule" in 'Bash('*')') ;; *) continue ;; esac
     pat="${rule#Bash(}"
-    pat="${pat%:\*)}"
-    case "$cmd" in "$pat"|"$pat "*) return 0 ;; esac
+    pat="${pat%)}"
+    case "$pat" in
+      *':*') pat="${pat%:\*}" ;;
+      *' *') pat="${pat% \*}" ;;
+      *) case "$cmd" in $pat) return 0 ;; esac; continue ;;
+    esac
+    case "$cmd" in $pat|$pat" "*) return 0 ;; esac
   done <<< "$rules"
   return 1
 }
 helper='$HOME/.claude/scripts'
-for cmd in "register --name n" "unregister --session s" "lock acquire" "inbox read" "loop mark" "loop append" "ledger record" "evidence lookup"; do
-  allowed "$helper/review-state.sh $cmd" && ok "allowed: review-state.sh $cmd" || ko "would prompt: review-state.sh $cmd"
+for verb in key session-pid encode sessions register unregister "lock acquire" "lock release" "lock handover" "lock status" \
+  "inbox send" "inbox read" "loop mark" "loop append" "ledger record" "ledger lookup" "ledger show" "evidence lookup"; do
+  allowed "$helper/review-state.sh $verb --x y" && ok "allowed: review-state.sh $verb" || ko "would prompt: review-state.sh $verb"
 done
-for cmd in "evidence run --command k -- id" "inbox nudge --to t"; do
-  allowed "$helper/review-state.sh $cmd" && ko "must prompt: review-state.sh $cmd" || ok "still prompts: review-state.sh $cmd"
+for verb in "evidence run" "evidence record" "evidence ci" "inbox nudge"; do
+  allowed "$helper/review-state.sh $verb --x y" && ko "must prompt: review-state.sh $verb" || ok "still prompts: review-state.sh $verb"
 done
 allowed "$helper/review-backend-run.sh preflight --repo o/r" && ok "allowed: preflight" || ko "would prompt: preflight"
 allowed "$helper/review-backend-run.sh gemini --base x" && ok "allowed: gemini" || ko "would prompt: gemini"
 
 printf '{"o/r":"gemini"}' > "$w/egress.json"
-pre="$(run env PANEL_REVIEW_PROFILE=server PANEL_EGRESS_FILE="$w/egress.json" "$tool" preflight --repo o/r)"
+pre="$(run env PANEL_REVIEW_PROFILE=server "$tool" preflight --repo o/r)"
 check "preflight passes with stubs" "$?" "0"
 case "$pre" in *$'backend=gemini'*$'key=ok'*$'egress=gemini'*) ok "preflight reports backend, key and egress" ;; *) ko "preflight output: $pre" ;; esac
-pre="$(run env PANEL_REVIEW_PROFILE=work PANEL_EGRESS_FILE="$w/egress.json" PANEL_GEMINI_BIN=/nonexistent "$tool" preflight --repo x/y)"
+pre="$(run env PANEL_REVIEW_PROFILE=work PANEL_GEMINI_BIN=/nonexistent "$tool" preflight --repo x/y)"
 check "work profile does not need gemini" "$?" "0"
 case "$pre" in *$'backend=codex'*$'egress=none'*) ok "work profile resolves codex; unknown repo has no consent" ;; *) ko "work preflight: $pre" ;; esac
 
