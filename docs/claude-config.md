@@ -140,14 +140,14 @@ planwright's profiles cover only the sessions it launches with `--settings`.
 The `review-state.sh` and `review-backend-run.sh` rules exist because a review
 skill runs these helpers many times a run, and an unattended worker's prompt
 can wait hours for an answer. They are per verb, never the whole script:
-`evidence run` executes any command it is handed, `evidence record` takes the
-result on the caller's word and `inbox nudge` writes into another session's
+`evidence run` executes any command it is handed, `evidence record` and
+`evidence ci` take the result on the caller's word and `inbox nudge` writes into another session's
 socket, so those still prompt. A rule matches only the shape
 `roles/claude/files/skills/review-shared/state.md` prescribes (absolute path, nothing chained or
 expanded). The `gemini` rule approves an upload, so the script itself refuses
 without a recorded consent for `origin`'s repository and takes its
-instruction, format, tooling and extra-lens files only from the temp directory
-(the lens document is exempt: only its numbered lens list is sent). That guard
+instruction, format, tooling and extra-lens files only from the temp directory,
+with the lens document held to a `discovery-rigor.md` under `~/.claude`. That guard
 stops a mistake, not a session set on sending: anything the session can copy
 into the temp directory or commit can go, and one that can write the consent
 file or repoint `origin` can send from any repository.

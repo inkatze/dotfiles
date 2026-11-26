@@ -78,7 +78,6 @@
       "Bash($HOME/.claude/scripts/review-state.sh ledger lookup:*)",
       "Bash($HOME/.claude/scripts/review-state.sh ledger show:*)",
       "Bash($HOME/.claude/scripts/review-state.sh evidence lookup:*)",
-      "Bash($HOME/.claude/scripts/review-state.sh evidence ci:*)",
       "Bash($HOME/.claude/scripts/review-backend-run.sh preflight:*)",
       "Bash($HOME/.claude/scripts/review-backend-run.sh gemini:*)",
       "Bash(cat:*)",
