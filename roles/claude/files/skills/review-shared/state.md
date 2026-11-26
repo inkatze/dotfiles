@@ -4,8 +4,14 @@ What the review skills share across passes and sessions: the evidence record,
 the writer lock, the session registry, the inbox, the loop artifact and the
 decision ledger. One helper writes all of it, `~/.claude/scripts/review-state.sh`
 (tracked at `roles/claude/files/scripts/review-state.sh`); its usage block
-lists every operation and its exit codes. Invoke it by that literal path with
-literal arguments, one call per command.
+lists every operation and its exit codes.
+
+**Run each helper command as its own `Bash` call**: its absolute path with the
+home directory written out (never `~` or a variable), literal arguments, and
+nothing before or after it (no `;`, `&&`, pipe, `$(...)` or `echo $?`; the
+tool result already shows the exit status). An allow rule approves only that
+shape, so any other waits for a person, often for hours. The same holds for
+`review-backend-run.sh`.
 
 Operations that act as a session (`session-pid`, `register`, `unregister`,
 `lock acquire`, `lock release`, `lock handover`, `inbox read`) must run from
@@ -15,8 +21,9 @@ in its own ancestry and exits 2 anywhere else. `sessions`, `lock status`,
 session; it is printed to peers on purpose and is not a secret.
 
 **No skill writes any of this state with a shell redirect.** Content goes to
-the helper on stdin (`printf '%s\n' "$body" | ~/.claude/scripts/review-state.sh inbox send ...`)
-or through `evidence run`, which captures a command's output itself.
+the helper on stdin, from a file the Write tool wrote
+(`<helper> inbox send ... < <file>`), or through `evidence run`, which captures
+a command's output itself.
 
 ## Version key
 

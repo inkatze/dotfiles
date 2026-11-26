@@ -189,8 +189,12 @@ cwd between calls.
 
 ## Running gemini as two fixed commands
 
-Each inline snippet above waits on an approval, its shape unverifiable. `/panel-review` runs gemini through `~/.claude/scripts/review-backend-run.sh` instead, each call its
-own simple command (`/code-review` still runs the blocks above):
+Each inline snippet above waits on an approval, its shape unverifiable.
+`/panel-review` runs gemini through `~/.claude/scripts/review-backend-run.sh`
+instead (`/code-review` still runs the blocks above), each call in
+[state.md](state.md)'s helper-command shape, with no redirect: the output and
+`backend_elapsed` come back in the tool result. Give the `gemini` call a tool
+timeout above its bound.
 
 - `preflight --repo <owner>/<repo>` resolves the profile, probes gitleaks and,
   for gemini, the binary and key, and prints `key=value` lines, `egress=` (the
