@@ -10,8 +10,10 @@ lists every operation and its exit codes.
 home directory written out (never `~` or a variable), literal arguments, and
 nothing before or after it (no `;`, `&&`, pipe, `$(...)` or `echo $?`; the
 tool result already shows the exit status). An allow rule approves only that
-shape, so any other waits for a person, often for hours. The same holds for
-`review-backend-run.sh`.
+shape, so any other waits for a person, often for hours. The one addition is
+an input redirect from a file, for a command that reads stdin. The same holds
+for `review-backend-run.sh`, and a skill that writes either helper as
+`~/.claude/scripts/…` names it, not the shape to type.
 
 Operations that act as a session (`session-pid`, `register`, `unregister`,
 `lock acquire`, `lock release`, `lock handover`, `inbox read`) must run from
@@ -159,7 +161,7 @@ all. Bound a run by wrapping the program in `timeout` (`gtimeout` on macOS).
   so a workflow not yet started cannot leave one fast check standing for the
   suite; a suite with no check runs from an app other than GitHub Actions is
   ignored, since such apps can leave a suite queued for good, while a GitHub
-  Actions suite counts however many runs it shows. Then pipe the head's check runs to `evidence ci` and look up again
+  Actions suite counts however many runs it shows. Then put the head's check runs in a scratch file, give it to `evidence ci` on stdin and look up again
   with `--tree` that key; only a miss runs the suite.
 - **Fix rounds on a PR.** **One full local gate runs before a PR opens; a
   fix round that pushes to the PR afterwards never re-runs the full suite or

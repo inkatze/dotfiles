@@ -192,7 +192,7 @@ cwd between calls.
 Each inline snippet above waits on an approval, its shape unverifiable.
 `/panel-review` runs gemini through `~/.claude/scripts/review-backend-run.sh`
 instead (`/code-review` still runs the blocks above), each call in
-[state.md](state.md)'s helper-command shape, with no redirect: the output and
+[state.md](state.md)'s helper-command shape, with no redirect at all: the output and
 `backend_elapsed` come back in the tool result. Give the `gemini` call a tool
 timeout above its bound.
 
@@ -206,17 +206,24 @@ timeout above its bound.
   contained and bounded (540 seconds default), and prints the output, with
   `backend_elapsed` and `backend_status` on stderr. Exit 124 is the bound (retry
   once with a longer `--timeout`, in the background past a foreground limit), 4 a backend that exited 0 with no output, 1 a refused send (flagged
-  prompt, empty diff, bad `--base`, no timeout tool).
+  prompt, empty diff, bad `--base`, no timeout tool, no recorded consent,
+  an origin off github.com, an input file outside the temp directory).
   Write the input files (instruction, format, tooling output, the skill's own
   lens) with the Write tool into the run's own scratch directory.
 
 The guards and contained form are those above. `gemini` also refuses to send
 unless `origin` is a github.com repository with a `gemini` yes on record (so
 record the consent before the first call), and unless the instruction, format,
-tooling and extra-lens files sit in a directory under the temp directory. Where
-no consent can be recorded, run the inline blocks above, which prompt.
+tooling and extra-lens files sit in a directory under the temp directory. It
+looks consent up by the owner and name spelled in `origin`'s URL. Where no
+consent can be recorded, or the record is under another name or has since
+taken another backend, run the inline blocks above, which prompt.
 
 ## Judging the result
+
+For the `gemini` command above, the tool result's exit status and
+`backend_status` line are the check; run no command for it. For an inline
+block:
 
 Check `backend_status` immediately after the subshell, before any pipe (a pipe
 replaces `$?`, which is how an exit 127 reads as a clean review):
