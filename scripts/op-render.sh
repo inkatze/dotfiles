@@ -42,9 +42,8 @@
 # mode tightened, and exits non-zero with a FAILED: line otherwise; Ansible
 # gates changed_when on CHANGED. A plain regular file at the output is
 # overwritten; a symlink or any other kind of path is refused. The planwright
-# overlay alone also keeps mission control's own keys (the mc_owned_key
-# function below is the list) across renders, in two
-# files under ~/.config/dotfiles/ (docs/machine-local-files.md). A key the
+# overlay alone also keeps its carried keys (the mc_owned_key function below
+# is the list) across renders, in two files under ~/.config/dotfiles/ (docs/machine-local-files.md). A key the
 # supplement keeps that has gone from the live overlay since the last render
 # is ambiguous (mission control removed it, or an older backup of the overlay
 # was restored), so the render refuses, writing nothing, until
@@ -380,7 +379,7 @@ if [ "$rule" = planwright-overlay ]; then
         if (l ~ /^[[:space:]]*(#.*)?$/) continue
         k = (l ~ /^remove [a-z][a-z0-9_]*$/) ? substr(l, 8) : key_of(l)
         if (!mc_owned_key(k)) {
-          printf "%s line %d is not a `key: value` or `remove <key>` line for a key mission control owns (docs/machine-local-files.md lists them)\n", sup_name, ln_no > "/dev/stderr"
+          printf "%s line %d is not a `key: value` or `remove <key>` line for a key mission control owns (mc_owned_key in scripts/op-render.sh lists them)\n", sup_name, ln_no > "/dev/stderr"
           bad = 1
           continue
         }
