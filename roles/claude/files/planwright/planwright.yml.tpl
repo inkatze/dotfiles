@@ -1,9 +1,9 @@
 # Built by the dotfiles claude role from a 1Password item, so a hand edit is
 # lost on the next Ansible run: change the item or the template instead. Mission
-# control's own keys (mission_control_*, program_*, fleet_cap_*,
-# fleet_usage_weekly_*, orchestrate_fast_forward_primary) are the exception:
-# what it writes here is kept in ~/.config/dotfiles/planwright-overlay.supplement.yml and
-# carried over the item. Keep this header free of the phrases planwright's
+# control's own keys, and the fleet allocation and orchestration knobs it
+# adjusts (docs/machine-local-files.md lists them), are the exception: what is
+# written to them here is kept in
+# ~/.config/dotfiles/planwright-overlay.supplement.yml and carried over the item. Keep this header free of the phrases planwright's
 # docs/overlays.md lists as "managed elsewhere", or mission control refuses to
 # write the file at all.
 flight_pr_hosts: {{ op://__OP_VAULT__/__OP_ITEM__/flight_pr_hosts }}

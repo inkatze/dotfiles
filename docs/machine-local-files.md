@@ -47,10 +47,13 @@ into the item before the first run. The Claude work settings fragment is
 rendered by the same tasks but only on a host with an `op-work-item` file
 (described below).
 
-The overlay is the one exception, for mission control's own keys
-(`mission_control_*`, `program_*`, `fleet_cap_*`, `fleet_usage_weekly_*` and
-`orchestrate_fast_forward_primary`, every key planwright's `mc-config.sh`
-writes). Its header deliberately avoids the phrases
+The overlay is the one exception, for the keys mission control writes
+(`mission_control_*` and `program_*`, which planwright's `mc-config.sh` writes)
+and the fleet allocation and orchestration knobs it adjusts (`fleet_cap_*`,
+`fleet_usage_weekly_*` and `orchestrate_fast_forward_primary`); the
+`mc_owned_key` function in `scripts/op-render.sh` is the list. The host-wide
+bound `fleet_host_max_live_workers` is deliberately outside it, since the item
+and the machine file below own it. The overlay's header deliberately avoids the phrases
 planwright's `docs/overlays.md` lists as marking a file managed elsewhere,
 since mission control refuses every write to a file whose header has one.
 Each render compares the live file with `planwright-overlay.rendered`, its

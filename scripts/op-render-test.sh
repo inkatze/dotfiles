@@ -956,6 +956,22 @@ for kv in 'fleet_cap_opus: 100' 'fleet_usage_weekly_downshift: 90' 'fleet_usage_
 done
 grep -q '^fleet_host_max_live_workers: 99' "$ov" && ko "the host-wide bound was carried" || ok "the host-wide bound still comes from the item and the machine file"
 grep -qx 'fleet_compute_host: mac' "$ov" && ok "another fleet key is still replaced from the item" || ko "another fleet key is replaced from the item"
+grep -qx 'fleet_host_max_live_workers: 8' "$ov" && ! grep -q 'fleet_host_max_live_workers' "$sup" \
+  && ok "the bound is the template's and never enters the supplement" || ko "the bound is the template's ($(cat "$sup"))"
+# Removing a carried key records a removal; a supplement line for one is applied.
+sed -i.bak '/^fleet_cap_opus:/d' "$ov" && rm -f "$ov.bak"
+OP_RENDER_ACCEPT_REMOVALS=1 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && ! grep -q '^fleet_cap_opus:' "$ov" && ! grep -q 'fleet_cap_opus' "$sup" \
+  && ok "an accepted removal of a carried fleet key is honoured" || ko "removal of a carried fleet key ($log)"
+printf 'fleet_cap_sonnet: 80\nremove orchestrate_fast_forward_primary\n' >>"$sup"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+[ "$rc" -eq 0 ] && grep -qx 'fleet_cap_sonnet: 80' "$ov" && ! grep -q '^orchestrate_fast_forward_primary:' "$ov" \
+  && ok "supplement lines for carried fleet keys are applied" || ko "supplement lines for carried fleet keys ($log)"
+for bad in fleet_host_max_live_workers fleet_usage_session_x orchestrate_fast_forward_primary_x fleet_cap_; do
+  printf '%s: 5\n' "$bad" >"$sup"
+  run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+  expect_failed "a supplement setting $bad" "is not a \`key: value\` or \`remove <key>\` line"
+done
 # An older backup of the overlay put back after a render must not turn the
 # writes the supplement keeps into removals.
 new_sandbox
