@@ -58,12 +58,10 @@ PR-drain modes require `login_pattern`, `rerequest` with its `method` (`label` a
 
 ## The decision ledger
 
-Every disposition this skill posts is recorded in the per-PR decision ledger kept by `~/.claude/scripts/review-state.sh ledger` ([state.md](../review-shared/state.md)), the only store of finding dispositions: `fixed`, `rejected`, `deferred`, or `suppressed` with its reason. Record after the reply posts, the evidence summary through a quoted heredoc with a fresh random delimiter, as a posted body is built ([github.md](../review-shared/github.md)), never through an output redirect into the ledger:
+Every disposition this skill posts is recorded in the per-PR decision ledger kept by `~/.claude/scripts/review-state.sh ledger` ([state.md](../review-shared/state.md)), the only store of finding dispositions: `fixed`, `rejected`, `deferred`, or `suppressed` with its reason. Record after the reply posts, in [state.md](../review-shared/state.md)'s helper-command shape, the evidence summary on stdin from a file the Write tool wrote, never through an output redirect into the ledger:
 
 ```bash
-~/.claude/scripts/review-state.sh ledger record --repo '<o>/<r>' --pr '<n>' --reviewer '<reviewer>' --key '<key>' --anchor '<anchor>' --disposition '<disposition>' --head '<finding head>' --reply '<reply url>' <<'BODY_<hex>'
-EVIDENCE SUMMARY
-BODY_<hex>
+<home>/.claude/scripts/review-state.sh ledger record --repo '<o>/<r>' --pr '<n>' --reviewer '<reviewer>' --key '<key>' --anchor '<anchor>' --disposition '<disposition>' --head '<finding head>' --reply '<reply url>' < <evidence file>
 ```
 
 - `--key` and `--anchor` are steps 3 and 4's, both in the helper's safe charset, so no fetched text reaches a shell argument.
