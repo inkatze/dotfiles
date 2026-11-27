@@ -1,0 +1,181 @@
+# Media Server — Design
+
+**Status:** Draft
+**Last reviewed:** 2026-11-26
+**Format-version:** 2
+**Execution:** derived — see the status render
+
+Origin tags: `N` = new decision, minted in the 2026-11-26 drafting session.
+Research was read on 2026-11-26; vendor claims are marked as such. Release
+dates on the pages read showed day and month only, so "maintained" below means
+a release or tag within roughly the last few months; Task 1 re-verifies each
+pick against its own repository before anything installs.
+
+## Decision log
+
+### D-1: Native Jellyfin under launchd in the fleet account  (N)
+
+**Decision:** Run the upstream native macOS Jellyfin build, with its bundled
+ffmpeg and VideoToolbox transcoding, as a launchd user agent of the fleet
+account, installed from a pinned release archive into that account's home.
+The Jellyfin major version follows the bridge's supported version (D-2): the
+current stable line is 12.x, while the bridge's last 10.11 build is a frozen
+fallback.
+
+**Alternatives considered:**
+- Docker or colima containers. Rejected because: hand-wired containers were a
+  teardown reason, the Mac has no container runtime in the fleet account, and
+  containers cannot reach the media engine.
+- Homebrew cask. Rejected because: Homebrew belongs to the Mac owner's
+  account (mission-control rule r-3).
+- A hosted bridge service. See D-2.
+
+**Chosen because:** Jellyfin's Apple hardware-acceleration docs describe
+VideoToolbox use on Apple silicon, a native build needs no runtime beyond
+launchd, and launchd's own restart-on-exit replaces the home-made watchdog.
+
+### D-2: Gelato plus a self-hosted AIOStreams as the bridge  (N)
+
+**Decision:** Use the Gelato Jellyfin plugin (GPL-3.0) backed by an AIOStreams
+instance (AGPL-3.0) run by the fleet account. Gelato imports chosen addon
+catalogs into ordinary Jellyfin libraries on a schedule, so any Jellyfin
+client, Infuse included, browses them; streams resolve at play time and are
+proxied through Jellyfin so the debrid service sees one IP. AIOStreams
+aggregates addons and debrid services and lists Real-Debrid and AllDebrid
+under its services.
+
+Open items Task 1 must settle before the build: Infuse browsing and playing a
+Gelato-imported library end to end (the Gelato tracker has closed Infuse
+issues and merged Infuse-related fixes, but no page read states it works);
+how AIOStreams stores its configuration and keys at rest and whether it runs
+natively on Node in the fleet account; Gelato's plugin configuration at rest;
+and the Jellyfin version pairing (Gelato's README targets Jellyfin 12, with a
+final 10.11 build for upgrades).
+
+**Alternatives considered:**
+- JellyStreams (ElfHosted). Rejected because: closed source and runs only on
+  the vendor's hosting, so debrid keys would live with a third party (vendor
+  claims, not independently verified); it does present catalogs as browsable
+  shelves in Infuse.
+- Polyfin and Remux (Jellyfin-compatible servers of their own). Rejected
+  because: Polyfin is an early preview and both replace Jellyfin rather than
+  using the transcoding and plugin set this spec wants; Remux stays the
+  fallback if Gelato's upstream moves to it, as its README suggests.
+- Jfresolve (plugin). Rejected because: it fills libraries from TMDB
+  trending, popular and top-rated lists, not full addon catalogs; the pages
+  read mention Real-Debrid only, show no license, and it requires Jellyfin
+  12.4 or later.
+- `.strm` generators (jf-resolve). Rejected because: they generate files
+  rather than a live catalog, and re-create the hand-wired-script shape.
+- Plain Stremio on Apple TV. Not possible: the vendor guide says there is no
+  Apple TV Stremio app.
+
+**Chosen because:** it is the only option read whose catalogs become real
+library items (the full-catalogue requirement), that keeps credentials on the
+Mac, that is open source, and that was releasing within days of this draft
+(Gelato v0.26.31.0, 24 Nov 2026; AIOStreams nightlies the same week, with no
+stable tag seen on the first page). The unverified items above are the reason
+Task 1 is a gate: if Infuse cannot browse a full imported catalog, the spec
+reconvenes rather than building on a bridge that fails the hard requirement.
+
+### D-3: Recommended catalog, addon and plugin set  (N)
+
+**Decision:** One recommended set, installed only at versions Task 1 records
+as vetted:
+
+- Catalog and metadata through AIOStreams: the TMDB addon (Apache-2.0; needs
+  the operator's own TMDB and Fanart.tv API keys; optional Trakt and MDBList
+  list integration) for catalogs and metadata in the operator's languages.
+- Stream sources through AIOStreams with both debrid services: Comet (GPL-3.0;
+  lists Real-Debrid and AllDebrid; includes a peer network that shares
+  torrent metadata, which can be left off) as the primary, MediaFusion (MIT)
+  as the second. Torrentio (Apache-2.0) is the alternative.
+- Jellyfin plugins: Gelato; the official Trakt plugin (supports 10.11; the
+  newest release read is from this year; no 12.x statement seen) if
+  watch-history sync is wanted; the official OpenSubtitles plugin, and
+  Bazarr+ as the Spanish-subtitle path (a 10.11+ provider needing a
+  self-hosted Bazarr+ backend; no release was listed on the page read).
+  WhisperSubs (local AI subtitle generation) is the fallback when no provider
+  has a Spanish track.
+
+Caveats, stated plainly and carried into the runbook: the stream sources
+(Comet, MediaFusion, Torrentio) scrape torrent indexers and resolve through
+debrid services, so what they return may be copyrighted material; the
+operator is responsible for the law where they live and for each debrid
+provider's terms of service; the project READMEs disclaim endorsement of
+infringement and say the same. Gelato sends an IMDb id and a random install
+id to a third party (RemuxDB) by default; Task 3 turns this off unless the
+operator says otherwise. The TMDB addon needs third-party API keys under the
+operator's own accounts. Every plugin outside Jellyfin's official catalog is
+third-party code running inside the server; Task 1 records each one's
+license and last release.
+
+**Alternatives considered:**
+- Torrentio first. Rejected because: Comet's README lists the two required
+  debrid services and its own metadata options; Torrentio stays listed since
+  its repository is widely used (its last-commit date was not visible).
+- Subbuzz for subtitles. Rejected because: it supports only the
+  opensubtitles.com domain, which the official plugin already covers.
+- No third-party plugins beyond Gelato. Rejected because: the operator asked
+  for a good set, and Spanish subtitles need one.
+
+**Chosen because:** each pick is open source, lists the required providers or
+languages in its own README, and was read on its project page; the
+unverified-maintenance cells are what Task 1 closes.
+
+### D-4: Secrets through the agents vault, rendered 0600, no resident credential  (N)
+
+**Decision:** Real-Debrid and AllDebrid tokens (each regenerated by the
+operator into the personal 1Password agents vault) are read on the operator's
+controller at playbook time and written to the fleet account as 0600 files
+that the AIOStreams launch wrapper reads into its environment; a launchd plist
+carries only the file path, never a value. The Mac holds no `op` credential
+and no service-account token. A live-account check calls each provider's
+account endpoint from the wrapper's environment and prints only
+live/not-live.
+
+**Alternatives considered:**
+- A service-account token in the keychain so the Mac can read 1Password.
+  Rejected because: it is a teardown reason.
+- Tokens in plist `EnvironmentVariables` or the Jellyfin plugin XML. Rejected
+  because: both are world-readable by default or logged; Task 1 confirms what
+  Gelato's configuration holds (an AIOStreams URL, not a raw token).
+- A manual copy of the token on the Mac. Rejected because: the render path is
+  repeatable and keeps the vault the only source.
+
+**Chosen because:** it removes both secret-handling teardown reasons without a
+resident credential, and reuses the repo's existing render-from-1Password
+pattern.
+
+### D-5: Shared-Mac priority, network and checks  (N)
+
+**Decision:** Jellyfin runs with launchd `ProcessType` Interactive; the CI
+runner and offload agents get a lower niceness and `ProcessType` Background,
+and the runner's job-started hook defers heavy jobs while a Jellyfin
+ffmpeg process (the transcoder) is alive, a process check that needs no API
+key. Scheduled library scans and thumbnail tasks are set to off-hours.
+Listeners are bound to loopback (AIOStreams) and to the LAN and Tailscale
+interfaces (Jellyfin) through Jellyfin's own network settings, since no
+firewall change is possible without sudo; that nothing is forwarded from the
+router is an operator assertion, recorded in the runbook. Remote playback is
+Infuse over Tailscale with Jellyfin's remote bitrate cap set to a home-upload
+value. Every check of the Mac runs `nice` through `ssh mac`, read-only, and
+falls back to the controller when the Mac does not answer.
+
+**Alternatives considered:**
+- Pausing CI while anyone streams. Rejected because: it starves CI during
+  direct play, which costs the Mac nothing.
+- A macOS firewall rule. Rejected because: it needs sudo (REQ-C1.1).
+- Tailscale in the fleet account. Rejected because: the operator chose the
+  standard app, which installs in the owner's login.
+
+**Chosen because:** it enforces the shared-Mac priority inside the fleet
+account with the tools available there.
+
+## Cross-cutting concerns
+
+- **Hostnames and addresses:** the Mac's alias and addresses come from the
+  machine-local host file and inventory, never a tracked file.
+- **Operator steps** (never a worker's): installing Tailscale, signing in to
+  it, configuring Infuse on both devices, regenerating the provider tokens
+  into the vault, and the legal and terms-of-service acceptance in D-3.
