@@ -13,14 +13,16 @@
   D-2 and D-3 pick, the pinned version, last release or commit, license,
   how it stores tokens at rest, and its caveat; a throwaway Jellyfin plus
   Gelato plus AIOStreams run in the fleet account (read-only reach through
-  `ssh mac`, niced) that imports one catalog; the Jellyfin version decision.
+  `ssh mac`, niced) that imports one catalog; the pinned Jellyfin 12.x build.
 - **Done when:** the operator confirms in Infuse on Apple TV and on the Mac
   that the full imported catalog is browsable and one title plays; each D-2
-  open item is answered in the note; any pick that fails is replaced by its
-  alternative or the spec is amended; the throwaway run is removed and holds
+  open item is answered in the note; a failed pick is replaced by its
+  alternative; if Infuse cannot browse the full imported catalog, the D-2
+  failure branch applies (Stremio for browsing with Infuse as its external
+  player) and the role proceeds; the throwaway run is removed and holds
   no token in any file other than 0600 files.
 - **Dependencies:** none
-- **Citations:** D-2, D-3 · REQ-A1.2, REQ-B1.1, REQ-D1.1
+- **Citations:** D-2, D-3 · REQ-A1.2, REQ-A1.4, REQ-B1.1, REQ-D1.1
 - **Estimated effort:** 2 days
 
 ### Task 2 — Media-server role: Jellyfin and AIOStreams under launchd
@@ -41,7 +43,7 @@
 - **Deliverables:** the 1Password render of the provider tokens to 0600 files
   and the AIOStreams launch wrapper; the live-account check; Gelato and the
   D-3 plugins configured at their vetted versions, with the RemuxDB
-  contribution off; a Spanish-subtitle provider configured.
+  contribution off (verified in the plugin settings); a Spanish-subtitle provider configured.
 - **Done when:** no token appears in any tracked file, plist, log or
   `ps` output (a scripted scan); each provider reports live or not live
   without printing a token; Spanish subtitles are selectable in Infuse.

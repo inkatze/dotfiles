@@ -18,11 +18,13 @@ pick against its own repository before anything installs.
 **Decision:** Run the upstream native macOS Jellyfin build, with its bundled
 ffmpeg and VideoToolbox transcoding, as a launchd user agent of the fleet
 account, installed from a pinned release archive into that account's home.
-The Jellyfin major version follows the bridge's supported version (D-2): the
-current stable line is 12.x, while the bridge's last 10.11 build is a frozen
-fallback.
+The Jellyfin major version is the current stable 12.x line, the operator's
+decision (Sources, requirements.md), which is also what Gelato's README
+targets.
 
 **Alternatives considered:**
+- Staying on 10.11 with Gelato's frozen final 10.11 build. Rejected because:
+  the operator chose current 12.x, and the bridge's active releases target it.
 - Docker or colima containers. Rejected because: hand-wired containers were a
   teardown reason, the Mac has no container runtime in the fleet account, and
   containers cannot reach the media engine.
@@ -49,14 +51,14 @@ Gelato-imported library end to end (the Gelato tracker has closed Infuse
 issues and merged Infuse-related fixes, but no page read states it works);
 how AIOStreams stores its configuration and keys at rest and whether it runs
 natively on Node in the fleet account; Gelato's plugin configuration at rest;
-and the Jellyfin version pairing (Gelato's README targets Jellyfin 12, with a
-final 10.11 build for upgrades).
+and that the pinned Gelato build pairs with the pinned Jellyfin 12.x.
 
 **Alternatives considered:**
 - JellyStreams (ElfHosted). Rejected because: closed source and runs only on
   the vendor's hosting, so debrid keys would live with a third party (vendor
   claims, not independently verified); it does present catalogs as browsable
-  shelves in Infuse.
+  shelves in Infuse. The operator also declined a hosted bridge as the
+  fallback (below).
 - Polyfin and Remux (Jellyfin-compatible servers of their own). Rejected
   because: Polyfin is an early preview and both replace Jellyfin rather than
   using the transcoding and plugin set this spec wants; Remux stays the
@@ -75,8 +77,13 @@ library items (the full-catalogue requirement), that keeps credentials on the
 Mac, that is open source, and that was releasing within days of this draft
 (Gelato v0.26.31.0, 24 Nov 2026; AIOStreams nightlies the same week, with no
 stable tag seen on the first page). The unverified items above are the reason
-Task 1 is a gate: if Infuse cannot browse a full imported catalog, the spec
-reconvenes rather than building on a bridge that fails the hard requirement.
+Task 1 is a gate. **Failure branch (operator decision):** if Infuse cannot
+browse a full Gelato-imported catalog, the fallback is Stremio for browsing
+with Infuse set as its external player, in the operator's words "we can use
+stremio or something and use it as a external player. I'm fine with that".
+That is neither a stop nor a hosted bridge: Jellyfin and the role still ship
+for transcoding and library playback, and the runbook documents the
+Stremio-plus-external-player path for browsing.
 
 ### D-3: Recommended catalog, addon and plugin set  (N)
 
@@ -86,10 +93,16 @@ as vetted:
 - Catalog and metadata through AIOStreams: the TMDB addon (Apache-2.0; needs
   the operator's own TMDB and Fanart.tv API keys; optional Trakt and MDBList
   list integration) for catalogs and metadata in the operator's languages.
-- Stream sources through AIOStreams with both debrid services: Comet (GPL-3.0;
-  lists Real-Debrid and AllDebrid; includes a peer network that shares
-  torrent metadata, which can be left off) as the primary, MediaFusion (MIT)
-  as the second. Torrentio (Apache-2.0) is the alternative.
+- Stream sources through AIOStreams with both debrid services, all three
+  included at the operator's request, in this order of preference: Comet
+  (GPL-3.0; lists Real-Debrid and AllDebrid; includes a peer network that
+  shares torrent metadata, which can be left off), then MediaFusion (MIT),
+  then Torrentio (Apache-2.0). The order is a drafting-session choice:
+  Comet's README names both required debrid services and metadata options;
+  MediaFusion's names both too and carries an explicit personal-use
+  disclaimer; Torrentio goes last because its last-commit date was not
+  visible, so its maintenance is the least verified of the three. Task 1
+  re-checks each and may reorder.
 - Jellyfin plugins: Gelato; the official Trakt plugin (supports 10.11; the
   newest release read is from this year; no 12.x statement seen) if
   watch-history sync is wanted; the official OpenSubtitles plugin, and
@@ -98,22 +111,25 @@ as vetted:
   WhisperSubs (local AI subtitle generation) is the fallback when no provider
   has a Spanish track.
 
-Caveats, stated plainly and carried into the runbook: the stream sources
+The operator accepted the legal and terms-of-service responsibility for these
+sources ("can we do 1 and 2?", answering an offer to accept Comet then
+MediaFusion or Torrentio first, read as accepting all three). Caveats, stated
+plainly and carried into the runbook: the stream sources
 (Comet, MediaFusion, Torrentio) scrape torrent indexers and resolve through
 debrid services, so what they return may be copyrighted material; the
 operator is responsible for the law where they live and for each debrid
 provider's terms of service; the project READMEs disclaim endorsement of
 infringement and say the same. Gelato sends an IMDb id and a random install
-id to a third party (RemuxDB) by default; Task 3 turns this off unless the
-operator says otherwise. The TMDB addon needs third-party API keys under the
+id to a third party (RemuxDB) by default; Task 3 turns this off, the
+operator's decision ("Turn it off (Recommended)"). The TMDB addon needs third-party API keys under the
 operator's own accounts. Every plugin outside Jellyfin's official catalog is
 third-party code running inside the server; Task 1 records each one's
 license and last release.
 
 **Alternatives considered:**
-- Torrentio first. Rejected because: Comet's README lists the two required
-  debrid services and its own metadata options; Torrentio stays listed since
-  its repository is widely used (its last-commit date was not visible).
+- Torrentio first. Rejected because: its last-commit date was not visible,
+  so it ranks below the two sources whose pages state both required debrid
+  services; it stays included at the operator's request.
 - Subbuzz for subtitles. Rejected because: it supports only the
   opensubtitles.com domain, which the official plugin already covers.
 - No third-party plugins beyond Gelato. Rejected because: the operator asked

@@ -57,6 +57,10 @@ D-1, D-2.)*
 - **REQ-A1.3** Playback SHALL work from Infuse at home (direct play) and away
   from home over Tailscale, with remote transcodes sized for a home upload.
   *(Cites: D-1, D-5.)*
+- **REQ-A1.4** If REQ-A1.2 cannot be met through the chosen bridge, the
+  runbook SHALL document browsing the catalog in Stremio with Infuse as its
+  external player, and the rest of the role SHALL still ship.
+  *(Cites: D-2, the operator's decision of 2026-11-26 (Sources).)*
 
 ## REQ-B — Providers and secrets
 
@@ -105,6 +109,10 @@ D-1, D-2.)*
 
 - 2026-11-26 — Bundle drafted via `/spec-draft` from the operator's decisions
   relayed through mission control and the research recorded in `design.md`.
+- 2026-11-26 — Operator answers to kickoff questions 1 to 4 folded in
+  (drafting-session decision): Jellyfin 12.x, Stremio-plus-external-player
+  failure branch (REQ-A1.4), all three stream sources with the legal
+  acceptance, RemuxDB telemetry off.
 
 ## Sources
 
@@ -117,6 +125,13 @@ D-1, D-2.)*
   and a short spec followed by the build.
 - **media-server-cleanup** (`specs/media-server-cleanup/`): the teardown that
   says the rebuild is its own spec; its goal records what the old stack was.
+- **Operator answers to the kickoff questions** (2026-11-26, via mission
+  control): Jellyfin "Current 12.x (Recommended)"; if Infuse cannot browse
+  the full catalogue, "we can use stremio or something and use it as a
+  external player. I'm fine with that"; stream sources "can we do 1 and 2?"
+  (read as accepting Comet, MediaFusion and Torrentio, with the legal and
+  terms-of-service responsibility); RemuxDB telemetry "Turn it off
+  (Recommended)".
 - **Mission control rules** (dotfiles program): r-3 (Mac workers stay inside
   the fleet account), r-23 (the Mac is shared and may be down), r-92 (secrets
   only through the personal 1Password agents vault, 0600).

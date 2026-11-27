@@ -25,6 +25,11 @@ and pages past the first screen; a title plays.
 A title plays at home and over Tailscale off the LAN, the latter transcoded
 under the configured remote bitrate cap.
 
+### REQ-A1.4 — Stremio external-player fallback [manual]
+
+The runbook section exists and, on a bridge that fails REQ-A1.2, the operator
+opens a title in Stremio and plays it in Infuse.
+
 ### REQ-B1.1 — both providers [manual]
 
 The live-account check reports each provider live; with one provider's token
