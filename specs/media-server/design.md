@@ -103,13 +103,14 @@ as vetted:
   disclaimer; Torrentio goes last because its last-commit date was not
   visible, so its maintenance is the least verified of the three. Task 1
   re-checks each and may reorder.
-- Jellyfin plugins: Gelato; the official Trakt plugin (supports 10.11; the
-  newest release read is from this year; no 12.x statement seen) if
-  watch-history sync is wanted; the official OpenSubtitles plugin, and
-  Bazarr+ as the Spanish-subtitle path (a 10.11+ provider needing a
-  self-hosted Bazarr+ backend; no release was listed on the page read).
-  WhisperSubs (local AI subtitle generation) is the fallback when no provider
-  has a Spanish track.
+- Jellyfin plugins: Gelato; the official Trakt plugin for watch-history and
+  list sync, which the operator uses (it supports 10.11; the newest release
+  read is from this year; no 12.x statement seen, so Task 1 checks it against
+  the pinned Jellyfin 12.x); the official OpenSubtitles plugin plus
+  Bazarr+ for Spanish subtitles, the operator's choice (the Bazarr+ plugin
+  is a 10.11+ provider needing a self-hosted Bazarr+ backend, which the role
+  runs as a third launchd agent; no release was listed on the page read, so
+  Task 1 verifies both, 12.x support included).
 
 The operator accepted the legal and terms-of-service responsibility for these
 sources ("can we do 1 and 2?", answering an offer to accept Comet then
@@ -132,6 +133,9 @@ license and last release.
   services; it stays included at the operator's request.
 - Subbuzz for subtitles. Rejected because: it supports only the
   opensubtitles.com domain, which the official plugin already covers.
+- WhisperSubs (local AI subtitle generation) as the Spanish fallback.
+  Rejected because: the operator chose the OpenSubtitles-plus-Bazarr+ option
+  over an AI-translated fallback.
 - No third-party plugins beyond Gelato. Rejected because: the operator asked
   for a good set, and Spanish subtitles need one.
 
@@ -187,6 +191,33 @@ falls back to the controller when the Mac does not answer.
 
 **Chosen because:** it enforces the shared-Mac priority inside the fleet
 account with the tools available there.
+
+### D-6: Debrid-only streams and a no-BitTorrent-traffic check  (N)
+
+**Decision:** Every stream source is configured to return debrid-resolved
+streams only, and AIOStreams, the single point every source feeds, also drops
+any result that is not served through a debrid service (a magnet or bare
+info-hash result). Per source: Torrentio, Comet and MediaFusion each carry a
+debrid provider in their addon configuration (Real-Debrid or AllDebrid) with
+the setting that omits non-debrid results where the source offers one; Task 1
+records each source's documented option and proves it by listing the streams
+for a title and finding no non-debrid entry. The Stremio fallback (D-2)
+installs AIOStreams as its only stream addon, so Stremio's own torrent
+engine never receives a magnet. A read-only check run during playback lists
+the fleet account's processes' network sockets and fails on a torrent
+client process, a BitTorrent-style listener, or a peer connection; it covers
+the fleet account because capturing packets machine-wide needs sudo
+(REQ-C1.1), a limit the runbook states.
+
+**Alternatives considered:**
+- Trusting each addon's setting alone. Rejected because: one misconfigured
+  source would reintroduce P2P silently, so the shared filter and the
+  traffic check are the backstops.
+- A machine-wide packet capture. Rejected because: it needs sudo.
+
+**Chosen because:** the operator made debrid-only a hard rule, and a rule
+that is configured in the sources, filtered at the choke point and checked on
+the wire fails in one place at a time.
 
 ## Cross-cutting concerns
 

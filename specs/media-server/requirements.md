@@ -78,6 +78,14 @@ D-1, D-2.)*
 - **REQ-B1.4** Which provider accounts are live SHALL be confirmable without
   printing or logging a token.
   *(Cites: D-4.)*
+- **REQ-B1.5** Every stream SHALL resolve through a debrid provider: no
+  direct-torrent or peer-to-peer result SHALL be offered or played from any
+  source (Torrentio, Comet, MediaFusion, AIOStreams, or the Stremio
+  fallback of REQ-A1.4), each source being configured debrid-only per D-6.
+  *(Cites: D-6, the operator's decision of 2026-11-26 (Sources).)*
+- **REQ-B1.6** A check SHALL confirm that the fleet account's processes on
+  the Mac make no BitTorrent traffic during playback.
+  *(Cites: D-6, the operator's decision of 2026-11-26 (Sources).)*
 
 ## REQ-C — Shared Mac
 
@@ -102,8 +110,12 @@ D-1, D-2.)*
   plugin set from D-3 only at versions recorded as vetted, each with its
   legal, terms-of-service or privacy caveat recorded in the runbook.
   *(Cites: D-3.)*
-- **REQ-D1.2** Spanish subtitles SHALL be available for playback in Infuse.
-  *(Cites: D-3, the operator's ask (Sources).)*
+- **REQ-D1.2** Spanish subtitles SHALL be available for playback in Infuse,
+  through the OpenSubtitles plugin plus a self-hosted Bazarr+.
+  *(Cites: D-3, the operator's ask and decision of 2026-11-26 (Sources).)*
+- **REQ-D1.3** Watch history and lists SHALL sync with the operator's Trakt
+  account.
+  *(Cites: D-3, the operator's decision of 2026-11-26 (Sources).)*
 
 ## Changelog
 
@@ -113,6 +125,9 @@ D-1, D-2.)*
   (drafting-session decision): Jellyfin 12.x, Stremio-plus-external-player
   failure branch (REQ-A1.4), all three stream sources with the legal
   acceptance, RemuxDB telemetry off.
+- 2026-11-26 — Operator answers to kickoff questions 5 to 7 and the
+  debrid-only rule folded in (drafting-session decision): Bazarr+ for Spanish
+  subtitles, Trakt included, operator steps scheduled, REQ-B1.5 and REQ-B1.6.
 
 ## Sources
 
@@ -132,6 +147,14 @@ D-1, D-2.)*
   (read as accepting Comet, MediaFusion and Torrentio, with the legal and
   terms-of-service responsibility); RemuxDB telemetry "Turn it off
   (Recommended)".
+- **Operator answers, second round** (2026-11-26, via mission control):
+  Spanish subtitles "Recommendation" (the OpenSubtitles plugin plus a
+  self-hosted Bazarr+); Trakt, asked whether they use it, "Yes" (sync watch
+  history and lists); scheduling the Tailscale install and the Infuse
+  browse and playback checks as their own steps, "Yes"; and, after asking
+  whether Torrentio looks suspicious, a hard rule that streams come only
+  through debrid with no direct-torrent or P2P results anywhere, plus a
+  check that the Mac sends no BitTorrent traffic during playback, "Yes".
 - **Mission control rules** (dotfiles program): r-3 (Mac workers stay inside
   the fleet account), r-23 (the Mac is shared and may be down), r-92 (secrets
   only through the personal 1Password agents vault, 0600).

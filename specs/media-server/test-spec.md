@@ -49,6 +49,18 @@ The keychain and the fleet home hold no `op` or service-account credential.
 
 The check's output and logs contain only live or not-live.
 
+### REQ-B1.5 — debrid-only streams [manual]
+
+For a sample of titles, each source's stream list (through AIOStreams, and
+the Stremio fallback's list) contains no magnet or info-hash-only entry; with
+no debrid token configured the sources return no playable stream.
+
+### REQ-B1.6 — no BitTorrent traffic [manual]
+
+The Task 4 check script, run during a playback, reports no torrent-client
+process, BitTorrent-style listener or peer connection among the fleet
+account's processes; a planted torrent-style listener makes it fail.
+
 ### REQ-C1.1 — no sudo, fleet account only [test + manual]
 
 The role contains no `become`; a diff of the owner's account and Homebrew
@@ -74,4 +86,10 @@ Installed versions match the Task 1 note; each caveat appears in the runbook.
 
 ### REQ-D1.2 — Spanish subtitles [manual]
 
-A Spanish track is selectable in Infuse for a title.
+A Spanish track arrives through the OpenSubtitles plugin or Bazarr+ and is
+selectable in Infuse for a title.
+
+### REQ-D1.3 — Trakt sync [manual]
+
+A title watched in Infuse appears in the operator's Trakt history, and a
+Trakt list appears in Jellyfin.
