@@ -1,6 +1,6 @@
 # Media Server — Requirements
 
-**Status:** Draft
+**Status:** Ready
 **Last reviewed:** 2026-11-26
 **Format-version:** 2
 **Execution:** derived — see the status render
@@ -42,7 +42,8 @@ D-1, D-2.)*
 - Exposing anything to the open internet.
 - Acquiring or hosting media: the server holds no media of its own.
 - A Docker or colima stack: the old design is not rebuilt.
-- Changing the CI runners beyond the niceness and pre-job check REQ-C1.2 asks.
+- Changing the CI runners beyond the niceness, launchd `ProcessType`
+  Background setting and pre-job check REQ-C1.2 and D-5 ask.
 
 ## REQ-A — Server and player
 
@@ -125,6 +126,11 @@ D-1, D-2.)*
   (drafting-session decision): Jellyfin 12.x, Stremio-plus-external-player
   failure branch (REQ-A1.4), all three stream sources with the legal
   acceptance, RemuxDB telemetry off.
+- 2026-11-26 — Kickoff walk (`kickoff-brief.md`): Task 4 now depends on
+  Task 3, Task 2 verifies VideoToolbox with a synthetic clip, the remote
+  bitrate cap is a role variable, Task 4 verifies loopback and LAN with
+  Tailscale re-checked in Task 5, and the runner scope line names the
+  `ProcessType` setting.
 - 2026-11-26 — Operator answers to kickoff questions 5 to 7 and the
   debrid-only rule folded in (drafting-session decision): Bazarr+ for Spanish
   subtitles, Trakt included, operator steps scheduled, REQ-B1.5 and REQ-B1.6.

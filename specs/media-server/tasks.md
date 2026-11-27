@@ -1,6 +1,6 @@
 # Media Server — Tasks
 
-**Status:** Draft
+**Status:** Ready
 **Last reviewed:** 2026-11-26
 **Format-version:** 2
 **Execution:** derived — see the status render
@@ -38,7 +38,9 @@
   outside the fleet account; added to `main.yml`.
 - **Done when:** `yamllint` and `ansible-lint` pass; a run against the Mac
   (niced, with fallback) is idempotent on its second pass; VideoToolbox
-  transcoding is confirmed in a Jellyfin playback log.
+  transcoding is confirmed in a Jellyfin transcode log, using a short
+  synthetic test clip generated on the Mac by the bundled ffmpeg (no
+  acquired media).
 - **Dependencies:** 1
 - **Citations:** D-1, D-2, D-5 · REQ-A1.1, REQ-C1.1, REQ-C1.4
 - **Estimated effort:** 2 days
@@ -67,13 +69,15 @@
 
 - **Deliverables:** niceness and `ProcessType` for the runner and offload
   agents, the runner job-started check, off-hours library tasks, Jellyfin's
-  bind and remote-bitrate settings, and a read-only check script that reports
+  bind settings, the remote-bitrate cap as a role variable with a
+  conservative default, and a read-only check script that reports
   listeners, priorities and the transcode deferral, and fails on BitTorrent
   traffic from the fleet account's processes during playback (D-6).
-- **Done when:** the check script reports only loopback, LAN and Tailscale
-  listeners; a heavy job started during a test transcode defers and then
+- **Done when:** the check script reports only loopback and LAN listeners
+  (the Tailscale interface is verified in Task 5, after the operator installs
+  it); a heavy job started during a test transcode defers and then
   runs; a test playback shows no BitTorrent traffic; the check is niced and falls back when the Mac does not answer.
-- **Dependencies:** 2
+- **Dependencies:** 2, 3
 - **Citations:** D-5, D-6 · REQ-B1.6, REQ-C1.1, REQ-C1.2, REQ-C1.3,
   REQ-C1.4
 - **Estimated effort:** 1 day
@@ -81,13 +85,16 @@
 ### Task 5 — Runbook and remote verification
 
 - **Deliverables:** the operator runbook in `docs/media-server.md` (Tailscale
-  install and sign-in, Infuse setup, token regeneration, the D-3 caveats and
+  install and sign-in, Infuse setup, token regeneration, tuning the remote
+  bitrate cap, the D-3 caveats and
   the router-forwarding assertion).
 - **Operator step:** the operator installs and signs in to the Tailscale
   app in the Mac owner's login, sets up Infuse on Apple TV and the Mac, and
   does the playback checks below.
-- **Done when:** the operator, following only the runbook, plays a title from
-  Infuse at home and over Tailscale away from the LAN.
+- **Done when:** the operator, following only the runbook, sets the remote
+  bitrate cap to their measured upload speed and plays a title from Infuse at
+  home and over Tailscale away from the LAN; the Task 4 check, re-run after
+  Tailscale is up, reports only loopback, LAN and Tailscale listeners.
 - **Dependencies:** 3, 4
 - **Citations:** D-3, D-5 · REQ-A1.3, REQ-D1.1
 - **Estimated effort:** half day

@@ -1,6 +1,6 @@
 # Media Server — Test Spec
 
-**Status:** Draft
+**Status:** Ready
 **Last reviewed:** 2026-11-26
 **Format-version:** 2
 **Execution:** derived — see the status render
@@ -73,8 +73,10 @@ during a transcode defers; library tasks are scheduled off-hours.
 
 ### REQ-C1.3 — listeners [manual]
 
-The check script lists only loopback, LAN and Tailscale listeners; the
-router-forwarding assertion is recorded by the operator.
+The check script lists only loopback and LAN listeners after Task 4, and
+only loopback, LAN and Tailscale listeners when re-run after the operator
+installs Tailscale in Task 5; the router-forwarding assertion is recorded by
+the operator.
 
 ### REQ-C1.4 — niced, with fallback [manual]
 
