@@ -41,5 +41,5 @@ mission_control_guidance: standard
 
 # Mission control's program settings, kept whole in one item field because
 # their keys name private repositories. A change mission control makes to them
-# is kept locally while it waits to be copied into the field.
+# is kept locally and copied into the field by hand.
 {{ op://__OP_VAULT__/__OP_ITEM__/mission_control }}
