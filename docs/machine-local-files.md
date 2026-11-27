@@ -48,8 +48,9 @@ rendered by the same tasks but only on a host with an `op-work-item` file
 (described below).
 
 The overlay is the one exception, for mission control's own keys
-(`mission_control_*` and `program_*`, every key planwright's
-`mc-config.sh` writes). Its header deliberately avoids the phrases
+(`mission_control_*`, `program_*`, `fleet_cap_*`, `fleet_usage_weekly_*` and
+`orchestrate_fast_forward_primary`, every key planwright's `mc-config.sh`
+writes). Its header deliberately avoids the phrases
 planwright's `docs/overlays.md` lists as marking a file managed elsewhere,
 since mission control refuses every write to a file whose header has one.
 Each render compares the live file with `planwright-overlay.rendered`, its
@@ -80,7 +81,7 @@ blank lines ignored), the
 renderer substitutes it for that line's value, and an empty, blank or absent
 file keeps the template's. Any other content, a symlink or a non-regular file
 fails the render. It needs no 1Password item of its own and is applied before
-the supplement, which only carries `mission_control_*` and `program_*` keys.
+the supplement, which only carries those mission-control keys.
 On a machine that runs more workers, write it once with
 `mkdir -p ~/.config/dotfiles; echo 10 > ~/.config/dotfiles/fleet-max-live-workers`;
 the next playbook run that renders the overlay applies it. It has no row in the

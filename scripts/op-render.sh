@@ -42,7 +42,9 @@
 # mode tightened, and exits non-zero with a FAILED: line otherwise; Ansible
 # gates changed_when on CHANGED. A plain regular file at the output is
 # overwritten; a symlink or any other kind of path is refused. The planwright
-# overlay alone also keeps mission control's own keys across renders, in two
+# overlay alone also keeps mission control's own keys (mission_control_*,
+# program_*, fleet_cap_*, fleet_usage_weekly_* and
+# orchestrate_fast_forward_primary) across renders, in two
 # files under ~/.config/dotfiles/ (docs/machine-local-files.md). A key the
 # supplement keeps that has gone from the live overlay since the last render
 # is ambiguous (mission control removed it, or an older backup of the overlay
@@ -351,7 +353,10 @@ if [ "$rule" = planwright-overlay ]; then
     -v base="$work/rendered" -v sup_out="$work/supplement" -v sup_name="$supplement" \
     -v accept="${OP_RENDER_ACCEPT_REMOVALS:-}" -v live_name="$output" -v snap_name="$snapshot" '
     function key_of(l) { return match(l, /^[a-z][a-z0-9_]*:/) ? substr(l, 1, RLENGTH - 1) : "" }
-    function mc_key(k) { return k ~ /^mission_control_[a-z0-9_]+$/ || k ~ /^program_[a-z0-9_]+$/ }
+    function mc_key(k) {
+      return k ~ /^mission_control_[a-z0-9_]+$/ || k ~ /^program_[a-z0-9_]+$/ || k ~ /^fleet_cap_[a-z0-9_]+$/ \
+        || k ~ /^fleet_usage_weekly_[a-z0-9_]+$/ || k == "orchestrate_fast_forward_primary"
+    }
     function set(k, l) { if (!(k in s)) order[++n] = k; s[k] = l }
     # getline reads an unreadable file as an empty one, which would drop kept
     # writes or harvest every key.
@@ -374,7 +379,7 @@ if [ "$rule" = planwright-overlay ]; then
         if (l ~ /^[[:space:]]*(#.*)?$/) continue
         k = (l ~ /^remove [a-z][a-z0-9_]*$/) ? substr(l, 8) : key_of(l)
         if (!mc_key(k)) {
-          printf "%s line %d is not a `key: value` or `remove <key>` line for a mission_control_ or program_ key\n", sup_name, ln_no > "/dev/stderr"
+          printf "%s line %d is not a `key: value` or `remove <key>` line for a key mission control owns\n", sup_name, ln_no > "/dev/stderr"
           bad = 1
           continue
         }

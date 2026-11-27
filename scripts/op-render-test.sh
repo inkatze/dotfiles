@@ -940,6 +940,22 @@ block_item $'mission_control_programs: [alpha]\nprogram_alpha_duties: [a, b]\npr
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 [ "$rc" -eq 0 ] && [ ! -e "$sup" ] && grep -qF "removed $sup" <<<"$log" && ok "a supplement the item fully matches is removed" || ko "a fully matched supplement is removed ($log)"
 cmp -s "$ov" "$snap" && ok "the snapshot follows the output" || ko "the snapshot follows the output"
+# Mission control also writes fleet allocation and orchestration knobs; they
+# are carried like its own keys, and the host-wide bound stays the item's.
+new_sandbox
+ov="$HOME/.claude/plugins/data/planwright-planwright/overlay/planwright.yml"
+sup="$HOME/.config/dotfiles/planwright-overlay.supplement.yml"
+block_item $'mission_control_programs: [alpha]'
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+printf '%s\n' 'fleet_cap_opus: 100' 'fleet_usage_weekly_downshift: 90' 'fleet_usage_weekly_defer_all: 100' \
+  'orchestrate_fast_forward_primary: true' 'fleet_host_max_live_workers: 99' >>"$ov"
+sed -i.bak 's/^fleet_compute_host: .*/fleet_compute_host: elsewhere/' "$ov" && rm -f "$ov.bak"
+run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
+for kv in 'fleet_cap_opus: 100' 'fleet_usage_weekly_downshift: 90' 'fleet_usage_weekly_defer_all: 100' 'orchestrate_fast_forward_primary: true'; do
+  grep -qxF "$kv" "$ov" && grep -qxF "$kv" "$sup" && ok "a locally held ${kv%%:*} survives the render" || ko "a locally held ${kv%%:*} survives the render ($log)"
+done
+grep -q '^fleet_host_max_live_workers: 99' "$ov" && ko "the host-wide bound was carried" || ok "the host-wide bound still comes from the item and the machine file"
+grep -qx 'fleet_compute_host: mac' "$ov" && ok "another fleet key is still replaced from the item" || ko "another fleet key is replaced from the item"
 # An older backup of the overlay put back after a render must not turn the
 # writes the supplement keeps into removals.
 new_sandbox
