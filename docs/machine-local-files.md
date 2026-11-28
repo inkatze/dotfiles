@@ -47,19 +47,27 @@ into the item before the first run. The Claude work settings fragment is
 rendered by the same tasks but only on a host with an `op-work-item` file
 (described below).
 
-The overlay is the one exception, for mission control's own keys
-(`mission_control_*` and `program_*`, every key planwright's
-`mc-config.sh` writes). Its header deliberately avoids the phrases
-planwright's `docs/overlays.md` lists as marking a file managed elsewhere,
+The overlay is the one exception, for its carried keys: the ones mission
+control writes (`mission_control_*` and `program_*`, which planwright's
+`mc-config.sh` writes) and the fleet allocation and orchestration knobs it
+adjusts (`fleet_cap_*`, `fleet_usage_weekly_*` and
+`orchestrate_fast_forward_primary`). The `mc_owned_key` function in
+`scripts/op-render.sh` is the list. The host-wide bound
+`fleet_host_max_live_workers` is deliberately outside it, since the item and
+the machine file below own it. The overlay's header deliberately avoids the
+phrases planwright's `docs/overlays.md` lists as marking a file managed elsewhere,
 since mission control refuses every write to a file whose header has one.
 Each render compares the live file with `planwright-overlay.rendered`, its
-snapshot of what the last render wrote, keeps each of those keys mission
+snapshot of what the last render wrote, keeps each carried key mission
 control changed, added or removed since in `planwright-overlay.supplement.yml`
 (`key: value` lines, and `remove <key>` for a removal), and applies that
 supplement over the item. An entry the item comes to match drops out, and
 the file goes once it is empty, so copying a change into the item's
-`mission_control` field retires it; deleting a line lets the item win
-instead. Any other key in the supplement fails the render, and with no
+`mission_control` field retires a program entry; the fleet and orchestration
+knobs have no item field, so they stay until a line is deleted, which drops
+the key and leaves planwright's own default in force. Deleting a line works
+for any entry; for a `mission_control_*` or `program_*` key the item's or the template's
+value then applies. Any other key in the supplement fails the render, and with no
 snapshot (a first run) nothing is kept. Both files are 0600 and must be
 regular files. A key the supplement keeps that has gone from the live
 file since the last render is ambiguous: mission control may have removed
@@ -80,7 +88,7 @@ blank lines ignored), the
 renderer substitutes it for that line's value, and an empty, blank or absent
 file keeps the template's. Any other content, a symlink or a non-regular file
 fails the render. It needs no 1Password item of its own and is applied before
-the supplement, which only carries `mission_control_*` and `program_*` keys.
+the supplement, which only carries the carried keys above.
 On a machine that runs more workers, write it once with
 `mkdir -p ~/.config/dotfiles; echo 10 > ~/.config/dotfiles/fleet-max-live-workers`;
 the next playbook run that renders the overlay applies it. It has no row in the
