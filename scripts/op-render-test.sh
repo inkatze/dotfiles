@@ -967,7 +967,7 @@ printf 'fleet_cap_sonnet: 80\nremove orchestrate_fast_forward_primary\n' >>"$sup
 run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
 [ "$rc" -eq 0 ] && grep -qx 'fleet_cap_sonnet: 80' "$ov" && ! grep -q '^orchestrate_fast_forward_primary:' "$ov" \
   && ok "supplement lines for carried fleet keys are applied" || ko "supplement lines for carried fleet keys ($log)"
-for bad in fleet_host_max_live_workers fleet_usage_session_x orchestrate_fast_forward_primary_x fleet_cap_; do
+for bad in fleet_host_max_live_workers fleet_usage_session_x orchestrate_fast_forward_primary_x fleet_cap_ fleet_usage_weekly_ mission_control_ program_; do
   printf '%s: 5\n' "$bad" >"$sup"
   run "$overlay_tpl" dotfiles-planwright-overlay "$ov"
   expect_failed "a supplement setting $bad" "is not a \`key: value\` or \`remove <key>\` line"

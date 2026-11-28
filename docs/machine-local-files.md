@@ -64,8 +64,9 @@ control changed, added or removed since in `planwright-overlay.supplement.yml`
 supplement over the item. An entry the item comes to match drops out, and
 the file goes once it is empty, so copying a change into the item's
 `mission_control` field retires a program entry; the fleet and orchestration
-knobs have no item field, so they stay until a line is deleted, which lets
-the item (or the template's default) win. Deleting a line works for any entry. Any other key in the supplement fails the render, and with no
+knobs have no item field, so they stay until a line is deleted, which drops
+the key and leaves planwright's own default in force. Deleting a line works
+for any entry; for a program key the item's value then applies. Any other key in the supplement fails the render, and with no
 snapshot (a first run) nothing is kept. Both files are 0600 and must be
 regular files. A key the supplement keeps that has gone from the live
 file since the last render is ambiguous: mission control may have removed
