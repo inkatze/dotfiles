@@ -581,7 +581,7 @@ if [ -n "$supplement" ]; then
     {
       echo "# Mission control's writes to the planwright adopter overlay, which"
       echo "# scripts/op-render.sh carries over the 1Password item on every run. An"
-      echo "# entry the item comes to match drops out; delete one to let the item win."
+      echo "# entry the item comes to match drops out; delete one to drop the override (the item's value, if it has one, then applies)."
       cat "$work/supplement"
     } >"$work/supplement.full"
     if ! matches "$work/supplement.full" "$supplement"; then
